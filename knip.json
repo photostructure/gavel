@@ -1,5 +1,5 @@
 {
-  "ignoreBinaries": ["gh", "ps", "which"],
+  "ignoreBinaries": ["gh", "go", "pinact", "ps", "which"],
   "workspaces": {
     ".": {},
     "packages/vscode": {
