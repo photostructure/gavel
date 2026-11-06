@@ -58,7 +58,7 @@ const SPECIAL_LABEL_OVERRIDES: Record<string, string> = {
 
 const UNCOMMITTED_TARGETS = new Set(['.', 'staged', 'working']);
 
-const formatReviewSelection = (selection: DiffSelection) =>
+export const formatReviewSelection = (selection: DiffSelection) =>
   selection.reviewName ??
   `${selection.baseCommitish}...${SPECIAL_LABEL_OVERRIDES[selection.targetCommitish] ?? selection.targetCommitish}${selection.baseMode === 'merge-base' ? ' (merge-base)' : ''}`;
 

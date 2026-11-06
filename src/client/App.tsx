@@ -36,7 +36,12 @@ import { includeDeletedComments } from './utils/commentDeletion';
 import type { CommentSubmitOptions } from './components/CommentForm';
 import { CommentsDropdown } from './components/CommentsDropdown';
 import { CommentsListModal } from './components/CommentsListModal';
-import { DiffQuickMenu, type RecentReview } from './components/DiffQuickMenu';
+import {
+  DiffQuickMenu,
+  formatReviewSelection,
+  type RecentReview,
+} from './components/DiffQuickMenu';
+import { ReviewQueueBar, type ApprovalRequest } from './components/ReviewQueueBar';
 import { DiffViewer } from './components/DiffViewer';
 import { FileList } from './components/FileList';
 import { GitHubIcon } from './components/GitHubIcon';
@@ -180,6 +185,7 @@ function App() {
   // Revision selector state
   const [revisionOptions, setRevisionOptions] = useState<RevisionsResponse | null>(null);
   const [recentReviews, setRecentReviews] = useState<RecentReview[]>([]);
+  const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>([]);
   const recentReviewsRequestRef = useRef(0);
   const loadRecentReviewsRef = useRef<(() => Promise<void>) | null>(null);
   const [selectedRevision, setSelectedRevision] = useState<ReviewSelection>(
@@ -873,12 +879,20 @@ function App() {
     }
   }, []);
 
+  // Another review's approval or proposal can change what the review bar shows.
+  const handleApprovalChanged = useCallback(async () => {
+    await Promise.all([refreshApproval(), loadRecentReviewsRef.current?.()]);
+  }, [refreshApproval]);
+  const handleSummaryChanged = useCallback(async () => {
+    await Promise.all([refreshSummary(), loadRecentReviewsRef.current?.()]);
+  }, [refreshSummary]);
+
   // File watch for reload functionality - initialize with callback
   const { shouldReload, reload, watchState } = useFileWatch(
     handleWatchReload,
     handleCommentsChanged,
-    refreshApproval,
-    refreshSummary,
+    handleApprovalChanged,
+    handleSummaryChanged,
     handleCaptureChanged,
   );
 
@@ -1236,26 +1250,41 @@ function App() {
       if (!response.ok) return;
       const snapshot = (await response.json()) as ConversationSnapshot;
       if (requestId !== recentReviewsRequestRef.current) return;
+      const reviews = snapshot.reviews.map((review) => ({
+        review,
+        selection: review.capture
+          ? { ...review.selection, reviewName: review.capture.name }
+          : review.selection,
+        title:
+          (review.summary.commitMessage.trim() || review.summary.rationale.trim()).split('\n')[0] ??
+          '',
+      }));
       setRecentReviews(
-        snapshot.reviews
+        reviews
           .filter(
-            (review) =>
+            ({ review }) =>
               Boolean(review.capture) ||
               review.threads.length > 0 ||
               Boolean(review.summary.commitMessage.trim() || review.summary.rationale.trim()),
           )
-          .map((review) => ({
-            selection: review.capture
-              ? { ...review.selection, reviewName: review.capture.name }
-              : review.selection,
+          .map(({ review, selection, title }) => ({
+            selection,
             capture: review.capture,
-            title:
-              (review.summary.commitMessage.trim() || review.summary.rationale.trim()).split(
-                '\n',
-              )[0] ?? '',
+            title,
             threadCount: review.threads.length,
           }))
           .reverse(),
+      );
+      // Named captures and proposed commit messages are what agents ask approval for.
+      setApprovalRequests(
+        reviews
+          .filter(({ review }) => Boolean(review.capture || review.summary.commitMessage.trim()))
+          .map(({ review, selection, title }) => ({
+            selection,
+            name: formatReviewSelection(selection),
+            title,
+            approval: review.approval,
+          })),
       );
     } catch (historyError) {
       console.error('Could not load recent reviews:', historyError);
@@ -1263,6 +1292,9 @@ function App() {
   }, []);
 
   loadRecentReviewsRef.current = loadRecentReviews;
+  useEffect(() => {
+    void loadRecentReviews();
+  }, [loadRecentReviews]);
 
   const handleRevisionChange = useCallback(
     async (nextSelection: ReviewSelection, addHistory = true) => {
@@ -1796,6 +1828,12 @@ function App() {
             </span>
           )}
         </header>
+        <ReviewQueueBar
+          reviews={approvalRequests}
+          current={resolvedSelection}
+          approvals={Boolean(diffData.shipIt)}
+          onSelect={(selection) => void handleRevisionChange({ ...selection, retained: true })}
+        />
         <ReviewSummaryPanel
           key={commentsContextKey}
           summary={summary}

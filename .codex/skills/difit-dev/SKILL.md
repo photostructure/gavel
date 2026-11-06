@@ -10,7 +10,8 @@ metadata:
 Read [the Codex difit skill](../difit/SKILL.md) and follow its scoped capture,
 feedback, approval, and handoff workflow. Use the repository's prescribed launcher:
 `/home/mrm/.local/bin/difit`. This source-build launcher is shared with Matthew;
-never substitute another install.
+never substitute another install. For stacked commits, follow that skill's rule
+of one named review per commit on one server, in commit order, with one link.
 
 For routine human review, use a detached `--background` server or reuse an
 existing server. Share the URL, record pending work, and end the turn. Resume

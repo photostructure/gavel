@@ -54,6 +54,11 @@ JSON payloads before composing them; omit the selector for events. The Draft
 2020-12 bundle includes request/response definitions in `$defs`. Use command
 `--help` for usage. The commit-message TLDR is the summary's `rationale` field.
 
+For stacked commits, follow the [difit skill](../../../skills/difit/SKILL.md)'s rule
+for several reviews: launch the first commit with `--review <name>`, add each later
+one with `node dist/cli/index.js review create <name> --port <api-port>` in commit
+order, and give the user one Vite link; the tabs lead to the other reviews.
+
 For a proposed commit, supply `--commit-message <text>` and `--why <text>`.
 Read the review's saved `summary` from `comment snapshot` before committing;
 honor the user's message edits within the approved scope and repository rules.

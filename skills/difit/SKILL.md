@@ -78,9 +78,14 @@ generate the wanted patch and provide it through stdin or a prepared `--capture`
 artifact. Imported patches remain supported.
 
 Retain the foreground process handle. Reuse its server for another task with
-`review create <name> --port <api-port> [--pathspec ...]`. The task appears in the
-already-open viewer's revision menu under **Recent reviews**, even without comments;
-tell the user to switch there to keep the existing tab's editor connection. Read
+`review create <name> --port <api-port> [--pathspec ...]`. When two or more
+reviews on one server carry a capture or a proposed commit message, the viewer
+shows each one as a tab under its header, in creation order, with its approval
+state. For stacked commits, create one named review per commit on one server, in
+commit order, and give the user one link, the `launchUrl`; the tabs lead to the
+other reviews. Never send the user to the revision menu to find a review. Before reporting that
+the user has not approved, read `approval` for every review in the filtered
+snapshot. Read
 `GET /api/reviews/<name>` before `review update <name> --port <api-port>
 --expected-version <n>`; updates can also use `--capture` or stdin `-` and selectors.
 HTTP 409 requires reconciliation with the current version before retrying.

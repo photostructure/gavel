@@ -8,8 +8,17 @@ interface Props {
   committed?: boolean;
 }
 
+// One setting for every review: App remounts the panel per review, and a reviewer
+// stepping through a stack wants it to stay the way they left it.
+const EXPANDED_KEY = 'difit-change-summary-expanded';
+
 export function ReviewSummaryPanel({ summary, committed = false }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpandedState] = useState(() => localStorage.getItem(EXPANDED_KEY) === '1');
+  const setExpanded = (next: boolean) => {
+    if (next) localStorage.setItem(EXPANDED_KEY, '1');
+    else localStorage.removeItem(EXPANDED_KEY);
+    setExpandedState(next);
+  };
   const id = useId();
   const subject = summary.draft.commitMessage.split('\n')[0];
 

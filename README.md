@@ -165,6 +165,12 @@ difit review create docs-update --port 4966 --pathspec docs
 difit review update parser-fix --port 4966 --expected-version 1 --pathspec src --pathspec ':(exclude)src/generated/**'
 ```
 
+When two or more reviews on a server carry a capture or a proposed commit message,
+a row of tabs under the header shows every one in creation order with its
+approval state and counts how many still need approval, so a stack of commits
+can be reviewed one after another in one browser tab. When the tabs don't fit on
+one row, they collapse into a menu on the open review's tab.
+
 Captures read the index and working tree without changing them. Source edits and
 browser refresh leave a named capture fixed. Updating to a changed patch retains
 the conversation and proposal, advances its version, and revokes LGTM; stale

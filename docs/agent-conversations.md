@@ -77,9 +77,16 @@ curl --fail --silent http://localhost:4966/api/reviews/parser-fix
 difit review update parser-fix --port 4966 --expected-version 1 --pathspec src --pathspec ':(exclude)src/generated/**'
 ```
 
-The new task appears in the already-open viewer's revision menu under **Recent
-reviews**, labeled with its name and capture version even before it has comments.
-Switch tasks there to keep using the existing tab's editor connection.
+When two or more reviews on the server carry a capture or a proposed commit
+message, the viewer shows a review bar under its header. It starts with a count
+such as "2 of 3 need approval", then shows every review as a tab in creation
+order, with a ✓ (approved) or ○ (not approved) mark. Hovering a tab shows its
+proposed commit message title. When the tabs don't fit on one row, the bar shows
+only the open review's tab with a ⌄; it opens a list of every review with its
+mark, commit message title, and approval. Picking a review opens it in the same
+browser tab and keeps the editor connection. The **Change summary** panel stays open or closed across reviews and
+reloads, the way the reviewer last left it. The revision menu's **Recent reviews**
+list also includes each task.
 
 An update can instead use `--capture /tmp/next-capture.json` and repeatable
 `--select` IDs, or `difit review update parser-fix - --port 4966

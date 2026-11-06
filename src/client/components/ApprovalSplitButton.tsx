@@ -5,6 +5,21 @@ import type { ApprovalMode } from '../../types/conversation';
 
 import { HeaderMenu } from './HeaderMenu';
 
+/** Names a recorded approval; undefined when the reviewer has not approved. */
+export const describeApproval = (
+  requested: boolean,
+  approved: boolean,
+  mode: ApprovalMode | undefined,
+  pendingCount: number,
+) =>
+  requested
+    ? mode === 'after-comments'
+      ? approved
+        ? 'Approved after comments'
+        : `Approved · ${pendingCount} pending`
+      : 'Approved as-is'
+    : undefined;
+
 export function ApprovalSplitButton({
   containerRef,
   requested,
@@ -30,13 +45,7 @@ export function ApprovalSplitButton({
   onRevoke: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const label = requested
-    ? mode === 'after-comments'
-      ? approved
-        ? 'Approved after comments'
-        : `Approved · ${pendingCount} pending`
-      : 'Approved as-is'
-    : 'Approve as-is';
+  const label = describeApproval(requested, approved, mode, pendingCount) ?? 'Approve as-is';
   const colors = !requested
     ? 'border-github-border bg-github-bg-tertiary text-github-text-primary'
     : !approved

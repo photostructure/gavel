@@ -81,7 +81,13 @@ LAN interface. Preserve `--host`; never assume localhost or a development UI por
 For an existing review, reuse its server. Create another named review with
 `review create <name> --host <host> --port <port>` instead of launching another
 server, and add its reading-guide comments with `comment add --review <name>`.
-Tell the user to select it under **Recent reviews** in the existing tab.
+When two or more reviews on one server carry a capture or a proposed commit
+message, the viewer shows each one as a tab under its header, in creation order,
+with its approval state. For stacked commits, create one named review per commit
+on one server, in commit order, and give the user one link, the
+`server.background` `url`; the tabs lead to the other reviews. Never send the
+user to the revision menu to find a review. Before reporting that the user has not approved,
+read `approval` for every review in the snapshot.
 Do not stop or replace another session's reviews.
 
 For overlapping files, use `review capture --output <artifact>` and its printed

@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - Stop `difit wait` with exit 4 when every selected review is unattended, after recovering existing human work.
 - Show the launching agent and its session's name and ID under **About**. The agent comes from `$CLAUDE_CODE_ENTRYPOINT`, the Codex thread's rollout, or `$AI_AGENT`, and the ID from `$CLAUDE_CODE_SESSION_ID` or `$CODEX_THREAD_ID`, unless `--agent` or `--agent-session-id` overrides them; `--agent-session-name` sets the name.
 - Add comments to a named review on a reused server with `difit comment add --review <name>`.
+- Show a row of review tabs under the header when two or more reviews on one server carry a named capture or a proposed commit message. Each tab names one review, in creation order, with a ✓ or ○ approval mark; the row counts how many still need approval. When the tabs don't fit on one row, they collapse into a menu on the open review's tab. The **Change summary** panel now stays open or closed across reviews and reloads, so stepping through a stack doesn't collapse it each time. Reviews used to be reachable only from **Recent reviews** in the review picker's menu, where reviewers missed them. The difit skills now tell agents to open stacked commits as one named review per commit, in commit order, and give the user one link.
 
 - Discover launch events and agent JSON requests/responses through `difit schema` and command help.
 - Wait silently for human activity across review servers with `difit wait`; recover queued messages without implicit delivery receipts.
