@@ -497,6 +497,12 @@ const MarkdownDiffPreview = ({
     const targetAvailable = targetContent !== null;
     const baseData = baseAvailable ? extractFrontmatter(baseContent).data : null;
     const targetData = targetAvailable ? extractFrontmatter(targetContent).data : null;
+    // A frontmatter block with no data did not parse as a key/value mapping: a
+    // YAML error, a scalar, a sequence, or a blank or comment-only block.
+    const baseUnmapped =
+      baseAvailable && baseData === null && getFrontmatterLines(baseContent).length > 0;
+    const targetUnmapped =
+      targetAvailable && targetData === null && getFrontmatterLines(targetContent).length > 0;
 
     // When both sides needed for the diff are available we render a structured
     // table and strip the raw frontmatter lines from the preview blocks below.
@@ -508,6 +514,16 @@ const MarkdownDiffPreview = ({
           : baseAvailable && targetAvailable;
 
     if (canDiff) {
+      // The table cannot show such a side, so keep every side's raw frontmatter
+      // lines in the preview, as for an unavailable side below; a table would
+      // show every key as added or removed.
+      if (
+        (fileStatus !== 'added' && baseUnmapped) ||
+        (fileStatus !== 'deleted' && targetUnmapped)
+      ) {
+        return { view: null, stripBaseLines: [] as string[], stripTargetLines: [] as string[] };
+      }
+
       // Stripping only applies when the diff actually reaches the top of the
       // file; otherwise leading body lines that merely look like frontmatter
       // (e.g. a `---` horizontal rule) would be stripped by mistake.

@@ -38,6 +38,11 @@ All notable changes to this project will be documented in this file.
 - Below 1024px wide, show only icons on the review picker and the approval control; the picker's menu names the comparison, and the approval control always opens its menu, which shows the current approval. Below 768px, drop the difit logo and the files-viewed count from the header and move the unread-reply count onto the corner of **Conversation**, so the header fits one row on a 375px-wide phone; it wraps when **Refresh**, an error, or the capture-update notice joins it.
 - Turn off font ligatures in code text, so JetBrains Mono shows `=>`, `!==`, and `>=` as the characters in the file.
 - When difit is launched for a named review (`--review`) or an explicit commit-ish (`difit HEAD~1`, `difit .`), the review picker offers only that diff and **Recent reviews**: **Quick Diffs**, **Previous commit**, **Pick Commit...**, **Detailed...**, and commit and branch search are gone, so a review opened for approval can't switch to a diff nobody proposed. **Launched diff** returns to the launch's resolved commits. A bare `difit` keeps the full picker. `GET /api/revisions` reports the launch as `launch`.
+- **Diff Preview** now shows a Markdown frontmatter block that is not a YAML key/value mapping (a syntax error, a scalar, a sequence, or an empty or comment-only block) when the diff starts at the top of the file, even when it did not change. The lines render as Markdown: `---` delimiters appear as horizontal rules, a YAML line directly above the closing `---` becomes a heading, and comment lines become headings. It used to hide the block.
+
+### Fixed in the PhotoStructure fork
+
+- Show an edit inside Markdown frontmatter that is not a YAML key/value mapping in **Diff Preview**: a YAML syntax error, a scalar such as `title New`, a sequence, or a blank or comment-only block. The preview used to strip the frontmatter lines anyway, so the edit appeared in neither the frontmatter table nor the preview; it now keeps the lines and shows no table.
 
 ## [5.1.0] - 2026-10-29
 

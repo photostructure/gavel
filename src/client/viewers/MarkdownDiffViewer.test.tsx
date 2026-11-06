@@ -813,6 +813,107 @@ describe('MarkdownDiffPreview frontmatter diff', () => {
     expect(screen.getByText('OnlyTarget')).toBeInTheDocument();
   });
 
+  const frontmatterLineChangeChunks = (oldLine: string, newLine: string): MergedChunk[] => [
+    {
+      header: '@@ -1,5 +1,5 @@',
+      oldStart: 1,
+      oldLines: 5,
+      newStart: 1,
+      newLines: 5,
+      lines: [
+        { type: 'context', content: '---', oldLineNumber: 1, newLineNumber: 1 },
+        { type: 'delete', content: oldLine, oldLineNumber: 2 },
+        { type: 'add', content: newLine, newLineNumber: 2 },
+        { type: 'context', content: '---', oldLineNumber: 3, newLineNumber: 3 },
+        { type: 'context', content: '', oldLineNumber: 4, newLineNumber: 4 },
+        { type: 'context', content: '# Heading', oldLineNumber: 5, newLineNumber: 5 },
+      ],
+      originalIndices: [0, 1, 2, 3, 4, 5],
+      hiddenLinesBefore: 0,
+      hiddenLinesAfter: 0,
+    },
+  ];
+
+  // `title: [New` leaves a flow sequence open, a YAML syntax error; `title New`
+  // parses as a scalar and `- New` as a sequence, neither a key/value mapping.
+  // The last two values are the text each raw line renders as in the preview.
+  it.each([
+    ['the target does not parse', 'title: Old', 'title: [New', 'title: Old', 'title: [New'],
+    ['the base does not parse', 'title: [Old', 'title: New', 'title: [Old', 'title: New'],
+    ['both sides are scalars', 'title Old', 'title New', 'title Old', 'title New'],
+    ['both sides are sequences', '- Old', '- New', 'Old', 'New'],
+    ['a mapping becomes a scalar', 'title: Old', 'title New', 'title: Old', 'title New'],
+    // A YAML comment line renders as a Markdown heading in the preview.
+    ['both sides are comment-only', '# draft', '# final', 'draft', 'final'],
+  ])(
+    'keeps the raw frontmatter edit visible when %s',
+    async (_case, oldLine, newLine, oldText, newText) => {
+      (global.fetch as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => `---\n${oldLine}\n---\n\n# Heading\n`,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => `---\n${newLine}\n---\n\n# Heading\n`,
+        });
+
+      const { container } = renderViewer({
+        mergedChunks: frontmatterLineChangeChunks(oldLine, newLine),
+      });
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+      });
+
+      goToDiffPreview();
+
+      expect(await screen.findByText(oldText, { exact: false })).toBeInTheDocument();
+      expect(screen.getByText(newText, { exact: false })).toBeInTheDocument();
+      // Without a mapping on one side, a table would show every key as added or removed.
+      expect(container.querySelector('table')).toBeNull();
+    },
+  );
+
+  it('keeps the raw frontmatter visible for an added file whose frontmatter does not parse', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      text: async () => '---\ntitle: [Hello\n---\n\n# Body\n',
+    });
+
+    const { container } = renderViewer({
+      file: createFile({ status: 'added', additions: 5, deletions: 0 }),
+      mergedChunks: [
+        {
+          header: '@@ -0,0 +1,5 @@',
+          oldStart: 0,
+          oldLines: 0,
+          newStart: 1,
+          newLines: 5,
+          lines: [
+            { type: 'add', content: '---', newLineNumber: 1 },
+            { type: 'add', content: 'title: [Hello', newLineNumber: 2 },
+            { type: 'add', content: '---', newLineNumber: 3 },
+            { type: 'add', content: '', newLineNumber: 4 },
+            { type: 'add', content: '# Body', newLineNumber: 5 },
+          ],
+          originalIndices: [0, 1, 2, 3, 4],
+          hiddenLinesBefore: 0,
+          hiddenLinesAfter: 0,
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    goToDiffPreview();
+
+    expect(await screen.findByText('title: [Hello', { exact: false })).toBeInTheDocument();
+    expect(container.querySelector('table')).toBeNull();
+  });
+
   it('renders no frontmatter table for stdin (no fetch performed)', async () => {
     renderViewer({ baseCommitish: 'stdin', targetCommitish: 'stdin' });
 
