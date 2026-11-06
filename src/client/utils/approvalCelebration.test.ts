@@ -98,7 +98,7 @@ describe('celebrateApproval', () => {
     // Records the specks painted in each frame, keyed by seconds since launch.
     const specks: [number, number][] = [];
     const start = performance.now();
-    for (let now = start; frame; ) {
+    for (let now = start; frame;) {
       const tick = frame;
       frame = undefined;
       now += 1000 / 60;

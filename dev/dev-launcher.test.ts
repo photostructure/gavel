@@ -10,7 +10,11 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 
-const ts = createRequire(import.meta.url)('typescript') as typeof import('typescript');
+// TypeScript 7 removed ts.transpileModule and its API cannot emit, so transpile with its tsc.
+const tsc = join(
+  dirname(createRequire(import.meta.url).resolve('typescript/package.json')),
+  'bin/tsc',
+);
 
 interface Fixture {
   directory: string;
@@ -157,10 +161,10 @@ setInterval(() => {}, 1000);
     const handlerEnd = cliSource.indexOf('\nasync function handleUntrackedFiles', handlerStart);
     if (handlerStart < 0 || handlerEnd < 0) throw new Error('CLI shutdown handler not found');
     const shutdownHandlers = cliSource.slice(handlerStart, handlerEnd);
+    await mkdir(join(directory, 'cli-source'));
     await writeFile(
-      join(directory, 'dist/cli/index.js'),
-      ts.transpileModule(
-        `
+      join(directory, 'cli-source/index.ts'),
+      `
 import { spawn } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 writeFileSync('cli.pid', String(process.pid));
@@ -209,9 +213,19 @@ if (${JSON.stringify(mode)} === 'burst') {
   }
 }
 `,
-        { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } },
-      ).outputText,
     );
+    execFileSync(process.execPath, [
+      tsc,
+      '--ignoreConfig',
+      '--noCheck',
+      '--target',
+      'es2022',
+      '--module',
+      'esnext',
+      '--outDir',
+      join(directory, 'dist/cli'),
+      join(directory, 'cli-source/index.ts'),
+    ]);
     const child = spawn(
       process.execPath,
       ['scripts/dev.js', ...(jsonl ? [] : ['--no-jsonl']), ...launcherArgs],

@@ -180,7 +180,7 @@ function decodePath(raw: string, stripPrefix: boolean): string | undefined {
       '\\': '\\',
       '"': '"',
     };
-    for (let i = 0; i < value.length; ) {
+    for (let i = 0; i < value.length;) {
       if (value[i] !== '\\') {
         const character = String.fromCodePoint(value.codePointAt(i) ?? 0);
         parts.push(Buffer.from(character));

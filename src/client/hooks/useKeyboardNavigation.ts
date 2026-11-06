@@ -338,13 +338,16 @@ export function useKeyboardNavigation({
   useHotkeys('shift+n', () => navigateToComment('next'), hotkeyOptions, [navigateToComment]);
   useHotkeys('shift+p', () => navigateToComment('prev'), hotkeyOptions, [navigateToComment]);
 
+  // Punctuation hotkeys match the typed character whatever modifiers produced
+  // it: Shift on a US layout, AltGr (which Windows reports as Ctrl+Alt) on a
+  // German one. react-hotkeys-hook 5.3.3 otherwise requires the modifiers to
+  // match the binding exactly, even with useKey. As with 5.3.2, Cmd/Ctrl chords
+  // such as Cmd+[ also match, and preventDefault stops the browser's own action.
+  const punctuationHotkeyOptions = { ...hotkeyOptions, useKey: true, ignoreModifiers: true };
+
   // File navigation
-  useHotkeys(']', () => navigateToFile('next'), { ...hotkeyOptions, useKey: true }, [
-    navigateToFile,
-  ]);
-  useHotkeys('[', () => navigateToFile('prev'), { ...hotkeyOptions, useKey: true }, [
-    navigateToFile,
-  ]);
+  useHotkeys(']', () => navigateToFile('next'), punctuationHotkeyOptions, [navigateToFile]);
+  useHotkeys('[', () => navigateToFile('prev'), punctuationHotkeyOptions, [navigateToFile]);
 
   // Jump to first/last file
   useHotkeys(
@@ -370,7 +373,7 @@ export function useKeyboardNavigation({
         );
       }
     },
-    { ...hotkeyOptions, useKey: true },
+    punctuationHotkeyOptions,
     [files, viewMode, scrollToElement],
   );
 
@@ -401,7 +404,7 @@ export function useKeyboardNavigation({
         }
       }
     },
-    { ...hotkeyOptions, useKey: true },
+    punctuationHotkeyOptions,
     [files, viewMode, scrollToElement],
   );
 
@@ -545,25 +548,13 @@ export function useKeyboardNavigation({
   );
 
   // Help toggle
-  useHotkeys('?', () => setIsHelpOpen(!isHelpOpen), { ...hotkeyOptions, useKey: true }, [
-    isHelpOpen,
-  ]);
+  useHotkeys('?', () => setIsHelpOpen(!isHelpOpen), punctuationHotkeyOptions, [isHelpOpen]);
 
-  // Move to center of viewport - only if no modifier keys are pressed
-  useHotkeys(
-    '.',
-    (event) => {
-      // Don't execute if any modifier keys are pressed
-      if (event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) {
-        return;
-      }
-      // Execute for standalone '.' key and prevent other handlers
-      moveToCenterOfViewport();
-      event.preventDefault();
-    },
-    { ...hotkeyOptions, useKey: true, preventDefault: false },
-    [moveToCenterOfViewport],
-  );
+  // Move to center of viewport - only if no modifier keys are pressed, which
+  // react-hotkeys-hook enforces for a binding without ignoreModifiers
+  useHotkeys('.', () => moveToCenterOfViewport(), { ...hotkeyOptions, useKey: true }, [
+    moveToCenterOfViewport,
+  ]);
 
   // Copy all comments prompt - available in both navigation and comments-list scopes
   useHotkeys(

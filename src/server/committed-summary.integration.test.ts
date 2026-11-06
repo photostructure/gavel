@@ -197,12 +197,12 @@ describe('committed review summary HTTP integration', () => {
     // The watcher clears the resolved-commit cache once it sees each commit.
     const clear = GitDiffParser.prototype.clearResolvedCommitCache;
     let cleared = () => {};
-    vi.spyOn(GitDiffParser.prototype, 'clearResolvedCommitCache').mockImplementation(
-      function (this: GitDiffParser) {
-        clear.call(this);
-        cleared();
-      },
-    );
+    vi.spyOn(GitDiffParser.prototype, 'clearResolvedCommitCache').mockImplementation(function (
+      this: GitDiffParser,
+    ) {
+      clear.call(this);
+      cleared();
+    });
     const moveHead = async (path: string) => {
       writeFileSync(join(root, path), `${path}\n`);
       git('add', path);

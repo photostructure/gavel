@@ -15,13 +15,11 @@ import { useViewedFiles } from './useViewedFiles';
 // Mock StorageService
 const mockGetViewedFiles = vi.fn((): ViewedFileRecord[] => []);
 const mockSaveViewedFiles = vi.fn();
-const mockGetViewedHashIndex = vi.fn(
-  (_repositoryId?: string): ViewedHashIndex => ({
-    version: 1,
-    lastModifiedAt: new Date(0).toISOString(),
-    entries: [],
-  }),
-);
+const mockGetViewedHashIndex = vi.fn((_repositoryId?: string): ViewedHashIndex => ({
+  version: 1,
+  lastModifiedAt: new Date(0).toISOString(),
+  entries: [],
+}));
 const mockRecordViewedHashes = vi.fn(
   (_repositoryId: string | undefined, _entries: ViewedHashIndexEntry[]) => {},
 );

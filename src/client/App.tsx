@@ -370,6 +370,7 @@ function App() {
     [getCommentApiUrl, commentsGeneration],
   );
 
+  const capture = diffData?.capture;
   const syncThreadsToServer = useCallback(
     async (nextThreads: DiffCommentThread[]) => {
       const response = await fetch(getCommentApiUrl('/api/comments'), {
@@ -378,10 +379,10 @@ function App() {
         body: JSON.stringify({
           threads: nextThreads,
           baseVersion: serverCommentVersionRef.current ?? undefined,
-          ...(diffData?.capture
+          ...(capture
             ? {
-                captureVersion: diffData.capture.version,
-                patchDigest: diffData.capture.patchDigest,
+                captureVersion: capture.version,
+                patchDigest: capture.patchDigest,
               }
             : {}),
         }),
@@ -405,7 +406,7 @@ function App() {
         replaceThreads(result.threads);
       }
     },
-    [getCommentApiUrl, replaceThreads, commentsGeneration, diffData?.capture],
+    [getCommentApiUrl, replaceThreads, commentsGeneration, capture],
   );
 
   const fetchDiffDataRef = useRef<((selection?: ReviewSelection) => Promise<void>) | null>(null);

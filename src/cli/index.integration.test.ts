@@ -14,7 +14,7 @@ import { watch } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
+import { createRequire } from 'node:module';
 import { fetch } from 'undici';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -33,24 +33,43 @@ function withoutGitEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEn
   );
 }
 
-async function compile(directoryName: string): Promise<void> {
+async function sources(directoryName: string): Promise<string[]> {
   const source = join(repository, 'src', directoryName);
+  const files: string[] = [];
   for (const item of await readdir(source, { withFileTypes: true })) {
     if (item.isDirectory()) {
-      await compile(join(directoryName, item.name));
+      files.push(...(await sources(join(directoryName, item.name))));
     } else if (
       item.name.endsWith('.ts') &&
       !item.name.endsWith('.test.ts') &&
       !item.name.endsWith('.d.ts')
     ) {
-      const destination = join(directory, 'dist', directoryName, item.name.replace(/\.ts$/, '.js'));
-      await mkdir(dirname(destination), { recursive: true });
-      const result = ts.transpileModule(await readFile(join(source, item.name), 'utf8'), {
-        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-      });
-      await writeFile(destination, result.outputText);
+      files.push(join(source, item.name));
     }
   }
+  return files;
+}
+
+// TypeScript 7 removed ts.transpileModule and its API cannot emit, so transpile with its tsc.
+function compile(files: string[]): void {
+  const tsc = join(
+    dirname(createRequire(import.meta.url).resolve('typescript/package.json')),
+    'bin/tsc',
+  );
+  execFileSync(process.execPath, [
+    tsc,
+    '--ignoreConfig',
+    '--noCheck',
+    '--target',
+    'es2022',
+    '--module',
+    'esnext',
+    '--rootDir',
+    join(repository, 'src'),
+    '--outDir',
+    join(directory, 'dist'),
+    ...files,
+  ]);
 }
 
 beforeAll(async () => {
@@ -60,7 +79,9 @@ beforeAll(async () => {
     join(directory, 'package.json'),
     await readFile(join(repository, 'package.json')),
   );
-  for (const folder of ['cli', 'server', 'types', 'utils']) await compile(folder);
+  const files: string[] = [];
+  for (const folder of ['cli', 'server', 'types', 'utils']) files.push(...(await sources(folder)));
+  compile(files);
   entrypoint = join(directory, 'dist/cli/index.js');
   // Hook Git variables must not redirect fixture setup into the caller's repository.
   const fixtureEnvironment = {

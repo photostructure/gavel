@@ -566,30 +566,29 @@ export function useDiffComments(
   const setThreadQuestion = useCallback(
     (threadId: string, isQuestion: boolean) => {
       const now = new Date().toISOString();
-      const newThreads = threads.map(
-        (thread): DiffCommentThread =>
-          thread.id === threadId
-            ? {
-                ...thread,
-                isQuestion: isQuestion || undefined,
-                updatedAt: now,
-                messages: thread.messages.map((message, index) =>
-                  index === 0
-                    ? {
-                        ...message,
-                        origin: 'user',
-                        intent: isQuestion
-                          ? 'question'
-                          : message.intent === 'question'
-                            ? 'comment'
-                            : message.intent,
-                        updatedAt: now,
-                        progress: undefined,
-                      }
-                    : message,
-                ),
-              }
-            : thread,
+      const newThreads = threads.map((thread): DiffCommentThread =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              isQuestion: isQuestion || undefined,
+              updatedAt: now,
+              messages: thread.messages.map((message, index) =>
+                index === 0
+                  ? {
+                      ...message,
+                      origin: 'user',
+                      intent: isQuestion
+                        ? 'question'
+                        : message.intent === 'question'
+                          ? 'comment'
+                          : message.intent,
+                      updatedAt: now,
+                      progress: undefined,
+                    }
+                  : message,
+              ),
+            }
+          : thread,
       );
       saveThreads(newThreads);
     },

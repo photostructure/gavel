@@ -297,7 +297,8 @@ describe('useKeyboardNavigation', () => {
         });
       });
 
-      await user.keyboard('[ShiftLeft>][BracketLeft][/ShiftLeft]');
+      // Shift+[ on a US keyboard: the browser reports key '{' with shiftKey.
+      await user.keyboard('{Shift>}{{{/Shift}');
 
       expect(result.current.cursor?.fileIndex).toBe(0);
       expect(result.current.cursor?.chunkIndex).toBe(0);
@@ -328,11 +329,48 @@ describe('useKeyboardNavigation', () => {
         });
       });
 
-      await user.keyboard('[ShiftLeft>][BracketRight][/ShiftLeft]');
+      // Shift+] on a US keyboard: the browser reports key '}' with shiftKey.
+      await user.keyboard('{Shift>}}{/Shift}');
 
       expect(result.current.cursor?.fileIndex).toBe(mockFiles.length - 1);
       expect(result.current.cursor?.chunkIndex).toBe(0);
       expect(result.current.cursor?.lineIndex).toBe(0);
+    });
+
+    // German layout: AltGr+0 types }. Windows reports AltGr as Ctrl+Alt with
+    // AltGraph; Linux reports AltGraph alone, which is what user-event sends
+    // for {AltGraph} by itself; Firefox on macOS reports Option as Alt with
+    // AltGraph (MDN, KeyboardEvent.getModifierState).
+    it.each([
+      ['Windows', '{Control>}{Alt>}{AltGraph>}[Digit0]{/AltGraph}{/Alt}{/Control}'],
+      ['Linux', '{AltGraph>}[Digit0]{/AltGraph}'],
+      ['macOS', '{Alt>}{AltGraph>}[Digit0]{/AltGraph}{/Alt}'],
+    ])('should jump to last file with } typed with AltGr (%s)', async (_platform, keys) => {
+      const user = userEvent.setup({ keyboardMap: [{ code: 'Digit0', key: '}' }] });
+      const { result } = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: mockFiles,
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed: vi.fn(),
+            reviewedFiles: new Set<string>(),
+          }),
+        { wrapper },
+      );
+
+      act(() => {
+        result.current.setCursorPosition({
+          fileIndex: 0,
+          chunkIndex: 0,
+          lineIndex: 0,
+          side: 'right',
+        });
+      });
+
+      await user.keyboard(keys);
+
+      expect(result.current.cursor?.fileIndex).toBe(mockFiles.length - 1);
     });
   });
 
@@ -551,6 +589,28 @@ describe('useKeyboardNavigation', () => {
       // ? is Shift + / on US keyboard
       await user.keyboard('{Shift>}?{/Shift}');
       // await user.keyboard('[ShiftLeft>][Slash]');
+
+      expect(result.current.isHelpOpen).toBe(true);
+    });
+
+    it('should toggle help modal with ? typed without Shift', async () => {
+      const user = userEvent.setup({
+        // A keyboard or input method that reports ? with shiftKey false.
+        keyboardMap: [{ code: 'Minus', key: '?' }],
+      });
+      const { result } = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: mockFiles,
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed: vi.fn(),
+            reviewedFiles: new Set<string>(),
+          }),
+        { wrapper },
+      );
+
+      await user.keyboard('[Minus]');
 
       expect(result.current.isHelpOpen).toBe(true);
     });
@@ -1061,6 +1121,31 @@ describe('useKeyboardNavigation', () => {
 
       // Should set cursor
       expect(result.current.cursor).not.toBeNull();
+    });
+
+    it.each(['Control', 'Alt', 'Meta'])('should ignore . pressed with %s', async (modifier) => {
+      const user = userEvent.setup();
+      const { result } = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: mockFiles,
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed: vi.fn(),
+            reviewedFiles: new Set<string>(),
+          }),
+        { wrapper },
+      );
+      mockGetElementById.mockImplementation(
+        () =>
+          ({
+            getBoundingClientRect: () => ({ top: 380, bottom: 430, height: 50 }),
+          }) as any,
+      );
+
+      await user.keyboard(`{${modifier}>}{.}{/${modifier}}`);
+
+      expect(result.current.cursor).toBeNull();
     });
   });
 
