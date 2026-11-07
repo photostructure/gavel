@@ -78,13 +78,18 @@ generate the wanted patch and provide it through stdin or a prepared `--capture`
 artifact. Imported patches remain supported.
 
 Retain the foreground process handle. Reuse its server for another task with
-`review create <name> --port <api-port> [--pathspec ...]`. The viewer shows
-every review with a capture or a proposed commit message as a tab under its
-header, in creation order, with its approval state, and while one exists the
-header has no revision menu. For stacked commits, create one named review per
-commit on one server, in commit order, and give the user one link, the
-`launchUrl`; the tabs lead to the other reviews. Before reporting that
-the user has not approved, read `approval` for every review in the filtered
+`review create <name> --port <api-port> [--pathspec ...]`, which prints the new
+review's `reviewId`. The launch's `--comment`, `--commit-message`, and `--why`
+reach only the launched review, so give each created review its own
+reading-guide comments and proposal, as described below. The viewer shows every
+review with a capture or a proposed commit message as a tab under its header, in
+creation order, with its approval state, and while one exists the header has no
+revision menu. For
+stacked commits, create one named review per commit on one server, in commit
+order, and give the user one link, the `launchUrl`; the tabs lead to the other
+reviews. An LGTM approves only its own review: commit the stack in creation
+order, each commit once its own review is approved. Before reporting that the
+user has not approved, read `approval` for every review in the filtered
 snapshot. Read
 `GET /api/reviews/<name>` before `review update <name> --port <api-port>
 --expected-version <n>`; updates can also use `--capture` or stdin `-` and selectors.
@@ -146,7 +151,8 @@ Always supply `--commit-message <text>`, the Conventional Commit message the
 change would land under, and `--why <text>`, one to three sentences on the
 problem and why this change solves it. When the diff is someone else's, write
 them from your reading of it and say in the why where you inferred intent. On a
-reused server, set them with `comment summary` after `review create`. Read the
+review added with `review create`, set them with `comment summary`, using the
+`reviewId` it printed and `baseVersion` 0. Read the
 review's saved `summary` from `comment snapshot` before committing; honor the
 user's message edits within the approved scope and repository rules.
 To update it, `comment summary` accepts `{reviewId,commitMessage,rationale,baseVersion}`
@@ -205,10 +211,12 @@ read is for the single approval check right before a commit. Pass `--host` and
 resume prompt resumes you, run this in place of the raw snapshot it names:
 
 ```sh
-set -o pipefail; <difit-command> comment snapshot --host <host> --port <api-port> | jq -c '{cursor, connected: .presence.reviewers.connected, reviews: [.reviews[] as $r | {id: $r.id, selection: $r.selection, capture: ($r.capture | if . then {version, patchDigest} else null end), approval: ($r.approval | {approved, mode, requested, cursor, open: [.conditions[]? | select(.addressed | not) | {threadId, messageId, cursor, intent}]}), commitMessage: $r.summary.commitMessage, summaryVersion: $r.summary.version, pending: [$r.threads[] as $t | $t.messages[] | select(.progress and (.progress.status | IN("replied","noted") | not)) | {threadId: $t.id, messageId: .id, cursor: .progress.cursor, confirmed: (($t.resolution.resolved // false) and $t.resolution.updatedAt >= .updatedAt), filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}]}]}'
+set -o pipefail; <difit-command> comment snapshot --host <host> --port <api-port> | jq -c '{cursor, connected: .presence.reviewers.connected, reviews: [.reviews[] as $r | {id: $r.id, selection: $r.selection, capture: ($r.capture | if . then {version, patchDigest} else null end), approval: ($r.approval | {approved, mode, requested, cursor, open: [.conditions[]? | select(.addressed | not) | {threadId, messageId, cursor, intent}]}), commitMessage: $r.summary.commitMessage, fromCommit: ($r.summary.fromCommit // false), summaryVersion: $r.summary.version, pending: [$r.threads[] as $t | $t.messages[] | select(.progress and (.progress.status | IN("replied","noted") | not)) | {threadId: $t.id, messageId: .id, cursor: .progress.cursor, confirmed: (($t.resolution.resolved // false) and $t.resolution.updatedAt >= .updatedAt), filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}]}]}'
 ```
 
-An LGTM is `approval.approved: true`. `approval.requested: true` with `open`
+An LGTM is `approval.approved: true`. A `commitMessage` with `fromCommit: true`
+is the browsed commit's own message, which the server copied; nobody proposed
+it, and its review has no tab. `approval.requested: true` with `open`
 conditions is an Approve after comments: complete each condition with `comment
 address`, as the
 [approval guide](https://github.com/photostructure/difit/blob/main/docs/approval-modes.md)

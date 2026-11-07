@@ -80,14 +80,20 @@ Use the API host and port for companion commands, including servers bound to a
 LAN interface. Preserve `--host`; never assume localhost or a development UI port.
 For an existing review, reuse its server. Create another named review with
 `review create <name> --host <host> --port <port>` instead of launching another
-server, and add its reading-guide comments with `comment add --review <name>`.
+server. It prints the new review's `reviewId`. The launch's `--comment`,
+`--commit-message`, and `--why` reach only the launched review: add each created
+review's reading-guide comments with `comment add --review <name>` and its
+proposal with `comment summary` (`baseVersion` 0).
 The viewer shows every review with a capture or a proposed commit message as a
 tab under its header, in creation order, with its approval state, and while one
-exists the header has no revision menu. For stacked commits, create one named
-review per commit on one server, in commit order, and give the user one link,
-the `server.background` `url`; the tabs lead to the other reviews. Before
-reporting that the user has not approved,
-read `approval` for every review in the snapshot.
+exists the header has no revision menu. A summary with `fromCommit: true` holds
+a browsed commit's own message, which nobody proposed; its review has no tab.
+For stacked commits, create one named review per commit on one server, in
+commit order, and give the user one link, the `server.background` `url`; the
+tabs lead to the other reviews. An approval covers only its own review: commit
+the stack in creation order, each commit once its own review is approved.
+Before reporting that the user has not approved, read `approval` for every
+review in the snapshot.
 Do not stop or replace another session's reviews.
 
 For overlapping files, use `review capture --output <artifact>` and its printed
