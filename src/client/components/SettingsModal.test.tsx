@@ -31,6 +31,7 @@ const baseSettings = {
     stamp: true,
     lasers: true,
     disco: true,
+    balloons: true,
   },
 } satisfies React.ComponentProps<typeof SettingsModal>['settings'];
 
@@ -227,6 +228,7 @@ describe('SettingsModal', () => {
         stamp: false,
         lasers: false,
         disco: false,
+        balloons: false,
       },
     });
 

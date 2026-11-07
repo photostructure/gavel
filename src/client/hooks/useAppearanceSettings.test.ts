@@ -183,6 +183,7 @@ describe('useAppearanceSettings', () => {
         stamp: true,
         lasers: true,
         disco: true,
+        balloons: true,
       });
     });
   });

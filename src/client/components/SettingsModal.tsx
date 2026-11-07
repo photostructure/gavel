@@ -20,6 +20,7 @@ const APPROVAL_ANIMATIONS = [
   { id: 'stamp', label: 'Approved Stamp' },
   { id: 'lasers', label: 'Lasers' },
   { id: 'disco', label: 'Disco Ball' },
+  { id: 'balloons', label: 'Balloons' },
 ] as const;
 
 type ApprovalAnimation = (typeof APPROVAL_ANIMATIONS)[number]['id'];
@@ -60,6 +61,7 @@ export const DEFAULT_SETTINGS: AppearanceSettings = {
     stamp: true,
     lasers: true,
     disco: true,
+    balloons: true,
   },
 };
 

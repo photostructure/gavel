@@ -23,13 +23,14 @@ describe('pickApprovalAnimation', () => {
 
 describe('celebrateApproval', () => {
   let drawCalls: number;
-  let ellipseCalls: number;
+  /** Calls to each context method since the counts were last cleared. */
+  let calls: Map<PropertyKey, number>;
   let frame: FrameRequestCallback | undefined;
   let source: HTMLButtonElement;
 
   beforeEach(() => {
     drawCalls = 0;
-    ellipseCalls = 0;
+    calls = new Map();
     frame = undefined;
     // happy-dom has no 2D context. This stand-in keeps assigned properties and
     // counts method calls; methods return it so gradients can be configured.
@@ -43,7 +44,7 @@ describe('celebrateApproval', () => {
               ? properties.get(name)
               : () => {
                   drawCalls++;
-                  if (name === 'ellipse') ellipseCalls++;
+                  calls.set(name, (calls.get(name) ?? 0) + 1);
                   return ctx;
                 },
           set: (_, name, value) => {
@@ -102,9 +103,9 @@ describe('celebrateApproval', () => {
       const tick = frame;
       frame = undefined;
       now += 1000 / 60;
-      ellipseCalls = 0;
+      calls.clear();
       tick(now);
-      specks.push([(now - start) / 1000, ellipseCalls]);
+      specks.push([(now - start) / 1000, calls.get('ellipse') ?? 0]);
     }
 
     // The ball rests on its line for 3.6 seconds before it is pulled back up.
@@ -113,5 +114,35 @@ describe('celebrateApproval', () => {
     expect(resting.every(([, count]) => count > 0)).toBe(true);
     expect(rising.length).toBeGreaterThan(0);
     expect(rising.every(([, count]) => count === 0)).toBe(true);
+  });
+
+  it('fills each streamer face once, so fading strips show no lines where segments meet', () => {
+    // Measured in headless Chromium: stroking each segment blends the overlaps twice
+    // while the burst fades (alpha 156–220 where segments meet, against 128 inside,
+    // at globalAlpha 0.5), and filling each segment alone leaves anti-aliasing gaps
+    // there (alpha down to 190 of 255 at full opacity).
+    celebrateApproval(source, only('streamers'));
+
+    // The streamers burst launches 16 of them.
+    const streamers = 16;
+    const start = performance.now();
+    let segments = 0;
+    let fills = 0;
+    let strokes = 0;
+    for (let now = start; frame && now - start < 2000;) {
+      const tick = frame;
+      frame = undefined;
+      now += 1000 / 60;
+      calls.clear();
+      tick(now);
+      segments = Math.max(segments, calls.get('moveTo') ?? 0);
+      fills = Math.max(fills, calls.get('fill') ?? 0);
+      strokes += calls.get('stroke') ?? 0;
+    }
+
+    // Many segments per streamer, but at most a front fill and a back fill for each.
+    expect(segments).toBeGreaterThan(streamers * 10);
+    expect(fills).toBeLessThanOrEqual(streamers * 2);
+    expect(strokes).toBe(0);
   });
 });

@@ -28,9 +28,13 @@ type PieceKind =
   | 'stamp'
   | 'ink'
   | 'laser'
-  | 'disco';
+  | 'disco'
+  | 'balloon';
 
-/** Ribbons fall slower than paper; the stamp, its ink, lasers, and the disco ball ignore gravity. */
+/**
+ * Ribbons fall slower than paper, and balloons rise; the stamp, its ink, lasers,
+ * and the disco ball ignore gravity.
+ */
 const GRAVITY_SCALE: Record<PieceKind, number> = {
   paper: 1,
   ribbon: 0.7,
@@ -41,7 +45,43 @@ const GRAVITY_SCALE: Record<PieceKind, number> = {
   ink: 0,
   laser: 0,
   disco: 0,
+  balloon: -0.45,
 };
+
+/**
+ * Streamers port the ribbon shape from tsParticles 4.4.0 (@tsparticles/shape-ribbon,
+ * with the defaults of @tsparticles/ribbons), which descends from iprodev's
+ * "Confetti with ribbons" (codepen.io/iprodev/pen/azpWBr).
+ *
+ * MIT License, Copyright (c) 2020 Matteo Bruni. Permission is hereby granted, free
+ * of charge, to any person obtaining a copy of this software and associated
+ * documentation files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use, copy, modify,
+ * merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+ * to permit persons to whom the Software is furnished to do so, subject to the
+ * following conditions: The above copyright notice and this permission notice
+ * shall be included in all copies or substantial portions of the Software. THE
+ * SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+interface RibbonPoint {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+}
+
+/** Points along a ribbon, and the distance between neighbors. */
+const RIBBON_POINTS = 60;
+const RIBBON_SPACING = 8;
+/** Air drag on each point, proportional to the square of its speed. */
+const RIBBON_DRAG = 0.02;
+/** The most pull, in px/s², that a point gets toward the one ahead of it. */
+const RIBBON_MAX_PULL = 800;
 
 interface Piece {
   kind: PieceKind;
@@ -52,33 +92,48 @@ interface Piece {
   /** Linear air drag per second; paper scales it by how face-on it is to the fall. */
   drag: number;
   color: string;
-  /** Paper, ribbon, and stamp width, sparkle and ember size, or disco ball radius. */
+  /** Paper, ribbon, and stamp width, sparkle and ember size, or disco ball and balloon radius. */
   width: number;
   /** Paper height, or the angle between a laser's beams. */
   height: number;
-  /** In-plane rotation: tumble, spin, a laser's sweep phase, or the disco ball's turn. */
+  /**
+   * In-plane rotation: tumble, spin, the on-screen direction of a ribbon's width
+   * at its leading end, a laser's sweep phase, the disco ball's turn, or the
+   * phase of a balloon's rock.
+   */
   spin: number;
   spinRate: number;
+  /** How far a ribbon's width direction turns from one point to the next, in radians. */
+  twist: number;
   /**
-   * Out-of-plane rotation: paper's visible face width, a ribbon's twist along
-   * its length, a laser's brightness pulse, or the seed for a stamp's worn ink.
+   * Out-of-plane rotation: paper's visible face width, a laser's brightness
+   * pulse, or the seed for a stamp's worn ink.
    */
   flip: number;
   flipRate: number;
-  /** Phase and strength of the sideways lift that makes pieces sway as they move. */
+  /**
+   * Phase and strength of the sideways lift that makes pieces sway as they move.
+   * A ribbon's leading end swings from side to side at `swayRate` instead.
+   */
   sway: number;
   swayRate: number;
   swayForce: number;
-  /** A ribbon's curl: loop radius, advance per radian along its length, and number of loops. */
-  coilRadius: number;
-  coilPitch: number;
-  coilTurns: number;
+  /**
+   * A ribbon's points, or a balloon's string, from its leading end back. Each is
+   * pulled toward the one ahead with this much force per px/s the leading end
+   * moves. Empty for other pieces.
+   */
+  chain: RibbonPoint[];
+  follow: number;
   /** Laser beams, worn spots in a stamp's ink, or disco ball light specks. */
   parts: number;
   /** Where a laser points first (the Approve button), or where the disco ball comes to rest. */
   targetX: number;
   targetY: number;
-  /** How far the disco ball throws its light specks. */
+  /**
+   * How far the disco ball throws its light specks, or how fast a ribbon's
+   * leading end swings (its swing is this divided by `swayRate` to each side).
+   */
   reach: number;
   /** Seconds since launch; negative while a firework waits its turn. */
   age: number;
@@ -109,12 +164,13 @@ const still = {
   spinRate: 0,
   flip: 0,
   flipRate: 0,
+  twist: 0,
   sway: 0,
   swayRate: 0,
   swayForce: 0,
-  coilRadius: 0,
-  coilPitch: 0,
-  coilTurns: 0,
+  // Shared by every piece that spreads `still`; ribbons and balloons replace it.
+  chain: [] as RibbonPoint[],
+  follow: 0,
   parts: 0,
   targetX: 0,
   targetY: 0,
@@ -155,33 +211,48 @@ const BURSTS: Record<
       };
     },
   },
+  // Paper streamers fly out of the Approve button, trailing behind them, and drift
+  // down swinging from side to side. See RibbonPoint for where the shape comes from.
   streamers: {
-    count: 36,
+    count: 16,
     duration: 5.5,
     make: ({ origin, cy, aim }) => {
       const angle = aim + random(-1, 1);
-      const speed = random(600, 1400);
+      const speed = random(700, 1500);
+      const x = random(origin.left, origin.right);
+      // The strip starts laid out behind its leading end, with a little crumple.
+      const back = angle + Math.PI;
+      const chain = Array.from({ length: RIBBON_POINTS }, (_, i) => {
+        const crumple = random(-0.25, 0.25) * RIBBON_SPACING;
+        return {
+          x: x + Math.cos(back) * i * RIBBON_SPACING - Math.sin(back) * crumple,
+          y: cy + Math.sin(back) * i * RIBBON_SPACING + Math.cos(back) * crumple,
+          vx: 0,
+          vy: 0,
+        };
+      });
       return {
         ...still,
         kind: 'ribbon',
-        x: random(origin.left, origin.right),
+        x,
         y: cy,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed - random(200, 450),
-        drag: random(2.6, 3.2),
+        // Falls at about 250–350 px/s, about twice as fast as tsParticles' ribbons,
+        // which move half their 4–6 speed (2–3 px) a frame.
+        drag: random(1.6, 2.2),
         color: pick(PALETTE),
-        width: random(4, 6),
-        spin: random(0, Math.PI * 2),
-        spinRate: random(-2.5, 2.5),
-        flip: random(0, Math.PI * 2),
-        flipRate: random(4, 9),
+        width: 8,
         sway: random(0, Math.PI * 2),
-        swayRate: random(1.5, 3),
-        swayForce: random(60, 160),
-        // A pitch below the radius makes the curl cross over itself into loops.
-        coilRadius: random(5, 9),
-        coilPitch: random(1.6, 2.6),
-        coilTurns: random(2, 3.5),
+        // The width turns along the strip, so it twists from the moment it leaves the
+        // button: a half turn every 25–50 points (200–400 px), rolling along over time.
+        spin: random(0, Math.PI * 2),
+        spinRate: random(1.5, 3) * (Math.random() < 0.5 ? -1 : 1),
+        twist: random(Math.PI / 50, Math.PI / 25) * (Math.random() < 0.5 ? -1 : 1),
+        swayRate: random(3, 5),
+        reach: random(100, 140),
+        chain,
+        follow: random(4, 6),
       };
     },
   },
@@ -281,7 +352,68 @@ const BURSTS: Record<
       reach: viewport.width * 0.6,
     }),
   },
+  // Balloons float up from the bottom edge, one after another, trailing their strings.
+  balloons: {
+    count: 14,
+    duration: 6.5,
+    make: ({ viewport }) => {
+      const width = random(18, 32);
+      const x = random(0.08, 0.92) * viewport.width;
+      const y = viewport.height + 30;
+      const knotY = y + width * (BALLOON_ASPECT + BALLOON_KNOT);
+      // The string starts hanging straight down from the knot.
+      const chain = Array.from({ length: BALLOON_STRING_POINTS }, (_, i) => ({
+        x,
+        y: knotY + i * RIBBON_SPACING,
+        vx: 0,
+        vy: 0,
+      }));
+      return {
+        ...still,
+        kind: 'balloon',
+        x,
+        y,
+        // Starts at the speed its lift and drag settle on: 800 × 0.45 / 1.2 = 300 px/s.
+        vy: -300,
+        drag: 1.2,
+        color: pick(PALETTE),
+        width,
+        // Rocks gently on its string as it rises.
+        spin: random(0, Math.PI * 2),
+        spinRate: random(1.5, 2.6),
+        sway: random(0, Math.PI * 2),
+        swayRate: random(1.2, 2.2),
+        swayForce: random(60, 140),
+        chain,
+        // A rising balloon's knot moves fast enough that the pull on its string always
+        // reaches RIBBON_MAX_PULL, so any follow strength above 800 / 300 acts the same.
+        follow: 4,
+        age: -random(0, 1.4),
+      };
+    },
+  },
 };
+
+/** A balloon's half-height, and its knot's length, as multiples of its half-width. */
+const BALLOON_ASPECT = 1.2;
+const BALLOON_KNOT = 0.22;
+/** How opaque a balloon is. */
+const BALLOON_OPACITY = 0.8;
+/** Points in a balloon's string, spaced like a ribbon's. */
+const BALLOON_STRING_POINTS = 12;
+
+/** Where a balloon's string is tied: under the knot, which tilts with the balloon. */
+function balloonKnot(balloon: Piece) {
+  const tilt = balloonTilt(balloon);
+  const reach = balloon.width * (BALLOON_ASPECT + BALLOON_KNOT);
+  return { x: balloon.x - Math.sin(tilt) * reach, y: balloon.y + Math.cos(tilt) * reach };
+}
+
+/**
+ * A balloon drifting sideways leans its top into the drift (its sway peaks near
+ * 90 px/s, about 13°), and rocks about 5° either way.
+ */
+const balloonTilt = (balloon: Piece) => balloon.vx / 400 + Math.sin(balloon.spin) * 0.08;
 
 /** The disco ball rests on its line this long before it is pulled back up. */
 const DISCO_REST = 3.6;
@@ -329,6 +461,15 @@ function step(piece: Piece, dt: number, spawn: (piece: Piece) => void) {
   piece.y += piece.vy * dt;
   piece.life -= dt;
 
+  if (piece.kind === 'ribbon') {
+    // The leading end swings from side to side about the ribbon's position.
+    const swing = (Math.cos(piece.sway) * piece.reach) / piece.swayRate;
+    stepChain(piece, piece.x + swing, piece.y, dt);
+  }
+  if (piece.kind === 'balloon') {
+    const knot = balloonKnot(piece);
+    stepChain(piece, knot.x, knot.y, dt);
+  }
   if (piece.kind === 'rocket') {
     if (Math.random() < 0.5) {
       spawn({
@@ -351,6 +492,44 @@ function step(piece: Piece, dt: number, spawn: (piece: Piece) => void) {
   }
   if (piece.kind === 'stamp' && piece.age >= STAMP_DROP && piece.age - dt < STAMP_DROP) {
     splatterStamp(piece, spawn);
+  }
+}
+
+/**
+ * tsParticles' `updateRibbon`: moves a chain's first point to (`x`, `y`) and has
+ * the rest follow it, for a ribbon or a balloon's string.
+ */
+function stepChain(piece: Piece, x: number, y: number, dt: number) {
+  const { chain } = piece;
+  const head = chain[0] as RibbonPoint;
+  const moved = Math.hypot(x - head.x, y - head.y);
+  head.x = x;
+  head.y = y;
+  // The faster the first point moves, the harder each point is pulled toward the one ahead.
+  const pull = Math.min((moved / dt) * piece.follow, RIBBON_MAX_PULL);
+  // Going from the tail forward, each point's pull is figured before the point ahead
+  // of it moves, as when tsParticles finds every force before integrating any.
+  for (let i = chain.length - 1; i > 0; i--) {
+    const point = chain[i] as RibbonPoint;
+    const ahead = chain[i - 1] as RibbonPoint;
+    const dx = ahead.x - point.x;
+    const dy = ahead.y - point.y;
+    const distance = Math.hypot(dx, dy);
+    const speed = Math.hypot(point.vx, point.vy);
+    point.x += point.vx * dt;
+    point.y += point.vy * dt;
+    point.vx += ((dx / distance) * pull - point.vx * RIBBON_DRAG * speed) * dt;
+    point.vy += ((dy / distance) * pull - point.vy * RIBBON_DRAG * speed) * dt;
+  }
+  // Then each point is put back a fixed distance behind the one ahead.
+  for (let i = 1; i < chain.length; i++) {
+    const point = chain[i] as RibbonPoint;
+    const ahead = chain[i - 1] as RibbonPoint;
+    const dx = point.x - ahead.x;
+    const dy = point.y - ahead.y;
+    const distance = Math.hypot(dx, dy);
+    point.x = ahead.x + (dx / distance) * RIBBON_SPACING;
+    point.y = ahead.y + (dy / distance) * RIBBON_SPACING;
   }
 }
 
@@ -404,45 +583,63 @@ function drawPaper(ctx: CanvasRenderingContext2D, piece: Piece) {
   ctx.restore();
 }
 
-function drawRibbon(ctx: CanvasRenderingContext2D, piece: Piece) {
-  const span = piece.coilTurns * Math.PI * 2;
-  const segments = Math.ceil(piece.coilTurns * 16);
-  // A curled ribbon seen from the side: a helix flattened into loops, centered on the piece.
-  const offset = (piece.coilPitch * span) / 2;
-  const edges = Array.from({ length: segments + 1 }, (_, i) => {
-    const t = (span * i) / segments;
-    const x = piece.coilPitch * t - offset + piece.coilRadius * Math.cos(t);
-    const y = piece.coilRadius * Math.sin(t);
-    const dx = piece.coilPitch - piece.coilRadius * Math.sin(t);
-    const dy = piece.coilRadius * Math.cos(t);
-    const length = Math.hypot(dx, dy);
-    // The twist turns the flat ribbon edge-on and back, so its width and face change along it.
-    const half = (piece.width / 2) * Math.cos(t * 0.5 + piece.flip);
-    const nx = (-dy / length) * half;
-    const ny = (dx / length) * half;
-    return { half, left: [x + nx, y + ny], right: [x - nx, y - ny] } as const;
-  });
+/** tsParticles' ribbon `darken`: the same hue and saturation, `amount` points less lightness. */
+function darken(hex: string, amount: number) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [
+    number,
+    number,
+    number,
+  ];
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const lightness = (max + min) / 2;
+  const chroma = max - min;
+  const saturation = chroma === 0 ? 0 : chroma / (1 - Math.abs(2 * lightness - 1));
+  const sector =
+    chroma === 0
+      ? 0
+      : max === r
+        ? ((g - b) / chroma + 6) % 6
+        : max === g
+          ? (b - r) / chroma + 2
+          : (r - g) / chroma + 4;
+  return `hsl(${sector * 60} ${saturation * 100}% ${Math.max(0, lightness * 100 - amount)}%)`;
+}
 
-  ctx.save();
-  ctx.translate(piece.x, piece.y);
-  ctx.rotate(piece.spin);
-  for (const [i, a] of edges.entries()) {
-    const b = edges[i + 1];
-    if (!b) break;
+/**
+ * tsParticles' `drawRibbon`, except that the width's on-screen direction turns
+ * along the strip instead of staying at 45°, and its ends are cut square
+ * instead of notched.
+ */
+function drawRibbon(ctx: CanvasRenderingContext2D, piece: Piece) {
+  const edges = piece.chain.map((point, i) => {
+    const angle = piece.spin + i * piece.twist;
+    return {
+      x: point.x,
+      y: point.y,
+      ox: Math.cos(angle) * piece.width,
+      oy: Math.sin(angle) * piece.width,
+    };
+  });
+  // The strip narrows to an edge where it heads along its width, and past that
+  // shows its back. Each face's segments go into one path filled once, so they
+  // leave no gaps where they meet and don't blend over each other while the burst
+  // fades out (tsParticles fills and strokes each segment).
+  for (const showsBack of [false, true]) {
     ctx.beginPath();
-    ctx.moveTo(...a.left);
-    ctx.lineTo(...b.left);
-    ctx.lineTo(...b.right);
-    ctx.lineTo(...a.right);
-    ctx.fillStyle = piece.color;
-    ctx.fill();
-    // Shade the back of the ribbon where the twist shows it.
-    if (a.half + b.half < 0) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
-      ctx.fill();
+    for (const [i, a] of edges.entries()) {
+      const b = edges[i + 1];
+      if (!b) break;
+      if ((a.x - b.x) * (a.oy + b.oy) - (a.y - b.y) * (a.ox + b.ox) < 0 === showsBack) continue;
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.lineTo(b.x + b.ox, b.y + b.oy);
+      ctx.lineTo(a.x + a.ox, a.y + a.oy);
+      ctx.closePath();
     }
+    ctx.fillStyle = showsBack ? darken(piece.color, 30) : piece.color;
+    ctx.fill();
   }
-  ctx.restore();
 }
 
 function drawSparkle(ctx: CanvasRenderingContext2D, piece: Piece) {
@@ -580,6 +777,68 @@ function drawLaser(ctx: CanvasRenderingContext2D, piece: Piece) {
   ctx.restore();
 }
 
+function drawBalloon(ctx: CanvasRenderingContext2D, piece: Piece) {
+  const w = piece.width;
+  const h = w * BALLOON_ASPECT;
+
+  // A thin string, drawn first so the knot covers its top end.
+  ctx.save();
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.9)';
+  ctx.lineWidth = 1;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (const [i, point] of piece.chain.entries()) {
+    if (i === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  }
+  ctx.stroke();
+
+  ctx.translate(piece.x, piece.y);
+  ctx.rotate(balloonTilt(piece));
+  // Thin rubber lets a little of the page show through.
+  ctx.globalAlpha *= BALLOON_OPACITY;
+  // The tied-off knot, a shade darker than the balloon.
+  ctx.beginPath();
+  ctx.moveTo(0, h - 1);
+  ctx.lineTo(w * 0.17, h + w * BALLOON_KNOT);
+  ctx.lineTo(-w * 0.17, h + w * BALLOON_KNOT);
+  ctx.closePath();
+  ctx.fillStyle = piece.color;
+  ctx.fill();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.fill();
+
+  // A rubber balloon is rounder on top and tapers to the knot.
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  ctx.bezierCurveTo(-w * 0.35, h * 0.85, -w, h * 0.35, -w, -h * 0.15);
+  ctx.bezierCurveTo(-w, -h * 0.75, -w * 0.55, -h, 0, -h);
+  ctx.bezierCurveTo(w * 0.55, -h, w, -h * 0.75, w, -h * 0.15);
+  ctx.bezierCurveTo(w, h * 0.35, w * 0.35, h * 0.85, 0, h);
+  ctx.closePath();
+  ctx.fillStyle = piece.color;
+  ctx.fill();
+  // Lit from the upper right, like tsParticles' bubble effect: brighter toward the
+  // light and shaded around the far edge, so the balloon looks round.
+  const light = ctx.createRadialGradient(w * 0.35, -h * 0.45, w * 0.1, w * 0.1, -h * 0.1, w * 1.5);
+  light.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+  light.addColorStop(0.4, 'rgba(255, 255, 255, 0)');
+  light.addColorStop(0.75, 'rgba(0, 0, 0, 0)');
+  light.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+  ctx.fillStyle = light;
+  ctx.fill();
+  // A glossy streak along the lit shoulder, and a small glint below it.
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.45, -h * 0.42, w * 0.12, h * 0.26, 0.55, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.beginPath();
+  ctx.arc(w * 0.66, -h * 0.02, w * 0.07, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawDisco(ctx: CanvasRenderingContext2D, piece: Piece) {
   const { x, y, width: r } = piece;
   const fade = ctx.globalAlpha;
@@ -670,6 +929,8 @@ function draw(ctx: CanvasRenderingContext2D, piece: Piece) {
       return drawLaser(ctx, piece);
     case 'disco':
       return drawDisco(ctx, piece);
+    case 'balloon':
+      return drawBalloon(ctx, piece);
   }
 }
 
@@ -717,7 +978,9 @@ export function celebrateApproval(
   const viewport = { width, height };
   const at = { origin, cx, cy, aim: Math.atan2(height / 2 - cy, width / 2 - cx), viewport };
   const { count, duration, make } = BURSTS[animation];
-  const isAlive = (piece: Piece) => piece.life > 0 && piece.y < height + 40;
+  // A ribbon stays until its whole body, not just its leading end, has fallen off screen.
+  const isAlive = (piece: Piece) =>
+    piece.life > 0 && Math.min(piece.y, ...piece.chain.map((point) => point.y)) < height + 40;
   let pieces = Array.from({ length: count }, () => make(at));
   const spawned: Piece[] = [];
   const spawn = (piece: Piece) => {
