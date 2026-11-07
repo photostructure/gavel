@@ -1831,21 +1831,6 @@ function App() {
                 <h1 className="sr-only shrink-0 md:not-sr-only">
                   <Logo style={{ height: '18px', color: 'var(--color-github-text-secondary)' }} />
                 </h1>
-                {/* On mobile the count lives in the file tree drawer. */}
-                {!isFileTreeOpen && !isMobile && (
-                  <span className="shrink-0 text-xs ui-value">
-                    <span role="status" title="Files viewed">
-                      {allFilesViewed ? (
-                        'All files viewed'
-                      ) : (
-                        <>
-                          {viewedFilesInDiffCount}/{diffData.files.length}
-                          <span className="sr-only"> files viewed</span>
-                        </>
-                      )}
-                    </span>
-                  </span>
-                )}
                 {captureReloading && (
                   <span role="status" className="text-xs text-github-text-secondary">
                     Updating capture…

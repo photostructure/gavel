@@ -707,17 +707,18 @@ describe('App Component - Header display controls', () => {
     mockFetch(mockDiffResponse);
   });
 
-  it('leaves the files-viewed count out of the header on mobile', async () => {
-    vi.mocked(useViewport).mockReturnValue({ isMobile: true, isDesktop: false });
-    try {
-      renderApp();
-      const header = await screen.findByTestId('compact-review-header');
-      await screen.findByRole('button', { name: 'Settings' });
+  // The file list shows the count; the header copy, shown only while the list was closed,
+  // took header space the maintainer did not find worth it.
+  it('leaves the files-viewed count out of the header, even with the file list closed', async () => {
+    renderApp();
+    const header = await screen.findByTestId('compact-review-header');
+    await screen.findByText(/^\d+ \/ \d+ files viewed$/);
+    const toggle = screen.getByRole('button', { name: 'Toggle file tree panel' });
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'false'));
 
-      expect(within(header).queryByRole('status', { name: 'Files viewed' })).toBeNull();
-    } finally {
-      vi.mocked(useViewport).mockReturnValue({ isMobile: false, isDesktop: true });
-    }
+    expect(within(header).queryByRole('status', { name: 'Files viewed' })).toBeNull();
+    expect(within(header).queryByText(/\d+\/\d+/)).toBeNull();
   });
 
   it('switches between dark and light themes from the Settings button', async () => {

@@ -342,8 +342,8 @@ are saved in `~/.difit/config.json` and shared by every browser. Below 1024px wi
 the review picker, **View**, **Settings**, **About**, and **Conversation** show only
 their icons, and the review picker's menu names the comparison. Below 1280px the three
 verdict buttons become one menu that shows the current verdict. Below 768px the header
-also drops the difit logo and the files-viewed count, which stays in the file tree, and
-shows the unread-reply count on the corner of **Conversation**. On phones and tablets in either orientation, and
+also drops the difit logo and shows the unread-reply count on the corner of
+**Conversation**. The files-viewed count is in the file tree, not the header. On phones and tablets in either orientation, and
 in windows 500px tall or less, the header, review tabs, and **Change summary** slide out of
 view while the diff scrolls down and return on scroll up or when keyboard focus moves into
 them, and file headers use less padding. Copy-all and agent
