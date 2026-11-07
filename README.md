@@ -165,11 +165,17 @@ difit review create docs-update --port 4966 --pathspec docs
 difit review update parser-fix --port 4966 --expected-version 1 --pathspec src --pathspec ':(exclude)src/generated/**'
 ```
 
-When two or more reviews on a server carry a capture or a proposed commit message,
-a row of tabs under the header shows every one in creation order with its
-approval state and counts how many still need approval, so a stack of commits
-can be reviewed one after another in one browser tab. When the tabs don't fit on
-one row, they collapse into a menu on the open review's tab.
+A review asks for approval when it carries a capture or a proposed commit message.
+A message difit copied from a browsed commit is not a proposal, and after a
+commit moves HEAD only the newest unnamed review of uncommitted changes counts.
+A different base browsed for uncommitted changes before an agent proposes makes
+a newer review that hides the proposal's tab; that is unsupported. While any review on the server asks for approval, approved or
+not, the header shows the open review's name in place of the review picker, and a
+row of tabs under the header shows every such review in creation order with its
+approval state and counts how many still need approval, so a stack of commits can
+be reviewed one after another in one browser tab. The tabs are hidden only when
+the open review is the sole one. When they don't fit on one row, they collapse
+into a menu on the open review's tab.
 
 Captures read the index and working tree without changing them. Source edits and
 browser refresh leave a named capture fixed. Updating to a changed patch retains
@@ -310,7 +316,9 @@ difit includes a review comment system that makes it easy to provide feedback to
 ### Compact review controls
 
 The header keeps the current review, **View**, **Settings**, **About**, **Conversation**,
-and approval together. The review picker switches comparisons and shows capture details.
+and approval together. The review picker switches comparisons and shows capture details;
+while any review asks for approval, the header shows the open review's name instead and
+the review tabs switch reviews.
 **About** opens agent, session, repository, and server information in a right-side panel.
 **View** switches between Split and Unified and toggles whitespace. The gear button
 opens **Settings** for font size, font family, theme, syntax theme, color vision,

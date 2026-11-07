@@ -71,7 +71,10 @@ export function ReviewQueueBar({
     return () => observer.disconnect();
   }, [reviews, approvals]);
 
-  if (reviews.length < 2) return null;
+  const open = reviews.find((review) => diffSelectionsEqual(review.selection, current));
+  // While a review asks for approval the revision picker is gone, so the bar is the only way
+  // to reach a review that isn't open.
+  if (reviews.length === 0 || (reviews.length === 1 && open)) return null;
 
   const waiting = reviews.filter((review) => !isDone(review)).length;
   const count = !approvals
@@ -79,7 +82,6 @@ export function ReviewQueueBar({
     : waiting === 0
       ? `All ${reviews.length} approved`
       : `${waiting} of ${reviews.length} need approval`;
-  const open = reviews.find((review) => diffSelectionsEqual(review.selection, current));
   const countLabel = (
     <span className="mr-2 shrink-0 self-center whitespace-nowrap pb-1 text-github-text-secondary">
       {count}

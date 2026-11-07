@@ -11,7 +11,8 @@ Each resolved comparison retains its conversations and change summary. Browser
 Back/Forward restores the saved resolved comparison and discussion. Reloading a
 URL with symbolic refs such as `HEAD` follows their current commits, which can
 select a new conversation context. The revision menu's **Recent reviews** list
-also reopens earlier resolved comparisons with comments or a summary. The URL
+also reopens earlier resolved comparisons with comments or a summary. While any
+review asks for approval, the review tabs replace the revision menu. The URL
 records the requested base, target, and comparison mode.
 Retained-review links keep the saved resolved base, including merge-base reviews
 reopened after switching branches.
@@ -77,16 +78,24 @@ curl --fail --silent http://localhost:4966/api/reviews/parser-fix
 difit review update parser-fix --port 4966 --expected-version 1 --pathspec src --pathspec ':(exclude)src/generated/**'
 ```
 
-When two or more reviews on the server carry a capture or a proposed commit
-message, the viewer shows a review bar under its header. It starts with a count
+A review asks for approval when it carries a capture or a proposed commit
+message. A message the server copied from a browsed commit (`fromCommit`) is not
+a proposal, and after a commit moves HEAD only the newest unnamed review for each
+of `.`, `staged`, and `working` counts, with or without a proposal. A different
+base browsed for one of those targets before an agent proposes makes a newer
+review that hides the proposal's tab; that is unsupported. While any review asks
+for approval, approved or not, the viewer's header shows the open review's name
+in place of the revision menu, so the reviewer can't open comparisons the agent
+didn't ask about, and a review bar under the header lists every review that asks
+for approval. The bar is hidden only when the open review is the sole one. It
+starts with a count
 such as "2 of 3 need approval", then shows every review as a tab in creation
 order, with a ✓ (approved) or ○ (not approved) mark. Hovering a tab shows its
 proposed commit message title. When the tabs don't fit on one row, the bar shows
 only the open review's tab with a ⌄; it opens a list of every review with its
 mark, commit message title, and approval. Picking a review opens it in the same
 browser tab and keeps the editor connection. The **Change summary** panel stays open or closed across reviews and
-reloads, the way the reviewer last left it. The revision menu's **Recent reviews**
-list also includes each task.
+reloads, the way the reviewer last left it.
 
 An update can instead use `--capture /tmp/next-capture.json` and repeatable
 `--select` IDs, or `difit review update parser-fix - --port 4966
@@ -267,8 +276,12 @@ happens once the proposed commit lands. Approval and comment threads stay on
 the previous review.
 
 `comment snapshot --port <port>` includes `summary` on each review:
-`{commitMessage,rationale,version,updatedAt?}`. Use that review's `id` and summary
-version to write a proposal without following another tab's current selection:
+`{commitMessage,rationale,version,updatedAt?,fromCommit?}`. `fromCommit: true`
+means the server copied `commitMessage` from the commit being browsed, so nobody
+proposed it; any summary save removes it, even one that keeps the text, and such a
+review gets no review tab.
+Use that review's `id` and summary version to write a proposal without following
+another tab's current selection:
 
 ```sh
 difit comment summary --port 4966 < /tmp/difit-summary.json

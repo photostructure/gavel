@@ -163,6 +163,35 @@ describe('committed review summary HTTP integration', () => {
     expect(snapshot.reviews).toHaveLength(3);
   });
 
+  it('marks a message copied from the commit until someone saves the summary', async () => {
+    await start();
+    const diff = await request<DiffResponse>('/api/diff');
+    const copied = await request<ReviewSummary>(summaryPath(diff));
+    expect(copied).toMatchObject({ commitMessage: currentMessage, fromCommit: true });
+    const snapshot = await request<ConversationSnapshot>('/api/conversation/snapshot');
+    expect(snapshot.reviews[0]?.summary.fromCommit).toBe(true);
+
+    // Saving the copied text unchanged adopts it as a proposal, so it drops the mark too.
+    const adopted = await request<ReviewSummary>(summaryPath(diff), {
+      commitMessage: currentMessage,
+      rationale: '',
+      baseVersion: copied.version,
+    });
+    expect(adopted).toMatchObject({ commitMessage: currentMessage, version: copied.version + 1 });
+    expect(adopted.fromCommit).toBeUndefined();
+    const after = await request<ConversationSnapshot>('/api/conversation/snapshot');
+    expect(after.reviews[0]?.summary.fromCommit).toBeUndefined();
+
+    // Once it is a proposal, an unchanged save is a no-op again.
+    expect(
+      await request<ReviewSummary>(summaryPath(diff), {
+        commitMessage: currentMessage,
+        rationale: '',
+        baseVersion: adopted.version,
+      }),
+    ).toEqual(adopted);
+  });
+
   it('reads the commit message rather than an annotated tag description', async () => {
     git('tag', '-a', '-m', 'Tag annotation is not the commit message', 'review-tag');
     await start({ selection: { baseCommitish: 'HEAD^', targetCommitish: 'review-tag' } });
@@ -177,11 +206,13 @@ describe('committed review summary HTTP integration', () => {
     await start({ commitMessage: 'My explicit review draft', why: 'Keep the supplied rationale.' });
     const diff = await request<DiffResponse>('/api/diff');
     expect(diff.targetCommitMessage).toBe(currentMessage);
-    expect(await request<ReviewSummary>(summaryPath(diff))).toMatchObject({
+    const summary = await request<ReviewSummary>(summaryPath(diff));
+    expect(summary).toMatchObject({
       commitMessage: 'My explicit review draft',
       rationale: 'Keep the supplied rationale.',
       version: 1,
     });
+    expect(summary.fromCommit).toBeUndefined();
   });
 
   it('keeps the launch summary when HEAD moves twice while the first move is handled', async () => {

@@ -281,11 +281,19 @@ const definitions: Record<string, Schema> = {
       },
     ],
   },
-  ReviewSummary: object({ ...summaryFields, version, updatedAt: timestamp }, [
-    'commitMessage',
-    'rationale',
-    'version',
-  ]),
+  ReviewSummary: object(
+    {
+      ...summaryFields,
+      version,
+      updatedAt: timestamp,
+      fromCommit: {
+        const: true,
+        description:
+          'Present when the server copied commitMessage from the browsed commit instead of anyone proposing it. Any summary save removes it, even one that keeps the text.',
+      },
+    },
+    ['commitMessage', 'rationale', 'version'],
+  ),
   ApprovalMode: enumeration('as-is', 'after-comments'),
   ApprovalCondition: object(
     {

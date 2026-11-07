@@ -29,6 +29,7 @@ import {
   createDiffSelection,
   diffSelectionsEqual,
   getDiffSelectionKey,
+  isWorkingTreeTarget,
   normalizeBaseMode,
 } from '../utils/diffSelection';
 
@@ -842,6 +843,8 @@ function App() {
     setReloadVersion((prev) => prev + 1);
     await refreshApproval();
     await refreshSummary();
+    // A commit that moves HEAD creates a review on the server without any other event.
+    await loadRecentReviewsRef.current?.();
   }, [refreshApproval, refreshSummary]);
   const commentsRefreshRequestRef = useRef(0);
   const handleCommentsChanged = useCallback(async () => {
@@ -1275,17 +1278,44 @@ function App() {
           }))
           .reverse(),
       );
-      // Named captures and proposed commit messages are what agents ask approval for.
-      setApprovalRequests(
-        reviews
-          .filter(({ review }) => Boolean(review.capture || review.summary.commitMessage.trim()))
-          .map(({ review, selection, title }) => ({
-            selection,
-            name: formatReviewSelection(selection),
-            title,
-            approval: review.approval,
-          })),
+      // Proposed commit messages are what agents ask approval for; a message the server
+      // copied from a browsed commit is not one.
+      const proposals = reviews.filter(
+        ({ review }) =>
+          !review.capture &&
+          Boolean(review.summary.commitMessage.trim()) &&
+          !review.summary.fromCommit,
       );
+      // A commit that moves HEAD gives an unnamed working-tree review a new base, so a new
+      // review; the old one stays on the server, and its approval lapses once the next edit
+      // changes its diff. Only the newest one per target, with or without a proposal, is
+      // pending. A base browsed for the same target before an agent proposed hides the
+      // older review too; that is unsupported.
+      const newestWorkingTree = new Map(
+        reviews
+          .filter(
+            ({ review }) =>
+              !review.capture && isWorkingTreeTarget(review.selection.targetCommitish),
+          )
+          .map(({ review }) => [review.selection.targetCommitish, review.id]),
+      );
+      const requests = reviews
+        .filter(
+          (entry) =>
+            entry.review.capture ||
+            (proposals.includes(entry) &&
+              (!isWorkingTreeTarget(entry.review.selection.targetCommitish) ||
+                newestWorkingTree.get(entry.review.selection.targetCommitish) === entry.review.id)),
+        )
+        .map(({ review, selection, title }) => ({
+          selection,
+          name: formatReviewSelection(selection),
+          title,
+          approval: review.approval,
+        }));
+      setApprovalRequests(requests);
+      // The picker is gone while an agent asks for approval; so is a dialog it opened.
+      if (requests.length > 0) setIsRevisionModalOpen(false);
     } catch (historyError) {
       console.error('Could not load recent reviews:', historyError);
     }
@@ -1683,7 +1713,9 @@ function App() {
               </span>
             )}
           </div>
-          {revisionOptions ? (
+          {/* While an agent asks for approval, the tabs are the way between reviews. Picking
+              another comparison would create a review the tabs can't place. */}
+          {revisionOptions && approvalRequests.length === 0 ? (
             <DiffQuickMenu
               options={revisionOptions}
               selection={selectedRevision}

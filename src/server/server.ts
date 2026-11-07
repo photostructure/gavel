@@ -1170,7 +1170,12 @@ export async function startServer(options: ServerOptions): Promise<{
     );
   }
 
-  function seedSummary(selection: DiffSelection, commitMessage: string, rationale: string): void {
+  function seedSummary(
+    selection: DiffSelection,
+    commitMessage: string,
+    rationale: string,
+    fromCommit = false,
+  ): void {
     const previous = getReviewSummary(selection);
     // Saved edits, including an intentional clear, always take precedence over a seeded summary.
     if (previous.version !== 0 || previous.commitMessage || previous.rationale) return;
@@ -1179,6 +1184,7 @@ export async function startServer(options: ServerOptions): Promise<{
       rationale,
       version: 1,
       updatedAt: new Date().toISOString(),
+      ...(fromCommit ? { fromCommit: true as const } : {}),
     };
     summaries.set(getDiffSelectionKey(selection), summary);
     conversation?.setSummary(selection, summary, 'agent');
@@ -1186,7 +1192,7 @@ export async function startServer(options: ServerOptions): Promise<{
 
   function seedCommittedSummary(selection: DiffSelection, diff: DiffResponse): void {
     if (selection.reviewName || diff.targetCommitMessage === undefined) return;
-    seedSummary(selection, diff.targetCommitMessage, '');
+    seedSummary(selection, diff.targetCommitMessage, '', true);
   }
 
   function isLiveWorkingTreeSelection(selection: DiffSelection): boolean {
@@ -1330,7 +1336,10 @@ export async function startServer(options: ServerOptions): Promise<{
             .json({ error: 'Review summary changed; read its latest version', summary: previous });
           return;
         }
+        // Saving a message copied from the commit adopts it as a proposal even when the
+        // text is unchanged, so only a save of an existing proposal can be a no-op.
         if (
+          !previous.fromCommit &&
           previous.commitMessage === input.commitMessage &&
           previous.rationale === input.rationale
         ) {

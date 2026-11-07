@@ -268,7 +268,7 @@ export function createReviewCommand(): Command {
   addSourceOptions(
     review
       .command('create')
-      .description('Create a named review on a running server')
+      .description('Create a named review on a running server; the page shows it as a tab')
       .argument('<name>'),
   ).action(async (name: string, patchSource: string | undefined, options: SourceOptions) => {
     try {

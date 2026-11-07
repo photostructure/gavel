@@ -2501,7 +2501,8 @@ describe('App Component - Retained conversation contexts', () => {
                 targetCommitish: '.',
                 baseMode: 'merge-base',
               },
-              summary: { commitMessage: 'Archived branch review', rationale: '' },
+              // A proposed commit message would replace the revision picker with tabs.
+              summary: { commitMessage: '', rationale: 'Archived branch review' },
               threads: archived,
             },
           ],
@@ -2571,7 +2572,8 @@ describe('App Component - Retained conversation contexts', () => {
           reviews: [
             {
               selection: { baseCommitish: 'base-a', targetCommitish: 'tip-a' },
-              summary: { commitMessage: 'Earlier review', rationale: '' },
+              // A proposed commit message would replace the revision picker with tabs.
+              summary: { commitMessage: '', rationale: 'Earlier review' },
               threads: [{}],
             },
             {

@@ -66,6 +66,8 @@ export interface ReviewSummary {
   rationale: string;
   version: number;
   updatedAt?: string;
+  /** The server copied commitMessage from the browsed commit; nobody proposed it. Any save clears it. */
+  fromCommit?: true;
 }
 
 interface ReviewSummaryEvent {

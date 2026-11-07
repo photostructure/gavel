@@ -21,7 +21,7 @@ const reviews = [request('parser'), request('tests'), request('docs')];
 const bar = () => screen.getByRole('navigation', { name: 'Reviews on this server' });
 
 describe('review queue bar', () => {
-  it('stays hidden while the server holds fewer than two reviews', () => {
+  it('stays hidden while the only review is the open one', () => {
     const { container } = render(
       <ReviewQueueBar
         reviews={[request('parser')]}
@@ -31,6 +31,21 @@ describe('review queue bar', () => {
       />,
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('shows a lone review that is not the open one, so it can be reached', () => {
+    const onSelect = vi.fn();
+    render(
+      <ReviewQueueBar
+        reviews={[request('parser')]}
+        current={createDiffSelection('base', 'staged')}
+        approvals
+        onSelect={onSelect}
+      />,
+    );
+    expect(bar()).toHaveTextContent(/^1 of 1 need approval/);
+    fireEvent.click(within(bar()).getByRole('button', { name: 'parser, Not approved' }));
+    expect(onSelect).toHaveBeenCalledWith(reviews[0]!.selection);
   });
 
   it('names every review in creation order, marks the open one, and opens the one clicked', () => {

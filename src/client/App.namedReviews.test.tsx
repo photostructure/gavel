@@ -14,6 +14,7 @@ const watch = vi.hoisted(() => ({
   approvalChanged: undefined as (() => Promise<void>) | undefined,
   captureChanged: undefined as ((reviewName?: string) => Promise<void>) | undefined,
   commentsChanged: undefined as (() => Promise<void>) | undefined,
+  reload: undefined as (() => Promise<void>) | undefined,
 }));
 vi.mock('./hooks/useFileWatch', () => ({
   useFileWatch: (
@@ -26,6 +27,7 @@ vi.mock('./hooks/useFileWatch', () => ({
     watch.approvalChanged = onApprovalChanged;
     watch.captureChanged = onCaptureChanged;
     watch.commentsChanged = onCommentsChanged;
+    watch.reload = onReload;
     return {
       shouldReload: false,
       isConnected: true,
@@ -69,8 +71,10 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     commentVersion: 1,
     approved: false,
     showReviewB: true,
+    showNamedReviews: true,
     addedLine: 'const stable = true;',
     hideFiles: false,
+    otherReviews: [] as ConversationSnapshot['reviews'],
   };
   vi.mocked(fetch).mockImplementation(async (input, init) => {
     const url = new URL(String(input), window.location.origin);
@@ -148,38 +152,41 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     } else if (url.pathname === '/api/conversation/snapshot') {
       payload = {
         cursor: 'stream:1',
-        reviews: [
-          {
-            id: 'review-a',
-            selection: { baseCommitish: 'base-one', targetCommitish: '.', reviewName: 'task-a' },
-            threads: [],
-            summary: { commitMessage: 'fix: preserve review context', rationale: '', version: 2 },
-            approval: state.approved
-              ? { approved: true, requested: true, mode: 'as-is' }
-              : { approved: false },
-            capture: { ...state.capture },
-          },
-          ...(state.showReviewB
-            ? [
-                {
-                  id: 'review-b',
-                  selection: {
-                    baseCommitish: 'base-one',
-                    targetCommitish: '.',
-                    reviewName: 'task-b',
-                  },
-                  threads: [],
-                  summary: { commitMessage: '', rationale: '', version: 0 },
-                  approval: { approved: false },
-                  capture: { ...state.capture, name: 'task-b' },
-                },
-              ]
-            : []),
-        ],
+        reviews: [...(state.showNamedReviews ? namedReviews() : []), ...state.otherReviews],
       } satisfies ConversationSnapshot;
     }
     return new Response(JSON.stringify(payload));
   });
+  function namedReviews(): ConversationSnapshot['reviews'] {
+    return [
+      {
+        id: 'review-a',
+        selection: { baseCommitish: 'base-one', targetCommitish: '.', reviewName: 'task-a' },
+        threads: [],
+        summary: { commitMessage: 'fix: preserve review context', rationale: '', version: 2 },
+        approval: state.approved
+          ? { approved: true, requested: true, mode: 'as-is' }
+          : { approved: false },
+        capture: { ...state.capture },
+      },
+      ...(state.showReviewB
+        ? [
+            {
+              id: 'review-b',
+              selection: {
+                baseCommitish: 'base-one',
+                targetCommitish: '.',
+                reviewName: 'task-b',
+              },
+              threads: [],
+              summary: { commitMessage: '', rationale: '', version: 0 },
+              approval: { approved: false },
+              capture: { ...state.capture, name: 'task-b' },
+            },
+          ]
+        : []),
+    ];
+  }
   return state;
 }
 
@@ -200,6 +207,7 @@ describe('named captures in the browser', () => {
     watch.approvalChanged = undefined;
     watch.captureChanged = undefined;
     watch.commentsChanged = undefined;
+    watch.reload = undefined;
     vi.stubGlobal(
       'EventSource',
       class {
@@ -911,44 +919,24 @@ describe('named captures in the browser', () => {
     expect(window.location.search).toBe('?review=task-a');
   });
 
-  it('refreshes an open review menu when another named review is created', async () => {
+  it('adds a tab when another named review is created', async () => {
     const state = fixture();
     state.showReviewB = false;
     renderApp();
-    fireEvent.click(await screen.findByRole('button', { name: 'Revision menu: Review: task-a' }));
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/conversation/snapshot'));
-    expect(screen.queryByRole('button', { name: /Return to task-b/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('navigation', { name: 'Reviews on this server' }),
+    ).not.toBeInTheDocument();
     const before = diffRequests().length;
     state.showReviewB = true;
     await act(async () => watch.captureChanged?.('task-b'));
-    expect(
-      await screen.findByRole('button', { name: /Return to task-b · capture v1/ }),
-    ).toBeVisible();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    expect(within(bar).getByRole('button', { name: 'task-b, Not approved' })).toBeVisible();
     expect(diffRequests()).toHaveLength(before);
     expect(window.location.search).toBe('?review=task-a');
   });
 
-  it('lists named reviews with no discussion and navigates by their stable names', async () => {
-    fixture();
-    renderApp();
-    fireEvent.click(await screen.findByRole('button', { name: 'Revision menu: Review: task-a' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Return to task-b · capture v1/ }));
-    await waitFor(() =>
-      expect(screen.getByRole('status', { name: 'Named review capture' })).toHaveTextContent(
-        'task-b',
-      ),
-    );
-    expect(window.location.search).toBe('?review=task-b');
-    const latest = diffRequests().at(-1);
-    expect(new URL(String(latest?.[0]), window.location.origin).searchParams.get('review')).toBe(
-      'task-b',
-    );
-    expect(
-      within(screen.getByRole('status', { name: 'Named review capture' })).getByText('task-b'),
-    ).toBeVisible();
-  });
-
-  it('shows the other reviews on the server without opening the review menu', async () => {
+  it('shows the other reviews on the server and navigates by their stable names', async () => {
     fixture();
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
@@ -958,9 +946,144 @@ describe('named captures in the browser', () => {
     );
     fireEvent.click(within(bar).getByRole('button', { name: 'task-b, Not approved' }));
     await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
+    const latest = diffRequests().at(-1);
+    expect(new URL(String(latest?.[0]), window.location.origin).searchParams.get('review')).toBe(
+      'task-b',
+    );
     expect(
       within(screen.getByRole('status', { name: 'Named review capture' })).getByText('task-b'),
     ).toBeVisible();
+  });
+
+  it('replaces the revision picker with the review name while a review asks for approval', async () => {
+    fixture();
+    renderApp();
+    await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    expect(screen.queryByRole('button', { name: /^Revision menu:/ })).not.toBeInTheDocument();
+    expect(screen.getByTitle('task-a')).toBeVisible();
+  });
+
+  it('offers a tab to the one review that asks for approval when another diff is open', async () => {
+    const state = fixture();
+    state.showNamedReviews = false;
+    state.otherReviews = [
+      {
+        id: 'proposed',
+        selection: { baseCommitish: 'def456^', targetCommitish: 'def456' },
+        threads: [],
+        summary: { commitMessage: 'feat: next', rationale: '', version: 1 },
+        approval: { approved: false },
+      },
+    ];
+    renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    expect(within(bar).getByRole('button', { name: /^def456\^\.\.\.def456, / })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /^Revision menu:/ })).not.toBeInTheDocument();
+  });
+
+  it('drops a working-tree review whose proposal landed once HEAD moves', async () => {
+    const state = fixture();
+    const working = (id: string, base: string, commitMessage: string) => ({
+      id,
+      selection: { baseCommitish: base, targetCommitish: '.' },
+      threads: [],
+      summary: { commitMessage, rationale: '', version: commitMessage ? 1 : 0 },
+      approval: { approved: false },
+    });
+    // The proposal landed, so the review for the new HEAD gets no carried summary.
+    state.otherReviews = [
+      working('before-commit', 'old-head', 'feat: landed'),
+      working('after-commit', 'new-head', ''),
+    ];
+    renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    expect(
+      within(bar)
+        .getAllByRole('button')
+        .map((tab) => tab.textContent),
+    ).toEqual(['task-a', 'task-b']);
+  });
+
+  it('closes an open Detailed Diff dialog once a review asks for approval', async () => {
+    const state = fixture();
+    state.showNamedReviews = false;
+    renderApp();
+    fireEvent.click(await screen.findByRole('button', { name: /^Revision menu:/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Detailed\.\.\./ }));
+    expect(await screen.findByText('Detailed Diff')).toBeVisible();
+
+    state.showNamedReviews = true;
+    await act(async () => watch.approvalChanged?.());
+    await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    expect(screen.queryByText('Detailed Diff')).not.toBeInTheDocument();
+  });
+
+  it('keeps the revision picker while no review asks for approval', async () => {
+    const state = fixture();
+    state.showNamedReviews = false;
+    state.otherReviews = [
+      {
+        id: 'uncommitted',
+        selection: { baseCommitish: 'base-one', targetCommitish: '.' },
+        threads: [],
+        summary: { commitMessage: '', rationale: '', version: 0 },
+        approval: { approved: false },
+      },
+    ];
+    renderApp();
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/conversation/snapshot'));
+    expect(await screen.findByRole('button', { name: /^Revision menu:/ })).toBeVisible();
+  });
+
+  it('leaves browsed commits and working-tree reviews from before HEAD moved out of the tabs', async () => {
+    const state = fixture();
+    const review = (id: string, base: string, target: string, fromCommit?: true) => ({
+      id,
+      selection: { baseCommitish: base, targetCommitish: target },
+      threads: [],
+      summary: {
+        commitMessage: `feat: ${id}`,
+        rationale: '',
+        version: 1,
+        ...(fromCommit ? { fromCommit } : {}),
+      },
+      approval: { approved: false },
+    });
+    state.otherReviews = [
+      // The server copies a browsed commit's Git message into its summary.
+      review('browsed', 'abc123^', 'abc123', true),
+      // A commit that moves HEAD gives `.` a new review; the old one stays on the server.
+      review('before-commit', 'old-head', '.'),
+      review('proposed-commit', 'def456^', 'def456'),
+      review('after-commit', 'new-head', '.'),
+    ];
+    renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    expect(
+      within(bar)
+        .getAllByRole('button')
+        .map((tab) => tab.textContent),
+    ).toEqual(['task-a', 'task-b', 'def456^...def456', 'new-head...Uncommitted Changes']);
+  });
+
+  it('updates the tabs when a reload follows a commit that moved HEAD', async () => {
+    const state = fixture();
+    renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    expect(within(bar).getAllByRole('button')).toHaveLength(2);
+
+    // A commit creates a review on the server without any approval, summary, or capture event.
+    state.otherReviews = [
+      {
+        id: 'proposed-commit',
+        selection: { baseCommitish: 'def456^', targetCommitish: 'def456' },
+        threads: [],
+        summary: { commitMessage: 'feat: next', rationale: '', version: 1 },
+        approval: { approved: false },
+      },
+    ];
+    await act(async () => watch.reload?.());
+    await waitFor(() => expect(within(bar).getAllByRole('button')).toHaveLength(3));
   });
 
   it('keeps the change summary open across reviews and page loads once opened', async () => {

@@ -190,6 +190,12 @@ program
   .addHelpText(
     'after',
     `
+Review tabs:
+  A review with a named capture (--review, review create) or a proposed commit
+  message (--commit-message) asks for approval. While one exists, approved or
+  not, the page header shows the open review's name instead of the revision
+  picker, and tabs under the header switch between the reviews that ask.
+
 Editor configuration (set before starting difit):
   DIFIT_EDITOR          Editor preset: vscode (default), cursor, zed, textmate,
                         bbedit, emacs, macvim, sublime, nova, custom, or none.
