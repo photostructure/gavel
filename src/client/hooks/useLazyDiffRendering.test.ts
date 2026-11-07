@@ -264,6 +264,46 @@ describe('useLazyDiffRendering', () => {
       }
     });
 
+    // "Go to line" on a draft cancels the file scroll once the line appears, so the
+    // 180 ms correction cannot pull the view back to the file header.
+    it('cancels a pending file scroll and its later correction', () => {
+      vi.useFakeTimers();
+      try {
+        vi.stubGlobal('CSS', { supports: () => true });
+        const frames: FrameRequestCallback[] = [];
+        vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+          frames.push(callback),
+        );
+        const container = document.createElement('main');
+        const scrollTo = vi.fn();
+        container.scrollTo = scrollTo;
+        stubRect(container, 100);
+        const file = document.createElement('div');
+        file.id = getFileElementId('file-19.ts');
+        file.dataset.rendered = 'true';
+        stubRect(file, 500);
+        container.append(file);
+        document.body.append(container);
+        const { result, unmount } = renderHook(() =>
+          useLazyDiffRendering({
+            diffData,
+            diffScrollContainerRef: { current: container },
+            setDiffData: () => {},
+          }),
+        );
+        act(() => result.current.scrollFileIntoDiffContainer('file-19.ts'));
+        act(() => frames.shift()!(0));
+        expect(scrollTo).toHaveBeenCalledOnce();
+        act(() => result.current.cancelFileScroll());
+        act(() => vi.advanceTimersByTime(500));
+        expect(scrollTo).toHaveBeenCalledOnce();
+        unmount();
+        container.remove();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('renders only the target file when the browser supports scroll anchoring', () => {
       vi.stubGlobal('CSS', { supports: () => true });
 

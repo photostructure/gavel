@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { CommentThread, DiffFile } from '../../../types/diff';
 
-import { findCommentPosition } from './positionHelpers';
+import { findCommentPosition, findSidePosition } from './positionHelpers';
 
 const mockFiles: DiffFile[] = [
   {
@@ -56,5 +56,29 @@ describe('findCommentPosition', () => {
       lineIndex: 1,
       side: 'right',
     });
+  });
+});
+
+describe('findSidePosition', () => {
+  it('finds a line on the given side', () => {
+    expect(findSidePosition({ file: 'file1.js', line: 2, side: 'old' }, mockFiles)).toEqual({
+      fileIndex: 0,
+      chunkIndex: 0,
+      lineIndex: 2,
+      side: 'left',
+    });
+  });
+
+  it('does not fall back to the other side', () => {
+    // Old line 1 is the deleted line; new line 3 exists on neither side.
+    expect(findSidePosition({ file: 'file1.js', line: 3, side: 'new' }, mockFiles)).toBeNull();
+    expect(
+      findSidePosition({ file: 'file1.js', line: 1, side: 'new' }, [
+        {
+          ...mockFiles[0]!,
+          chunks: [{ ...mockFiles[0]!.chunks[0]!, lines: [mockFiles[0]!.chunks[0]!.lines[0]!] }],
+        },
+      ]),
+    ).toBeNull();
   });
 });

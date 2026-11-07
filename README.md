@@ -312,6 +312,17 @@ difit includes a review comment system that makes it easy to provide feedback to
 3. **Generate Prompts**: Comments include a "Copy Prompt" button that formats the context for AI coding agents
 4. **Copy All**: Use "Copy All Prompt" to copy all comments in a structured format
 5. **Persistent Storage**: Comments are saved in browser localStorage per commit
+6. **Unsent drafts**: Text typed into a line comment, a reply, or an edit is saved in the
+   tab's sessionStorage per review, so after a reload, or after switching to another review
+   and back, the form reopens with the text, and a file holding a draft opens even if it is
+   marked viewed. A draft whose line the diff no longer shows appears at the top of its
+   file. Send or **Cancel** deletes the saved text, and so does Escape in a line comment or
+   an edit. **Conversation** lists every unsent draft under **Unsent drafts**, including
+   drafts on files no longer in the diff, and a pencil badge on the button counts them; a
+   line draft there can be edited and sent in place. The list is taken when the panel
+   opens, so a reply started in the panel joins it the next time. In **Conversation**,
+   Escape in a listed line draft, a reply, or an edit that holds text closes the panel and
+   keeps any unsent text; Escape in the general comment form still discards its text.
 
 ### Compact review controls
 

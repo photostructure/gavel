@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DiffChunk as DiffChunkData } from '../../types/diff';
 import { DEFAULT_DIFF_VIEW_MODE } from '../../utils/diffMode';
 import { WordHighlightProvider } from '../contexts/WordHighlightContext';
+import { CommentDraftScope, useCommentDraft } from '../hooks/useCommentDrafts';
 import { hideWhitespaceChanges } from '../utils/ignoreWhitespace';
 
 import { DiffChunk } from './DiffChunk';
@@ -304,5 +305,284 @@ describe('DiffChunk range comments', () => {
         { isQuestion: false, intent: 'comment' },
       );
     });
+  });
+});
+
+describe('DiffChunk comment drafts', () => {
+  afterEach(() => sessionStorage.clear());
+
+  const renderChunk = (mode: 'unified' | 'split', onAddComment = vi.fn(asyncNoop)) =>
+    renderWithProviders(
+      <CommentDraftScope value="review-a">
+        <DiffChunk
+          chunk={testChunk}
+          chunkIndex={0}
+          threads={[]}
+          mode={mode}
+          onAddComment={onAddComment}
+          onGenerateThreadPrompt={() => ''}
+          onToggleThreadResolved={noop}
+          onReplyToThread={asyncNoop}
+          onRemoveMessage={noop}
+          onUpdateMessage={noop}
+          filename="src/example.ts"
+        />
+      </CommentDraftScope>,
+    );
+  // A click sets the selection anchor; a shift-click on the same line opens a
+  // single-line comment there.
+  const clickLine = (container: HTMLElement, mode: 'unified' | 'split', index: number) => {
+    const row = container.querySelectorAll('[data-diff-line-row="true"]')[index]!;
+    const target = mode === 'split' ? row.children[2]! : row;
+    fireEvent.click(target);
+    fireEvent.click(target, { shiftKey: true });
+  };
+
+  it.each(['unified', 'split'] as const)(
+    'reopens a %s line comment with its text after the page remounts',
+    (mode) => {
+      const first = renderChunk(mode);
+      clickLine(first.container, mode, 2);
+      fireEvent.click(screen.getByRole('radio', { name: 'Question' }));
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Half a thought' } });
+      first.unmount();
+
+      renderChunk(mode);
+      expect(screen.getByRole('textbox')).toHaveValue('Half a thought');
+      expect(screen.getByRole('radio', { name: 'Question' })).toBeChecked();
+    },
+  );
+
+  it.each(['unified', 'split'] as const)(
+    'keeps a %s draft open when another line in the chunk is opened',
+    (mode) => {
+      const { container } = renderChunk(mode);
+      clickLine(container, mode, 0);
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'First draft' } });
+      clickLine(container, mode, 2);
+      const boxes = screen.getAllByRole('textbox');
+      expect(boxes.map((box) => (box as HTMLTextAreaElement).value)).toEqual(['First draft', '']);
+    },
+  );
+
+  it('forgets a line draft once it is sent', async () => {
+    const onAddComment = vi.fn(asyncNoop);
+    const first = renderChunk('unified', onAddComment);
+    clickLine(first.container, 'unified', 2);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ship it' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() =>
+      expect(onAddComment).toHaveBeenCalledWith(12, 'Ship it', 'const third = 3;', 'new', {
+        isQuestion: false,
+        intent: 'comment',
+      }),
+    );
+    await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument());
+    first.unmount();
+    renderChunk('unified', onAddComment);
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('forgets a line draft on Cancel', () => {
+    const first = renderChunk('unified');
+    clickLine(first.container, 'unified', 2);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Never mind' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    first.unmount();
+    renderChunk('unified');
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+});
+
+describe('DiffChunk drafts across reviews', () => {
+  afterEach(() => sessionStorage.clear());
+
+  const renderIn = (scope: string) =>
+    renderWithProviders(
+      <CommentDraftScope value={scope}>
+        <DiffChunk
+          chunk={testChunk}
+          chunkIndex={0}
+          threads={[]}
+          mode="unified"
+          onAddComment={vi.fn(asyncNoop)}
+          onGenerateThreadPrompt={() => ''}
+          onToggleThreadResolved={noop}
+          onReplyToThread={asyncNoop}
+          onRemoveMessage={noop}
+          onUpdateMessage={noop}
+          filename="src/example.ts"
+        />
+      </CommentDraftScope>,
+    );
+
+  it("shows each review's drafts only in that review", () => {
+    const a = renderIn('review-a');
+    const row = a.container.querySelectorAll('[data-diff-line-row="true"]')[2]!;
+    fireEvent.click(row);
+    fireEvent.click(row, { shiftKey: true });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'For review A' } });
+    a.unmount();
+
+    const b = renderIn('review-b');
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    b.unmount();
+
+    renderIn('review-a');
+    expect(screen.getByRole('textbox')).toHaveValue('For review A');
+  });
+
+  it('keeps a restored or second-opened line form open after its text is cleared', () => {
+    const openLine = (container: HTMLElement, index: number) => {
+      const row = container.querySelectorAll('[data-diff-line-row="true"]')[index]!;
+      fireEvent.click(row);
+      fireEvent.click(row, { shiftKey: true });
+    };
+    const first = renderIn('review-a');
+    openLine(first.container, 2);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Restored' } });
+    first.unmount();
+
+    const second = renderIn('review-a');
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '' } });
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
+
+    openLine(second.container, 0);
+    expect(screen.getAllByRole('textbox')).toHaveLength(2);
+  });
+
+  const chunkWith = (lines: DiffChunkData['lines']): DiffChunkData => ({
+    header: '@@ @@',
+    oldStart: lines[0]!.oldLineNumber ?? 1,
+    oldLines: lines.length,
+    newStart: lines[0]!.newLineNumber ?? 1,
+    newLines: lines.length,
+    lines,
+  });
+  const normal = (n: number) => ({
+    type: 'normal' as const,
+    content: `line ${n}`,
+    oldLineNumber: n,
+    newLineNumber: n,
+  });
+  const renderLines = (chunk: DiffChunkData, onAddComment = vi.fn(asyncNoop)) =>
+    renderWithProviders(
+      <CommentDraftScope value="review-a">
+        <DiffChunk
+          chunk={chunk}
+          chunkIndex={0}
+          threads={[]}
+          mode="unified"
+          onAddComment={onAddComment}
+          onGenerateThreadPrompt={() => ''}
+          onToggleThreadResolved={noop}
+          onReplyToThread={asyncNoop}
+          onRemoveMessage={noop}
+          onUpdateMessage={noop}
+          filename="src/example.ts"
+        />
+      </CommentDraftScope>,
+    );
+
+  it('sends the code a range draft was written on after its first lines leave the hunk', async () => {
+    const expanded = chunkWith([7, 8, 9, 10, 11, 12].map(normal));
+    const first = renderLines(expanded);
+    const rows = first.container.querySelectorAll('[data-diff-line-row="true"]');
+    fireEvent.click(rows[0]!);
+    fireEvent.click(rows[5]!, { shiftKey: true });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Whole range' } });
+    first.unmount();
+
+    const onAddComment = vi.fn(asyncNoop);
+    renderLines(chunkWith([10, 11, 12].map(normal)), onAddComment);
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() =>
+      expect(onAddComment).toHaveBeenCalledWith(
+        [7, 12],
+        'Whole range',
+        ['line 7', 'line 8', 'line 9', 'line 10', 'line 11', 'line 12'].join('\n'),
+        'new',
+        { isQuestion: false, intent: 'comment' },
+      ),
+    );
+  });
+
+  it('highlights the lines of every open draft, restored ones included', () => {
+    const chunk = chunkWith([10, 11, 12, 13].map(normal));
+    const first = renderLines(chunk);
+    const rows = () => first.container.querySelectorAll('[data-diff-line-row="true"]');
+    fireEvent.click(rows()[0]!);
+    fireEvent.click(rows()[1]!, { shiftKey: true });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'On 10-11' } });
+    first.unmount();
+
+    const second = renderLines(chunk);
+    const highlighted = [...second.container.querySelectorAll('[data-diff-line-row="true"]')].map(
+      (row) => row.classList.contains('comment-selected'),
+    );
+    expect(highlighted).toEqual([true, true, false, false]);
+  });
+
+  it('shows an old-side draft on an unchanged line under that line in unified view', () => {
+    const { result, unmount } = renderHook(
+      () =>
+        useCommentDraft({
+          kind: 'line',
+          filePath: 'src/example.ts',
+          side: 'old',
+          lineNumber: 11,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <CommentDraftScope value="review-a">{children}</CommentDraftScope>
+        ),
+      },
+    );
+    act(() => result.current.setBody('From split view'));
+    unmount();
+    const { container } = renderWithProviders(
+      <CommentDraftScope value="review-a">
+        <DiffChunk
+          chunk={testChunk}
+          chunkIndex={0}
+          threads={[]}
+          mode="unified"
+          onAddComment={vi.fn(asyncNoop)}
+          onGenerateThreadPrompt={() => ''}
+          onToggleThreadResolved={noop}
+          onReplyToThread={asyncNoop}
+          onRemoveMessage={noop}
+          onUpdateMessage={noop}
+          filename="src/example.ts"
+        />
+      </CommentDraftScope>,
+    );
+    expect(screen.getByRole('textbox')).toHaveValue('From split view');
+    const highlighted = [...container.querySelectorAll('[data-diff-line-row="true"]')].map((row) =>
+      row.classList.contains('comment-selected'),
+    );
+    expect(highlighted).toEqual([false, true, false]);
+  });
+
+  it('sends the code shown now when a later capture changed the line under a draft', async () => {
+    const first = renderLines(chunkWith([10, 11, 12].map(normal)));
+    const rows = first.container.querySelectorAll('[data-diff-line-row="true"]');
+    fireEvent.click(rows[2]!);
+    fireEvent.click(rows[2]!, { shiftKey: true });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'About line 12' } });
+    first.unmount();
+
+    const onAddComment = vi.fn(asyncNoop);
+    const changed = chunkWith([10, 11, 12].map(normal));
+    changed.lines[2] = { ...changed.lines[2]!, content: 'line 12, edited' };
+    renderLines(changed, onAddComment);
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() =>
+      expect(onAddComment).toHaveBeenCalledWith(12, 'About line 12', 'line 12, edited', 'new', {
+        isQuestion: false,
+        intent: 'comment',
+      }),
+    );
   });
 });

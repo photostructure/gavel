@@ -10,6 +10,7 @@ import {
   type LineSelection,
 } from '../../types/diff';
 import { type CursorPosition } from '../hooks/keyboardNavigation';
+import { draftKey, type LineDraftAnchor } from '../hooks/useCommentDrafts';
 import {
   computeWordLevelDiff,
   shouldComputeWordDiff,
@@ -18,9 +19,17 @@ import {
 import { useFileLevelTokensLookup } from '../contexts/FileLevelTokensContext';
 
 import { CommentButton } from './CommentButton';
-import { CommentForm, type CommentSubmitOptions } from './CommentForm';
+import type { CommentSubmitOptions } from './CommentForm';
 import { CommentThreadCard } from './CommentThreadCard';
 import { EnhancedPrismSyntaxHighlighter } from './EnhancedPrismSyntaxHighlighter';
+import {
+  LineCommentComposer,
+  isComposerFor,
+  lastLineOf,
+  shownCodeFor,
+  targetCovers,
+  useChunkComposers,
+} from './LineCommentComposer';
 import { OpenInEditorButton } from './OpenInEditorButton';
 import type { AppearanceSettings } from './SettingsModal';
 import { WordLevelDiffHighlighter } from './WordLevelDiffHighlighter';
@@ -65,7 +74,7 @@ interface SideBySideDiffChunkProps {
     lineIndex: number;
   } | null;
   onCommentTriggerHandled?: () => void;
-  filename?: string;
+  filename: string;
   onOpenInEditor?: (filePath: string, lineNumber: number) => void;
 }
 
@@ -305,50 +314,11 @@ export function SideBySideDiffChunk({
     };
   }, [isDragging, startLine, endLine, handleAddComment]);
 
-  const handleCancelComment = useCallback(() => {
-    setCommentingLine(null);
+  const composers = useChunkComposers(filename, chunk.lines, commentingLine);
+  const codeLines = chunk.snapshotLines ?? chunk.lines;
+  const closeComposer = useCallback((anchor: LineDraftAnchor) => {
+    setCommentingLine((current) => (isComposerFor(anchor, current) ? null : current));
   }, []);
-
-  // Get the code content for the selected lines (for suggestion feature)
-  const getSelectedCodeContent = useCallback((): string => {
-    if (!commentingLine) return '';
-
-    const { side, lineNumber } = commentingLine;
-    const lines = chunk.snapshotLines ?? chunk.lines;
-
-    if (typeof lineNumber === 'number') {
-      // Single line
-      const line = lines.find((l) =>
-        side === 'old' ? l.oldLineNumber === lineNumber : l.newLineNumber === lineNumber,
-      );
-      return line?.content ?? '';
-    } else {
-      // Range of lines
-      const [start, end] = lineNumber;
-      const selectedLines = lines.filter((l) => {
-        const ln = side === 'old' ? l.oldLineNumber : l.newLineNumber;
-        return ln !== undefined && ln >= start && ln <= end;
-      });
-      return selectedLines.map((l) => l.content ?? '').join('\n');
-    }
-  }, [commentingLine, chunk.lines, chunk.snapshotLines]);
-
-  const handleSubmitComment = useCallback(
-    async (body: string, options: CommentSubmitOptions) => {
-      if (commentingLine !== null) {
-        const codeContent = getSelectedCodeContent();
-        await onAddComment(
-          commentingLine.lineNumber,
-          body,
-          codeContent,
-          commentingLine.side,
-          options,
-        );
-        setCommentingLine(null);
-      }
-    },
-    [commentingLine, onAddComment, getSelectedCodeContent],
-  );
 
   const getProcomputedTokens = useCallback(
     (getTokens: typeof getOldTokens, lineNumber: number | null | undefined) => {
@@ -413,17 +383,9 @@ export function SideBySideDiffChunk({
       }
     }
 
-    // Show selection for existing comment
-    if (commentingLine && commentingLine.side === side) {
-      const lineNumberRange = Array.isArray(commentingLine.lineNumber)
-        ? commentingLine.lineNumber
-        : [commentingLine.lineNumber, commentingLine.lineNumber];
-      const start = lineNumberRange[0];
-      const end = lineNumberRange[1];
-
-      if (start !== undefined && end !== undefined && lineNumber >= start && lineNumber <= end) {
-        return 'after:bg-diff-selected-bg after:absolute after:inset-0 after:border-l-5 after:border-l-diff-selected-border after:pointer-events-none';
-      }
+    // Show the lines of every open comment form, restored drafts included
+    if (composers.some((anchor) => targetCovers(anchor, side, lineNumber))) {
+      return 'after:bg-diff-selected-bg after:absolute after:inset-0 after:border-l-5 after:border-l-diff-selected-border after:pointer-events-none';
     }
 
     return '';
@@ -684,13 +646,12 @@ export function SideBySideDiffChunk({
                       hoveredLine?.lineNumber === sideLine.oldLineNumber && (
                         <>
                           {onOpenInEditor &&
-                            filename &&
                             sideLine.oldLine?.type !== 'delete' &&
                             sideLine.newLineNumber !== undefined && (
                               <OpenInEditorButton
                                 onClick={() => {
                                   const lineNumber = sideLine.newLineNumber;
-                                  if (!filename || lineNumber === undefined) return;
+                                  if (lineNumber === undefined) return;
                                   onOpenInEditor(filename, lineNumber);
                                 }}
                               />
@@ -746,11 +707,11 @@ export function SideBySideDiffChunk({
                     {hoveredLine?.side === 'new' &&
                       hoveredLine?.lineNumber === sideLine.newLineNumber && (
                         <>
-                          {onOpenInEditor && filename && sideLine.newLineNumber !== undefined && (
+                          {onOpenInEditor && sideLine.newLineNumber !== undefined && (
                             <OpenInEditorButton
                               onClick={() => {
                                 const lineNumber = sideLine.newLineNumber;
-                                if (!filename || lineNumber === undefined) return;
+                                if (lineNumber === undefined) return;
                                 onOpenInEditor(filename, lineNumber);
                               }}
                             />
@@ -849,40 +810,34 @@ export function SideBySideDiffChunk({
                 )}
 
                 {/* Comment form row */}
-                {commentingLine &&
-                  ((commentingLine.side === 'old' &&
-                    commentingLine.lineNumber === sideLine.oldLineNumber) ||
-                    (commentingLine.side === 'new' &&
-                      commentingLine.lineNumber === sideLine.newLineNumber) ||
-                    (Array.isArray(commentingLine.lineNumber) &&
-                      ((commentingLine.side === 'new' &&
-                        commentingLine.lineNumber[1] === sideLine.newLineNumber) ||
-                        (commentingLine.side === 'old' &&
-                          commentingLine.lineNumber[1] === sideLine.oldLineNumber)))) && (
-                    <tr className="bg-github-bg-secondary">
+                {composers
+                  .filter(
+                    (anchor) =>
+                      lastLineOf(anchor.lineNumber) ===
+                      (anchor.side === 'old' ? sideLine.oldLineNumber : sideLine.newLineNumber),
+                  )
+                  .map((anchor) => (
+                    <tr key={draftKey(anchor)} className="bg-github-bg-secondary">
                       <td colSpan={4} className="p-0">
                         <div
-                          className={`flex ${
-                            commentingLine.side === 'old'
-                              ? 'justify-start'
-                              : commentingLine.side === 'new'
-                                ? 'justify-end'
-                                : 'justify-center'
-                          }`}
+                          className={`flex ${anchor.side === 'old' ? 'justify-start' : 'justify-end'}`}
                         >
                           <div className={`w-1/2`}>
-                            <CommentForm
-                              onSubmit={handleSubmitComment}
-                              onCancel={handleCancelComment}
-                              selectedCode={getSelectedCodeContent()}
+                            <LineCommentComposer
+                              anchor={anchor}
+                              selectedCode={shownCodeFor(codeLines, anchor)}
                               syntaxTheme={syntaxTheme}
-                              filename={filename}
+                              onSubmit={(body, options, code) =>
+                                onAddComment(anchor.lineNumber, body, code, anchor.side, options)
+                              }
+                              onClose={() => closeComposer(anchor)}
+                              autoFocus={isComposerFor(anchor, commentingLine)}
                             />
                           </div>
                         </div>
                       </td>
                     </tr>
-                  )}
+                  ))}
               </React.Fragment>
             );
           })}

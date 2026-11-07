@@ -359,7 +359,9 @@ describe('CommentsListModal', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('keeps the modal open when cancelling message editing', async () => {
+  // Escape in a panel form that holds text closes the panel; an unchanged edit has
+  // nothing to keep, so the panel just closes.
+  it('closes the modal without navigating on Escape in an unchanged edit', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const onNavigate = vi.fn();
@@ -382,9 +384,8 @@ describe('CommentsListModal', () => {
     await user.click(screen.getAllByTitle('Edit message')[0]!);
     await user.keyboard('{Escape}');
 
-    expect(screen.getByText('First root comment')).toBeInTheDocument();
     expect(onNavigate).not.toHaveBeenCalled();
-    expect(onClose).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('resolves with one inline confirmation from the resolve button', async () => {

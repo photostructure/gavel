@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 
 import {
   type DiffFile,
@@ -10,6 +10,7 @@ import {
 } from '../../types/diff';
 import { FileLevelTokensProvider } from '../contexts/FileLevelTokensContext';
 import { type CursorPosition } from '../hooks/keyboardNavigation';
+import { useLineDraftAnchors } from '../hooks/useCommentDrafts';
 import { type MergedChunk } from '../hooks/useExpandedLines';
 import { useFileLevelTokens } from '../hooks/useFileLevelTokens';
 import { isWholeFileHighlightExtension } from '../utils/languageDetection';
@@ -19,6 +20,7 @@ import type { DiffViewerBodyProps } from '../viewers/types';
 
 import type { CommentSubmitOptions } from './CommentForm';
 import { DiffViewerHeader } from './DiffViewerHeader';
+import { anchorsNotShown } from './LineCommentComposer';
 import type { AppearanceSettings } from './SettingsModal';
 
 interface DiffViewerProps {
@@ -103,15 +105,17 @@ type Gap = {
   prevChunkIndex?: number;
 };
 
-const normalizeCommentRanges = (threads: CommentThread[]): Record<DiffSide, LineRange[]> => {
+// Line threads and unsent line drafts both need their lines shown.
+interface CommentTarget {
+  side: DiffSide;
+  line: LineNumber;
+}
+
+const normalizeCommentRanges = (targets: CommentTarget[]): Record<DiffSide, LineRange[]> => {
   const ranges: Record<DiffSide, LineRange[]> = { old: [], new: [] };
 
-  threads.forEach((thread) => {
-    if (thread.scope === 'review') return;
-    const side = thread.side ?? 'new';
-    const [start, end] = Array.isArray(thread.line)
-      ? [thread.line[0], thread.line[1]]
-      : [thread.line, thread.line];
+  targets.forEach(({ side, line }) => {
+    const [start, end] = Array.isArray(line) ? [line[0], line[1]] : [line, line];
 
     if (start <= 0 || end <= 0) return;
 
@@ -234,6 +238,21 @@ export const DiffViewer = memo(function DiffViewer({
   diffVersion,
 }: DiffViewerProps) {
   const isCollapsed = collapsedFiles.has(file.path);
+  // Expanded context does not survive a reload or a review switch, so a line draft
+  // that no chunk shows reopens its gap the way a thread does.
+  const lineDraftAnchors = useLineDraftAnchors(file.path);
+  const commentTargets = useMemo<CommentTarget[]>(
+    () => [
+      ...threads.flatMap((thread) =>
+        thread.scope === 'review' ? [] : [{ side: thread.side ?? 'new', line: thread.line }],
+      ),
+      ...anchorsNotShown(lineDraftAnchors, mergedChunks).map((anchor) => ({
+        side: anchor.side,
+        line: anchor.lineNumber,
+      })),
+    ],
+    [threads, lineDraftAnchors, mergedChunks],
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -300,7 +319,7 @@ export const DiffViewer = memo(function DiffViewer({
   );
 
   useEffect(() => {
-    if (isCollapsed || isExpandLoading || !canExpandHiddenLines || threads.length === 0) {
+    if (isCollapsed || isExpandLoading || !canExpandHiddenLines || commentTargets.length === 0) {
       return;
     }
 
@@ -308,7 +327,7 @@ export const DiffViewer = memo(function DiffViewer({
       return;
     }
 
-    const commentRangesBySide = normalizeCommentRanges(threads);
+    const commentRangesBySide = normalizeCommentRanges(commentTargets);
     const mergedByFirstIndex = buildMergedChunkIndex(mergedChunks);
     const lastChunkIndex = getLastChunkIndex(mergedChunks);
     const lastMerged = mergedChunks[mergedChunks.length - 1];
@@ -359,7 +378,7 @@ export const DiffViewer = memo(function DiffViewer({
       });
     });
   }, [
-    threads,
+    commentTargets,
     expandAllBetweenChunks,
     expandLines,
     file,

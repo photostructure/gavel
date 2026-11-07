@@ -12,15 +12,24 @@ import {
 } from '../../types/diff';
 import { DEFAULT_DIFF_VIEW_MODE } from '../../utils/diffMode';
 import { type CursorPosition } from '../hooks/keyboardNavigation';
+import { draftKey, type LineDraftAnchor } from '../hooks/useCommentDrafts';
 import {
   computeWordLevelDiff,
   shouldComputeWordDiff,
   type DiffSegment,
 } from '../utils/wordLevelDiff';
 
-import { CommentForm, type CommentSubmitOptions } from './CommentForm';
+import type { CommentSubmitOptions } from './CommentForm';
 import { CommentThreadCard } from './CommentThreadCard';
 import { DiffLineRow } from './DiffLineRow';
+import {
+  LineCommentComposer,
+  isComposerFor,
+  lineInTarget,
+  lineShowsTarget,
+  shownCodeFor,
+  useChunkComposers,
+} from './LineCommentComposer';
 import type { AppearanceSettings } from './SettingsModal';
 import { SideBySideDiffChunk } from './SideBySideDiffChunk';
 
@@ -65,7 +74,7 @@ interface DiffChunkProps {
     lineIndex: number;
   } | null;
   onCommentTriggerHandled?: () => void;
-  filename?: string;
+  filename: string;
   onOpenInEditor?: (filePath: string, lineNumber: number) => void;
 }
 
@@ -232,50 +241,11 @@ export const DiffChunk = memo(function DiffChunk({
     };
   }, [isDragging, startLine, endLine, dragSide, handleAddComment]);
 
-  const handleCancelComment = useCallback(() => {
-    setCommentingLine(null);
+  const composers = useChunkComposers(filename, chunk.lines, commentingLine);
+  const codeLines = chunk.snapshotLines ?? chunk.lines;
+  const closeComposer = useCallback((anchor: LineDraftAnchor) => {
+    setCommentingLine((current) => (isComposerFor(anchor, current) ? null : current));
   }, []);
-
-  // Get the code content for the selected lines (for suggestion feature)
-  const getSelectedCodeContent = useCallback((): string => {
-    if (!commentingLine) return '';
-
-    const { side, lineNumber } = commentingLine;
-    const lines = chunk.snapshotLines ?? chunk.lines;
-
-    if (typeof lineNumber === 'number') {
-      // Single line
-      const line = lines.find((l) =>
-        side === 'old' ? l.oldLineNumber === lineNumber : l.newLineNumber === lineNumber,
-      );
-      return line?.content ?? '';
-    } else {
-      // Range of lines
-      const [start, end] = lineNumber;
-      const selectedLines = lines.filter((l) => {
-        const ln = side === 'old' ? l.oldLineNumber : l.newLineNumber;
-        return ln !== undefined && ln >= start && ln <= end;
-      });
-      return selectedLines.map((l) => l.content ?? '').join('\n');
-    }
-  }, [commentingLine, chunk.lines, chunk.snapshotLines]);
-
-  const handleSubmitComment = useCallback(
-    async (body: string, options: CommentSubmitOptions) => {
-      if (commentingLine !== null) {
-        const codeContent = getSelectedCodeContent();
-        await onAddComment(
-          commentingLine.lineNumber,
-          body,
-          codeContent,
-          commentingLine.side,
-          options,
-        );
-        setCommentingLine(null);
-      }
-    },
-    [commentingLine, onAddComment, getSelectedCodeContent],
-  );
 
   const getThreadsForLine = (lineNumber: number, side: DiffSide) => {
     return threads
@@ -305,7 +275,7 @@ export const DiffChunk = memo(function DiffChunk({
     }
   };
 
-  const getSelectedLineStyle = (lineNumber: number | undefined, side: DiffSide): string => {
+  const getDragSelectionStyle = (lineNumber: number | undefined): string => {
     if (!lineNumber) {
       return '';
     }
@@ -325,19 +295,6 @@ export const DiffChunk = memo(function DiffChunk({
           classes += ' drag-selected-last';
         }
         return classes;
-      }
-    }
-
-    // Show selection for existing comment
-    if (commentingLine && commentingLine.side === side) {
-      const start = Array.isArray(commentingLine.lineNumber)
-        ? commentingLine.lineNumber[0]
-        : commentingLine.lineNumber;
-      const end = Array.isArray(commentingLine.lineNumber)
-        ? commentingLine.lineNumber[1]
-        : commentingLine.lineNumber;
-      if (lineNumber >= start && lineNumber <= end) {
-        return 'comment-selected';
       }
     }
 
@@ -437,13 +394,7 @@ export const DiffChunk = memo(function DiffChunk({
       <table className="w-full table-fixed border-collapse font-mono text-sm leading-5">
         <tbody>
           {chunk.lines.map((line, index) => {
-            const currentLineNumber = line.newLineNumber || line.oldLineNumber || 0;
-            const currentLineSide: DiffSide = line.type === 'delete' ? 'old' : 'new';
-            const formTargetLineNumber = commentingLine
-              ? Array.isArray(commentingLine.lineNumber)
-                ? commentingLine.lineNumber[1]
-                : commentingLine.lineNumber
-              : null;
+            const lineComposers = composers.filter((anchor) => lineShowsTarget(line, anchor));
 
             // Determine which line number and side to use for fetching comments
             // Delete lines: use oldLineNumber and 'old' side
@@ -470,10 +421,13 @@ export const DiffChunk = memo(function DiffChunk({
                   lineId={lineId}
                   isCurrentLine={isCurrentLine || false}
                   hoveredLineIndex={hoveredLine}
-                  selectedLineStyle={getSelectedLineStyle(
-                    line.newLineNumber || line.oldLineNumber,
-                    line.type === 'delete' ? 'old' : 'new',
-                  )}
+                  selectedLineStyle={
+                    getDragSelectionStyle(line.newLineNumber || line.oldLineNumber) ||
+                    // The lines of every open comment form, restored drafts included
+                    (composers.some((anchor) => lineInTarget(line, anchor))
+                      ? 'comment-selected'
+                      : '')
+                  }
                   onMouseEnter={() => {
                     setHoveredLine(index);
                   }}
@@ -498,13 +452,11 @@ export const DiffChunk = memo(function DiffChunk({
                   }}
                   onOpenInEditor={
                     onOpenInEditor &&
-                    filename &&
                     line.type !== 'delete' &&
                     (line.newLineNumber || line.oldLineNumber)
                       ? () => {
                           const lineNumber = line.newLineNumber || line.oldLineNumber;
                           if (!lineNumber) return;
-                          if (!filename) return;
                           onOpenInEditor(filename, lineNumber);
                         }
                       : undefined
@@ -561,35 +513,36 @@ export const DiffChunk = memo(function DiffChunk({
                   );
                 })}
 
-                {commentingLine &&
-                  commentingLine.side === currentLineSide &&
-                  formTargetLineNumber === currentLineNumber && (
-                    <tr className="bg-[var(--bg-secondary)]">
-                      <td colSpan={3} className="p-0">
+                {lineComposers.map((anchor) => (
+                  <tr key={draftKey(anchor)} className="bg-[var(--bg-secondary)]">
+                    <td colSpan={3} className="p-0">
+                      <div
+                        className={`flex ${
+                          getCommentLayout(line) === 'left'
+                            ? 'justify-start'
+                            : getCommentLayout(line) === 'right'
+                              ? 'justify-end'
+                              : 'justify-center'
+                        }`}
+                      >
                         <div
-                          className={`flex ${
-                            getCommentLayout(line) === 'left'
-                              ? 'justify-start'
-                              : getCommentLayout(line) === 'right'
-                                ? 'justify-end'
-                                : 'justify-center'
-                          }`}
+                          className={`${getCommentLayout(line) === 'full' ? 'w-full' : 'w-1/2'}`}
                         >
-                          <div
-                            className={`${getCommentLayout(line) === 'full' ? 'w-full' : 'w-1/2'}`}
-                          >
-                            <CommentForm
-                              onSubmit={handleSubmitComment}
-                              onCancel={handleCancelComment}
-                              selectedCode={getSelectedCodeContent()}
-                              syntaxTheme={syntaxTheme}
-                              filename={filename}
-                            />
-                          </div>
+                          <LineCommentComposer
+                            anchor={anchor}
+                            selectedCode={shownCodeFor(codeLines, anchor)}
+                            syntaxTheme={syntaxTheme}
+                            onSubmit={(body, options, code) =>
+                              onAddComment(anchor.lineNumber, body, code, anchor.side, options)
+                            }
+                            onClose={() => closeComposer(anchor)}
+                            autoFocus={isComposerFor(anchor, commentingLine)}
+                          />
                         </div>
-                      </td>
-                    </tr>
-                  )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </React.Fragment>
             );
           })}

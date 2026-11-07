@@ -15,6 +15,7 @@ import { copyTextToClipboard } from '../utils/clipboard';
 import { useFocusedAgentMessage } from '../hooks/useFocusedAgentMessage';
 import { agentMessageRevision } from '../hooks/useAgentUpdates';
 import { AgentUpdatesContext } from '../contexts/AgentUpdatesContext';
+import { useCommentDraft, useThreadHadDraftOnMount } from '../hooks/useCommentDrafts';
 import { hasActiveTextSelection } from '../utils/domUtils';
 
 import { CommentBodyRenderer } from './CommentBodyRenderer';
@@ -37,6 +38,12 @@ const QUICK_REPLIES: readonly { label: string; body: string; intent: CommentInte
   },
 ];
 
+// A reply or edit form is 'restored' when this card mounted with a saved draft for it
+// (after a reload or a review switch); a restored form does not take focus. Only a
+// click in this copy opens a form, so when the same thread shows in the Conversation
+// panel and the diff, a draft typed in one copy does not open the other.
+type DraftFormState = 'closed' | 'restored' | 'opened';
+
 interface ThreadMessageItemProps {
   threadId: string;
   highlighted?: boolean;
@@ -52,6 +59,7 @@ interface ThreadMessageItemProps {
   actionLabel: string;
   onDelete?: () => void;
   onClick?: (e: React.MouseEvent) => void;
+  onEscapeKeepingDraft?: () => void;
 }
 
 function ThreadMessageItem({
@@ -69,22 +77,28 @@ function ThreadMessageItem({
   actionLabel,
   onDelete,
   onClick,
+  onEscapeKeepingDraft,
 }: ThreadMessageItemProps) {
   const messageElement = useFocusedAgentMessage(message.id, highlighted, focusRequest);
   const readState = useContext(AgentUpdatesContext);
   const unread = readState?.unreadKeys.has(JSON.stringify([threadId, message.id])) ?? false;
-  const [isEditing, setIsEditing] = useState(false);
   const showAuthorHeader = showAuthorBadge && Boolean(message.author);
   const progress = message.origin !== 'agent' ? message.progress : undefined;
   const isUserAuthoredMessage = message.author?.trim() === 'User';
   const intent = message.intent ?? 'comment';
+  const editDraft = useCommentDraft(
+    { kind: 'edit', threadId, messageId: message.id },
+    { body: message.body, intent },
+  );
+  const [editForm, setEditForm] = useState<DraftFormState>(editDraft.draft ? 'restored' : 'closed');
+  const isEditing = editForm !== 'closed';
   const [isCopied, setIsCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(copyTimer.current), []);
 
   const handleStartEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsEditing(true);
+    setEditForm('opened');
   };
 
   const handleCopy = async (event: React.MouseEvent) => {
@@ -99,8 +113,16 @@ function ThreadMessageItem({
     }
   };
 
-  const handleCancelEdit = () => {
-    setIsEditing(false);
+  // Cancel passes ''; Escape passes the text. In the panel, Escape in an edit with text
+  // closes the panel and keeps any unsaved changes (see
+  // CommentThreadCardProps.onEscapeKeepingDraft).
+  const handleCancelEdit = (text: string) => {
+    if (onEscapeKeepingDraft && text.trim()) {
+      onEscapeKeepingDraft();
+      return;
+    }
+    editDraft.clear();
+    setEditForm('closed');
   };
 
   const handleSaveEdit = (nextBody: string, options: CommentSubmitOptions) => {
@@ -108,7 +130,8 @@ function ThreadMessageItem({
     if (nextBody !== message.body || nextIntent !== intent) {
       onUpdate(nextBody, nextIntent);
     }
-    setIsEditing(false);
+    editDraft.clear();
+    setEditForm('closed');
     return Promise.resolve();
   };
 
@@ -259,12 +282,16 @@ function ThreadMessageItem({
           selectedCode={originalCode}
           syntaxTheme={syntaxTheme}
           filename={filename}
-          initialValue={message.body}
-          initialIntent={intent}
+          value={editDraft.body}
+          onChange={editDraft.setBody}
+          intentValue={editDraft.intent}
+          onIntentChange={editDraft.setIntent}
           embedded={true}
           title="Edit comment"
           submitLabel="Save"
           placeholder="Edit your message..."
+          autoFocus={editForm === 'opened'}
+          draftKey={editDraft.key}
         />
       )}
     </div>
@@ -293,6 +320,10 @@ interface CommentThreadCardProps {
 
   onClick?: (e: React.MouseEvent) => void;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
+  // When given (the Conversation panel passes its close handler), Escape in a reply or
+  // edit form with text calls this and keeps any draft; without it, Escape keeps a
+  // reply open and discards an edit.
+  onEscapeKeepingDraft?: () => void;
 }
 
 export function CommentThreadCard({
@@ -312,13 +343,17 @@ export function CommentThreadCard({
 
   onClick,
   syntaxTheme,
+  onEscapeKeepingDraft,
 }: CommentThreadCardProps) {
   const [isCopied, setIsCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(copyTimer.current), []);
   const contentId = useId();
+  // A resolved thread that held an unsent reply or edit when it mounted opens, so
+  // the restored draft shows.
+  const restoredDraft = useThreadHadDraftOnMount(thread.id);
   const [isCollapsed, setIsCollapsed] = useState(
-    Boolean(thread.deleted || (thread.resolution?.resolved && !focusedMessageId)),
+    Boolean(thread.deleted || (thread.resolution?.resolved && !focusedMessageId && !restoredDraft)),
   );
   useEffect(() => {
     setIsCollapsed(Boolean(thread.deleted || thread.resolution?.resolved));
@@ -326,7 +361,14 @@ export function CommentThreadCard({
   useEffect(() => {
     if (focusedMessageId && !thread.deleted) setIsCollapsed(false);
   }, [focusedMessageId, focusRequest, thread.deleted]);
-  const [isReplying, setIsReplying] = useState(false);
+  useEffect(() => {
+    if (restoredDraft && !thread.deleted) setIsCollapsed(false);
+  }, [restoredDraft, thread.deleted]);
+  const replyDraft = useCommentDraft({ kind: 'reply', threadId: thread.id });
+  const [replyForm, setReplyForm] = useState<DraftFormState>(
+    replyDraft.draft ? 'restored' : 'closed',
+  );
+  const isReplying = replyForm !== 'closed';
   const replyArea = useRef<HTMLDivElement>(null);
   const replyTrigger = useRef<HTMLButtonElement>(null);
   const returnFocusToReplyTrigger = useRef(false);
@@ -497,6 +539,7 @@ export function CommentThreadCard({
           <>
             <ThreadMessageItem
               threadId={thread.id}
+              onEscapeKeepingDraft={onEscapeKeepingDraft}
               highlighted={focusedMessageId === rootMessage.id}
               focusRequest={focusedMessageId === rootMessage.id ? focusRequest : undefined}
               message={{
@@ -535,6 +578,7 @@ export function CommentThreadCard({
                 ) : (
                   <ThreadMessageItem
                     threadId={thread.id}
+                    onEscapeKeepingDraft={onEscapeKeepingDraft}
                     highlighted={focusedMessageId === message.id}
                     focusRequest={focusedMessageId === message.id ? focusRequest : undefined}
                     message={message}
@@ -559,16 +603,25 @@ export function CommentThreadCard({
             >
               {isReplying ? (
                 <CommentForm
+                  value={replyDraft.body}
+                  onChange={replyDraft.setBody}
+                  intentValue={replyDraft.intent}
+                  onIntentChange={replyDraft.setIntent}
                   onSubmit={async (body, options) => {
                     await onReplyToThread(thread.id, body, options.intent);
-                    setIsReplying(false);
+                    replyDraft.clear();
+                    setReplyForm('closed');
                   }}
                   onCancel={(draft) => {
-                    if (draft.trim()) return;
+                    if (draft.trim()) {
+                      onEscapeKeepingDraft?.();
+                      return;
+                    }
                     // Escape returns focus to the reply field; an outside click keeps its target.
                     returnFocusToReplyTrigger.current =
                       replyArea.current?.contains(document.activeElement) ?? false;
-                    setIsReplying(false);
+                    replyDraft.clear();
+                    setReplyForm('closed');
                   }}
                   selectedCode={thread.codeContent}
                   syntaxTheme={syntaxTheme}
@@ -577,6 +630,8 @@ export function CommentThreadCard({
                   title="Reply to thread"
                   submitLabel="Send"
                   placeholder="Write a reply..."
+                  autoFocus={replyForm === 'opened'}
+                  draftKey={replyDraft.key}
                 />
               ) : (
                 <div role="group" aria-label="Reply" className="flex flex-wrap items-center gap-2">
@@ -599,7 +654,7 @@ export function CommentThreadCard({
                   <button
                     ref={replyTrigger}
                     type="button"
-                    onClick={() => setIsReplying(true)}
+                    onClick={() => setReplyForm('opened')}
                     className="min-w-40 flex-1 cursor-text rounded border border-github-border bg-github-bg-secondary px-3 py-1.5 text-left text-sm text-github-text-muted transition-colors hover:border-github-text-secondary"
                   >
                     Write a reply...

@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DiffFile } from '../../types/diff';
+import { CommentDraftScope, useCommentDraft } from '../hooks/useCommentDrafts';
 import type { MergedChunk } from '../hooks/useExpandedLines';
 
 import { TextDiffViewer } from './TextDiffViewer';
@@ -87,5 +88,53 @@ describe('text patch context controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Expand all 4 hidden lines' }));
     expect(options.expandHiddenLines).toHaveBeenCalledWith(file, 1, 'down', 4);
     expect(screen.queryByText(/outside this patch/)).not.toBeInTheDocument();
+  });
+});
+
+describe('drafts on lines no longer in the diff', () => {
+  afterEach(() => sessionStorage.clear());
+
+  const shown: MergedChunk = {
+    ...first,
+    lines: [{ type: 'add', content: 'kept', newLineNumber: 4 }],
+  };
+  const seed = (lineNumber: number) => {
+    const { result, unmount } = renderHook(
+      () => useCommentDraft({ kind: 'line', filePath: 'file.ts', side: 'new', lineNumber }),
+      {
+        wrapper: ({ children }) => (
+          <CommentDraftScope value="review-a">{children}</CommentDraftScope>
+        ),
+      },
+    );
+    act(() => result.current.setBody(`Draft on ${lineNumber}`));
+    unmount();
+  };
+  const renderViewer = (onAddComment = vi.fn(async () => {})) =>
+    render(
+      <CommentDraftScope value="review-a">
+        <TextDiffViewer {...props({ mergedChunks: [shown], onAddComment })} />
+      </CommentDraftScope>,
+    );
+
+  it('shows the draft at the top of its file and can still send it', async () => {
+    seed(9);
+    const onAddComment = vi.fn(async () => {});
+    renderViewer(onAddComment);
+    expect(screen.getByText(/line 9, which is not shown here/)).toBeInTheDocument();
+    expect(screen.getByRole('textbox')).toHaveValue('Draft on 9');
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() =>
+      expect(onAddComment).toHaveBeenCalledWith(9, 'Draft on 9', undefined, 'new', {
+        isQuestion: false,
+        intent: 'comment',
+      }),
+    );
+  });
+
+  it('leaves a draft whose line is still shown to its chunk', () => {
+    seed(4);
+    renderViewer();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 });

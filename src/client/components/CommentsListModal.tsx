@@ -1,14 +1,25 @@
 import { X } from 'lucide-react';
-import { useEffect, useState, useRef, useCallback, useMemo, useId, type ReactNode } from 'react';
+import {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+  useId,
+  type ComponentProps,
+  type ReactNode,
+} from 'react';
 import { useHotkeys, useHotkeysContext } from 'react-hotkeys-hook';
 
 import type { CommentIntent, CommentThread } from '../../types/diff';
 import { hasActiveTextSelection } from '../utils/domUtils';
+import { useDraftAnchors } from '../hooks/useCommentDrafts';
 import type { AgentUpdate } from '../hooks/useAgentUpdates';
 
 import { CommentForm, type CommentSubmitOptions } from './CommentForm';
 import { CommentThreadCard } from './CommentThreadCard';
 import type { AppearanceSettings } from './SettingsModal';
+import { UnsentDrafts } from './UnsentDrafts';
 
 interface CommentsListModalProps {
   headerActions?: ReactNode;
@@ -19,6 +30,11 @@ interface CommentsListModalProps {
   onClose: () => void;
   onAddGeneralComment?: (body: string, options: CommentSubmitOptions) => Promise<void>;
   onNavigate: (thread: CommentThread) => void;
+  // Shows the Unsent drafts section when given.
+  unsentDrafts?: Pick<
+    ComponentProps<typeof UnsentDrafts>,
+    'diffFilePaths' | 'onAddComment' | 'onNavigateToLine' | 'codeFor'
+  >;
   comments: CommentThread[];
   showAuthorBadges?: boolean;
   onToggleThreadResolved: (threadId: string) => void;
@@ -48,6 +64,7 @@ export function CommentsListModal({
   onClose,
   onAddGeneralComment,
   onNavigate,
+  unsentDrafts,
   comments,
   showAuthorBadges = false,
   onToggleThreadResolved,
@@ -143,9 +160,11 @@ export function CommentsListModal({
     setSelectedIndex((index) => Math.max(0, Math.min(index, sortedThreads.length - 1)));
   }, [sortedThreads.length]);
 
+  // Discarding or sending an unsent draft removes the control that had focus, too.
+  const draftCount = useDraftAnchors().length;
   useEffect(() => {
     if (isOpen && document.activeElement === document.body) dialogRef.current?.focus();
-  }, [isOpen, sortedThreads.length]);
+  }, [isOpen, sortedThreads.length, draftCount]);
 
   const handleThreadClick = useCallback(
     (thread: CommentThread) => {
@@ -155,6 +174,21 @@ export function CommentsListModal({
     },
     [onClose, onNavigate],
   );
+
+  // A reply or edit draft opens its thread's card here, which holds the draft's form.
+  // The diff may not draw the thread at all (a later capture dropped its hunk), so the
+  // panel never sends it there. The filter switches to All so the card is listed.
+  const handleDraftThreadClick = (thread: CommentThread, messageId?: string) => {
+    const focusId = messageId ?? thread.messages[0]?.id;
+    if (focusId === undefined) return;
+    setFilter('all');
+    setFocus((previous) => ({
+      scope: readScope,
+      threadId: thread.id,
+      messageId: focusId,
+      request: (previous?.request ?? 0) + 1,
+    }));
+  };
 
   const handleRemoveThread = useCallback(
     (threadId: string) => {
@@ -364,6 +398,15 @@ export function CommentsListModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="p-6">
+            {unsentDrafts && (
+              <UnsentDrafts
+                {...unsentDrafts}
+                threads={comments}
+                syntaxTheme={syntaxTheme}
+                onNavigateToThread={handleDraftThreadClick}
+                onClosePanel={onClose}
+              />
+            )}
             {onAddGeneralComment && (
               <div className="mb-6 border-b border-github-border pb-5">
                 <CommentForm
@@ -416,6 +459,7 @@ export function CommentsListModal({
                       className={selectedIndex === index ? 'rounded ring-2 ring-blue-500' : ''}
                     >
                       <CommentThreadCard
+                        onEscapeKeepingDraft={onClose}
                         unreadCount={unreadByThread.get(thread.id)?.length ?? 0}
                         onReadUnread={() => {
                           const unreadIds = new Set(

@@ -2,11 +2,14 @@ import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CommentThread } from '../../types/diff';
 import type { CommentSubmitOptions } from './CommentForm';
 import { CommentsListModal } from './CommentsListModal';
+
+// Reply and edit forms save unsent text to sessionStorage; start each test without it.
+afterEach(() => sessionStorage.clear());
 
 const time = '2026-10-24T00:00:00Z';
 const threads: CommentThread[] = ['A', 'B', 'C'].map((id) => ({
@@ -134,18 +137,28 @@ it('deletes a general thread immediately without removing adjacent discussions',
   expect(screen.getByRole('dialog')).toBeInTheDocument();
 });
 
-it('keeps reply drafts visible after Escape and clicks outside the reply form', async () => {
+it('keeps a reply draft visible after a click outside the reply form', async () => {
   const user = userEvent.setup();
   render(<TriggerHarness onNavigate={vi.fn()} onAddGeneralComment={vi.fn()} />);
   await user.click(screen.getByRole('button', { name: 'Open conversation' }));
   await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
   const reply = screen.getByPlaceholderText('Write a reply...');
   await user.type(reply, 'Keep this reply');
-  await user.keyboard('{Escape}');
-  expect(screen.getByRole('dialog')).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Copy Prompt' }));
   expect(reply).toBeVisible();
   expect(reply).toHaveValue('Keep this reply');
+});
+
+it('closes the panel on Escape in a reply with text and keeps the reply', async () => {
+  const user = userEvent.setup();
+  render(<TriggerHarness onNavigate={vi.fn()} onAddGeneralComment={vi.fn()} />);
+  await user.click(screen.getByRole('button', { name: 'Open conversation' }));
+  await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
+  await user.type(screen.getByPlaceholderText('Write a reply...'), 'Keep this reply');
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Open conversation' }));
+  expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('Keep this reply');
 });
 
 describe('Conversation drafts', () => {

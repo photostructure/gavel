@@ -31,6 +31,7 @@ interface UseLazyDiffRenderingReturn {
   registerLazyFileContainer: (filePath: string, node: HTMLDivElement | null) => void;
   scrollFileIntoDiffContainer: (filePath: string, target?: 'first-comment') => void;
   isFileScrolledPastContainerTop: (filePath: string) => boolean;
+  cancelFileScroll: () => void;
 }
 
 export function useLazyDiffRendering({
@@ -353,12 +354,19 @@ export function useLazyDiffRendering({
     });
   }, [diffData, renderedFilePaths, setDiffData]);
 
+  // Drops the pending scroll from scrollFileIntoDiffContainer, including its 180 ms
+  // correction, for a caller that moves the view somewhere else in the meantime.
+  const cancelFileScroll = useCallback(() => {
+    scrollRequestIdRef.current += 1;
+  }, []);
+
   return {
     renderedFilePaths,
     ensureFileRendered,
     ensureFilesRenderedUpTo,
     registerLazyFileContainer,
     scrollFileIntoDiffContainer,
+    cancelFileScroll,
     isFileScrolledPastContainerTop,
   };
 }

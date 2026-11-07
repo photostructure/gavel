@@ -27,3 +27,23 @@ export function hasActiveTextSelection(): boolean {
   if (!selection || selection.isCollapsed) return false;
   return selection.toString().length > 0;
 }
+
+/**
+ * Close every empty comment form the click is not in, through its reset handler.
+ * Forms with the clicked form's draft key are skipped: they are other copies of
+ * the same reply or edit (the Conversation panel and the diff), and resetting
+ * one deletes the draft the clicked copy shows.
+ */
+export function resetEmptyCommentFormsOutside(target: Node) {
+  const element = target instanceof Element ? target : target.parentElement;
+  const clickedKey = element?.closest<HTMLFormElement>('form[data-draft-key]')?.dataset.draftKey;
+  document
+    .querySelectorAll<HTMLFormElement>(
+      'form[data-empty="true"]:not([data-dismiss-on-outside-click="false"])',
+    )
+    .forEach((form) => {
+      if (form.contains(target)) return;
+      if (clickedKey !== undefined && form.dataset.draftKey === clickedKey) return;
+      form.reset();
+    });
+}

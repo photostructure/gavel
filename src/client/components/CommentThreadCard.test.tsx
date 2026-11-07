@@ -1,16 +1,20 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ComponentProps } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { useState, type ComponentProps } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CommentThread } from '../../types/diff';
+import type { CommentIntent, CommentThread } from '../../types/diff';
 import { AgentUpdatesContext, type AgentUpdatesReadState } from '../contexts/AgentUpdatesContext';
+import { CommentDraftScope, draftKey } from '../hooks/useCommentDrafts';
 
 import { CommentThreadCard } from './CommentThreadCard';
 import { copyTextToClipboard } from '../utils/clipboard';
 vi.mock('../utils/clipboard', () => ({
   copyTextToClipboard: vi.fn().mockResolvedValue(undefined),
 }));
+
+// Reply and edit forms save unsent text to sessionStorage; start each test without it.
+afterEach(() => sessionStorage.clear());
 
 const mockThread: CommentThread = {
   id: 'thread-1',
@@ -768,4 +772,226 @@ it('cancels copied feedback when the thread unmounts', async () => {
   } finally {
     vi.useRealTimers();
   }
+});
+
+describe('thread drafts', () => {
+  const renderCard = () =>
+    render(
+      <CommentDraftScope value="review-a">
+        <CommentThreadCard
+          thread={mockThread}
+          onGeneratePrompt={() => 'thread prompt'}
+          onToggleThreadResolved={vi.fn()}
+          onReplyToThread={vi.fn().mockResolvedValue(undefined)}
+          onRemoveMessage={vi.fn()}
+          onUpdateMessage={vi.fn()}
+        />
+      </CommentDraftScope>,
+    );
+
+  it('reopens a reply draft with its text after the page remounts', async () => {
+    const user = userEvent.setup();
+    const first = renderCard();
+    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
+    await user.type(screen.getByPlaceholderText('Write a reply...'), 'Half a reply');
+    await user.click(screen.getByRole('radio', { name: 'Change request' }));
+    first.unmount();
+
+    renderCard();
+    expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('Half a reply');
+    expect(screen.getByRole('radio', { name: 'Change request' })).toBeChecked();
+  });
+
+  it('reopens an unsaved edit with its text after the page remounts', async () => {
+    const user = userEvent.setup();
+    const first = renderCard();
+    await user.click(screen.getAllByTitle('Edit message')[0]!);
+    const box = screen.getByPlaceholderText('Edit your message...');
+    await user.clear(box);
+    await user.type(box, 'Reworded root');
+    first.unmount();
+
+    renderCard();
+    expect(screen.getByPlaceholderText('Edit your message...')).toHaveValue('Reworded root');
+  });
+
+  it('forgets an unsaved edit on Cancel', async () => {
+    const user = userEvent.setup();
+    const first = renderCard();
+    await user.click(screen.getAllByTitle('Edit message')[0]!);
+    await user.type(screen.getByPlaceholderText('Edit your message...'), ' and more');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    first.unmount();
+
+    renderCard();
+    expect(screen.queryByPlaceholderText('Edit your message...')).not.toBeInTheDocument();
+  });
+});
+
+describe('thread drafts across saves, copies, and resolution', () => {
+  const resolved: CommentThread = {
+    ...mockThread,
+    resolution: { resolved: true, updatedAt: mockThread.updatedAt },
+  };
+  type UpdateMessage = (
+    threadId: string,
+    messageId: string,
+    body: string,
+    intent?: CommentIntent,
+  ) => void;
+  const card = (thread: CommentThread, onUpdateMessage: UpdateMessage = vi.fn()) => (
+    <CommentThreadCard
+      thread={thread}
+      onGeneratePrompt={() => 'thread prompt'}
+      onToggleThreadResolved={vi.fn()}
+      onReplyToThread={vi.fn().mockResolvedValue(undefined)}
+      onRemoveMessage={vi.fn()}
+      onUpdateMessage={onUpdateMessage}
+    />
+  );
+
+  // Applies saved edits to the thread, as useDiffComments does.
+  function EditingHost({ onUpdateMessage }: { onUpdateMessage: UpdateMessage }) {
+    const [thread, setThread] = useState(mockThread);
+    return (
+      <CommentDraftScope value="review-a">
+        {card(
+          thread,
+          (threadId: string, messageId: string, body: string, intent?: CommentIntent) => {
+            onUpdateMessage(threadId, messageId, body, intent);
+            setThread((current) => ({
+              ...current,
+              messages: current.messages.map((message) =>
+                message.id === messageId ? { ...message, body, intent } : message,
+              ),
+            }));
+          },
+        )}
+      </CommentDraftScope>
+    );
+  }
+
+  it('opens a second edit with the intent the first edit saved', async () => {
+    const user = userEvent.setup();
+    const onUpdateMessage = vi.fn<UpdateMessage>();
+    render(<EditingHost onUpdateMessage={onUpdateMessage} />);
+    await user.click(screen.getAllByTitle('Edit message')[0]!);
+    await user.click(screen.getByRole('radio', { name: 'Question' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getAllByTitle('Edit message')[0]!);
+    expect(screen.getByRole('radio', { name: 'Question' })).toBeChecked();
+    await user.type(screen.getByPlaceholderText('Edit your message...'), '!');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onUpdateMessage).toHaveBeenLastCalledWith(
+      'thread-1',
+      'message-1',
+      'Root comment!',
+      'question',
+    );
+  });
+
+  it('keeps an intent-only edit across a remount', async () => {
+    const user = userEvent.setup();
+    const first = render(
+      <CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>,
+    );
+    await user.click(screen.getAllByTitle('Edit message')[0]!);
+    await user.click(screen.getByRole('radio', { name: 'Question' }));
+    first.unmount();
+    render(<CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>);
+    expect(screen.getByPlaceholderText('Edit your message...')).toHaveValue('Root comment');
+    expect(screen.getByRole('radio', { name: 'Question' })).toBeChecked();
+  });
+
+  it('forgets an edit once it is saved', async () => {
+    const user = userEvent.setup();
+    const first = render(
+      <CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>,
+    );
+    await user.click(screen.getAllByTitle('Edit message')[0]!);
+    await user.type(screen.getByPlaceholderText('Edit your message...'), ' and more');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    first.unmount();
+    render(<CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>);
+    expect(screen.queryByPlaceholderText('Edit your message...')).not.toBeInTheDocument();
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it('keeps focus in the copy of the thread being typed in', async () => {
+    const user = userEvent.setup();
+    render(
+      <CommentDraftScope value="review-a">
+        <div data-testid="panel">{card(mockThread)}</div>
+        <div data-testid="diff">{card(mockThread)}</div>
+      </CommentDraftScope>,
+    );
+    const panel = within(screen.getByTestId('panel'));
+    await user.click(panel.getByRole('button', { name: 'Write a reply...' }));
+    await user.type(panel.getByPlaceholderText('Write a reply...'), 'Typed here');
+    expect(panel.getByPlaceholderText('Write a reply...')).toHaveFocus();
+    expect(panel.getByPlaceholderText('Write a reply...')).toHaveValue('Typed here');
+    // The other copy stays closed, so an outside click cannot reset it and
+    // delete the draft the first copy shows.
+    expect(
+      within(screen.getByTestId('diff')).queryByPlaceholderText('Write a reply...'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens an edit only in the copy where Edit was clicked', async () => {
+    const user = userEvent.setup();
+    render(
+      <CommentDraftScope value="review-a">
+        <div data-testid="panel">{card(mockThread)}</div>
+        <div data-testid="diff">{card(mockThread)}</div>
+      </CommentDraftScope>,
+    );
+    const panel = within(screen.getByTestId('panel'));
+    await user.click(panel.getAllByTitle('Edit message')[0]!);
+    await user.clear(panel.getByPlaceholderText('Edit your message...'));
+    expect(
+      within(screen.getByTestId('diff')).queryByPlaceholderText('Edit your message...'),
+    ).not.toBeInTheDocument();
+    expect(panel.getByPlaceholderText('Edit your message...')).toHaveValue('');
+  });
+
+  it('expands a resolved thread that holds a reply draft', async () => {
+    const user = userEvent.setup();
+    const first = render(<CommentDraftScope value="review-a">{card(resolved)}</CommentDraftScope>);
+    await user.click(screen.getByRole('button', { name: 'Expand thread' }));
+    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
+    await user.type(screen.getByPlaceholderText('Write a reply...'), 'Reopen this');
+    first.unmount();
+    render(<CommentDraftScope value="review-a">{card(resolved)}</CommentDraftScope>);
+    expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('Reopen this');
+  });
+
+  it('keeps a restored reply form open after its text is cleared', async () => {
+    const user = userEvent.setup();
+    const first = render(
+      <CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
+    await user.type(screen.getByPlaceholderText('Write a reply...'), 'Half a reply');
+    first.unmount();
+    render(<CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>);
+    await user.clear(screen.getByPlaceholderText('Write a reply...'));
+    expect(screen.getByPlaceholderText('Write a reply...')).toHaveFocus();
+    await user.type(screen.getByPlaceholderText('Write a reply...'), 'Rewritten');
+    expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('Rewritten');
+  });
+
+  it('marks reply and edit forms with their draft keys', async () => {
+    const user = userEvent.setup();
+    render(<CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>);
+    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
+    await user.click(screen.getAllByTitle('Edit message')[0]!);
+    expect(screen.getByPlaceholderText('Write a reply...').closest('form')).toHaveAttribute(
+      'data-draft-key',
+      draftKey({ kind: 'reply', threadId: 'thread-1' }),
+    );
+    expect(screen.getByPlaceholderText('Edit your message...').closest('form')).toHaveAttribute(
+      'data-draft-key',
+      draftKey({ kind: 'edit', threadId: 'thread-1', messageId: 'message-1' }),
+    );
+  });
 });

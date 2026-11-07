@@ -2,6 +2,12 @@ import React from 'react';
 
 import { DiffChunk } from '../components/DiffChunk';
 import { ExpandButton } from '../components/ExpandButton';
+import {
+  anchorsNotShown,
+  describeLines,
+  LineCommentComposer,
+} from '../components/LineCommentComposer';
+import { draftKey, useLineDraftAnchors } from '../hooks/useCommentDrafts';
 import type { PresentationChunk } from '../utils/ignoreWhitespace';
 
 import type { DiffViewerBodyProps } from './types';
@@ -33,6 +39,7 @@ export function TextDiffViewer({
   commentTrigger,
   onCommentTriggerHandled,
 }: DiffViewerBodyProps) {
+  const lineDraftAnchors = useLineDraftAnchors(file.path);
   const renderExpandButton = (
     position: 'top' | 'middle' | 'bottom',
     mergedChunk: (typeof mergedChunks)[number],
@@ -94,6 +101,11 @@ export function TextDiffViewer({
     return null;
   };
 
+  // A draft whose line no chunk shows stays at the top of its file: a later capture
+  // dropped the line, its context cannot be expanded here (DiffViewer expands the
+  // gaps that hold drafts when it can), or whitespace hiding hides it.
+  const strandedDrafts = anchorsNotShown(lineDraftAnchors, mergedChunks);
+
   return (
     <div
       className="split-diff-selection"
@@ -111,6 +123,19 @@ export function TextDiffViewer({
         }
       }}
     >
+      {strandedDrafts.map((anchor) => (
+        <LineCommentComposer
+          key={draftKey(anchor)}
+          anchor={anchor}
+          syntaxTheme={syntaxTheme}
+          title={`Comment on ${describeLines(anchor)}, which is not shown here`}
+          autoFocus={false}
+          onSubmit={(body, options, code) =>
+            onAddComment(anchor.lineNumber, body, code, anchor.side, options)
+          }
+          onClose={() => {}}
+        />
+      ))}
       {mergedChunks.map((mergedChunk, mergedIndex) => {
         const isFirstMerged = mergedIndex === 0;
         const isLastMerged = mergedIndex === mergedChunks.length - 1;

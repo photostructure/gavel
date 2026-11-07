@@ -1,4 +1,4 @@
-import type { CommentThread, DiffFile, DiffSide } from '../../../types/diff';
+import type { CommentThread, DiffFile, DiffSide, LineNumber } from '../../../types/diff';
 import type { CursorPosition } from '../../hooks/keyboardNavigation/types';
 
 /**
@@ -75,4 +75,21 @@ export function findCommentPosition(
     findLinePosition(file, fileIndex, targetLineNumber, 'new') ||
     findLinePosition(file, fileIndex, targetLineNumber, 'old')
   );
+}
+
+/**
+ * Finds the cursor position of a line on one side only, for an unsent line draft.
+ * A draft always has a side, so a line with the same number on the other side is a
+ * different line, and findCommentPosition's fallback to it would jump to the wrong
+ * place.
+ */
+export function findSidePosition(
+  target: { file: string; line: LineNumber; side: DiffSide },
+  files: DiffFile[],
+): CursorPosition | null {
+  const fileIndex = files.findIndex((f) => f.path === target.file);
+  const file = files[fileIndex];
+  if (!file) return null;
+  const lineNumber = Array.isArray(target.line) ? target.line[1] : target.line;
+  return findLinePosition(file, fileIndex, lineNumber, target.side);
 }

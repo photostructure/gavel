@@ -15,8 +15,8 @@ export interface CommentSubmitOptions {
 interface CommentFormProps {
   onSubmit: (body: string, options: CommentSubmitOptions) => Promise<void>;
   // Receives the unsent draft so a caller can keep a form with text open on
-  // Escape. Outside clicks reset only empty forms (closeEmptyCommentForms in
-  // App.tsx). The Cancel button discards the draft, so it passes ''.
+  // Escape. Outside clicks reset only empty forms (resetEmptyCommentFormsOutside in
+  // utils/domUtils.ts). The Cancel button discards the draft, so it passes ''.
   onCancel: (draft: string) => void;
   selectedCode?: string;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
@@ -30,6 +30,9 @@ interface CommentFormProps {
   placeholder?: string;
   autoFocus?: boolean;
   dismissOnOutsideClick?: boolean;
+  // The saved draft this form shows. Copies of one form share it, and an outside
+  // click in one copy does not reset the others.
+  draftKey?: string;
   initialIntent?: CommentIntent;
   intentValue?: CommentIntent;
   onIntentChange?: (intent: CommentIntent) => void;
@@ -54,6 +57,7 @@ export function CommentForm({
   onIntentChange,
   autoFocus = true,
   dismissOnOutsideClick = true,
+  draftKey,
   placeholder = 'Leave a comment...',
 }: CommentFormProps) {
   const [localBody, setLocalBody] = useState(initialValue);
@@ -117,6 +121,7 @@ export function CommentForm({
       onClick={(e) => e.stopPropagation()}
       data-empty={!body.trim()}
       data-dismiss-on-outside-click={dismissOnOutsideClick}
+      data-draft-key={draftKey}
     >
       <div
         role="radiogroup"

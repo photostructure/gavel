@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { ApprovalMode, ConversationSnapshot } from '../types/conversation';
 import {
   type DiffCommentThread,
+  type DiffFile,
   type DiffResponse,
   type DiffSelection,
   type DiffViewMode,
@@ -47,10 +48,12 @@ import { DiffViewer } from './components/DiffViewer';
 import { FileList } from './components/FileList';
 import { GitHubIcon } from './components/GitHubIcon';
 import { HelpModal } from './components/HelpModal';
+import { codeInFiles } from './components/LineCommentComposer';
 import { Logo } from './components/Logo';
 import { ReloadButton } from './components/ReloadButton';
 import { ReviewSummaryPanel } from './components/ReviewSummaryPanel';
 import { ReviewPresenceIndicator } from './components/ReviewPresenceIndicator';
+import { DraftBadge } from './components/DraftBadge';
 import { UnreadBadge } from './components/UnreadBadge';
 import { useAgentUpdates } from './hooks/useAgentUpdates';
 import { RevisionDetailModal } from './components/RevisionDetailModal';
@@ -62,6 +65,7 @@ import { HeaderMenu } from './components/HeaderMenu';
 import { ApprovalSplitButton } from './components/ApprovalSplitButton';
 import { ReviewProviders } from './contexts/ReviewProviders';
 import { useAppearanceSettings } from './hooks/useAppearanceSettings';
+import { filesWithDrafts, useDraftCount, type LineDraftAnchor } from './hooks/useCommentDrafts';
 import { useDiffComments } from './hooks/useDiffComments';
 import { useExpandedLines, type MergedChunk } from './hooks/useExpandedLines';
 import { useFileWatch } from './hooks/useFileWatch';
@@ -83,8 +87,8 @@ import { saveAutoViewedPatterns } from './services/autoViewedPatterns';
 import { celebrateApproval } from './utils/approvalCelebration';
 import { hasMultipleCommentAuthors } from './utils/commentAuthors';
 import { copyTextToClipboard } from './utils/clipboard';
-import { getFileElementId } from './utils/domUtils';
-import { findCommentPosition } from './utils/navigation/positionHelpers';
+import { getFileElementId, resetEmptyCommentFormsOutside } from './utils/domUtils';
+import { findCommentPosition, findSidePosition } from './utils/navigation/positionHelpers';
 import {
   readReviewLocation,
   readReviewHistoryLocation,
@@ -100,6 +104,10 @@ import { buildFileLineIndex, isThreadOutdated } from './utils/outdatedComments';
 import { hideWhitespaceChanges, remapWhitespaceCursor } from './utils/ignoreWhitespace';
 
 const EMPTY_COMMENT_THREADS: CommentThread[] = [];
+
+// A line draft's row on its own side; see findSidePosition.
+const findDraftPosition = (anchor: LineDraftAnchor, files: DiffFile[]) =>
+  findSidePosition({ file: anchor.filePath, line: anchor.lineNumber, side: anchor.side }, files);
 const EMPTY_MERGED_CHUNKS: MergedChunk[] = [];
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_MAX_WIDTH = 600;
@@ -180,7 +188,10 @@ function App() {
   const closeAbout = useCallback(() => setIsAboutOpen(false), []);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
+  // A "Go to line" jump waiting for its line to appear; see handleNavigateToDraftLine.
+  const [pendingDraftJump, setPendingDraftJump] = useState<LineDraftAnchor | null>(null);
   const collapsedInitializedRef = useRef(false);
+  const openedDraftFilesRef = useRef(false);
   const pendingSidebarSelectionsRef = useRef(new Set<string>());
   const diffScrollContainerRef = useRef<HTMLElement | null>(null);
 
@@ -276,6 +287,14 @@ function App() {
       storageCommit,
     ]);
   }, [diffData?.repositoryId, storageCommit, resolvedSelectionKey]);
+  // Unsent comment drafts are kept per review. commentsContextKey is null only for a
+  // diff response without a base and target; those share one draft scope.
+  const draftScope = commentsContextKey ?? 'default';
+  const draftCount = useDraftCount(draftScope);
+  const fileOfThread = useCallback(
+    (threadId: string) => threads.find((thread) => thread.id === threadId)?.filePath,
+    [threads],
+  );
   const commentSessionQueryString = useMemo(() => {
     if (!resolvedSelection) {
       return null;
@@ -521,6 +540,7 @@ function App() {
   // Reset initialization flag when diff context changes
   useEffect(() => {
     collapsedInitializedRef.current = false;
+    openedDraftFilesRef.current = false;
     pendingSidebarSelectionsRef.current.clear();
   }, [diffData?.repositoryId, resolvedSelectionKey, diffData?.commit, commentsCaptureKey]);
 
@@ -531,6 +551,10 @@ function App() {
       pendingSidebarSelectionsRef.current.clear();
       setCollapsedFiles((current) => {
         const nextCollapsedFiles = new Set(viewedFiles);
+        // A file holding an unsent draft opens, so the restored draft shows.
+        for (const filePath of filesWithDrafts(draftScope, fileOfThread)) {
+          nextCollapsedFiles.delete(filePath);
+        }
         // Preserve sidebar selections and any later manual collapse while loading.
         for (const filePath of pendingSelections) {
           if (current.has(filePath)) nextCollapsedFiles.add(filePath);
@@ -540,7 +564,21 @@ function App() {
       });
       collapsedInitializedRef.current = true;
     }
-  }, [viewedFiles, hasLoadedInitialViewedFiles]);
+  }, [viewedFiles, hasLoadedInitialViewedFiles, draftScope, fileOfThread]);
+
+  // Reply and edit drafts find their file through their thread, so once the threads
+  // load, open the files whose threads hold a draft.
+  useEffect(() => {
+    if (!hasLoadedComments || openedDraftFilesRef.current) return;
+    openedDraftFilesRef.current = true;
+    const draftFiles = filesWithDrafts(draftScope, fileOfThread);
+    if (draftFiles.length === 0) return;
+    setCollapsedFiles((prev) => {
+      const next = new Set(prev);
+      draftFiles.forEach((filePath) => next.delete(filePath));
+      return next;
+    });
+  }, [hasLoadedComments, draftScope, fileOfThread]);
   const isScrollContextCurrent = useCallback(
     () =>
       (commentsCaptureKey === null && activeCommentsContextRef.current.captureKey === null) ||
@@ -554,6 +592,7 @@ function App() {
     registerLazyFileContainer,
     scrollFileIntoDiffContainer,
     isFileScrolledPastContainerTop,
+    cancelFileScroll,
   } = useLazyDiffRendering({
     diffData,
     diffScrollContainerRef,
@@ -816,6 +855,10 @@ function App() {
       })),
     [canonicalFiles, isImportedPatch, ignoreWhitespace, threadsByFile],
   );
+  const diffFilePaths = useMemo(
+    () => new Set(navigableFiles.map((file) => file.path)),
+    [navigableFiles],
+  );
   const presentationChunksByPath = useMemo(() => {
     const map = new Map<string, MergedChunk[]>();
     navigableFiles.forEach((file) => {
@@ -833,6 +876,11 @@ function App() {
     });
     return map;
   }, [navigableFiles, mergedChunksState, diffDataVersion]);
+  // The code the diff shows now under a line draft, for drafts sent from Conversation.
+  const codeForDraft = useCallback(
+    (anchor: LineDraftAnchor) => codeInFiles(navigableFiles, anchor),
+    [navigableFiles],
+  );
 
   // State to trigger comment creation from keyboard
   const [commentTrigger, setCommentTrigger] = useState<{
@@ -934,6 +982,7 @@ function App() {
         }
       },
       onShowCommentsList: () => {
+        setPendingDraftJump(null);
         setIsCommentsListOpen(true);
       },
       onRefresh: () => {
@@ -1572,6 +1621,41 @@ function App() {
     }
   };
 
+  // A draft's line may sit in hidden context that DiffViewer has not expanded again yet
+  // (after a reload, or while the file is not rendered); it appears in navigableFiles
+  // once DiffViewer does, and the jump waits for it. Until then the draft sits at the
+  // top of its file. The next click anywhere, or opening Conversation, cancels the wait.
+  useEffect(() => {
+    if (!pendingDraftJump) return;
+    const position = findDraftPosition(pendingDraftJump, navigableFiles);
+    if (!position) return;
+    // The scroll to the file would otherwise correct itself back to the header.
+    cancelFileScroll();
+    setPendingDraftJump(null);
+    requestAnimationFrame(() => setCursorPosition(position));
+  }, [pendingDraftJump, navigableFiles, setCursorPosition, cancelFileScroll]);
+
+  // The draft's file may be collapsed (marked viewed after the draft was written), so
+  // it opens either way. A line the hunks show gets the cursor once its rows render;
+  // scrolling to the file as well would end at its header, because that scroll
+  // corrects itself 180 ms later. Otherwise the jump scrolls to the file, which renders
+  // it so DiffViewer can expand the draft's context, and waits for the line.
+  const handleNavigateToDraftLine = (anchor: LineDraftAnchor) => {
+    const position = findDraftPosition(anchor, navigableFiles);
+    if (!position) {
+      setPendingDraftJump(anchor);
+      handleSidebarFileSelected(anchor.filePath);
+      return;
+    }
+    setCollapsedFiles((previous) => {
+      if (!previous.has(anchor.filePath)) return previous;
+      const next = new Set(previous);
+      next.delete(anchor.filePath);
+      return next;
+    });
+    requestAnimationFrame(() => setCursorPosition(position));
+  };
+
   const handleOpenInEditor = useCallback(
     async (filePath: string, lineNumber: number) => {
       try {
@@ -1610,6 +1694,7 @@ function App() {
   const handleGlobalClick = (e: React.MouseEvent) => {
     // Clear cursor position
     setCursorPosition(null);
+    setPendingDraftJump(null);
 
     // Check if clicking on a comment button
     const target = e.target as HTMLElement;
@@ -1619,20 +1704,8 @@ function App() {
 
     // Close empty comment forms (unless clicking on a comment button)
     if (!isCommentButton && !isOpenInEditorButton && !isShiftRangeClick) {
-      closeEmptyCommentForms(e);
+      resetEmptyCommentFormsOutside(target);
     }
-  };
-
-  const closeEmptyCommentForms = (e: React.MouseEvent) => {
-    const emptyForms = document.querySelectorAll<HTMLFormElement>(
-      'form[data-empty="true"]:not([data-dismiss-on-outside-click="false"])',
-    );
-    emptyForms.forEach((form) => {
-      // Don't close if clicking inside the form itself
-      if (!form.contains(e.target as Node)) {
-        form.reset();
-      }
-    });
   };
 
   if (loading) {
@@ -1666,7 +1739,7 @@ function App() {
   const canOpenInEditor = diffData.openInEditorAvailable !== false && Boolean(editorSessionToken);
 
   return (
-    <ReviewProviders agentUpdates={agentReadContext}>
+    <ReviewProviders agentUpdates={agentReadContext} draftScope={draftScope}>
       <div className="h-dvh flex flex-col" onClickCapture={handleGlobalClick}>
         {/* The 0fr row collapses the header group to nothing without measuring it, and the
             diff below grows into the space. */}
@@ -1819,6 +1892,7 @@ function App() {
                 }
                 onClick={() => {
                   setIsAboutOpen(false);
+                  setPendingDraftJump(null);
                   setIsCommentsListOpen(true);
                 }}
                 className="relative inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
@@ -1830,13 +1904,15 @@ function App() {
                   id="conversation-unread-status"
                   aria-live="polite"
                   aria-atomic="true"
-                  className="inline-flex tabular-nums max-md:absolute max-md:-top-1.5 max-md:-right-1"
+                  className="inline-flex gap-1 tabular-nums max-md:absolute max-md:-top-1.5 max-md:-right-1"
                 >
                   <UnreadBadge count={agentUpdates.length} />
+                  <DraftBadge count={draftCount} />
                   <span className="sr-only">
                     {agentUpdates.length
                       ? `${agentUpdates.length} unread agent message${agentUpdates.length === 1 ? '' : 's'}`
                       : 'No unread agent messages'}
+                    {draftCount > 0 && `, ${draftCount} unsent draft${draftCount === 1 ? '' : 's'}`}
                   </span>
                 </span>
               </button>
@@ -2109,6 +2185,12 @@ function App() {
         {isAboutOpen && <AboutPanel context={diffData.reviewContext} onClose={closeAbout} />}
         <CommentsListModal
           isOpen={isCommentsListOpen}
+          unsentDrafts={{
+            diffFilePaths,
+            onAddComment: handleAddComment,
+            onNavigateToLine: handleNavigateToDraftLine,
+            codeFor: codeForDraft,
+          }}
           onClose={() => {
             setIsCommentsListOpen(false);
           }}
