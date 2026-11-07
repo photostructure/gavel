@@ -54,12 +54,16 @@ they may be reading it on another device.
 2. For this session's uncommitted work, use a named review restricted to its paths
    and hunks. When none of this session's work is still uncommitted, don't
    launch: tell the user it is already committed, list each commit's short SHA
-   and subject, and ask whether difit should show them. If they say yes, open
-   them with `--no-lgtm`, since they already landed, and pass the commit's own
-   message as `--commit-message` (for a range, each commit's subject on its own
-   line). Show one commit as `<sha>`, and consecutive commits as
-   `<last-sha> <first-sha>^`. If other commits fall between yours, name them
-   and ask whether to show the whole range or each of your commits on its own.
+   and subject, and ask whether difit should show them. If they say yes, pass
+   the commit's own message as `--commit-message` (for a range, each commit's
+   subject on its own line). Keep approvals on while the commits are not yet on
+   the branch they will land on (`git merge-base --is-ancestor <sha> <base>`
+   exits 1), so the user can approve them for landing; pass `--no-lgtm` once
+   they are on it. Show one commit as `<sha>`, and consecutive commits as
+   `<last-sha> <first-sha>^`, which takes one approval for all of them; show
+   them as a stack (below) when the user wants to approve each one. If other
+   commits fall between yours, name them and ask whether to show the whole
+   range or each of your commits on its own.
    For a user-named branch, range, or PR, review that target for defects before
    showing it; use `--no-lgtm` unless the user requested approval.
 3. Include a proposed Conventional Commit message with `--commit-message` and a
@@ -99,6 +103,14 @@ For stacked commits, create one named review per commit on one server, in
 commit order, and give the user one link, the `server.background` `url`; the
 tabs lead to the other reviews. An approval covers only its own review: commit
 the stack in creation order, each commit once its own review is approved.
+For a stack of commits that already exist, launch the first as
+`<sha>` with `--commit-message <its message>`, add each later one with
+`git diff <sha>^ <sha> | <launcher> review create <name> - --host <host> --port <port>`
+(without the `-`, `review create` captures the uncommitted tree instead), and
+give each its own message with `comment summary`. Approve as-is on an existing
+commit approves it for landing, with nothing to commit. Fixes that Approve
+after comments asks for go in a new commit on top of the branch, reviewed like
+any other; never amend or rebase the reviewed commits without asking.
 Before reporting that the user has not approved, read `approval` for every
 review in the snapshot.
 Do not stop or replace another session's reviews.

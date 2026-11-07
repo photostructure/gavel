@@ -11,8 +11,8 @@ Use only for an explicit difit/viewer request, skill invocation, or standing
 instruction to request difit reviews. Ordinary review requests belong in chat.
 
 Serve every review shown to the user from a build, not from Vite: a proposed commit,
-a stack of them, or a read-only view of committed work (`--no-lgtm`), which still
-takes comments. A `pnpm run dev` page runs this checkout's live source, so
+a stack of them, or committed work, which is read-only (`--no-lgtm`) once it is
+on `main` and still takes comments. A `pnpm run dev` page runs this checkout's live source, so
 every save another session makes under `src/client` hot-reloads it, and a reload or
 a crash under the user can lose unsent comments. Run `pnpm build`, then launch with
 `node dist/cli/index.js` and the same target and flags as below. That server serves
@@ -20,8 +20,8 @@ the built UI at its API URL, so give the user `server.ready.launchUrl`. When oth
 sessions are editing this checkout, build in a detached worktree at HEAD. For
 uncommitted work, apply your change there and launch a supplied patch with
 `node dist/cli/index.js - --review <name> < <patch>`. For committed work, launch
-the commit target given below (`node dist/cli/index.js <sha> --no-lgtm
---commit-message …`) from that worktree; `--review` takes no revision arguments. Run `review create` and
+the commit target given below (`node dist/cli/index.js <sha> --commit-message …`,
+with `--no-lgtm` only as the rule below says) from that worktree; `--review` takes no revision arguments. Run `review create` and
 `review update` from that worktree too: they capture against the current directory's
 repository, and the server rejects a capture from another root. Run `comment …` with
 the worktree's `node dist/cli/index.js`, so it matches the server's build. Keep `pnpm run dev` for checking your own UI work in
@@ -35,11 +35,13 @@ UI check). Targets: `.` (uncommitted),
 `working`, `staged`, or omit for HEAD. Add `--include-untracked` when needed.
 When none of this session's work is still uncommitted, don't launch: tell the
 user it is already committed, list each commit's short SHA and subject, and ask
-whether difit should show them. If they say yes, open them with `--no-lgtm`
-and the commit's own message as `--commit-message` (a range: one subject per
-line): one `<sha>`, or `<last-sha> <first-sha>^` for consecutive commits. If
-other commits fall between yours, name them and ask whether to show the whole
-range or each of yours alone.
+whether difit should show them. If they say yes, open them with the commit's
+own message as `--commit-message` (a range: one subject per line): one `<sha>`,
+or `<last-sha> <first-sha>^` for consecutive commits, which takes one approval
+for all of them (a stack, below, takes one each). Keep approvals on while the
+commits are not yet on `main` (`git merge-base --is-ancestor <sha> main` exits
+1); pass `--no-lgtm` once they are. If other commits fall between yours, name
+them and ask whether to show the whole range or each of yours alone.
 difit fills in the **About** panel's agent and session ID from Claude Code's
 environment; override them with `--agent` and `--agent-session-id`. A session
 started from another session's shell (such as `claude -p`) inherits its
@@ -87,7 +89,12 @@ one with `node dist/cli/index.js review create <name> --port <api-port>` in comm
 order, and give the user one link; the tabs lead to the other reviews. When the
 server runs on supplied patches, give each later review its own patch with
 `review create <name> - --port <api-port> < <patch>`; without the `-`, it captures
-the worktree's whole uncommitted tree. Give
+the worktree's whole uncommitted tree. For commits that already exist, launch
+the first as its `<sha>` target and pipe each later one in with
+`git diff <sha>^ <sha> | node dist/cli/index.js review create <name> - --port <api-port>`;
+Approve as-is on one approves it for landing, with nothing to commit, and fixes
+that Approve after comments asks for go in a new commit on top, reviewed like
+any other; never amend or rebase the reviewed commits without asking. Give
 each created review its own comments (`comment add --review <name>`) and proposal
 (`comment summary` with the `reviewId` that `review create` prints), since launch
 options reach only the first. Each approval covers only its own review; commit in
