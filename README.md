@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/gavel-logo-dark.svg">
+    <img src="docs/images/gavel-logo.svg" alt="gavel" width="300">
+  </picture>
+</p>
+
 # @photostructure/difit
 
 PhotoStructure's fork of [difit](https://github.com/yoshiko-pg/difit), originally by yoshiko-pg.
@@ -19,8 +26,7 @@ This fork builds on Yoshiko's diff viewer with a review workflow for coding agen
 - **Reversible LGTM:** approval stays visible and can be revoked. Conversations
   and approval actions are enabled by default; approval starts off.
 - **Intent and retained discussions:** choose Comment, Change request, or Question
-  in one radio group, resolve
-  and reopen it without losing the history, or explicitly delete it.
+  in one radio group, resolve and reopen it without losing the history, or explicitly delete it.
 - **Review information:** open **About** beside **View** for the launching agent
   and its session's name and ID, the reviewed repository, worktree, server, and
   launch directory in a right-side panel. The browser title identifies the
@@ -68,10 +74,6 @@ license are retained below.
 <p align="center">
   <a href="https://www.npmjs.com/package/@photostructure/difit"><img src="https://img.shields.io/npm/v/@photostructure/difit.svg" alt="npm version"></a>
   <a href="https://github.com/photostructure/difit/actions/workflows/pr.yml"><img src="https://github.com/photostructure/difit/actions/workflows/pr.yml/badge.svg" alt="CI"></a>
-</p>
-
-<p align="center">
-  English | <a href="./README.ja.md">日本語</a> | <a href="./README.zh.md">简体中文</a> | <a href="./README.ko.md">한국어</a>
 </p>
 
 ![difit screenshot](docs/images/screenshot.png)
@@ -366,6 +368,8 @@ agent commands, capture guards, and the meaning of the output fields.
 ### Review-wide conversations
 
 Open **Conversation** in the header to see the review's discussions in a side panel.
+
+![The Conversation panel showing a review-wide comment and an inline question, each answered by the agent](docs/images/conversation.png)
 
 The **Conversation** button shows a badge counting unread agent messages.
 Inside the panel, use the **All**, **Open**, **Resolved**, and **Unread** filter pills.
