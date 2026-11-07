@@ -647,6 +647,21 @@ describe('thread disclosure and replies', () => {
     expect(screen.getByRole('button', { name: 'Write a reply...' })).toHaveFocus();
   });
 
+  it('discards a reply draft with Cancel', async () => {
+    const user = userEvent.setup();
+    const onReplyToThread = vi.fn().mockResolvedValue(undefined);
+    renderThread({ onReplyToThread });
+
+    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
+    await user.type(screen.getByPlaceholderText('Write a reply...'), 'Never mind');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(onReplyToThread).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
+    expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('');
+  });
+
   it('keeps a reply draft open across Escape and outside clicks', async () => {
     const user = userEvent.setup();
     renderThread();

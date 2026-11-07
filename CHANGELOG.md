@@ -25,7 +25,7 @@ All notable changes to this project will be documented in this file.
 - Keep the proposed commit message and rationale when a commit moves HEAD under a `staged` or `.` review, unless that commit has the proposed message. The new review used to start with an empty summary.
 - Bundle JetBrains Mono, IBM Plex Mono, and Ubuntu Mono for **Settings** → **Font Family**, so each choice renders the same whether or not the font is installed, and add **Browser default** for the monospace font set in the browser. JetBrains Mono replaces **System Font** as the default. **System Font**, **Menlo**, **SF Mono**, and **Fira Code** are removed; a saved choice of one of them falls back to JetBrains Mono.
 - Bind an OS-assigned port with `--port 0` and report it in `server.ready`; reject non-numeric ports instead of falling back to 4966.
-- Open thread reply forms from **Write a reply...** again. Escape or a click elsewhere closes an empty form; a draft stays open.
+- Open thread reply forms from **Write a reply...** again. Escape or a click elsewhere closes an empty form; a draft stays open until **Cancel** discards it. Every comment form has **Cancel** at the opposite end of the row from **Send** (**Save** when editing a comment), and after it in tab order.
 - Emit JSON Lines from the foreground launch process by default, with `--jsonl` and a `--no-jsonl` human-output opt-out.
 - Include server readiness, comment progress, and thread changes in launch output; require explicit Delivered receipts.
 - Remove the separate `comment watch` command; retain snapshot recovery and companion commands.

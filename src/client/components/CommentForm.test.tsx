@@ -45,12 +45,32 @@ describe('CommentForm', () => {
     expect(screen.getAllByRole('radio', { name: 'Comment' })[1]).toBeChecked();
   });
 
-  it('allows empty-form dismissal without a Cancel button', () => {
+  it('dismisses an empty form on reset', () => {
     const onCancel = vi.fn();
     const { container } = render(<CommentForm onSubmit={vi.fn()} onCancel={onCancel} />);
-    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
     fireEvent.reset(container.querySelector('form')!);
     expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it('discards a partial draft with Cancel without submitting it', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    const onCancel = vi.fn();
+    render(<CommentForm onSubmit={onSubmit} onCancel={onCancel} />);
+    await user.type(screen.getByRole('textbox'), 'Half a thought');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onCancel).toHaveBeenCalledExactlyOnceWith('');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('tabs from the textarea to Send before Cancel', async () => {
+    const user = userEvent.setup();
+    render(<CommentForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    await user.type(screen.getByRole('textbox'), 'Draft');
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
   });
 
   it('preserves intent after a failed send', async () => {

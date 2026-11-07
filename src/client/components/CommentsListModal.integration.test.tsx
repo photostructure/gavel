@@ -170,7 +170,7 @@ describe('Conversation drafts', () => {
     expect(generalComposer().getByRole('radio', { name: 'Change request' })).toBeChecked();
   });
 
-  it.each(['Reset', 'Escape'])(
+  it.each(['Reset', 'Cancel', 'Escape'])(
     'discards the draft when explicitly cancelling with %s',
     async (action) => {
       const user = userEvent.setup();
@@ -180,6 +180,8 @@ describe('Conversation drafts', () => {
       await user.click(generalComposer().getByRole('radio', { name: 'Question' }));
       if (action === 'Reset') {
         fireEvent.reset(generalComposer().getByRole('textbox').closest('form')!);
+      } else if (action === 'Cancel') {
+        await user.click(generalComposer().getByRole('button', { name: 'Cancel' }));
       } else {
         await user.keyboard('{Escape}');
       }

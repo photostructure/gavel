@@ -370,7 +370,9 @@ needed." as a Comment, **❓ Still unclear** asks for another explanation, and
 **👎 Disagree** asks the agent to reconsider or defend its point; both of those are
 Questions. Each is an ordinary reply, so it shows delivery progress and can be
 deleted. **Write a reply...** opens the full form; Escape or a click elsewhere
-closes it while it is empty.
+closes it while it is empty, and **Cancel** discards a draft. Every comment form
+has **Cancel** at the opposite end of the row from **Send** (**Save** when
+editing a comment).
 
 ### Comment Prompt Format
 

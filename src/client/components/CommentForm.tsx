@@ -14,7 +14,9 @@ export interface CommentSubmitOptions {
 
 interface CommentFormProps {
   onSubmit: (body: string, options: CommentSubmitOptions) => Promise<void>;
-  // Receives the unsent draft so a caller can keep a form with text open.
+  // Receives the unsent draft so a caller can keep a form with text open on
+  // Escape. Outside clicks reset only empty forms (closeEmptyCommentForms in
+  // App.tsx). The Cancel button discards the draft, so it passes ''.
   onCancel: (draft: string) => void;
   selectedCode?: string;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
@@ -210,7 +212,9 @@ export function CommentForm({
         />
       )}
 
-      <div className="flex gap-2 justify-end">
+      {/* Send precedes Cancel in tab order but renders at the opposite end of the
+          row, so neither a Tab+Enter nor a slightly missed click on Send cancels. */}
+      <div className="flex flex-row-reverse justify-between gap-2">
         <button
           type="submit"
           className="text-xs px-3 py-1.5 rounded transition-all disabled:opacity-50"
@@ -230,6 +234,14 @@ export function CommentForm({
           disabled={!body.trim() || isSubmitting}
         >
           {isSubmitting ? 'Submitting...' : submitLabel}
+        </button>
+        <button
+          type="button"
+          onClick={() => onCancel('')}
+          className="text-xs px-3 py-1.5 bg-github-bg-tertiary text-github-text-primary border border-github-border rounded hover:opacity-80 transition-all disabled:opacity-50"
+          disabled={isSubmitting}
+        >
+          Cancel
         </button>
       </div>
     </form>
