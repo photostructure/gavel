@@ -45,6 +45,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed in the PhotoStructure fork
 
 - Show an edit inside Markdown frontmatter that is not a YAML key/value mapping in **Diff Preview**: a YAML syntax error, a scalar such as `title New`, a sequence, or a blank or comment-only block. The preview used to strip the frontmatter lines anyway, so the edit appeared in neither the frontmatter table nor the preview; it now keeps the lines and shows no table.
+- Size the app shell, the loading and error screens, and the **Settings** dialog with `dvh` instead of `100vh`. iOS and iPadOS Safari resolve `100vh` to the height with the toolbar collapsed, so while the toolbar showed, the last lines of the diff sat under it until another swipe scrolled the page. The page no longer scrolls, so Safari's toolbar stays visible.
 
 ## [5.1.0] - 2026-10-29
 

@@ -193,7 +193,7 @@ export function SettingsModal({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-      <div className="flex flex-col max-h-[calc(100vh-2rem)] bg-github-bg-secondary border border-github-border rounded-lg w-full max-w-3xl mx-4 pointer-events-auto overflow-hidden">
+      <div className="flex flex-col max-h-[calc(100dvh-2rem)] bg-github-bg-secondary border border-github-border rounded-lg w-full max-w-3xl mx-4 pointer-events-auto overflow-hidden">
         <div className="shrink-0 flex items-center justify-between p-4 border-b border-github-border">
           <h2 className="text-lg ui-heading flex items-center gap-2">
             <Settings size={20} />
@@ -208,7 +208,7 @@ export function SettingsModal({
         </div>
 
         {/* Short windows shrink this pane and scroll it, keeping the header and footer in view. */}
-        <div className="flex flex-col sm:flex-row min-h-[min(420px,calc(100vh-10rem))]">
+        <div className="flex flex-col sm:flex-row min-h-[min(420px,calc(100dvh-10rem))]">
           <nav
             aria-label="Settings sections"
             className="sm:w-40 border-b sm:border-b-0 sm:border-r border-github-border px-3 py-2"

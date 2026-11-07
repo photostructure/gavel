@@ -44,7 +44,7 @@ function StaticDiffApp() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-github-bg-primary">
+      <div className="flex items-center justify-center h-dvh bg-github-bg-primary">
         <div className="text-github-text-secondary text-base">Loading static difit snapshot...</div>
       </div>
     );
@@ -52,7 +52,7 @@ function StaticDiffApp() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-github-bg-primary text-center gap-2 px-4">
+      <div className="flex flex-col items-center justify-center h-dvh bg-github-bg-primary text-center gap-2 px-4">
         <h2 className="text-github-danger text-2xl mb-2">Static Snapshot Error</h2>
         <p className="text-github-text-secondary text-base">{error}</p>
       </div>

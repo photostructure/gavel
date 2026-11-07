@@ -1637,7 +1637,7 @@ function App() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-github-bg-primary">
+      <div className="flex items-center justify-center h-dvh bg-github-bg-primary">
         <div className="text-github-text-secondary text-base">Loading diff...</div>
       </div>
     );
@@ -1645,7 +1645,7 @@ function App() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-github-bg-primary text-center gap-2">
+      <div className="flex flex-col items-center justify-center h-dvh bg-github-bg-primary text-center gap-2">
         <h2 className="text-github-danger text-2xl mb-2">Error</h2>
         <p className="text-github-text-secondary text-base">{error}</p>
       </div>
@@ -1654,7 +1654,7 @@ function App() {
 
   if (!diffData) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-github-bg-primary text-center gap-2">
+      <div className="flex flex-col items-center justify-center h-dvh bg-github-bg-primary text-center gap-2">
         <h2 className="text-github-danger text-2xl mb-2">No data</h2>
         <p className="text-github-text-secondary text-base">No diff data available</p>
       </div>
@@ -1667,7 +1667,7 @@ function App() {
 
   return (
     <ReviewProviders agentUpdates={agentReadContext}>
-      <div className="h-screen flex flex-col" onClickCapture={handleGlobalClick}>
+      <div className="h-dvh flex flex-col" onClickCapture={handleGlobalClick}>
         {/* The 0fr row collapses the header group to nothing without measuring it, and the
             diff below grows into the space. */}
         <div
