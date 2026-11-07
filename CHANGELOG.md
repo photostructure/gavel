@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added in the PhotoStructure fork
 
-- Save each review's comments, progress, proposal and approval under `.git/difit`, and restore them when a restarted server opens the same named review and patch, or the same commits. A server starting up deletes saved reviews untouched for 7 days.
+- Save each review's comments, progress, proposal and approval under `.git/difit`, and restore them when a restarted server opens the same named review and patch, or the same commits. `difit approval status <commit>` reports a commit's saved approvals without a server. A server starting up deletes saved reviews untouched for 7 days.
 - Find unread agent replies in Conversation with visible filter pills, per-reply read/unread controls, Mark all read, and jumps into resolved or outdated threads. Visibility and panel close never mark replies read.
 - Answer an agent reply with one click: **👍 Agreed**, **❓ Still unclear**, and **👎 Disagree** post ordinary replies beside **Write a reply...**.
 - Report browser visibility and agent-listener presence; offer a resume prompt for agents that cannot receive idle notifications.

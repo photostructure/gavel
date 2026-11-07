@@ -524,6 +524,13 @@ When a server starts, it deletes saved reviews that nobody changed for 7 days,
 saved patches that no remaining review uses once they are 7 days old, and locks
 whose server stopped.
 
+`difit approval status <commit>` lists the saved reviews of a commit without a
+running server: reviews that targeted the commit, and named reviews of exactly
+`git diff --full-index <commit>^ <commit>`, the stacking recipe in the skills (full object names keep the digest stable as the repository grows). `difit approval status --patch-digest <digest>`
+matches a named review by its current patch. Both print a JSON array, newest
+first, of `{match, approved, name, selection, approval, commitMessage, updatedAt}`;
+an empty array means no saved review matches.
+
 ## Compatibility
 
 Published `@photostructure/difit` 5.1.0 does not contain this launch JSONL

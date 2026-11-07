@@ -106,7 +106,7 @@ tabs lead to the other reviews. An approval covers only its own review: commit
 the stack in creation order, each commit once its own review is approved.
 For a stack of commits that already exist, launch the first as
 `<sha>` with `--commit-message <its message>`, add each later one with
-`git diff <sha>^ <sha> | <launcher> review create <name> - --host <host> --port <port>`
+`git diff --full-index <sha>^ <sha> | <launcher> review create <name> - --host <host> --port <port>`
 (without the `-`, `review create` captures the uncommitted tree instead), and
 give each its own message with `comment summary`. Approve as-is on an existing
 commit approves it for landing, with nothing to commit. Fixes that Approve
@@ -119,8 +119,9 @@ same commits, open again. The server saves comments itself, but a restored revie
 has a new review ID and event stream, so read it with `comment snapshot` before
 sending it a status, a reply or a summary, and use its summary `version` as
 `baseVersion`.
-When the snapshot's `store.error` is set, tell the user that review changes are
-not being saved, and why
+`<launcher> approval status <sha>` reports a commit's saved approvals even after its
+server stopped. When the snapshot's `store.error` is set, tell the user that review
+changes are not being saved, and why
 ([saved reviews](https://github.com/photostructure/difit/blob/main/docs/agent-conversations.md#saved-reviews)).
 Do not stop or replace another session's reviews.
 

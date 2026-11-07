@@ -65,7 +65,7 @@ interface RawFile {
   partialSafe: boolean;
 }
 
-function digest(value: string): string {
+export function digest(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 

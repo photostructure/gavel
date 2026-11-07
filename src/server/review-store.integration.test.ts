@@ -23,6 +23,8 @@ import { DiffMode } from '../types/watch.js';
 import type { ReviewCapture } from '../types/review.js';
 import { createDiffSelection } from '../utils/diffSelection.js';
 
+import { findApprovals } from '../cli/approval.js';
+
 import { captureWorkingTree } from './review-capture.js';
 import { ReviewStore, savedReviewKey, type ReviewOwner, type SavedReview } from './review-store.js';
 import { startServer } from './server.js';
@@ -249,6 +251,11 @@ describe('saved review state across server restarts', () => {
     await request<ReviewApproval>('/api/approval', { approved: true, summaryVersion: 1 });
     await restart(start);
     expect(await request<ReviewApproval>('/api/approval')).toMatchObject({ approved: true });
+    await running?.shutdown('closed');
+    running = undefined;
+    expect(await findApprovals(root, { commit: 'HEAD' })).toMatchObject([
+      { match: 'commit', approved: true, commitMessage: message },
+    ]);
   });
 
   async function startCommitTarget() {

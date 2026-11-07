@@ -102,7 +102,7 @@ reviews. An LGTM approves only its own review: commit the stack in creation
 order, each commit once its own review is approved. For a stack of commits that
 already exist, launch the first as `<difit-command> <sha> --keep-alive
 --commit-message <its message>`, add each later one with
-`git diff <sha>^ <sha> | <difit-command> review create <name> - --port <api-port>`
+`git diff --full-index <sha>^ <sha> | <difit-command> review create <name> - --port <api-port>`
 (without the `-`, `review create` captures the uncommitted tree instead), and
 give each its own message with `comment summary`. Approve as-is on an existing
 commit approves it for landing, with nothing to commit. Fixes that Approve
@@ -121,7 +121,9 @@ A relaunched server restores a saved review when the same name and patch, or the
 same commits, open again: comments, progress, proposal and approval. The server saves
 comments itself, but a restored review has a new review ID and event stream, so
 read it with `comment snapshot` before sending it a status, a reply or a summary;
-its summary `version` is the `baseVersion` for `comment summary`. When
+its summary `version` is the `baseVersion` for `comment summary`. To learn whether a
+commit was approved, also after its server stopped, run
+`<difit-command> approval status <sha>`. When
 the snapshot's `store.error` (`storeError` in the filtered snapshot below) is set,
 tell the user that review changes are not being saved, and why
 ([saved reviews](https://github.com/photostructure/difit/blob/main/docs/agent-conversations.md#saved-reviews)).

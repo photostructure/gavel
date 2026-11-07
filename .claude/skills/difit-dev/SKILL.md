@@ -91,7 +91,7 @@ server runs on supplied patches, give each later review its own patch with
 `review create <name> - --port <api-port> < <patch>`; without the `-`, it captures
 the worktree's whole uncommitted tree. For commits that already exist, launch
 the first as its `<sha>` target and pipe each later one in with
-`git diff <sha>^ <sha> | node dist/cli/index.js review create <name> - --port <api-port>`;
+`git diff --full-index <sha>^ <sha> | node dist/cli/index.js review create <name> - --port <api-port>`;
 Approve as-is on one approves it for landing, with nothing to commit, and fixes
 that Approve after comments asks for go in a new commit on top, reviewed like
 any other; never amend or rebase the reviewed commits without asking. Give
@@ -128,7 +128,8 @@ listening after ending the turn without host support that forwards process outpu
 The server saves each review under `.git/difit` and restores it when the same review
 opens again ([saved reviews](../../../docs/agent-conversations.md#saved-reviews)).
 When the snapshot's `store.error` is set, tell the user that review changes are not
-being saved, and why.
+being saved, and why. `node dist/cli/index.js approval status <sha>` reports a
+commit's saved approvals after its server stopped.
 
 Every review gets one of three verdicts: **Approve as-is**, **Approve after
 comments** (`mode` `as-is` or `after-comments`), or **Not yet**, recorded as
