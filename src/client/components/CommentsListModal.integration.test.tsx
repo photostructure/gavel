@@ -1,4 +1,4 @@
-import { act, render, screen, fireEvent, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
@@ -183,27 +183,33 @@ describe('Conversation drafts', () => {
     expect(generalComposer().getByRole('radio', { name: 'Change request' })).toBeChecked();
   });
 
-  it.each(['Reset', 'Cancel', 'Escape'])(
-    'discards the draft when explicitly cancelling with %s',
-    async (action) => {
-      const user = userEvent.setup();
-      render(<TriggerHarness onNavigate={vi.fn()} onAddGeneralComment={vi.fn()} />);
-      await user.click(screen.getByRole('button', { name: 'Open conversation' }));
-      await user.type(generalComposer().getByRole('textbox'), 'Never mind');
-      await user.click(generalComposer().getByRole('radio', { name: 'Question' }));
-      if (action === 'Reset') {
-        fireEvent.reset(generalComposer().getByRole('textbox').closest('form')!);
-      } else if (action === 'Cancel') {
-        await user.click(generalComposer().getByRole('button', { name: 'Cancel' }));
-      } else {
-        await user.keyboard('{Escape}');
-      }
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      await user.click(screen.getByRole('button', { name: 'Open conversation' }));
-      expect(generalComposer().getByRole('textbox')).toHaveValue('');
-      expect(generalComposer().getByRole('radio', { name: 'Comment' })).toBeChecked();
-    },
-  );
+  it('discards the draft when explicitly cancelling with Cancel', async () => {
+    const user = userEvent.setup();
+    render(<TriggerHarness onNavigate={vi.fn()} onAddGeneralComment={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: 'Open conversation' }));
+    await user.type(generalComposer().getByRole('textbox'), 'Never mind');
+    await user.click(generalComposer().getByRole('radio', { name: 'Question' }));
+    await user.click(generalComposer().getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Open conversation' }));
+    expect(generalComposer().getByRole('textbox')).toHaveValue('');
+    expect(generalComposer().getByRole('radio', { name: 'Comment' })).toBeChecked();
+  });
+
+  // Escape never discards unsaved text: it closes the panel and keeps the draft.
+  it('keeps the draft when Escape closes the panel', async () => {
+    const user = userEvent.setup();
+    render(<TriggerHarness onNavigate={vi.fn()} onAddGeneralComment={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: 'Open conversation' }));
+    await user.type(generalComposer().getByRole('textbox'), 'Not yet');
+    await user.click(generalComposer().getByRole('radio', { name: 'Question' }));
+    await user.click(generalComposer().getByRole('textbox'));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Open conversation' }));
+    expect(generalComposer().getByRole('textbox')).toHaveValue('Not yet');
+    expect(generalComposer().getByRole('radio', { name: 'Question' })).toBeChecked();
+  });
 
   it('clears the saved draft after sending successfully', async () => {
     const user = userEvent.setup();

@@ -826,6 +826,42 @@ describe('thread drafts', () => {
     renderCard();
     expect(screen.queryByPlaceholderText('Edit your message...')).not.toBeInTheDocument();
   });
+
+  it('keeps an edit open on Escape in the diff', async () => {
+    const user = userEvent.setup();
+    const first = renderCard();
+    await user.click(screen.getAllByTitle('Edit message')[0]!);
+    await user.type(screen.getByPlaceholderText('Edit your message...'), ' and more');
+    await user.keyboard('{Escape}');
+    expect(screen.getByPlaceholderText('Edit your message...')).toHaveValue(
+      'Root comment and more',
+    );
+    first.unmount();
+    renderCard();
+    expect(screen.getByPlaceholderText('Edit your message...')).toHaveValue(
+      'Root comment and more',
+    );
+  });
+
+  // Nothing is unsaved, so Escape closes the editor; the posted message stays.
+  it('closes an unchanged edit on Escape in the diff', async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getAllByTitle('Edit message')[0]!);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByPlaceholderText('Edit your message...')).not.toBeInTheDocument();
+    expect(screen.getByText('Root comment')).toBeInTheDocument();
+  });
+
+  it('keeps an edit open on Escape when only its intent changed', async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getAllByTitle('Edit message')[0]!);
+    await user.click(screen.getByRole('radio', { name: 'Question' }));
+    await user.click(screen.getByPlaceholderText('Edit your message...'));
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('radio', { name: 'Question' })).toBeChecked();
+  });
 });
 
 describe('thread drafts across saves, copies, and resolution', () => {

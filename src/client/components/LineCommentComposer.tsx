@@ -128,8 +128,8 @@ interface LineCommentComposerProps {
   autoFocus: boolean;
   onSubmit: (body: string, options: CommentSubmitOptions, code?: string) => Promise<void>;
   onClose: () => void;
-  // When given, Escape in a form with text calls this and keeps the draft; without
-  // it, Escape discards the draft like Cancel.
+  // Escape in a form with text keeps the draft and the form; when given (the
+  // Conversation panel), this is called too, to close the panel.
   onEscape?: () => void;
 }
 
@@ -157,9 +157,10 @@ export function LineCommentComposer({
         onClose();
       }}
       onCancel={(text) => {
-        // Cancel passes '', so only Escape in a form with text reaches onEscape.
-        if (onEscape && text.trim()) {
-          onEscape();
+        // Cancel passes '', so only Escape in a form with text is kept: removing text
+        // takes Cancel or Send.
+        if (text.trim()) {
+          onEscape?.();
           return;
         }
         draft.clear();

@@ -316,13 +316,14 @@ difit includes a review comment system that makes it easy to provide feedback to
    tab's sessionStorage per review, so after a reload, or after switching to another review
    and back, the form reopens with the text, and a file holding a draft opens even if it is
    marked viewed. A draft whose line the diff no longer shows appears at the top of its
-   file. Send or **Cancel** deletes the saved text, and so does Escape in a line comment or
-   an edit. **Conversation** lists every unsent draft under **Unsent drafts**, including
+   file. Only Send or **Cancel** deletes unsent text; Escape never does. In the diff,
+   Escape closes a form only when nothing in it is unsaved (an empty comment or reply, or
+   an edit you have not changed) and otherwise leaves it open. **Conversation** lists every unsent draft under **Unsent drafts**, including
    drafts on files no longer in the diff, and a pencil badge on the button counts them; a
    line draft there can be edited and sent in place. The list is taken when the panel
    opens, so a reply started in the panel joins it the next time. In **Conversation**,
-   Escape in a listed line draft, a reply, or an edit that holds text closes the panel and
-   keeps any unsent text; Escape in the general comment form still discards its text.
+   Escape in a form that holds text closes the panel and keeps the text, the general
+   comment included.
 
 ### Compact review controls
 

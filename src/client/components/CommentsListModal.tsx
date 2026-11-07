@@ -435,8 +435,10 @@ export function CommentsListModal({
                       current === submittedDraft ? { body: '', intent: 'comment' } : current,
                     );
                   }}
-                  onCancel={() => {
-                    setGeneralDraft({ body: '', intent: 'comment' });
+                  onCancel={(text) => {
+                    // Cancel passes ''; Escape passes the text, which stays in the
+                    // draft for the next open, as in the panel's other forms.
+                    if (!text.trim()) setGeneralDraft({ body: '', intent: 'comment' });
                     onClose();
                   }}
                 />

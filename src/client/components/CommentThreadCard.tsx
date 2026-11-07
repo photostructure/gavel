@@ -113,13 +113,17 @@ function ThreadMessageItem({
     }
   };
 
-  // Cancel passes ''; Escape passes the text. In the panel, Escape in an edit with text
-  // closes the panel and keeps any unsaved changes (see
-  // CommentThreadCardProps.onEscapeKeepingDraft).
+  // Cancel passes ''; Escape passes the text. Escape never discards unsaved changes: in
+  // the panel it closes the panel and keeps them (see
+  // CommentThreadCardProps.onEscapeKeepingDraft); in the diff it leaves the editor open
+  // while the text or intent differs from the message, and closes it otherwise.
   const handleCancelEdit = (text: string) => {
-    if (onEscapeKeepingDraft && text.trim()) {
-      onEscapeKeepingDraft();
-      return;
+    if (text.trim()) {
+      if (onEscapeKeepingDraft) {
+        onEscapeKeepingDraft();
+        return;
+      }
+      if (text !== message.body || editDraft.intent !== intent) return;
     }
     editDraft.clear();
     setEditForm('closed');
@@ -320,9 +324,9 @@ interface CommentThreadCardProps {
 
   onClick?: (e: React.MouseEvent) => void;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
-  // When given (the Conversation panel passes its close handler), Escape in a reply or
-  // edit form with text calls this and keeps any draft; without it, Escape keeps a
-  // reply open and discards an edit.
+  // Escape in a reply or edit form with unsaved text keeps the form and its draft; when
+  // given (the Conversation panel passes its close handler), this is called too and
+  // closes the panel.
   onEscapeKeepingDraft?: () => void;
 }
 

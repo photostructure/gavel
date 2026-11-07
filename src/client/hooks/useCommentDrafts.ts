@@ -107,8 +107,9 @@ export function useCommentDraft<A extends DraftAnchor>(
   const intent = draft?.intent ?? initial.intent;
 
   // Every change is saved, even one back to the starting text: a restored form
-  // stays open only while its draft exists, so only clear() (Send, Cancel, or an
-  // outside click on an empty form) deletes it.
+  // stays open only while its draft exists, so only clear() (Send, Cancel, an outside
+  // click on an empty form, or Escape in an empty form or an edit you have not
+  // changed) deletes it.
   const save = (current: Drafts, next: { body: string; intent: CommentIntent }) => {
     const savedCode = current[key]?.code ?? code;
     return {

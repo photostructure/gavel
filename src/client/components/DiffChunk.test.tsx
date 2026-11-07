@@ -393,6 +393,25 @@ describe('DiffChunk comment drafts', () => {
     renderChunk('unified');
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
+
+  // Only Cancel or Send removes text; a stray Escape must not.
+  it('keeps a line draft open on Escape when it holds text', () => {
+    const first = renderChunk('unified');
+    clickLine(first.container, 'unified', 2);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep me' } });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
+    expect(screen.getByRole('textbox')).toHaveValue('Keep me');
+    first.unmount();
+    renderChunk('unified');
+    expect(screen.getByRole('textbox')).toHaveValue('Keep me');
+  });
+
+  it('closes an empty line form on Escape', () => {
+    const { container } = renderChunk('unified');
+    clickLine(container, 'unified', 2);
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
 });
 
 describe('DiffChunk drafts across reviews', () => {
