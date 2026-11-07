@@ -309,11 +309,8 @@ export const DiffViewer = memo(function DiffViewer({
       side?: DiffSide,
       options?: CommentSubmitOptions,
     ) => {
-      try {
-        await onAddComment(file.path, line, body, codeContent, side, options);
-      } catch (error) {
-        console.error('Failed to add comment:', error);
-      }
+      // A failure reaches CommentForm, which keeps the text so the draft is not lost.
+      await onAddComment(file.path, line, body, codeContent, side, options);
     },
     [file.path, onAddComment],
   );

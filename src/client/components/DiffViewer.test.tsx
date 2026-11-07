@@ -1,4 +1,4 @@
-import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DiffChunk, DiffFile } from '../../types/diff';
@@ -35,6 +35,8 @@ const mergedChunks: MergedChunk[] = [
   { ...hunk(20), originalIndices: [1], hiddenLinesBefore: 16, hiddenLinesAfter: 0 },
 ];
 
+type AddComment = (file: string, line: number | [number, number], body: string) => Promise<void>;
+
 type ExpandAllBetweenChunks = (
   file: DiffFile,
   chunkIndex: number,
@@ -44,6 +46,7 @@ type ExpandAllBetweenChunks = (
 function renderViewer(
   expandAllBetweenChunks: ExpandAllBetweenChunks,
   chunks: MergedChunk[] = mergedChunks,
+  onAddComment: AddComment = vi.fn(async () => {}),
 ) {
   return render(
     <WordHighlightProvider>
@@ -57,7 +60,7 @@ function renderViewer(
           collapsedFiles={new Set()}
           onToggleCollapsed={vi.fn()}
           onToggleAllCollapsed={vi.fn()}
-          onAddComment={vi.fn(async () => {})}
+          onAddComment={onAddComment}
           onGenerateThreadPrompt={() => ''}
           onToggleThreadResolved={vi.fn()}
           onReplyToThread={vi.fn(async () => {})}
@@ -130,5 +133,24 @@ describe('DiffViewer context expansion for line drafts', () => {
     fireEvent.click(row, { shiftKey: true });
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'H' } });
     expect(expandAllBetweenChunks).not.toHaveBeenCalled();
+  });
+
+  it('keeps a line draft when saving the comment fails', async () => {
+    const onAddComment = vi.fn<AddComment>(async () => {
+      throw new Error('save failed');
+    });
+    const { container } = renderViewer(
+      vi.fn<ExpandAllBetweenChunks>(async () => {}),
+      mergedChunks,
+      onAddComment,
+    );
+    const row = container.querySelectorAll('[data-diff-line-row="true"]')[4]!;
+    fireEvent.click(row);
+    fireEvent.click(row, { shiftKey: true });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Do not lose this' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(onAddComment).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled());
+    expect(screen.getByRole('textbox')).toHaveValue('Do not lose this');
   });
 });
