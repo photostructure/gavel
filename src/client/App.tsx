@@ -72,6 +72,7 @@ import { useReviewSummary } from './hooks/useReviewSummary';
 import { useReviewPresence } from './hooks/useReviewPresence';
 import { useViewedFiles } from './hooks/useViewedFiles';
 import { useViewport } from './hooks/useViewport';
+import { useHideHeaderOnScroll } from './hooks/useHideHeaderOnScroll';
 import {
   migrateServerSettings,
   onSettingsSaveError,
@@ -235,6 +236,7 @@ function App() {
 
   const { settings, updateSettings } = useAppearanceSettings();
   const { isMobile } = useViewport();
+  const reviewChrome = useHideHeaderOnScroll();
 
   // New diff-aware comment system
   const {
@@ -1666,211 +1668,223 @@ function App() {
   return (
     <ReviewProviders agentUpdates={agentReadContext}>
       <div className="h-screen flex flex-col" onClickCapture={handleGlobalClick}>
-        <header
-          className="review-toolbar flex shrink-0 flex-wrap items-stretch justify-end gap-1 border-b border-github-border bg-github-bg-secondary px-3 py-2 text-sm text-github-text-primary md:gap-2"
-          data-testid="compact-review-header"
+        {/* The 0fr row collapses the header group to nothing without measuring it, and the
+            diff below grows into the space. */}
+        <div
+          data-testid="review-chrome"
+          data-hidden={reviewChrome.headerHidden ? 'true' : 'false'}
+          className="grid min-h-0 transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none"
+          style={{ gridTemplateRows: reviewChrome.headerHidden ? '0fr' : '1fr' }}
+          onFocusCapture={reviewChrome.revealHeader}
         >
-          {diffData.capture && (
-            <div role="status" aria-label="Named review capture" className="sr-only">
-              <span>{diffData.capture.name}</span>
-              <span>capture v{diffData.capture.version}</span>
-              <span>{diffData.capture.patchDigest.slice(0, 12)}</span>
-            </div>
-          )}
-          <div className="mr-auto flex min-w-0 max-w-full flex-wrap items-center gap-1 md:gap-2">
-            <button
-              type="button"
-              onClick={() => setIsFileTreeOpen(!isFileTreeOpen)}
-              className="shrink-0 rounded p-2 hover:bg-github-bg-tertiary"
-              title={isFileTreeOpen ? 'Collapse file tree' : 'Expand file tree'}
-              aria-expanded={isFileTreeOpen}
-              aria-controls="file-tree-panel"
-              aria-label="Toggle file tree panel"
+          <div ref={reviewChrome.headerRef} className="flex min-h-0 flex-col overflow-hidden">
+            <header
+              className="review-toolbar flex shrink-0 flex-wrap items-stretch justify-end gap-1 border-b border-github-border bg-github-bg-secondary px-3 py-2 text-sm text-github-text-primary md:gap-2"
+              data-testid="compact-review-header"
             >
-              {isFileTreeOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
-            </button>
-            <h1 className="sr-only shrink-0 md:not-sr-only">
-              <Logo style={{ height: '18px', color: 'var(--color-github-text-secondary)' }} />
-            </h1>
-            {/* On mobile the count lives in the file tree drawer. */}
-            {!isFileTreeOpen && !isMobile && (
-              <span className="shrink-0 text-xs ui-value">
-                <span role="status" title="Files viewed">
-                  {allFilesViewed ? (
-                    'All files viewed'
-                  ) : (
-                    <>
-                      {viewedFilesInDiffCount}/{diffData.files.length}
-                      <span className="sr-only"> files viewed</span>
-                    </>
-                  )}
-                </span>
-              </span>
-            )}
-            {captureReloading && (
-              <span role="status" className="text-xs text-github-text-secondary">
-                Updating capture…
-              </span>
-            )}
-          </div>
-          {/* While an agent asks for approval, the tabs are the way between reviews. Picking
-              another comparison would create a review the tabs can't place. */}
-          {revisionOptions && approvalRequests.length === 0 ? (
-            <DiffQuickMenu
-              options={revisionOptions}
-              selection={selectedRevision}
-              resolvedBaseRevision={resolvedBaseRevision}
-              resolvedTargetRevision={resolvedTargetRevision}
-              resolvedSelection={resolvedSelection}
-              capture={diffData.capture}
-              onSelectDiff={(selection) => void handleRevisionChange(selection)}
-              onSelectReview={(selection) =>
-                void handleRevisionChange({ ...selection, retained: true })
-              }
-              onOpen={loadRecentReviews}
-              recentReviews={recentReviews.filter(
-                (review) => !diffSelectionsEqual(review.selection, resolvedSelection),
+              {diffData.capture && (
+                <div role="status" aria-label="Named review capture" className="sr-only">
+                  <span>{diffData.capture.name}</span>
+                  <span>capture v{diffData.capture.version}</span>
+                  <span>{diffData.capture.patchDigest.slice(0, 12)}</span>
+                </div>
               )}
-              onOpenAdvanced={() => setIsRevisionModalOpen(true)}
-            />
-          ) : (
-            <HeaderMenu
-              title={diffData.capture?.name ?? diffData.commit}
-              label={
-                <>
-                  <GitBranch size={14} aria-hidden="true" />
-                  <span className="max-w-[24ch] truncate max-lg:sr-only">
-                    {diffData.capture?.name ?? diffData.commit}
+              <div className="mr-auto flex min-w-0 max-w-full flex-wrap items-center gap-1 md:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsFileTreeOpen(!isFileTreeOpen)}
+                  className="shrink-0 rounded p-2 hover:bg-github-bg-tertiary"
+                  title={isFileTreeOpen ? 'Collapse file tree' : 'Expand file tree'}
+                  aria-expanded={isFileTreeOpen}
+                  aria-controls="file-tree-panel"
+                  aria-label="Toggle file tree panel"
+                >
+                  {isFileTreeOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
+                </button>
+                <h1 className="sr-only shrink-0 md:not-sr-only">
+                  <Logo style={{ height: '18px', color: 'var(--color-github-text-secondary)' }} />
+                </h1>
+                {/* On mobile the count lives in the file tree drawer. */}
+                {!isFileTreeOpen && !isMobile && (
+                  <span className="shrink-0 text-xs ui-value">
+                    <span role="status" title="Files viewed">
+                      {allFilesViewed ? (
+                        'All files viewed'
+                      ) : (
+                        <>
+                          {viewedFilesInDiffCount}/{diffData.files.length}
+                          <span className="sr-only"> files viewed</span>
+                        </>
+                      )}
+                    </span>
                   </span>
-                </>
-              }
-            >
-              {diffData.capture ? (
-                <CaptureDetails capture={diffData.capture} />
+                )}
+                {captureReloading && (
+                  <span role="status" className="text-xs text-github-text-secondary">
+                    Updating capture…
+                  </span>
+                )}
+              </div>
+              {/* While an agent asks for approval, the tabs are the way between reviews. Picking
+              another comparison would create a review the tabs can't place. */}
+              {revisionOptions && approvalRequests.length === 0 ? (
+                <DiffQuickMenu
+                  options={revisionOptions}
+                  selection={selectedRevision}
+                  resolvedBaseRevision={resolvedBaseRevision}
+                  resolvedTargetRevision={resolvedTargetRevision}
+                  resolvedSelection={resolvedSelection}
+                  capture={diffData.capture}
+                  onSelectDiff={(selection) => void handleRevisionChange(selection)}
+                  onSelectReview={(selection) =>
+                    void handleRevisionChange({ ...selection, retained: true })
+                  }
+                  onOpen={loadRecentReviews}
+                  recentReviews={recentReviews.filter(
+                    (review) => !diffSelectionsEqual(review.selection, resolvedSelection),
+                  )}
+                  onOpenAdvanced={() => setIsRevisionModalOpen(true)}
+                />
               ) : (
-                <code className="break-all">{diffData.commit}</code>
+                <HeaderMenu
+                  title={diffData.capture?.name ?? diffData.commit}
+                  label={
+                    <>
+                      <GitBranch size={14} aria-hidden="true" />
+                      <span className="max-w-[24ch] truncate max-lg:sr-only">
+                        {diffData.capture?.name ?? diffData.commit}
+                      </span>
+                    </>
+                  }
+                >
+                  {diffData.capture ? (
+                    <CaptureDetails capture={diffData.capture} />
+                  ) : (
+                    <code className="break-all">{diffData.commit}</code>
+                  )}
+                </HeaderMenu>
               )}
-            </HeaderMenu>
-          )}
-          <ViewMenu
-            mode={diffMode}
-            mobile={isMobile}
-            onModeChange={handleDiffModeChange}
-            ignoreWhitespace={ignoreWhitespace}
-            onWhitespaceChange={setIgnoreWhitespace}
-          />
-          <button
-            type="button"
-            aria-haspopup="dialog"
-            aria-label="Settings"
-            title="Settings"
-            className="inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
-            onClick={() => setIsSettingsOpen(true)}
-          >
-            <Settings size={14} aria-hidden="true" />
-            <span className="sr-only lg:not-sr-only">Settings</span>
-          </button>
-          <button
-            type="button"
-            aria-expanded={isAboutOpen}
-            aria-controls="about-panel"
-            aria-haspopup="dialog"
-            aria-label="About"
-            title="About"
-            className="inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
-            onClick={() => {
-              setIsCommentsListOpen(false);
-              setIsAboutOpen(true);
-            }}
-          >
-            <Info size={14} aria-hidden="true" />
-            <span className="sr-only lg:not-sr-only">About</span>
-          </button>
-          <ReloadButton
-            shouldReload={shouldReload}
-            isReloading={watchState.isReloading}
-            onReload={reload}
-            changeType={watchState.lastChangeType}
-            compact
-          />
-          <button
-            type="button"
-            aria-label="Conversation"
-            aria-expanded={isCommentsListOpen}
-            aria-controls="conversation-panel"
-            aria-haspopup="dialog"
-            aria-describedby="conversation-unread-status"
-            title={
-              reviewPresence?.listeners
-                ? 'Conversation — agent listener attached'
-                : 'Conversation — no agent listener attached'
-            }
-            onClick={() => {
-              setIsAboutOpen(false);
-              setIsCommentsListOpen(true);
-            }}
-            className="relative inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
-          >
-            <MessageSquare size={14} aria-hidden="true" />
-            <span className="sr-only lg:not-sr-only">Conversation</span>
-            {/* On mobile the badge sits on the button's corner, so it doesn't widen the header. */}
-            <span
-              id="conversation-unread-status"
-              aria-live="polite"
-              aria-atomic="true"
-              className="inline-flex tabular-nums max-md:absolute max-md:-top-1.5 max-md:-right-1"
-            >
-              <UnreadBadge count={agentUpdates.length} />
-              <span className="sr-only">
-                {agentUpdates.length
-                  ? `${agentUpdates.length} unread agent message${agentUpdates.length === 1 ? '' : 's'}`
-                  : 'No unread agent messages'}
-              </span>
-            </span>
-          </button>
-          {diffData.shipIt && (
-            <ApprovalSplitButton
-              key={commentsContextKey}
-              containerRef={approvalControlRef}
-              requested={approval.requested}
-              approved={approval.approved}
-              mode={approval.mode}
-              pendingCount={approval.pendingCount}
-              conditionalSupported={approval.conditionalSupported}
-              busy={isShipping || captureReloading}
-              disabled={
-                !approval.ready ||
-                !hasBootstrappedComments ||
-                !summary.ready ||
-                summary.dirty ||
-                summary.saving
-              }
-              onApprove={(mode) => void handleShipIt(mode)}
-              onRevoke={() => void handleShipIt('as-is', true)}
+              <ViewMenu
+                mode={diffMode}
+                mobile={isMobile}
+                onModeChange={handleDiffModeChange}
+                ignoreWhitespace={ignoreWhitespace}
+                onWhitespaceChange={setIgnoreWhitespace}
+              />
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-label="Settings"
+                title="Settings"
+                className="inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
+                onClick={() => setIsSettingsOpen(true)}
+              >
+                <Settings size={14} aria-hidden="true" />
+                <span className="sr-only lg:not-sr-only">Settings</span>
+              </button>
+              <button
+                type="button"
+                aria-expanded={isAboutOpen}
+                aria-controls="about-panel"
+                aria-haspopup="dialog"
+                aria-label="About"
+                title="About"
+                className="inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
+                onClick={() => {
+                  setIsCommentsListOpen(false);
+                  setIsAboutOpen(true);
+                }}
+              >
+                <Info size={14} aria-hidden="true" />
+                <span className="sr-only lg:not-sr-only">About</span>
+              </button>
+              <ReloadButton
+                shouldReload={shouldReload}
+                isReloading={watchState.isReloading}
+                onReload={reload}
+                changeType={watchState.lastChangeType}
+                compact
+              />
+              <button
+                type="button"
+                aria-label="Conversation"
+                aria-expanded={isCommentsListOpen}
+                aria-controls="conversation-panel"
+                aria-haspopup="dialog"
+                aria-describedby="conversation-unread-status"
+                title={
+                  reviewPresence?.listeners
+                    ? 'Conversation — agent listener attached'
+                    : 'Conversation — no agent listener attached'
+                }
+                onClick={() => {
+                  setIsAboutOpen(false);
+                  setIsCommentsListOpen(true);
+                }}
+                className="relative inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
+              >
+                <MessageSquare size={14} aria-hidden="true" />
+                <span className="sr-only lg:not-sr-only">Conversation</span>
+                {/* On mobile the badge sits on the button's corner, so it doesn't widen the header. */}
+                <span
+                  id="conversation-unread-status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  className="inline-flex tabular-nums max-md:absolute max-md:-top-1.5 max-md:-right-1"
+                >
+                  <UnreadBadge count={agentUpdates.length} />
+                  <span className="sr-only">
+                    {agentUpdates.length
+                      ? `${agentUpdates.length} unread agent message${agentUpdates.length === 1 ? '' : 's'}`
+                      : 'No unread agent messages'}
+                  </span>
+                </span>
+              </button>
+              {diffData.shipIt && (
+                <ApprovalSplitButton
+                  key={commentsContextKey}
+                  containerRef={approvalControlRef}
+                  requested={approval.requested}
+                  approved={approval.approved}
+                  mode={approval.mode}
+                  pendingCount={approval.pendingCount}
+                  conditionalSupported={approval.conditionalSupported}
+                  busy={isShipping || captureReloading}
+                  disabled={
+                    !approval.ready ||
+                    !hasBootstrappedComments ||
+                    !summary.ready ||
+                    summary.dirty ||
+                    summary.saving
+                  }
+                  onApprove={(mode) => void handleShipIt(mode)}
+                  onRevoke={() => void handleShipIt('as-is', true)}
+                />
+              )}
+              {(shipItError || approval.error) && (
+                <span role="alert" className="w-full text-xs text-github-danger">
+                  {shipItError || approval.error}
+                </span>
+              )}
+              {settingsSaveError && (
+                <span role="alert" className="w-full text-xs text-github-danger">
+                  {settingsSaveError}
+                </span>
+              )}
+            </header>
+            <ReviewQueueBar
+              reviews={approvalRequests}
+              current={resolvedSelection}
+              approvals={Boolean(diffData.shipIt)}
+              onSelect={(selection) => void handleRevisionChange({ ...selection, retained: true })}
             />
-          )}
-          {(shipItError || approval.error) && (
-            <span role="alert" className="w-full text-xs text-github-danger">
-              {shipItError || approval.error}
-            </span>
-          )}
-          {settingsSaveError && (
-            <span role="alert" className="w-full text-xs text-github-danger">
-              {settingsSaveError}
-            </span>
-          )}
-        </header>
-        <ReviewQueueBar
-          reviews={approvalRequests}
-          current={resolvedSelection}
-          approvals={Boolean(diffData.shipIt)}
-          onSelect={(selection) => void handleRevisionChange({ ...selection, retained: true })}
-        />
-        <ReviewSummaryPanel
-          key={commentsContextKey}
-          summary={summary}
-          committed={!diffData.capture && diffData.targetCommitMessage !== undefined}
-        />
+            <ReviewSummaryPanel
+              key={commentsContextKey}
+              summary={summary}
+              committed={!diffData.capture && diffData.targetCommitMessage !== undefined}
+            />
+          </div>
+        </div>
         {revisionOptions && (
           <RevisionDetailModal
             key={isRevisionModalOpen ? getDiffSelectionKey(selectedRevision) : 'closed'}
@@ -1986,7 +2000,11 @@ function App() {
             />
           )}
 
-          <main ref={diffScrollContainerRef} className="flex-1 overflow-y-auto">
+          <main
+            ref={diffScrollContainerRef}
+            className="flex-1 overflow-y-auto"
+            onScroll={reviewChrome.onScroll}
+          >
             {diffData.files.map((file, fileIndex) => {
               const fileThreads = threadsByFile.get(file.path) ?? EMPTY_COMMENT_THREADS;
               const mergedChunks = presentationChunksByPath.get(file.path) ?? EMPTY_MERGED_CHUNKS;

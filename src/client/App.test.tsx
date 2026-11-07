@@ -10,6 +10,7 @@ import type { ClientWatchState } from '../types/watch';
 import { DiffMode } from '../types/watch';
 
 import App from './App';
+import { MEDIA_QUERIES } from './constants/breakpoints';
 import { useDiffComments } from './hooks/useDiffComments';
 import { useFileWatch } from './hooks/useFileWatch';
 import { useViewedFiles } from './hooks/useViewedFiles';
@@ -354,6 +355,34 @@ describe('App Component - Clear Comments Functionality', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Conversation' }));
     expect(screen.getByRole('dialog', { name: 'Conversation' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Comment or ask about this review…')).toBeInTheDocument();
+  });
+
+  it('hides the review header while the diff scrolls down on a touch screen', async () => {
+    const matchMedia = window.matchMedia.bind(window);
+    const spy = vi.spyOn(window, 'matchMedia').mockImplementation((query) =>
+      query === MEDIA_QUERIES.autoHideHeader
+        ? ({
+            matches: true,
+            addEventListener: () => {},
+            removeEventListener: () => {},
+          } as unknown as MediaQueryList)
+        : matchMedia(query),
+    );
+    try {
+      renderApp();
+      const settings = await screen.findByRole('button', { name: 'Settings' });
+      const chrome = screen.getByTestId('review-chrome');
+      const diff = screen.getByRole('main');
+      Object.defineProperty(diff, 'scrollHeight', { value: 5000 });
+      Object.defineProperty(diff, 'clientHeight', { value: 300 });
+      Object.defineProperty(diff, 'scrollTop', { value: 200 });
+      fireEvent.scroll(diff);
+      expect(chrome).toHaveAttribute('data-hidden', 'true');
+      act(() => settings.focus());
+      expect(chrome).toHaveAttribute('data-hidden', 'false');
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   describe('Copy All Prompt Button', () => {

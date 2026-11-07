@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* A phone or tablet in either orientation, or a window as short as a landscape phone.
+   Keep in sync with MEDIA_QUERIES.autoHideHeader in constants/breakpoints.ts. */
+@custom-variant auto-hide-header {
+  @media (pointer: coarse), (max-height: 500px) {
+    @slot;
+  }
+}
+
 /* Headings, and any label on its own line above its content (a control, a
    value, or a list), use primary text at semibold so they read as headings.
    A label inline with its value, and a menu's status line above its options,

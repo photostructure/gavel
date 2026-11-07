@@ -329,7 +329,10 @@ the review picker, **View**, **Settings**, **About**, **Conversation**, and the 
 control show only their icons; the review picker's menu names the comparison, and the
 approval menu shows the current approval. Below 768px the header also drops the difit
 logo and the files-viewed count, which stays in the file tree, and shows the unread-reply
-count on the corner of **Conversation**. Copy-all and agent
+count on the corner of **Conversation**. On phones and tablets in either orientation, and
+in windows 500px tall or less, the header, review tabs, and **Change summary** slide out of
+view while the diff scrolls down and return on scroll up or when keyboard focus moves into
+them, and file headers use less padding. Copy-all and agent
 resume actions live in **Conversation**; file-view progress sits above the file list.
 
 The approval split button offers **Approve as-is** and **Approve after comments are
