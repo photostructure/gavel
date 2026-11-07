@@ -28,7 +28,6 @@ if [[ "$(jq -r '.object.type' <<< "$TAG_JSON")" != commit || "$(jq -r '.object.s
 fi
 
 {
-  echo "package_name=$PACKAGE_NAME"
   echo "package_version=$PACKAGE_VERSION"
   echo "tag_object_sha=$TAG_OBJECT_SHA"
 } >> "$GITHUB_OUTPUT"

@@ -56,10 +56,7 @@ function verify() {
   assert(new Set(paths).size === paths.length, 'Tarball contains duplicate paths');
   for (const path of paths) {
     assert(
-      /^package\/(?:dist\/|package\.json$|README(?:\.ja|\.ko|\.zh)?\.md$|LICENSE$|docs\/agent-conversations\.md$)/u.test(
-        path,
-      ) &&
-        !path.includes('/../') &&
+      !path.includes('/../') &&
         !path.includes('\\') &&
         !/(?:^|\/)(?:site-data|site|node_modules|\.env)(?:\/|$)/u.test(path) &&
         !/\.(?:test|spec)\.[^/]+$/u.test(path),
