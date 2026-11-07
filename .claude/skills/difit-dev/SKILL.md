@@ -1,6 +1,6 @@
 ---
 name: difit-dev
-description: Ask the user for a code review through difit after code changes in this repository, using `pnpm run dev`.
+description: Ask the user for a code review through difit after code changes in this repository, serving every review shown to the user from a build and using `pnpm run dev` only for your own UI checks.
 metadata:
   internal: true
 ---
@@ -10,9 +10,28 @@ metadata:
 Use only for an explicit difit/viewer request, skill invocation, or standing
 instruction to request difit reviews. Ordinary review requests belong in chat.
 
-Use `pnpm run dev` from this repository's Git root, with no extra `--` separator.
-Use `node dist/cli/index.js` for the companion comment commands below.
-Launch `pnpm run dev <target> [base]`. Targets: `.` (uncommitted),
+Serve every review shown to the user from a build, not from Vite: a proposed commit,
+a stack of them, or a read-only view of committed work (`--no-lgtm`), which still
+takes comments. A `pnpm run dev` page runs this checkout's live source, so
+every save another session makes under `src/client` hot-reloads it, and a reload or
+a crash under the user can lose unsent comments. Run `pnpm build`, then launch with
+`node dist/cli/index.js` and the same target and flags as below. That server serves
+the built UI at its API URL, so give the user `server.ready.launchUrl`. When other
+sessions are editing this checkout, build in a detached worktree at HEAD. For
+uncommitted work, apply your change there and launch a supplied patch with
+`node dist/cli/index.js - --review <name> < <patch>`. For committed work, launch
+the commit target given below (`node dist/cli/index.js <sha> --no-lgtm
+--commit-message …`) from that worktree; `--review` takes no revision arguments. Run `review create` and
+`review update` from that worktree too: they capture against the current directory's
+repository, and the server rejects a capture from another root. Run `comment …` with
+the worktree's `node dist/cli/index.js`, so it matches the server's build. Keep `pnpm run dev` for checking your own UI work in
+Claude's browser pane, with `--no-open`.
+
+Run the launcher from this repository's Git root, or from the detached worktree
+above (for `pnpm run dev`, with no extra `--` separator). Use
+`node dist/cli/index.js` for the companion comment commands below. Launch with
+`node dist/cli/index.js <target> [base]` (or `pnpm run dev <target> [base]` for a
+UI check). Targets: `.` (uncommitted),
 `working`, `staged`, or omit for HEAD. Add `--include-untracked` when needed.
 When none of this session's work is still uncommitted, don't launch: tell the
 user it is already committed, list each commit's short SHA and subject, and ask
@@ -32,11 +51,12 @@ Keep one foreground server per Git root and target; retain its process handle.
 Stdout is JSONL by default (`--jsonl` is explicit; `--no-jsonl` selects human output).
 JSONL requires conversation APIs; disable both with `--no-jsonl --no-conversation`.
 Read `server.ready` for the API port, URL, PID, and repository/review identity;
-companion commands use its `port`, never the Vite UI port. The API URL serves a
-development placeholder, so do not give it to the user as the review UI. Use the
-Vite tab that `pnpm run dev` opens; Vite prints its UI origin to stderr. Share that
-tab's full address, including its editor-session fragment. If composing a Vite
-link manually, preserve the query and fragment from `server.ready.launchUrl`.
+companion commands use its `port`, never the Vite UI port. Under `pnpm run dev`
+the API URL serves a development placeholder, so do not give it to the user as the
+review UI there; use the Vite tab that `pnpm run dev` opens (Vite prints its UI
+origin to stderr) and share that tab's full address, including its editor-session
+fragment. If composing a Vite link manually, preserve the query and fragment from
+`server.ready.launchUrl`.
 Diagnostics go to stderr.
 Conversation and LGTM are enabled by default. Use `--keep-alive` for review rounds
 and `--no-lgtm` for read-only review. `pnpm run dev` does not support
@@ -45,9 +65,9 @@ A viewer request grants no edit/commit permission; make requested, authorized
 fixes only in the owning checkout.
 
 Open a review you start on your own, such as a commit approval at the end of
-your work, only while the user is at the desk. Run `pnpm run build:cli` (it
-creates `dist/`, which `pnpm run dev` would otherwise build later; a build
-failure is a build problem to report, not an idle reading), then
+your work, only while the user is at the desk. Run `pnpm build`, which the
+built review needs anyway (a build failure is a build problem to report, not an
+idle reading), then
 `node dist/cli/index.js idle`. If it exits non-zero or prints an `idleMs` of 600000 (10 minutes) or
 more, the user is away: do not launch. Finish everything else, including tests
 and second-opinion review, then end the turn with one line saying the change is
@@ -64,7 +84,10 @@ JSON payloads before composing them; omit the selector for events. The Draft
 For stacked commits, follow the [difit skill](../../../skills/difit/SKILL.md)'s rule
 for several reviews: launch the first commit with `--review <name>`, add each later
 one with `node dist/cli/index.js review create <name> --port <api-port>` in commit
-order, and give the user one Vite link; the tabs lead to the other reviews. Give
+order, and give the user one link; the tabs lead to the other reviews. When the
+server runs on supplied patches, give each later review its own patch with
+`review create <name> - --port <api-port> < <patch>`; without the `-`, it captures
+the worktree's whole uncommitted tree. Give
 each created review its own comments (`comment add --review <name>`) and proposal
 (`comment summary` with the `reviewId` that `review create` prints), since launch
 options reach only the first. Each approval covers only its own review; commit in

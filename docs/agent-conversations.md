@@ -466,9 +466,11 @@ publication, or invoking a landing workflow the user has not requested.
 
 Published `@photostructure/difit` 5.1.0 does not contain this launch JSONL
 protocol. Until the next release, use a source build and verify that `--help`
-includes `--jsonl` and `--no-jsonl` and `difit schema` succeeds. Within this repository use
-`pnpm run dev <target> <base> --keep-alive`; use `node dist/cli/index.js comment …`
-for companion commands after compilation. From another repository, an absolute
+includes `--jsonl` and `--no-jsonl` and `difit schema` succeeds. Within this repository,
+run `pnpm build` and launch any review the user will see with
+`node dist/cli/index.js <target> <base> --keep-alive`, which serves the built UI; use
+`pnpm run dev` only for UI development, since its page hot-reloads when client source
+changes. Use `node dist/cli/index.js comment …` for companion commands. From another repository, an absolute
 path to that built CLI preserves the reviewed repository as the working directory.
 Keep the server and companion commands on the same build.
 
