@@ -151,6 +151,13 @@ export async function getCaptureRepository(cwd = process.cwd()): Promise<Capture
   return { repositoryRoot, repositoryId: repositoryId(repositoryRoot), baseCommit };
 }
 
+/** The Git directory a repository's worktrees share, as an absolute path. */
+export async function getGitCommonDirectory(cwd: string): Promise<string> {
+  // Git prints the path relative to cwd; --path-format=absolute needs Git 2.31.
+  const { output } = await runGit(cwd, ['rev-parse', '--git-common-dir']);
+  return resolve(cwd, decodeOutput(output, 'path').replace(/\n$/, ''));
+}
+
 function patchLines(patch: string): PatchLine[] {
   const lines: PatchLine[] = [];
   let start = 0;

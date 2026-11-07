@@ -117,7 +117,14 @@ HTTP 409 requires reconciliation with the current version before retrying.
 Source edits and browser refresh never recapture a named review. A changed patch
 advances its version and revokes LGTM while retaining the conversation/proposal;
 an identical patch preserves version and approval after checking expectedVersion.
-Names and capture history last for the server process.
+A relaunched server restores a saved review when the same name and patch, or the
+same commits, open again: comments, progress, proposal and approval. The server saves
+comments itself, but a restored review has a new review ID and event stream, so
+read it with `comment snapshot` before sending it a status, a reply or a summary;
+its summary `version` is the `baseVersion` for `comment summary`. When
+the snapshot's `store.error` (`storeError` in the filtered snapshot below) is set,
+tell the user that review changes are not being saved, and why
+([saved reviews](https://github.com/photostructure/difit/blob/main/docs/agent-conversations.md#saved-reviews)).
 
 Stdout is JSONL by default (`--jsonl` is explicit; `--no-jsonl` selects human output).
 JSONL and named reviews require conversation APIs. An unnamed review can disable
@@ -172,7 +179,8 @@ change would land under, and `--why <text>`, one to three sentences on the
 problem and why this change solves it. When the diff is someone else's, write
 them from your reading of it and say in the why where you inferred intent. On a
 review added with `review create`, set them with `comment summary`, using the
-`reviewId` it printed and `baseVersion` 0. Read the
+`reviewId` it printed and, as `baseVersion`, the summary `version` that `comment
+snapshot` shows for that review (0 unless an earlier server saved it). Read the
 review's saved `summary` from `comment snapshot` before committing; honor the
 user's message edits within the approved scope and repository rules.
 To update it, `comment summary` accepts `{reviewId,commitMessage,rationale,baseVersion}`
@@ -231,7 +239,7 @@ read is for the single approval check right before a commit. Pass `--host` and
 resume prompt resumes you, run this in place of the raw snapshot it names:
 
 ```sh
-set -o pipefail; <difit-command> comment snapshot --host <host> --port <api-port> | jq -c '{cursor, connected: .presence.reviewers.connected, reviews: [.reviews[] as $r | {id: $r.id, selection: $r.selection, capture: ($r.capture | if . then {version, patchDigest} else null end), approval: ($r.approval | {approved, mode, requested, notYet: (.notYet // false), cursor, open: [.conditions[]? | select(.addressed | not) | {threadId, messageId, cursor, intent}]}), commitMessage: $r.summary.commitMessage, fromCommit: ($r.summary.fromCommit // false), summaryVersion: $r.summary.version, pending: [$r.threads[] as $t | $t.messages[] | select(.progress and (.progress.status | IN("replied","noted") | not)) | {threadId: $t.id, messageId: .id, cursor: .progress.cursor, confirmed: (($t.resolution.resolved // false) and $t.resolution.updatedAt >= .updatedAt), filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}]}]}'
+set -o pipefail; <difit-command> comment snapshot --host <host> --port <api-port> | jq -c '{cursor, connected: .presence.reviewers.connected, storeError: (.store.error // null), reviews: [.reviews[] as $r | {id: $r.id, selection: $r.selection, capture: ($r.capture | if . then {version, patchDigest} else null end), approval: ($r.approval | {approved, mode, requested, notYet: (.notYet // false), cursor, open: [.conditions[]? | select(.addressed | not) | {threadId, messageId, cursor, intent}]}), commitMessage: $r.summary.commitMessage, fromCommit: ($r.summary.fromCommit // false), summaryVersion: $r.summary.version, pending: [$r.threads[] as $t | $t.messages[] | select(.progress and (.progress.status | IN("replied","noted") | not)) | {threadId: $t.id, messageId: .id, cursor: .progress.cursor, confirmed: (($t.resolution.resolved // false) and $t.resolution.updatedAt >= .updatedAt), filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}]}]}'
 ```
 
 The user gives each review one of three verdicts: **Approve as-is**
@@ -311,8 +319,8 @@ Require matching `approval.approved: true` in a fresh snapshot immediately befor
 commit. For named reviews also match `approval.captureVersion` and
 `approval.patchDigest` to the snapshot's `capture`, and `approval.summaryVersion`
 to `summary.version`. Check the actual commit scope against the approved capture;
-later shared-tree edits do not acquire approval. Revocation/restart invalidates
-prior button approval. Then commit without asking again. Separate chat approval is independent; silence/tab closure is not
+later shared-tree edits do not acquire approval. Revocation invalidates prior button
+approval; after a restart, only the approval a fresh snapshot shows counts. Then commit without asking again. Separate chat approval is independent; silence/tab closure is not
 approval. This rule never authorizes a push or publication.
 
 Details: [conversation protocol](https://github.com/photostructure/difit/blob/main/docs/agent-conversations.md).

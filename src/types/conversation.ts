@@ -99,8 +99,21 @@ interface ReviewApprovalEvent {
   timestamp: string;
 }
 
+/**
+ * Where a server saves its reviews. error, when present, lists what it is not saving and why: a
+ * failed or lock-waiting save, a failed heartbeat, and reviews another running server saves,
+ * which this one keeps in memory only. It also lists files startup cleanup could not handle,
+ * which stay without affecting saving.
+ */
+export interface ReviewStoreStatus {
+  directory: string;
+  error?: string;
+}
+
 export interface ConversationSnapshot {
   presence?: ReviewPresenceSnapshot;
+  /** Absent for a server that saves nothing: outside Git, or with --no-conversation. */
+  store?: ReviewStoreStatus;
   cursor: string;
   reviews: {
     id: string;

@@ -66,13 +66,13 @@ describe('FileWatcherService', () => {
 
       expect(subscribe).toHaveBeenCalledTimes(2);
       expect(subscribe).toHaveBeenCalledWith(TEST_REPO_PATH, expect.any(Function), {
-        ignore: ['.git/objects/**', '.git/refs/**', 'node_modules/**'],
+        ignore: ['.git/objects/**', '.git/refs/**', '.git/difit/**', 'node_modules/**'],
       });
       expect(subscribe).toHaveBeenCalledWith(
         resolve(TEST_REPO_PATH, '.git'),
         expect.any(Function),
         {
-          ignore: ['.git/objects/**', '.git/refs/**', 'node_modules/**'],
+          ignore: ['.git/objects/**', '.git/refs/**', '.git/difit/**', 'node_modules/**'],
         },
       );
     });
@@ -88,6 +88,7 @@ describe('FileWatcherService', () => {
           '.git/FETCH_HEAD',
           '.git/ORIG_HEAD',
           '.git/logs/**',
+          '.git/difit/**',
           'node_modules/**',
         ],
       });
@@ -219,6 +220,22 @@ describe('FileWatcherService', () => {
 
       // Should only broadcast for HEAD file in DEFAULT mode
       expect(mockResponse.write).toHaveBeenCalledWith(expect.stringContaining('"type":"reload"'));
+    });
+
+    it('ignores saved review files under the checkout root in DOT mode', async () => {
+      vi.mocked(subscribe).mockClear();
+      await fileWatcher.stop();
+      await fileWatcher.start(DiffMode.DOT, TEST_REPO_PATH, 300);
+      fileWatcher.addClient(mockResponse);
+      const rootCall = vi.mocked(subscribe).mock.calls.find(([path]) => path === TEST_REPO_PATH);
+      await rootCall![1](null, [
+        { path: `${TEST_REPO_PATH}/.git/difit/reviews/abc.json`, type: 'update' },
+        { path: `${TEST_REPO_PATH}/.git/difit/captures/def.json.123.tmp`, type: 'create' },
+      ]);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      expect(mockResponse.write).not.toHaveBeenCalledWith(
+        expect.stringContaining('"type":"reload"'),
+      );
     });
 
     it('should filter out ignored patterns', async () => {
@@ -417,6 +434,7 @@ describe('FileWatcherService', () => {
           '.git/FETCH_HEAD',
           '.git/ORIG_HEAD',
           '.git/logs/**',
+          '.git/difit/**',
           'node_modules/**',
           'build',
           'coverage',

@@ -125,6 +125,10 @@ recover current state; the event endpoint replays the latest 256 events in this
 server process. Use message `progress.cursor` for status/reply,
 not a progress event's stream cursor or the snapshot's cursor. Do not promise
 listening after ending the turn without host support that forwards process output.
+The server saves each review under `.git/difit` and restores it when the same review
+opens again ([saved reviews](../../../docs/agent-conversations.md#saved-reviews)).
+When the snapshot's `store.error` is set, tell the user that review changes are not
+being saved, and why.
 
 Every review gets one of three verdicts: **Approve as-is**, **Approve after
 comments** (`mode` `as-is` or `after-comments`), or **Not yet**, recorded as
@@ -149,7 +153,8 @@ Approve as-is, or a fully addressed Approve after comments, on a review you open
 is commit approval. Commit only the recorded scope/requested fixes after
 addressing comments, passing checks, and independent Codex/Claude LAND on final code.
 Require matching `approval.approved: true` in a fresh snapshot immediately before
-commit; revocation/restart invalidates prior button approval. Then commit without
+commit; revocation invalidates prior button approval, and after a restart only the
+approval a fresh snapshot shows counts. Then commit without
 asking again. Separate chat approval is independent; silence/tab closure is not
 approval. This rule never authorizes a push or publication.
 

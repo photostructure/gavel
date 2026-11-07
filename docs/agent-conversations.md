@@ -22,9 +22,10 @@ reopened after switching branches.
 A named review holds an immutable patch and keeps the same conversation and
 proposal when an agent explicitly updates that patch. Names are 1–80 ASCII
 letters, digits, dots, underscores, or hyphens, starting with a letter or digit.
-Use one name per task. Names and captures are scoped to this server process and
-repository root; capture history is held in memory. A server restart loses named
-reviews and captures; existing browser comment recovery does not restore them.
+Use one name per task. Names are scoped to the server and repository root. A
+restarted server knows a named review again once it is launched or created with
+the same name and patch, which restores its capture history and conversation
+([saved reviews](#saved-reviews)).
 
 Capture the current tracked changes from HEAD with repeatable native Git
 pathspecs. Quote pathspecs so Git receives exclusions and glob syntax unchanged:
@@ -267,8 +268,9 @@ difit . --commit-message 'fix: preserve review intent' --why 'Keep the proposed 
 ```
 
 The browser can edit and save these fields for each diff selection, including
-with `--no-jsonl --no-conversation`. Values are process-local and disappear when
-the server restarts. Saving a changed proposal revokes any existing LGTM approval for that
+with `--no-jsonl --no-conversation`. They are saved with the review
+([saved reviews](#saved-reviews)), except for an unnamed stdin patch or under
+`--no-conversation`, where they disappear when the server restarts. Saving a changed proposal revokes any existing LGTM approval for that
 selection. Editing these fields never executes Git or creates a commit.
 
 A commit that moves HEAD gives a `staged` or `.` diff a new base commit, and so
@@ -309,7 +311,8 @@ command always uses agent origin. Approval revocations emit `review.approval`
 with the summary edit's origin; direct approval changes use user origin.
 
 Browser API: `GET /api/review-summary?base=...&target=...&baseMode=merge-base`
-returns the summary (initially empty, version 0). `POST` to the same URL accepts
+returns the summary (initially empty, version 0, unless a restored review brought
+its saved summary). `POST` to the same URL accepts
 `{commitMessage,rationale,baseVersion}`. Agent writes use
 `POST /api/conversation/summary` with the command's JSON shape. Both require
 `application/json` and return the saved summary. Stale writes return HTTP 409
@@ -403,8 +406,8 @@ acknowledgments and LGTM should be marked `noted` after considering them, withou
 a redundant answer. Noted records that no reply is needed; Read only records
 inspection. Neither status resolves the conversation.
 
-Progress is process-local and resets on server restart, even when the browser
-restores comments. Hover over a status for its last update time; an inactive
+Progress is saved with its review, so a server that restores the review restores
+its progress ([saved reviews](#saved-reviews)). Hover over a status for its last update time; an inactive
 agent's last report is not proof it is still working. The HTTP status endpoint
 is `POST /api/conversation/status` and accepts the same JSON as the CLI.
 
@@ -421,7 +424,8 @@ menu, withdraws it.
 with this capture and wants a revision. Read the comments, revise, and recapture or
 re-propose, which clears it and puts the review back in line for a verdict.
 The server stays running. Approval is scoped to the displayed selection and is
-restored after browser refresh; a server restart resets it to unapproved.
+restored after browser refresh, and by a restarted server that opens the same
+review again ([saved reviews](#saved-reviews)).
 
 After a verdict a notice under the verdict buttons counts down ten seconds, then opens the
 next review without one, or, when every review has one, closes its tab. The browser closes
@@ -474,6 +478,51 @@ approval again. Missing reviewers, outstanding comments, REVISE, or DISCARD keep
 the commit blocked. Repeat review after code changes so LAND covers the final
 tree. Approval does not cover unrelated additions and never authorizes a push,
 publication, or invoking a landing workflow the user has not requested.
+
+## Saved reviews
+
+A server with conversation APIs saves each review's comments, comment progress,
+proposal and approval under `<git-common-dir>/difit/`, the repository's
+`.git/difit`, which its worktrees share and Git never commits, clones or pushes.
+It saves after every change, so a stopped or crashed server loses nothing it
+saved. A later server restores a review when it opens the same one:
+
+- a named review, launched with `--review` or added with `review create`, with the
+  same name and the same current patch, along with its whole capture history;
+- any other review (a commit, a range, `staged`, `.`) that resolves to the same
+  commits.
+
+An unnamed stdin patch, and a server started with `--no-conversation`, save
+nothing.
+
+A restored review keeps its approval until the usual rules revoke it: a changed
+capture, summary, or `staged`/`.` diff. A relaunch that passes the same
+`--commit-message` and `--why` keeps the restored proposal and its approval; a
+different one replaces the proposal and revokes approval. Repeated `--comment`
+imports are not duplicated. A restored review gets a new review ID and a new
+event stream, so run `comment snapshot` before sending status, replies, or a
+`comment summary`, whose `baseVersion` is the restored summary's `version`.
+Comment `progress.cursor` values from before the restart still work. A server
+launched with `--clean` restores the launched review without its comments and
+progress, and saves it that way; other reviews it opens keep theirs.
+
+Each saved review has a lock naming the running server that saves it. While
+another server on this host holds a review's lock, a new server neither restores
+nor saves that review, so the two never overwrite each other; the new server
+starts it empty and keeps it in memory only.
+
+The snapshot (`comment snapshot`, `GET /api/conversation/snapshot`) carries
+`store: { directory, error? }` for a server that saves reviews. `error`, when
+present, lists what the server is not saving and why: a save that failed or waits
+for a lock, a failed heartbeat, and reviews another running server saves, which
+this one keeps in memory only. Until those clear, their changes are lost when the
+server stops. It also lists files startup cleanup could not handle; those stay, and
+saving is unaffected. A
+`--background` server's stderr reaches nobody, so this field is the only report.
+
+When a server starts, it deletes saved reviews that nobody changed for 7 days,
+saved patches that no remaining review uses once they are 7 days old, and locks
+whose server stopped.
 
 ## Compatibility
 

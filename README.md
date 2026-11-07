@@ -182,8 +182,10 @@ into a menu on the open review's tab.
 Captures read the index and working tree without changing them. Source edits and
 browser refresh leave a named capture fixed. Updating to a changed patch retains
 the conversation and proposal, advances its version, and revokes LGTM; stale
-updates fail. Identical patches preserve the version and approval. Names and
-capture history last for the server process. Path filters can include other tasks'
+updates fail. Identical patches preserve the version and approval. Reviews are
+saved under `.git/difit`, so a restarted server that opens the same name and
+patch, or the same commits, restores its comments, proposal and approval; reviews untouched for 7 days are
+deleted. Path filters can include other tasks'
 changes; inspect the patch before asking for approval. See the
 [capture and approval protocol](docs/agent-conversations.md#named-captures-for-uncommitted-work).
 

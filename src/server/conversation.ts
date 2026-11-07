@@ -11,11 +11,13 @@ import type {
   ReviewSummary,
   ApprovalMode,
   ApprovalCondition,
+  ReviewStoreStatus,
 } from '../types/conversation.js';
 import type { CommentProgress, DiffCommentThread, DiffSelection } from '../types/diff.js';
 import { getDiffSelectionKey } from '../utils/diffSelection.js';
 import type { NamedReviewMetadata } from '../types/review.js';
 import type { ReviewPresence } from './review-presence.js';
+import type { SavedReviewState } from './review-store.js';
 
 interface Review {
   capture?: NamedReviewMetadata;
@@ -27,7 +29,10 @@ interface Review {
   summary: ReviewSummary;
 }
 
-/** Process-local state and bounded replay. Cursors change after server restart. */
+/**
+ * Review state and bounded event replay. The replay and its cursors are process-local and change
+ * after a server restart; `restore` supplies review state an earlier server saved.
+ */
 export class Conversation {
   private readonly streamId = randomUUID();
   private sequence = 0;
@@ -37,6 +42,7 @@ export class Conversation {
   constructor(
     private readonly onEvent?: (event: ConversationStreamEvent) => void,
     private readonly capacity = 256,
+    private readonly restore?: (selection: DiffSelection) => SavedReviewState | undefined,
   ) {
     if (!Number.isSafeInteger(capacity) || capacity < 1)
       throw new Error('Conversation capacity must be a positive integer');
@@ -98,17 +104,37 @@ export class Conversation {
     const key = getDiffSelectionKey(selection);
     let review = this.reviews.get(key);
     if (!review) {
+      const saved = this.restore?.(selection);
       review = {
         id: randomUUID(),
         selection: { ...selection },
-        threads: [],
-        progress: new Map<string, CommentProgress>(),
-        approval: { approved: false },
-        summary: { commitMessage: '', rationale: '', version: 0 },
+        threads: saved?.threads ?? [],
+        progress: new Map<string, CommentProgress>(saved?.progress ?? []),
+        approval: saved?.approval ?? { approved: false },
+        summary: saved?.summary ?? { commitMessage: '', rationale: '', version: 0 },
+        ...(saved?.capture ? { capture: saved.capture } : {}),
       };
       this.reviews.set(key, review);
     }
     return review;
+  }
+
+  getThreads(selection: DiffSelection): DiffCommentThread[] {
+    return structuredClone(this.getReview(selection).threads);
+  }
+
+  /** The state a restarted server needs to restore this review. */
+  exportReview(id: string): SavedReviewState & { selection: DiffSelection } {
+    const review = this.findReview(id);
+    if (!review) throw new Error(`Review ${id} does not exist`);
+    return structuredClone({
+      selection: review.selection,
+      ...(review.capture ? { capture: review.capture } : {}),
+      threads: review.threads,
+      progress: [...review.progress.entries()],
+      approval: review.approval,
+      summary: review.summary,
+    });
   }
 
   getApproval(selection: DiffSelection): ReviewApproval {
@@ -117,9 +143,14 @@ export class Conversation {
 
   setCapture(selection: DiffSelection, capture: NamedReviewMetadata): void {
     const review = this.getReview(selection);
+    // A review restored with this same capture keeps its approval and addressed conditions.
+    const unchanged =
+      review.capture?.version === capture.version &&
+      review.capture.patchDigest === capture.patchDigest;
     review.selection = { ...selection };
     review.capture = { ...capture };
     if (
+      !unchanged &&
       review.approval.requested &&
       review.approval.mode === 'after-comments' &&
       review.approval.conditions?.length
@@ -141,7 +172,7 @@ export class Conversation {
         },
         'agent',
       );
-    } else if (review.approval.approved || review.approval.notYet)
+    } else if (!unchanged && (review.approval.approved || review.approval.notYet))
       this.setApproval(selection, false, 'agent');
     this.sequence += 1;
     this.emit({
@@ -597,6 +628,7 @@ export function registerConversationRoutes(
   presence?: ReviewPresence,
   approvalChanged?: () => void,
   beforeSnapshot?: () => Promise<void>,
+  storeStatus?: () => ReviewStoreStatus | undefined,
 ): void {
   app.post('/api/conversation/address', (req, res) => {
     if (!req.is('application/json')) {
@@ -632,9 +664,11 @@ export function registerConversationRoutes(
   });
   app.get('/api/conversation/snapshot', async (_req, res) => {
     await beforeSnapshot?.();
+    const store = storeStatus?.();
     res.json({
       ...conversation.snapshot(),
       ...(presence ? { presence: presence.snapshot() } : {}),
+      ...(store ? { store } : {}),
     });
   });
 

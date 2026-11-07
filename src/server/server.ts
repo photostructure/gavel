@@ -17,9 +17,10 @@ import type {
 } from '../types/conversation.js';
 import type { ServerEvent, ServerShutdownEvent } from '../types/events.js';
 import { writeJsonl } from './event-output.js';
-import type { NamedReviewStart } from '../types/review.js';
+import type { NamedReviewStart, ReviewCapture } from '../types/review.js';
 import { NamedReviewError, NamedReviewStore, type NamedReviewState } from './named-reviews.js';
-import { getCaptureRepository, validateCapture } from './review-capture.js';
+import { getCaptureRepository, getGitCommonDirectory, validateCapture } from './review-capture.js';
+import { ReviewStore, savedReviewKey, type SavedReview } from './review-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -166,6 +167,9 @@ function createResolvedCommentSelection(
   );
 }
 
+// A save that found its lock briefly contended tries again after this long.
+const SAVE_RETRY_MS = 50;
+
 function createCommentSessionKey(selection: DiffSelection): string {
   return getDiffSelectionKey(selection);
 }
@@ -208,8 +212,70 @@ export async function startServer(options: ServerOptions): Promise<{
   const repositoryId =
     captureRepository?.repositoryId ?? createHash('sha256').update(repositoryPath).digest('hex');
   const namedReviews = new NamedReviewStore({ repositoryRoot: repositoryPath, repositoryId });
+  const conversationEnabled = Boolean(
+    options.namedReview || options.conversation || options.jsonl || options.onEvent,
+  );
+  // Review state outlives this process only for a Git repository's conversation reviews.
+  const reviewStore =
+    captureRepository && conversationEnabled
+      ? new ReviewStore(join(await getGitCommonDirectory(repositoryPath), 'difit'))
+      : undefined;
+  const storeServer = reviewStore?.registerServer();
+  // Cleanup that fails, such as on a read-only store, leaves the files and lets the server run.
+  let cleanupError: string | undefined;
+  if (reviewStore && storeServer) {
+    let problems: string[];
+    try {
+      problems = reviewStore.vacuum(storeServer.owner);
+    } catch (error) {
+      problems = [
+        `${reviewStore.directory}: ${error instanceof Error ? error.message : String(error)}`,
+      ];
+    }
+    if (problems.length) {
+      cleanupError = `could not clean up ${problems.length} saved-review file(s), which stay; saving is unaffected: ${problems.join('; ')}`;
+      console.error(`difit ${cleanupError}`);
+    }
+  }
+  // Reviews another running server owns: this one neither restores nor saves them, and the
+  // snapshot names them, so an agent knows their changes here are not being saved.
+  const ownedElsewhere = new Set<string>();
+  // Under --clean, the launched review's key: it alone starts without its saved comments.
+  let cleanKey: string | undefined;
+  function loadSavedReview(key: string | undefined): SavedReview | undefined {
+    if (!reviewStore || !storeServer || !key) return undefined;
+    if (reviewStore.ownedByAnotherServer(key, storeServer.owner)) {
+      ownedElsewhere.add(key);
+      return undefined;
+    }
+    const saved = reviewStore.load(key);
+    return saved && key === cleanKey ? { ...saved, threads: [], progress: [] } : saved;
+  }
+  const reviewLabel = (selection: DiffSelection) =>
+    selection.reviewName ?? `${selection.baseCommitish}..${selection.targetCommitish}`;
+  const reviewKey = (selection: DiffSelection) =>
+    savedReviewKey(
+      repositoryId,
+      selection,
+      selection.reviewName ? namedReviews.get(selection.reviewName)?.metadata : undefined,
+    );
+  // A name and patch an earlier server saved come back with their capture history.
+  function createNamedReview(name: string, capture: ReviewCapture): NamedReviewState {
+    const saved = loadSavedReview(
+      savedReviewKey(
+        repositoryId,
+        createDiffSelection(capture.baseCommit, '.', undefined, name),
+        capture,
+      ),
+    );
+    if (!reviewStore || !saved?.captures) return namedReviews.create(name, capture);
+    return namedReviews.restore(
+      name,
+      saved.captures.map((entry) => reviewStore.loadCapture(repositoryId, entry)),
+    );
+  }
   const initialNamedReview = options.namedReview
-    ? namedReviews.create(options.namedReview.name, options.namedReview.capture)
+    ? createNamedReview(options.namedReview.name, options.namedReview.capture)
     : undefined;
   const editorSessionToken = randomBytes(16).toString('base64url');
   const editorSessionTokenBytes = Buffer.from(editorSessionToken);
@@ -284,13 +350,108 @@ export async function startServer(options: ServerOptions): Promise<{
     if (options.jsonl) writeJsonl(event);
     options.onEvent?.(event);
   };
-  const conversation =
-    options.namedReview || options.conversation || options.jsonl || options.onEvent
-      ? new Conversation((event) => {
+  const conversation = conversationEnabled
+    ? new Conversation(
+        (event) => {
+          scheduleSave(event.reviewId);
           if (ready) emit(event);
           else pendingEvents.push(event);
-        })
-      : undefined;
+        },
+        undefined,
+        (selection) => (reviewStore ? loadSavedReview(reviewKey(selection)) : undefined),
+      )
+    : undefined;
+  // One request can emit several events, such as a summary change and the approval it revokes.
+  // Saving once they have all run keeps every saved state one the server actually reached.
+  const unsavedReviews = new Set<string>();
+  let saveQueued = false;
+  // Set once the server closes and gives up its locks; a pending retry then saves nothing.
+  let storeReleased = false;
+  // Why the latest save failed or waits, until every queued review saves; the snapshot reports it.
+  let saveError: string | undefined;
+  function scheduleSave(reviewId: string): void {
+    if (!reviewStore) return;
+    unsavedReviews.add(reviewId);
+    if (saveQueued) return;
+    saveQueued = true;
+    queueMicrotask(flushSaves);
+  }
+  function flushSaves(): void {
+    if (!reviewStore || storeReleased) return;
+    saveQueued = false;
+    let busy = false;
+    for (const id of [...unsavedReviews]) {
+      try {
+        if (saveReview(id)) {
+          unsavedReviews.delete(id);
+          continue;
+        }
+        busy = true;
+        saveError = `waiting for another server to release the lock on review ${id} under ${reviewStore.directory}`;
+      } catch (error) {
+        // Throwing here would end the server and lose every review it holds in memory. The
+        // review stays queued, so its next change retries the save.
+        saveError = `could not save review ${id} under ${reviewStore.directory}: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(`difit ${saveError}`);
+      }
+    }
+    if (unsavedReviews.size === 0) saveError = undefined;
+    // A contended lock frees within milliseconds, so retry without waiting for the next change.
+    if (busy && !saveQueued) {
+      saveQueued = true;
+      setTimeout(flushSaves, SAVE_RETRY_MS).unref();
+    }
+  }
+  // The saved file each review last wrote, so a named review's recapture replaces its old file.
+  const savedReviewKeys = new Map<string, string>();
+  /** Saves a review if it needs it; false when its lock is briefly contended and it must retry. */
+  function saveReview(reviewId: string): boolean {
+    if (!reviewStore || !storeServer || !conversation) return true;
+    const review = conversation.exportReview(reviewId);
+    const key = reviewKey(review.selection);
+    if (!key || ownedElsewhere.has(key)) return true;
+    // Browsing a commit seeds its own message; that alone is not worth a file.
+    const worthSaving =
+      review.capture ||
+      review.threads.length > 0 ||
+      review.approval.updatedAt !== undefined ||
+      (review.summary.version > 0 && !review.summary.fromCommit);
+    if (!worthSaving && !reviewStore.has(key)) return true;
+    const history = review.selection.reviewName
+      ? namedReviews.history(review.selection.reviewName)
+      : [];
+    for (const entry of history) reviewStore.saveCapture(entry.capture);
+    const result = reviewStore.save(
+      key,
+      {
+        format: 1,
+        repositoryId,
+        ...review,
+        ...(history.length
+          ? {
+              captures: history.map(({ metadata }) => ({
+                version: metadata.version,
+                patchDigest: metadata.patchDigest,
+                baseCommit: metadata.baseCommit,
+              })),
+            }
+          : {}),
+        updatedAt: new Date().toISOString(),
+      },
+      storeServer.owner,
+    );
+    if (result === 'busy') return false;
+    // Another running server saved it first; this one keeps its copy in memory only.
+    if (result === 'owned') {
+      ownedElsewhere.add(key);
+      return true;
+    }
+    // Only now that the replacement is saved does the record of an earlier capture go.
+    const previousKey = savedReviewKeys.get(reviewId);
+    if (previousKey && previousKey !== key) reviewStore.remove(previousKey, storeServer.owner);
+    savedReviewKeys.set(reviewId, key);
+    return true;
+  }
   const humanLog = options.jsonl ? console.error : console.log;
   const approvals = new Map<string, ReviewApproval>();
   const summaries = new Map<string, ReviewSummary>();
@@ -399,6 +560,7 @@ export async function startServer(options: ServerOptions): Promise<{
   const workingTreeTracking = new Map<string, Promise<void>>();
   // Resolved commits, so the launched diff stays put when HEAD moves and matches its review.
   const launch = initialNamedReview || options.explicitTarget ? currentCommentSelection : undefined;
+  if (options.clearComments) cleanKey = reviewKey(currentCommentSelection);
   // Ensure agents can discover the initial review even before a comment is posted.
   conversation?.getSummary(currentCommentSelection);
   if (initialNamedReview)
@@ -407,11 +569,21 @@ export async function startServer(options: ServerOptions): Promise<{
   const launchReview = conversation
     ?.snapshot()
     .reviews.find((entry) => diffSelectionsEqual(entry.selection, currentCommentSelection));
-  if (initialSummary.commitMessage || initialSummary.rationale) {
+  // Save the cleared comments now, so a later launch without --clean does not bring them back.
+  if (options.clearComments && launchReview) scheduleSave(launchReview.id);
+  // A restored review that already proposes this message keeps it, and with it its approval. A
+  // message copied from the commit is no proposal, so passing the same text still proposes it.
+  const restoredSummary = conversation?.getSummary(currentCommentSelection);
+  if (
+    (initialSummary.commitMessage || initialSummary.rationale) &&
+    (restoredSummary?.commitMessage !== initialSummary.commitMessage ||
+      restoredSummary.rationale !== initialSummary.rationale ||
+      restoredSummary.fromCommit)
+  ) {
     const summary = {
       commitMessage: initialSummary.commitMessage,
       rationale: initialSummary.rationale,
-      version: 1,
+      version: (restoredSummary?.version ?? 0) + 1,
       updatedAt: new Date().toISOString(),
     };
     summaries.set(getDiffSelectionKey(currentCommentSelection), summary);
@@ -446,25 +618,33 @@ export async function startServer(options: ServerOptions): Promise<{
   }
 
   const commentSessions = new Map<string, CommentSessionState>();
-  const initialCommentThreads = mergeCommentImports([], initialCommentImports).threads.map(
-    (thread) => ({
-      ...thread,
-      ...(initialNamedReview
-        ? {
-            capture: {
-              version: initialNamedReview.metadata.version,
-              patchDigest: initialNamedReview.metadata.patchDigest,
-            },
-          }
-        : {}),
-    }),
-  );
+  // A relaunch that repeats its reading-guide comments finds them already in a restored review.
+  const restoredCommentThreads = conversation?.getThreads(currentCommentSelection) ?? [];
+  const initialCommentThreads = mergeCommentImports(
+    restoredCommentThreads,
+    initialCommentImports,
+  ).threads.map((thread) => ({
+    ...thread,
+    ...(initialNamedReview && !thread.capture
+      ? {
+          capture: {
+            version: initialNamedReview.metadata.version,
+            patchDigest: initialNamedReview.metadata.patchDigest,
+          },
+        }
+      : {}),
+  }));
   if (initialCommentThreads.length > 0) {
     commentSessions.set(createCommentSessionKey(currentCommentSelection), {
       threads: initialCommentThreads,
       version: 1,
     });
-    conversation?.update(currentCommentSelection, [], initialCommentThreads, 'agent');
+    conversation?.update(
+      currentCommentSelection,
+      restoredCommentThreads,
+      initialCommentThreads,
+      'agent',
+    );
   }
 
   function getCommentSelectionFromQuery(query: Record<string, unknown>): DiffSelection {
@@ -544,7 +724,7 @@ export async function startServer(options: ServerOptions): Promise<{
         throw new NamedReviewError('Expected review name and capture', 400);
       const capture = validateCapture(input.capture);
       parser.parseStdinDiff(capture.patch);
-      const review = namedReviews.create(input.name, capture);
+      const review = createNamedReview(input.name, capture);
       conversation.setCapture(review.selection, review.metadata);
       res.json({ ...describeNamedReview(review), updated: true });
       fileWatcher.broadcast({
@@ -595,10 +775,9 @@ export async function startServer(options: ServerOptions): Promise<{
       return existing;
     }
 
-    const nextSession: CommentSessionState = {
-      threads: [],
-      version: 0,
-    };
+    // A review an earlier server saved opens with its comments.
+    const threads = conversation?.getThreads(selection) ?? [];
+    const nextSession: CommentSessionState = { threads, version: threads.length > 0 ? 1 : 0 };
     commentSessions.set(key, nextSession);
     return nextSession;
   }
@@ -1158,6 +1337,27 @@ export async function startServer(options: ServerOptions): Promise<{
       async () => {
         for (const review of conversation.snapshot().reviews)
           await revokeApprovalIfDiffChanged(review.selection);
+      },
+      () => {
+        if (!reviewStore) return undefined;
+        // Only reviews whose current key another server holds: a recapture can free one.
+        const memoryOnly = (conversation?.snapshot().reviews ?? [])
+          .filter((review) => {
+            const key = reviewKey(review.selection);
+            return key !== undefined && ownedElsewhere.has(key);
+          })
+          .map((review) => reviewLabel(review.selection));
+        const error = [
+          saveError,
+          reviewStore.heartbeatError,
+          cleanupError,
+          memoryOnly.length
+            ? `kept in memory only because another running difit server saves them: ${memoryOnly.join(', ')}`
+            : undefined,
+        ]
+          .filter(Boolean)
+          .join('; ');
+        return { directory: reviewStore.directory, ...(error ? { error } : {}) };
       },
     );
   }
@@ -1990,6 +2190,9 @@ export async function startServer(options: ServerOptions): Promise<{
     return shutdownPromise;
   }
   server.once('close', () => {
+    flushSaves();
+    storeReleased = true;
+    storeServer?.release();
     closing = true;
     clearTimeout(reviewerDisconnectTimer);
     presence.dispose();

@@ -121,7 +121,7 @@ difit [commit-ish] [compare-with]
 1. CLI validates arguments and starts server
 2. Server fetches Git diff data on startup
 3. Client connects and requests diff via API
-4. Comments are stored in memory
+4. Comments are kept in memory and, with conversation APIs, saved under `.git/difit`
 5. On disconnect, comments are output to console
 
 ## Dependencies

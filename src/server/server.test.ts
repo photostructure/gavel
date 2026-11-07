@@ -73,6 +73,20 @@ async function getAvailablePort(preferredPort: number): Promise<number> {
   }
 }
 
+// These servers run in this checkout: give each test its own saved-review directory, so no test
+// writes to the checkout's Git directory or restores another test's review.
+const savedReviews = vi.hoisted(() => ({ directory: '' }));
+vi.mock('./review-capture.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./review-capture.js')>()),
+  getGitCommonDirectory: async () => savedReviews.directory,
+}));
+beforeEach(async () => {
+  savedReviews.directory = await fs.mkdtemp(join(tmpdir(), 'difit-server-test-reviews-'));
+});
+afterEach(async () => {
+  await fs.rm(savedReviews.directory, { recursive: true, force: true });
+});
+
 // Mock GitDiffParser
 vi.mock('./git-diff.js', () => {
   class GitDiffParserMock {

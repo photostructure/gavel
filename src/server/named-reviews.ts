@@ -48,6 +48,31 @@ export class NamedReviewStore {
     return structuredClone(review);
   }
 
+  /** Recreates a review saved by an earlier server from its captures, oldest first. */
+  restore(name: string, captures: unknown[]): NamedReviewState {
+    const reviewName = this.validateName(name);
+    if (this.reviews.has(reviewName)) {
+      throw new NamedReviewError(`Review "${reviewName}" already exists`, 409);
+    }
+    const versions = new Map<number, NamedReviewState>();
+    captures.forEach((capture, index) =>
+      versions.set(
+        index + 1,
+        this.createState(reviewName, index + 1, this.validateRepositoryCapture(capture)),
+      ),
+    );
+    const current = versions.get(captures.length);
+    if (!current) throw new NamedReviewError(`Saved review "${reviewName}" has no capture`, 500);
+    this.reviews.set(reviewName, { current, versions });
+    return structuredClone(current);
+  }
+
+  /** Every capture version of a review, oldest first. */
+  history(name: string): NamedReviewState[] {
+    const history = this.reviews.get(this.validateName(name));
+    return history ? [...history.versions.values()].map((review) => structuredClone(review)) : [];
+  }
+
   get(name: string, version?: number): NamedReviewState | undefined {
     const reviewName = this.validateName(name);
     if (version !== undefined) this.validateVersion(version);

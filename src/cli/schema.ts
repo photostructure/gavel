@@ -550,6 +550,11 @@ const definitions: Record<string, Schema> = {
   SnapshotResponse: object(
     {
       presence: ref('ReviewPresence'),
+      store: {
+        ...object({ directory: string, error: string }, ['directory']),
+        description:
+          'Where this server saves its reviews (<git-common-dir>/difit). error, when present, lists what it is not saving and why: a failed or lock-waiting save, a failed heartbeat, or reviews another running server saves, which this one keeps in memory only; until those clear, their changes are lost when the server stops. It also lists files startup cleanup could not handle, which stay without affecting saving.',
+      },
       cursor: {
         ...cursor,
         description:

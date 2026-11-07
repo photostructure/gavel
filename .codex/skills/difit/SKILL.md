@@ -94,7 +94,8 @@ For an existing review, reuse its server. Create another named review with
 server. It prints the new review's `reviewId`. The launch's `--comment`,
 `--commit-message`, and `--why` reach only the launched review: add each created
 review's reading-guide comments with `comment add --review <name>` and its
-proposal with `comment summary` (`baseVersion` 0).
+proposal with `comment summary`, whose `baseVersion` is the summary `version` the
+snapshot shows for that review (0 unless an earlier server saved it).
 The viewer shows every review with a capture or a proposed commit message as a
 tab under its header, in creation order, with its approval state, and while one
 exists the header has no revision menu. A summary with `fromCommit: true` holds
@@ -113,6 +114,14 @@ after comments asks for go in a new commit on top of the branch, reviewed like
 any other; never amend or rebase the reviewed commits without asking.
 Before reporting that the user has not approved, read `approval` for every
 review in the snapshot.
+A relaunched server restores a saved review when the same name and patch, or the
+same commits, open again. The server saves comments itself, but a restored review
+has a new review ID and event stream, so read it with `comment snapshot` before
+sending it a status, a reply or a summary, and use its summary `version` as
+`baseVersion`.
+When the snapshot's `store.error` is set, tell the user that review changes are
+not being saved, and why
+([saved reviews](https://github.com/photostructure/difit/blob/main/docs/agent-conversations.md#saved-reviews)).
 Do not stop or replace another session's reviews.
 
 For overlapping files, use `review capture --output <artifact>` and its printed

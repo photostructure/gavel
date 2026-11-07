@@ -96,6 +96,8 @@ approval and conditional approval with no recorded conditions. `comment snapshot
 and `GET /api/approval` check the current diff before they report approval.
 Conditional permission with recorded comments covers the agent's follow-up
 changes, so a changed diff does not revoke it.
-Server restart loses approval. Presence and browser closure never grant approval.
+A restarted server that opens the same review restores its approval
+([saved reviews](agent-conversations.md#saved-reviews)). Presence and browser
+closure never grant approval.
 
 Use `difit schema approval` and `difit schema address` for request schemas.
