@@ -226,7 +226,9 @@ give the user that review URL, and tell them that pasting the text from the page
 **Copy resume prompt** button into this chat, or any other chat message, resumes
 you; the button only copies the prompt. Never wait any other way: no `sleep` or polling loop in
 your own turns, no foreground command that ends in a timeout, no Monitor (each
-expiry wakes you even when nothing happened), and no hand-written waiter. If
+expiry wakes you even when nothing happened), and no hand-written waiter. Each
+check is a model turn that spends tokens even when nothing changed, so a loop
+left running while the user is away consumes a large share of their token quota. If
 the host stops a waiter at its time limit, never re-arm it, with or without a
 longer timeout. A subagent never waits for the user, because nothing can start
 a turn for it after it ends. It either hands back the exact launch command it

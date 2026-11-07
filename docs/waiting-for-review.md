@@ -37,7 +37,13 @@ delivery path to an idle chat.
 Do not wrap the waiter in a timed shell command, run it as a foreground polling
 loop, or watch it with a Monitor that expires periodically. Those host mechanisms
 can wake a model even while this command is silent. Verify the host's background
-task lifetime; the CLI cannot override a limit imposed by the host. An idle host
+task lifetime; the CLI cannot override a limit imposed by the host. For Claude
+Code, read the session's Bash tool definition, including what its `timeout`
+parameter means for background commands, and check its version and session
+mode: the [Claude Code documentation](https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands)
+distinguishes local attended sessions, whose background commands have no time
+limit, from unattended sessions, whose background commands are capped; older
+versions can differ. An idle host
 without an event delivery mechanism requires the turn to remain active or a human
 to resume it.
 

@@ -167,9 +167,11 @@ port's cursor for the next invocation. Recover queued work without implicit
 receipts. Exit 4 means all selected reviews are unattended: end the turn and
 resume on human feedback; never automatically retry. Presence changes do not
 start work. Unsupported presence reporting is a terminal error, not permission
-to invent a polling script. A periodically expiring Monitor is a timed wake.
-See the [waiting guide](../../../docs/waiting-for-review.md) and
-[Claude integration handoff](../../../docs/claude-review-wait-handoff.md).
+to invent a polling script. Never write your own polling loop or waiter: each
+check is a model turn that spends tokens even when nothing changed, so a loop
+left running while the user is away consumes a large share of their token quota.
+A periodically expiring Monitor is a timed wake.
+See the [waiting guide](../../../docs/waiting-for-review.md).
 If the host cannot provide that lifetime and completion delivery, hand back the
 review URL and end the turn. The reviewer can use **Copy resume prompt** to resume
 the owning chat with a feedback batch. Do not substitute timed model checks.
