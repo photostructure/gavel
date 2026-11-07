@@ -1829,7 +1829,7 @@ function App() {
                   {isFileTreeOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
                 </button>
                 <h1 className="sr-only shrink-0 md:not-sr-only">
-                  <Logo style={{ height: '18px', color: 'var(--color-github-text-secondary)' }} />
+                  <Logo style={{ height: '18px', color: 'var(--color-github-text-primary)' }} />
                 </h1>
                 {captureReloading && (
                   <span role="status" className="text-xs text-github-text-secondary">
