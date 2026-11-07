@@ -42,9 +42,11 @@ If it does not advertise `--jsonl`, that build predates the launch JSONL protoco
 use `--no-conversation` alone to disable conversations, or use a source build
 that advertises `--jsonl` for the JSONL behavior and flags described here.
 
-Live agent conversations and the approval split button are enabled by default.
-Approval starts off. The main area approves as-is; the arrow offers conditional
-approval and **Revoke approval**. Use `--no-lgtm` for a read-only review
+Live agent conversations and the verdict buttons are enabled by default.
+Each review starts without a verdict. **Approve as-is**, **Approve after comments**, and
+**Not yet** sit side by side in the header from 1280px wide, and in one menu below that.
+Clicking the chosen button again, or **Clear verdict** in the menu, clears the verdict.
+Use `--no-lgtm` for a read-only review
 and `--no-jsonl --no-conversation` to disable conversations. `--lgtm` and `--ship-it` are aliases.
 The agent must read the launch process output and answer comments; the viewer does not start an agent.
 See [the agent conversation protocol](docs/agent-conversations.md).
@@ -172,7 +174,7 @@ A different base browsed for uncommitted changes before an agent proposes makes
 a newer review that hides the proposal's tab; that is unsupported. While any review on the server asks for approval, approved or
 not, the header shows the open review's name in place of the review picker, and a
 row of tabs under the header shows every such review in creation order with its
-approval state and counts how many still need approval, so a stack of commits can
+verdict and counts how many still need one, so a stack of commits can
 be reviewed one after another in one browser tab. The tabs are hidden only when
 the open review is the sole one. When they don't fit on one row, they collapse
 into a menu on the open review's tab.
@@ -347,9 +349,15 @@ view while the diff scrolls down and return on scroll up or when keyboard focus 
 them, and file headers use less padding. Copy-all and agent
 resume actions live in **Conversation**; file-view progress sits above the file list.
 
-The approval split button offers **Approve as-is** and **Approve after comments are
-addressed**. Conditional approval stays pending until every recorded comment revision
-has completion evidence or is confirmed by the reviewer. See [approval modes](docs/approval-modes.md) for
+The verdict buttons offer **Approve as-is**, **Approve after comments are addressed**, and
+**Not yet**. Conditional approval stays pending until every recorded comment revision
+has completion evidence or is confirmed by the reviewer. **Not yet** sends the review back
+for revision. After any verdict, a notice under the verdict buttons counts down ten seconds,
+then opens the next review without one, or closes the tab once every review has one;
+**Switch now** or **Close now** skips the wait, and **Cancel** stops it.
+When the browser refuses to close the tab, difit says it can be closed. While a review
+lacks a verdict, its tab pulses after a verdict elsewhere, and leaving the page asks first.
+See [approval modes](docs/approval-modes.md) for
 agent commands, capture guards, and the meaning of the output fields.
 
 ### Review-wide conversations

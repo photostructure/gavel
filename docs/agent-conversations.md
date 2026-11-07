@@ -89,12 +89,14 @@ in place of the revision menu, so the reviewer can't open comparisons the agent
 didn't ask about, and a review bar under the header lists every review that asks
 for approval. The bar is hidden only when the open review is the sole one. It
 starts with a count
-such as "2 of 3 need approval", then shows every review as a tab in creation
-order, with a ✓ (approved) or ○ (not approved) mark. Hovering a tab shows its
+such as "2 of 3 need a verdict", then shows every review as a tab in creation
+order, with a ✓ (approved), ✕ (not yet), or ○ (no verdict) mark in its verdict button's color. Hovering a tab shows its
 proposed commit message title. When the tabs don't fit on one row, the bar shows
 only the open review's tab with a ⌄; it opens a list of every review with its
 mark, commit message title, and approval. Picking a review opens it in the same
-browser tab and keeps the editor connection. The **Change summary** panel stays open or closed across reviews and
+browser tab and keeps the editor connection. It replaces the browser's history entry
+instead of adding one, so Back does not step between reviews and the page can still
+close itself once every review has a verdict. The **Change summary** panel stays open or closed across reviews and
 reloads, the way the reviewer last left it.
 
 An update can instead use `--capture /tmp/next-capture.json` and repeatable
@@ -408,17 +410,28 @@ is `POST /api/conversation/status` and accepts the same JSON as the CLI.
 
 ## LGTM and commit approval
 
-The header's approval button is commit approval for the reviewed scope, including
-requested fixes: **Approve as-is**, or **Approve after comments are addressed** from
-its menu once every included comment has completion evidence (see
+The header's verdict buttons give commit approval for the reviewed scope, including
+requested fixes: **Approve as-is**, or **Approve after comments are addressed** once
+every included comment has completion evidence (see
 [approval modes](approval-modes.md)). After the checks below, commit without asking
-again in chat. The button turns accent-colored when approved and yellow while
-conditional approval is pending; **Revoke approval** in its menu withdraws it.
+again in chat. A chosen **Approve as-is** is filled green, a chosen **Approve after comments** amber
+(pending or complete), and a chosen **Not yet** red; clicking it again, or **Clear verdict** in the narrow-screen
+menu, withdraws it.
+**Not yet** records `approval.notYet: true` with `approved: false`: the reviewer is done
+with this capture and wants a revision. Read the comments, revise, and recapture or
+re-propose, which clears it and puts the review back in line for a verdict.
 The server stays running. Approval is scoped to the displayed selection and is
 restored after browser refresh; a server restart resets it to unapproved.
 
+After a verdict a notice under the verdict buttons counts down ten seconds, then opens the
+next review without one, or, when every review has one, closes its tab. The browser closes
+only a tab whose history holds one entry (or one a script opened); otherwise the page
+says the tab can be closed. Closing the tab still shuts the server down unless it runs
+with `--keep-alive`.
+
 The launch stream emits a `review.approval` event with `reviewId`, `selection`,
-`approved`, `origin`, `cursor`, and `timestamp`. It has no thread or message ID, and does
+`approved`, `approval`, `origin`, `cursor`, and `timestamp`. Not yet and revocation both
+have `approved: false`; only `approval.notYet` tells them apart. It has no thread or message ID, and does
 not need a comment receipt or reply. `comment snapshot` includes `approval`
 on each review. After addressing comments and completing the checks below,
 fetch a fresh snapshot immediately before committing and verify that the matching

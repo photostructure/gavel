@@ -374,6 +374,22 @@ describe('named review HTTP integration', () => {
     ).toMatchObject(binding(next, 2, summary.version));
   });
 
+  it('records not yet for the displayed capture only, and clears it on recapture', async () => {
+    const notYetBinding = { captureVersion: 1, patchDigest: initialCapture.patchDigest };
+    const verdict = await post<ReviewApproval>(`/api/approval/not-yet${query}`, {
+      approved: false,
+      ...notYetBinding,
+    });
+    expect(verdict).toMatchObject({ approved: false, notYet: true, captureVersion: 1 });
+    expect(await approval()).toMatchObject({ notYet: true });
+
+    const next = await changedCapture();
+    await post(`/api/reviews/${name}/capture`, { expectedVersion: 1, capture: next });
+    expect((await approval()).notYet).toBeUndefined();
+    await post(`/api/approval/not-yet${query}`, { approved: false, ...notYetBinding }, 409);
+    expect((await approval()).notYet).toBeUndefined();
+  });
+
   it('files comment imports under the named review that ?review= selects', async () => {
     const otherName = 'other-agent';
     await post('/api/reviews', { name: otherName, capture: initialCapture });

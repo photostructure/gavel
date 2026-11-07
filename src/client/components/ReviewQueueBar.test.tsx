@@ -43,8 +43,8 @@ describe('review queue bar', () => {
         onSelect={onSelect}
       />,
     );
-    expect(bar()).toHaveTextContent(/^1 of 1 need approval/);
-    fireEvent.click(within(bar()).getByRole('button', { name: 'parser, Not approved' }));
+    expect(bar()).toHaveTextContent(/^1 of 1 need a verdict/);
+    fireEvent.click(within(bar()).getByRole('button', { name: 'parser, Needs a verdict' }));
     expect(onSelect).toHaveBeenCalledWith(reviews[0]!.selection);
   });
 
@@ -98,13 +98,95 @@ describe('review queue bar', () => {
     );
     expect(screen.getByRole('button', { name: 'parser, Approved as-is' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'tests, Approved · 1 pending' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'docs, Not approved' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'docs, Needs a verdict' })).toHaveAttribute(
       'title',
-      'fix: docs\nNot approved',
+      'fix: docs\nNeeds a verdict',
     );
   });
 
-  it('counts the reviews that still need approval', () => {
+  it('pulses only the tabs of reviews without a verdict, replaying on each new pulse', () => {
+    const queue = [
+      request('parser', asIs),
+      request('tests', { approved: false, notYet: true }),
+      request('docs'),
+    ];
+    const props = { reviews: queue, current: queue[0]!.selection, approvals: true };
+    const { rerender } = render(<ReviewQueueBar {...props} pulse={0} onSelect={vi.fn()} />);
+    const docs = screen.getByRole('button', { name: 'docs, Needs a verdict' });
+    expect(docs.className).not.toMatch(/verdict-pulse/);
+
+    rerender(<ReviewQueueBar {...props} pulse={1} onSelect={vi.fn()} />);
+    expect(docs).toHaveClass('verdict-pulse-1');
+    expect(screen.getByRole('button', { name: 'tests, Not yet' }).className).not.toMatch(
+      /verdict-pulse/,
+    );
+    expect(screen.getByRole('button', { name: 'parser, Approved as-is' }).className).not.toMatch(
+      /verdict-pulse/,
+    );
+
+    // A new animation name restarts the animation without remounting the focused tab.
+    rerender(<ReviewQueueBar {...props} pulse={2} onSelect={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'docs, Needs a verdict' })).toBe(docs);
+    expect(docs).toHaveClass('verdict-pulse-0');
+  });
+
+  // The same color as the chosen verdict button: green as-is, amber after comments, red not yet.
+  it('colors each tab mark, and the open tab, like its verdict button', () => {
+    const afterComments: ReviewApproval = {
+      approved: false,
+      requested: true,
+      mode: 'after-comments',
+    };
+    const queue = [
+      request('parser', asIs),
+      request('tests', afterComments),
+      request('docs', { approved: false, notYet: true }),
+      request('none'),
+    ];
+    const mark = (name: string) =>
+      screen.getByRole('button', { name: new RegExp(`^${name},`) }).querySelector('svg');
+    const { rerender } = render(
+      <ReviewQueueBar reviews={queue} current={queue[1]!.selection} approvals onSelect={vi.fn()} />,
+    );
+    expect(mark('parser')).toHaveClass('text-github-accent');
+    expect(mark('tests')).toHaveClass('text-amber-700');
+    expect(mark('docs')).toHaveClass('text-github-danger');
+    expect(mark('none')).toHaveClass('text-github-text-muted');
+    const open = () => screen.getByRole('button', { current: 'page' });
+    expect(open()).toHaveClass('border-t-amber-700');
+    for (const [index, border] of [
+      [0, 'border-t-github-accent'],
+      [2, 'border-t-github-danger'],
+      // No verdict yet: neutral, since green would read as approval.
+      [3, 'border-t-github-text-secondary'],
+    ] as const) {
+      rerender(
+        <ReviewQueueBar
+          reviews={queue}
+          current={queue[index]!.selection}
+          approvals
+          onSelect={vi.fn()}
+        />,
+      );
+      expect(open()).toHaveClass(border);
+    }
+  });
+
+  it('counts not yet as a verdict and marks it with an X', () => {
+    const queue = [
+      request('parser', asIs),
+      request('tests', { approved: false, notYet: true }),
+      request('docs'),
+    ];
+    render(
+      <ReviewQueueBar reviews={queue} current={queue[0]!.selection} approvals onSelect={vi.fn()} />,
+    );
+    expect(bar()).toHaveTextContent(/^1 of 3 need a verdict/);
+    const tests = screen.getByRole('button', { name: 'tests, Not yet' });
+    expect(tests.querySelector('[data-verdict="not-yet"]')).not.toBeNull();
+  });
+
+  it('counts the reviews that still need a verdict', () => {
     const pending: ReviewApproval = {
       approved: false,
       requested: true,
@@ -116,13 +198,13 @@ describe('review queue bar', () => {
     const { rerender } = render(
       <ReviewQueueBar reviews={queue} current={queue[0]!.selection} approvals onSelect={vi.fn()} />,
     );
-    expect(bar()).toHaveTextContent(/^1 of 3 need approval/);
+    expect(bar()).toHaveTextContent(/^1 of 3 need a verdict/);
 
     const done = [request('parser', asIs), request('tests', asIs)];
     rerender(
       <ReviewQueueBar reviews={done} current={done[0]!.selection} approvals onSelect={vi.fn()} />,
     );
-    expect(bar()).toHaveTextContent(/^All 2 approved/);
+    expect(bar()).toHaveTextContent(/^All 2 have a verdict/);
 
     rerender(
       <ReviewQueueBar
@@ -179,7 +261,7 @@ describe('review queue bar', () => {
           onSelect={onSelect}
         />,
       );
-      expect(bar()).toHaveTextContent(/^2 of 3 need approval/);
+      expect(bar()).toHaveTextContent(/^2 of 3 need a verdict/);
       expect(within(bar()).queryByRole('list')).not.toBeInTheDocument();
 
       fireEvent.click(within(bar()).getByRole('button', { name: 'All reviews, open: tests' }));
@@ -189,7 +271,7 @@ describe('review queue bar', () => {
       expect(items[0]).toHaveTextContent('fix: parser');
       expect(items[0]).toHaveTextContent('Approved as-is');
       expect(within(items[1]!).getByRole('button')).toHaveAttribute('aria-current', 'page');
-      expect(items[2]).toHaveTextContent('Not approved');
+      expect(items[2]).toHaveTextContent('Needs a verdict');
 
       fireEvent.click(within(items[2]!).getByRole('button'));
       expect(onSelect).toHaveBeenCalledWith(listed[2]!.selection);

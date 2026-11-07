@@ -203,3 +203,60 @@ describe('named capture approval', () => {
     expect(result.current.approved).toBe(false);
   });
 });
+
+describe('not yet', () => {
+  const capture = { version: 1, patchDigest: 'first-digest' };
+  const verdict = (captureVersion: number) =>
+    new Response(
+      JSON.stringify({
+        approved: false,
+        notYet: true,
+        captureVersion,
+        patchDigest: 'first-digest',
+        summaryVersion: 3,
+      }),
+    );
+
+  it('posts to its own endpoint with the displayed capture, so an old server cannot revoke instead', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => verdict(1));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useReviewApproval('/api/approval?review=task', capture, 3));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    await act(async () => result.current.setNotYet());
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/approval/not-yet?review=task',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ approved: false, captureVersion: 1, patchDigest: 'first-digest' }),
+      }),
+    );
+    expect(result.current.notYet).toBe(true);
+    expect(result.current.requested).toBe(false);
+  });
+
+  it('sends the digest of the displayed index or worktree diff', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(false));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() =>
+      useReviewApproval('http://10.1.1.24:4966/api/approval?target=staged', undefined, 1, 'shown'),
+    );
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    await act(async () => result.current.setNotYet());
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://10.1.1.24:4966/api/approval/not-yet?target=staged',
+      expect.objectContaining({
+        body: JSON.stringify({ approved: false, diffDigest: 'shown' }),
+      }),
+    );
+  });
+
+  it('ignores a not yet recorded for another capture', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockImplementation(async () => verdict(2)),
+    );
+    const { result } = renderHook(() => useReviewApproval('/api/approval?review=task', capture, 3));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(result.current.notYet).toBe(false);
+  });
+});

@@ -141,7 +141,8 @@ export class Conversation {
         },
         'agent',
       );
-    } else if (review.approval.approved) this.setApproval(selection, false, 'agent');
+    } else if (review.approval.approved || review.approval.notYet)
+      this.setApproval(selection, false, 'agent');
     this.sequence += 1;
     this.emit({
       type: 'review.capture',
@@ -172,8 +173,30 @@ export class Conversation {
       ...(review.capture ? { capture: { ...review.capture } } : {}),
       timestamp: new Date().toISOString(),
     });
-    if (review.approval.approved || review.approval.requested)
+    if (review.approval.approved || review.approval.requested || review.approval.notYet)
       this.setApproval(selection, false, origin);
+  }
+
+  /** Records the reviewer's verdict that the displayed capture is not ready, replacing any approval. */
+  setNotYet(selection: DiffSelection, diffDigest?: string): ReviewApproval {
+    const review = this.getReview(selection);
+    if (review.approval.notYet) return this.getApproval(selection);
+    return this.recordApproval(
+      review,
+      {
+        approved: false,
+        notYet: true,
+        ...(diffDigest !== undefined ? { diffDigest } : {}),
+        ...(review.capture
+          ? {
+              captureVersion: review.capture.version,
+              patchDigest: review.capture.patchDigest,
+              summaryVersion: review.summary.version,
+            }
+          : {}),
+      },
+      'user',
+    );
   }
 
   setApproval(
@@ -184,7 +207,12 @@ export class Conversation {
     diffDigest?: string,
   ): ReviewApproval {
     const review = this.getReview(selection);
-    if (!approved && !review.approval.approved && !review.approval.requested)
+    if (
+      !approved &&
+      !review.approval.approved &&
+      !review.approval.requested &&
+      !review.approval.notYet
+    )
       return this.getApproval(selection);
     if (approved && review.approval.requested && review.approval.mode === mode)
       return this.getApproval(selection);

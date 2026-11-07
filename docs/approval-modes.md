@@ -1,9 +1,10 @@
 # Approval modes
 
-The approval split button has two actions. **Approve as-is** approves the displayed
+The verdict buttons have three actions. **Approve as-is** approves the displayed
 patch. **Approve after comments are addressed** authorizes the fixes and answers
 needed for the recorded feedback, subject to the existing review and commit rules.
-Neither action authorizes a push, publication, or unrelated changes.
+**Not yet** says the displayed patch is not ready: revise it, then ask again.
+None of them authorizes a push, publication, or unrelated changes.
 
 Approval snapshots and `review.approval` events carry the mode:
 
@@ -13,11 +14,19 @@ Approval snapshots and `review.approval` events carry the mode:
   revision cursor. Already-resolved threads are excluded. `approved` remains false
   until every condition has completion evidence or the reviewer confirms it by
   resolving its thread.
-- `approved: false` without `requested: true`: there is no active approval.
+- `approved: false, notYet: true`: the reviewer chose **Not yet** for the displayed
+  capture or diff. Read the comments, revise, and recapture or re-propose; that clears
+  `notYet`, and the review waits for a new verdict. A changed summary, a changed
+  `staged`, `working`, or `.` diff, or revocation also clears it. New comments keep it.
+- `approved: false` without `requested: true` or `notYet: true`: there is no verdict.
 
 The nested `approval` object on approval events has the same fields as snapshots.
 Conditional requests use `POST /api/approval/conditional`; an older server returns
-404 instead of silently treating them as as-is approval. The browser checks
+404 instead of silently treating them as as-is approval. **Not yet** uses
+`POST /api/approval/not-yet` with `approved: false` for the same reason: an older
+server returns 404 instead of treating it as revocation. It carries the displayed
+`captureVersion` and `patchDigest`, or the `diffDigest`, like approval, and returns
+HTTP 409 when they are stale; it does not check `summaryVersion`. The browser checks
 `conditionalSupported` before offering the action. The existing top-level
 `approved` boolean remains a commit-readiness signal, so
 older agents cannot mistake pending conditional permission for completed approval.

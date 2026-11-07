@@ -179,7 +179,7 @@ describe('navigating unseen agent replies', () => {
     await act(async () => {
       await callbacks.approval?.();
     });
-    expect(screen.getByRole('button', { name: 'Approve as-is' }).parentElement).toHaveClass(
+    expect(screen.getByRole('button', { name: 'Approve as-is' })).toHaveClass(
       'bg-github-bg-tertiary',
     );
   });

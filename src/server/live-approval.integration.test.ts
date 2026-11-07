@@ -141,6 +141,32 @@ describe('approval of a staged review', () => {
     expect(await approvalOf(diff)).toMatchObject({ approved: false });
   });
 
+  it('refuses not yet for a diff that has since changed', async () => {
+    const diff = await startDiff();
+    writeFileSync(join(root, 'b.txt'), 'two changed\n');
+    git('add', 'b.txt');
+    await call(
+      approvalPath(diff).replace('/api/approval', '/api/approval/not-yet'),
+      { approved: false, diffDigest: diff.diffDigest },
+      409,
+    );
+    expect((await approvalOf(diff))?.notYet).toBeUndefined();
+  });
+
+  it('clears not yet when more changes are staged', async () => {
+    const diff = await startDiff();
+    expect(
+      await call<ReviewApproval>(
+        approvalPath(diff).replace('/api/approval', '/api/approval/not-yet'),
+        { approved: false, diffDigest: diff.diffDigest },
+      ),
+    ).toMatchObject({ approved: false, notYet: true, diffDigest: diff.diffDigest });
+    writeFileSync(join(root, 'b.txt'), 'two changed\n');
+    git('add', 'b.txt');
+    expect((await call<ReviewApproval>(approvalPath(diff))).notYet).toBeUndefined();
+    expect((await approvalOf(diff))?.notYet).toBeUndefined();
+  });
+
   it('revokes an approval when a binary staged file changes', async () => {
     writeFileSync(join(root, 'c.bin'), Buffer.from([0, 1, 2, 3]));
     git('add', 'c.bin');

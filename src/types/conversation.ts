@@ -57,6 +57,11 @@ export interface ReviewApproval {
   diffDigest?: string;
   summaryVersion?: number;
   approved: boolean;
+  /**
+   * The reviewer read this capture and it is not ready: revise it and ask again. approved stays
+   * false. A recapture, a changed summary, or a changed staged or worktree diff clears it.
+   */
+  notYet?: true;
   updatedAt?: string;
   cursor?: string;
 }

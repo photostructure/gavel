@@ -63,37 +63,52 @@ export function useReviewApproval(
     };
   }, [refresh]);
 
-  const setApproved = useCallback(
-    async (approved: boolean, summaryVersion = 0, mode: ApprovalMode = 'as-is') => {
+  // Conditional approval and not yet have their own endpoints, so an older server answers 404
+  // instead of reading them as as-is approval or revocation.
+  const post = useCallback(
+    async (endpoint: string, body: Record<string, unknown>) => {
       if (!url || activeKey.current !== key)
         throw new Error('Approval is unavailable for this capture');
       const destination = new URL(url, window.location.origin);
-      if (approved && mode === 'after-comments') destination.pathname = '/api/approval/conditional';
-      const requestUrl =
-        approved && mode === 'after-comments'
-          ? url.startsWith('/')
-            ? `${destination.pathname}${destination.search}`
-            : destination.href
-          : url;
+      destination.pathname = endpoint;
+      const requestUrl = url.startsWith('/')
+        ? `${destination.pathname}${destination.search}`
+        : destination.href;
       const response = await fetch(requestUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          approved,
-          ...(approved && mode === 'after-comments' ? { mode } : {}),
-          ...(approved || captureVersion !== undefined ? { summaryVersion } : {}),
-          ...(captureVersion !== undefined ? { captureVersion, patchDigest } : {}),
-          ...(approved && diffDigest !== undefined ? { diffDigest } : {}),
-        }),
+        body: JSON.stringify(body),
       });
       if (response.status === 409) {
-        const body = (await response.json()) as { diffDigest?: unknown };
-        if (typeof body.diffDigest === 'string') throw new DiffChangedError();
+        const conflict = (await response.json()) as { diffDigest?: unknown };
+        if (typeof conflict.diffDigest === 'string') throw new DiffChangedError();
       }
       if (!response.ok) throw new Error('Could not update approval');
       await refresh();
     },
-    [url, key, captureVersion, patchDigest, diffDigest, refresh],
+    [url, key, refresh],
+  );
+
+  const setApproved = useCallback(
+    (approved: boolean, summaryVersion = 0, mode: ApprovalMode = 'as-is') =>
+      post(approved && mode === 'after-comments' ? '/api/approval/conditional' : '/api/approval', {
+        approved,
+        ...(approved && mode === 'after-comments' ? { mode } : {}),
+        ...(approved || captureVersion !== undefined ? { summaryVersion } : {}),
+        ...(captureVersion !== undefined ? { captureVersion, patchDigest } : {}),
+        ...(approved && diffDigest !== undefined ? { diffDigest } : {}),
+      }),
+    [post, captureVersion, patchDigest, diffDigest],
+  );
+
+  const setNotYet = useCallback(
+    () =>
+      post('/api/approval/not-yet', {
+        approved: false,
+        ...(captureVersion !== undefined ? { captureVersion, patchDigest } : {}),
+        ...(diffDigest !== undefined ? { diffDigest } : {}),
+      }),
+    [post, captureVersion, patchDigest, diffDigest],
   );
 
   const current = state?.key === key ? state.approval : null;
@@ -109,9 +124,11 @@ export function useReviewApproval(
     requested: matchesCapture && Boolean(current?.requested || current?.approved),
     pendingCount: current?.conditions?.filter((condition) => !condition.addressed).length ?? 0,
     approved: current?.approved === true && matchesCapture,
+    notYet: current?.notYet === true && matchesCapture,
     ready: current !== null,
     error,
     refresh,
     setApproved,
+    setNotYet,
   };
 }

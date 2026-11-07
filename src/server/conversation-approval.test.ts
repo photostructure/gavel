@@ -363,3 +363,74 @@ describe('conditional review approval', () => {
     expect(conversation.getApproval(selection).approved).toBe(false);
   });
 });
+
+describe('not-yet verdict', () => {
+  it('records not yet against the displayed capture and emits it as an approval event', () => {
+    const events: unknown[] = [];
+    const conversation = new Conversation((event) => events.push(event));
+    conversation.setCapture(selection, capture);
+    const verdict = conversation.setNotYet(selection);
+    expect(verdict).toMatchObject({
+      approved: false,
+      notYet: true,
+      captureVersion: 1,
+      patchDigest: capture.patchDigest,
+    });
+    expect(verdict.requested).toBeUndefined();
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'review.approval',
+        origin: 'user',
+        approved: false,
+        approval: expect.objectContaining({ notYet: true }),
+      }),
+    );
+  });
+
+  it('keeps not yet when the reviewer adds comments', () => {
+    const { conversation } = setup();
+    conversation.setNotYet(selection);
+    const reply = structuredClone(thread);
+    reply.messages.push({
+      id: 'more',
+      origin: 'user',
+      body: 'Also rename this',
+      createdAt: time,
+      updatedAt: time,
+    });
+    conversation.update(selection, [thread], [reply], 'user');
+    expect(conversation.getApproval(selection).notYet).toBe(true);
+  });
+
+  it('clears not yet when the agent recaptures or the summary changes', () => {
+    const { conversation } = setup();
+    conversation.setNotYet(selection);
+    conversation.setCapture(selection, { ...capture, version: 2, patchDigest: 'c'.repeat(64) });
+    expect(conversation.getApproval(selection).notYet).toBeUndefined();
+    conversation.setNotYet(selection);
+    conversation.setSummary(
+      selection,
+      { commitMessage: 'revised message', rationale: '', version: 1 },
+      'agent',
+    );
+    expect(conversation.getApproval(selection).notYet).toBeUndefined();
+  });
+
+  it('replaces not yet with an approval, and an approval with not yet', () => {
+    const { conversation } = setup();
+    conversation.setNotYet(selection);
+    expect(conversation.setApproval(selection, true, 'user', 'as-is')).toMatchObject({
+      approved: true,
+    });
+    expect(conversation.getApproval(selection).notYet).toBeUndefined();
+    expect(conversation.setNotYet(selection)).toMatchObject({ approved: false, notYet: true });
+    expect(conversation.getApproval(selection).requested).toBeUndefined();
+  });
+
+  it('clears not yet on revocation', () => {
+    const { conversation } = setup();
+    conversation.setNotYet(selection);
+    conversation.setApproval(selection, false, 'user');
+    expect(conversation.getApproval(selection).notYet).toBeUndefined();
+  });
+});

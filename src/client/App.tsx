@@ -62,7 +62,8 @@ import { ViewMenu } from './components/ViewMenu';
 import { CaptureDetails } from './components/CaptureDetails';
 import { AboutPanel } from './components/AboutPanel';
 import { HeaderMenu } from './components/HeaderMenu';
-import { ApprovalSplitButton } from './components/ApprovalSplitButton';
+import { VerdictControl } from './components/VerdictControl';
+import { VerdictFollowUpNotice } from './components/VerdictFollowUpNotice';
 import { ReviewProviders } from './contexts/ReviewProviders';
 import { useAppearanceSettings } from './hooks/useAppearanceSettings';
 import { filesWithDrafts, useDraftCount, type LineDraftAnchor } from './hooks/useCommentDrafts';
@@ -73,6 +74,7 @@ import { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
 import { useLazyDiffRendering } from './hooks/useLazyDiffRendering';
 import { DiffChangedError, useReviewApproval } from './hooks/useReviewApproval';
 import { useReviewSummary } from './hooks/useReviewSummary';
+import { useVerdictFollowUp } from './hooks/useVerdictFollowUp';
 import { useReviewPresence } from './hooks/useReviewPresence';
 import { useViewedFiles } from './hooks/useViewedFiles';
 import { useViewport } from './hooks/useViewport';
@@ -85,6 +87,7 @@ import {
 } from './services/userSettings';
 import { saveAutoViewedPatterns } from './services/autoViewedPatterns';
 import { celebrateApproval } from './utils/approvalCelebration';
+import { hasVerdict } from './utils/verdict';
 import { hasMultipleCommentAuthors } from './utils/commentAuthors';
 import { copyTextToClipboard } from './utils/clipboard';
 import { getFileElementId, resetEmptyCommentFormsOutside } from './utils/domUtils';
@@ -178,6 +181,12 @@ function App() {
   const [isCopiedAll, setIsCopiedAll] = useState(false);
   const [isShipping, setIsShipping] = useState(false);
   const approvalControlRef = useRef<HTMLDivElement>(null);
+  // The same element, as state, so the follow-up notice re-renders once it can anchor to it.
+  const [verdictAnchor, setVerdictAnchor] = useState<HTMLDivElement | null>(null);
+  const setVerdictControl = useCallback((element: HTMLDivElement | null) => {
+    approvalControlRef.current = element;
+    setVerdictAnchor(element);
+  }, []);
   const [shipItError, setShipItError] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(getInitialSidebarWidth);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -438,12 +447,16 @@ function App() {
   );
 
   const fetchDiffDataRef = useRef<((selection?: ReviewSelection) => Promise<void>) | null>(null);
-  const handleShipIt = async (mode: ApprovalMode = 'as-is', revoke = false) => {
+  const handleVerdict = async (verdict: ApprovalMode | 'not-yet' | 'revoke') => {
+    const approving = verdict === 'as-is' || verdict === 'after-comments';
     if (
       !approval.ready ||
       isShipping ||
       captureReloading ||
-      (!revoke && (!hasBootstrappedComments || !summary.ready || summary.dirty || summary.saving))
+      // Saving threads before they load would overwrite the server's with an empty list, and
+      // the next step after a verdict leaves the review, dropping an unsaved summary draft.
+      (verdict === 'not-yet' && (!hasBootstrappedComments || summary.dirty || summary.saving)) ||
+      (approving && (!hasBootstrappedComments || !summary.ready || summary.dirty || summary.saving))
     ) {
       return;
     }
@@ -452,29 +465,40 @@ function App() {
     setShipItError(null);
     try {
       // A failed comment save must not prevent the user from revoking approval.
-      if (!revoke) await syncThreadsToServer(threads);
-      await approval.setApproved(!revoke, summary.version, mode);
-      // Skip the burst if the user switched reviews while the approval was saving.
+      if (verdict !== 'revoke') await syncThreadsToServer(threads);
+      if (verdict === 'not-yet') await approval.setNotYet();
+      else await approval.setApproved(approving, summary.version, approving ? verdict : 'as-is');
+      // Skip the burst and the next step if the user switched reviews while the verdict was saving.
+      const stillOpen = activeCommentsContextRef.current.generation === commentsGeneration;
       if (
-        !revoke &&
-        mode === 'as-is' &&
+        verdict === 'as-is' &&
         (!approval.requested || approval.mode === 'after-comments') &&
-        activeCommentsContextRef.current.generation === commentsGeneration &&
+        stillOpen &&
         approvalControlRef.current
       ) {
         celebrateApproval(approvalControlRef.current, settings.approvalAnimations);
       }
+      if (verdict === 'revoke') verdictFollowUp.cancel();
+      else if (stillOpen) {
+        // The next step depends on the other reviews' verdicts. start() sees the list from the
+        // click's render; the hook corrects the step from the refreshed list on the next one.
+        await loadRecentReviewsRef.current?.();
+        if (activeCommentsContextRef.current.generation === commentsGeneration)
+          verdictFollowUp.start();
+      }
     } catch (approvalError) {
-      console.error('Failed to approve review:', approvalError);
+      console.error('Failed to save the verdict:', approvalError);
       if (approvalError instanceof DiffChangedError) {
         // Without a file watcher no Reload prompt appears, so reload here the same way,
         // re-checking viewed files so a collapsed file whose diff changed is flagged.
-        setShipItError('The diff changed since it loaded. Review the update, then approve.');
+        setShipItError(
+          'The diff changed since it loaded. Review the update, then choose a verdict.',
+        );
         await Promise.all([refreshSummary(), fetchDiffDataRef.current?.()]);
         setReloadVersion((prev) => prev + 1);
         return;
       }
-      setShipItError('Could not update approval. Please try again.');
+      setShipItError('Could not save the verdict. Please try again.');
       await Promise.all([refreshSummary(), refreshApproval()]);
     } finally {
       setIsShipping(false);
@@ -1378,7 +1402,8 @@ function App() {
   }, [loadRecentReviews]);
 
   const handleRevisionChange = useCallback(
-    async (nextSelection: ReviewSelection, addHistory = true) => {
+    // null when the browser already moved to the review's URL (Back or Forward).
+    async (nextSelection: ReviewSelection, history: 'push' | 'replace' | null = 'push') => {
       // Skip if no actual change
       if (
         diffSelectionsEqual(nextSelection, selectedRevisionRef.current) &&
@@ -1386,15 +1411,15 @@ function App() {
       )
         return;
 
-      if (addHistory) writeReviewLocation(nextSelection, 'push');
-      preserveReviewLocationRef.current = !addHistory;
+      if (history) writeReviewLocation(nextSelection, history);
+      preserveReviewLocationRef.current = history === null;
 
       hasRequestedSelectionRef.current = true;
       selectedRevisionRef.current = nextSelection;
       setSelectedRevision(nextSelection);
       setLoading(true);
       setError(null);
-      await fetchDiffData(nextSelection, !addHistory);
+      await fetchDiffData(nextSelection, history === null);
     },
     [fetchDiffData],
   );
@@ -1402,11 +1427,40 @@ function App() {
   useEffect(() => {
     const restoreReview = () => {
       const selection = readReviewHistoryLocation();
-      if (selection) void handleRevisionChange(selection, false);
+      if (selection) void handleRevisionChange(selection, null);
     };
     window.addEventListener('popstate', restoreReview);
     return () => window.removeEventListener('popstate', restoreReview);
   }, [handleRevisionChange]);
+
+  // Replace, not push: a page whose history holds one entry may close itself once every
+  // review has a verdict.
+  const openReviewFromTab = useCallback(
+    (selection: DiffSelection) =>
+      void handleRevisionChange({ ...selection, retained: true }, 'replace'),
+    [handleRevisionChange],
+  );
+  const verdictFollowUp = useVerdictFollowUp({
+    reviews: approvalRequests,
+    current: resolvedSelection,
+    currentHasVerdict: approval.requested || approval.notYet,
+    onSwitch: openReviewFromTab,
+  });
+
+  // Leaving with a review that has no verdict asks first. Browsers show their own wording and
+  // paint the pulse only if the reviewer stays.
+  const reviewsNeedVerdict =
+    Boolean(diffData?.shipIt) && approvalRequests.some((review) => !hasVerdict(review.approval));
+  const { pulseNow } = verdictFollowUp;
+  useEffect(() => {
+    if (!reviewsNeedVerdict) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      pulseNow();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [reviewsNeedVerdict, pulseNow]);
 
   // Clear comments and viewed files on initial load if requested via CLI flag
   const hasCleanedRef = useRef(false);
@@ -1917,26 +1971,31 @@ function App() {
                 </span>
               </button>
               {diffData.shipIt && (
-                <ApprovalSplitButton
+                <VerdictControl
                   key={commentsContextKey}
-                  containerRef={approvalControlRef}
+                  containerRef={setVerdictControl}
                   requested={approval.requested}
                   approved={approval.approved}
+                  notYet={approval.notYet}
                   mode={approval.mode}
                   pendingCount={approval.pendingCount}
                   conditionalSupported={approval.conditionalSupported}
                   busy={isShipping || captureReloading}
                   disabled={
-                    !approval.ready ||
-                    !hasBootstrappedComments ||
-                    !summary.ready ||
-                    summary.dirty ||
-                    summary.saving
+                    !approval.ready || !hasBootstrappedComments || summary.dirty || summary.saving
                   }
-                  onApprove={(mode) => void handleShipIt(mode)}
-                  onRevoke={() => void handleShipIt('as-is', true)}
+                  approveDisabled={!summary.ready}
+                  onApprove={(mode) => void handleVerdict(mode)}
+                  onNotYet={() => void handleVerdict('not-yet')}
+                  onRevoke={() => void handleVerdict('revoke')}
                 />
               )}
+              <VerdictFollowUpNotice
+                anchor={verdictAnchor}
+                step={verdictFollowUp.step}
+                onCancel={verdictFollowUp.cancel}
+                onProceed={verdictFollowUp.proceed}
+              />
               {(shipItError || approval.error) && (
                 <span role="alert" className="w-full text-xs text-github-danger">
                   {shipItError || approval.error}
@@ -1952,7 +2011,8 @@ function App() {
               reviews={approvalRequests}
               current={resolvedSelection}
               approvals={Boolean(diffData.shipIt)}
-              onSelect={(selection) => void handleRevisionChange({ ...selection, retained: true })}
+              pulse={verdictFollowUp.pulse}
+              onSelect={openReviewFromTab}
             />
             <ReviewSummaryPanel
               key={commentsContextKey}

@@ -126,7 +126,12 @@ server process. Use message `progress.cursor` for status/reply,
 not a progress event's stream cursor or the snapshot's cursor. Do not promise
 listening after ending the turn without host support that forwards process output.
 
-The approval split button distinguishes `as-is` from `after-comments`. For
+Every review gets one of three verdicts: **Approve as-is**, **Approve after
+comments** (`mode` `as-is` or `after-comments`), or **Not yet**, recorded as
+`approval.notYet: true` with `approved: false`: revise and update the capture or
+proposal, which clears it, instead of committing. The user can clear a verdict
+(clicking its button again) or switch it until you act, so read a fresh snapshot
+before starting the work it asks for; a cleared verdict means wait again. For
 conditional approval, `requested: true` records permission to address the listed
 feedback; `approved: false` blocks committing until every included revision has
 evidence through `comment address` or reviewer resolution. Skip conditions already

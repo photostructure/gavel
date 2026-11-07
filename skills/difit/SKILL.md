@@ -231,10 +231,21 @@ read is for the single approval check right before a commit. Pass `--host` and
 resume prompt resumes you, run this in place of the raw snapshot it names:
 
 ```sh
-set -o pipefail; <difit-command> comment snapshot --host <host> --port <api-port> | jq -c '{cursor, connected: .presence.reviewers.connected, reviews: [.reviews[] as $r | {id: $r.id, selection: $r.selection, capture: ($r.capture | if . then {version, patchDigest} else null end), approval: ($r.approval | {approved, mode, requested, cursor, open: [.conditions[]? | select(.addressed | not) | {threadId, messageId, cursor, intent}]}), commitMessage: $r.summary.commitMessage, fromCommit: ($r.summary.fromCommit // false), summaryVersion: $r.summary.version, pending: [$r.threads[] as $t | $t.messages[] | select(.progress and (.progress.status | IN("replied","noted") | not)) | {threadId: $t.id, messageId: .id, cursor: .progress.cursor, confirmed: (($t.resolution.resolved // false) and $t.resolution.updatedAt >= .updatedAt), filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}]}]}'
+set -o pipefail; <difit-command> comment snapshot --host <host> --port <api-port> | jq -c '{cursor, connected: .presence.reviewers.connected, reviews: [.reviews[] as $r | {id: $r.id, selection: $r.selection, capture: ($r.capture | if . then {version, patchDigest} else null end), approval: ($r.approval | {approved, mode, requested, notYet: (.notYet // false), cursor, open: [.conditions[]? | select(.addressed | not) | {threadId, messageId, cursor, intent}]}), commitMessage: $r.summary.commitMessage, fromCommit: ($r.summary.fromCommit // false), summaryVersion: $r.summary.version, pending: [$r.threads[] as $t | $t.messages[] | select(.progress and (.progress.status | IN("replied","noted") | not)) | {threadId: $t.id, messageId: .id, cursor: .progress.cursor, confirmed: (($t.resolution.resolved // false) and $t.resolution.updatedAt >= .updatedAt), filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}]}]}'
 ```
 
-An LGTM is `approval.approved: true`. A `commitMessage` with `fromCommit: true`
+The user gives each review one of three verdicts: **Approve as-is**
+(`approval.approved: true`, an LGTM), **Approve after comments**
+(`approval.requested: true`, `mode: "after-comments"`; below), or **Not yet**
+(`approval.notYet: true`, `approved: false`): the review is not ready. Do not
+commit a Not yet; read its comments, revise, and update the capture or proposal,
+which clears `notYet` and asks for a new verdict. A review with none of these
+still awaits the user. The user can clear any verdict or switch to another until
+you act on it, so read a fresh snapshot before starting the work a verdict asks
+for, not only before committing; a cleared verdict means wait again. After a
+verdict, the page moves the user to the next review without one, or closes the
+tab once every review has one, which stops a server started without `--keep-alive`.
+A `commitMessage` with `fromCommit: true`
 is the browsed commit's own message, which the server copied; nobody proposed
 it, and its review has no tab. `approval.requested: true` with `open`
 conditions is an Approve after comments: complete each condition with `comment

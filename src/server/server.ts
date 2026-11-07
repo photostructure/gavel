@@ -1254,7 +1254,7 @@ export async function startServer(options: ServerOptions): Promise<{
     const approval =
       conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
     if (
-      !approval?.approved ||
+      !(approval?.approved || approval?.notYet) ||
       approval.diffDigest === undefined ||
       approval.diffDigest === diffDigest ||
       (approval.mode === 'after-comments' && approval.conditions?.length)
@@ -1267,7 +1267,9 @@ export async function startServer(options: ServerOptions): Promise<{
     approvals.set(getDiffSelectionKey(selection), revoked);
     // Without a file watcher the cached diff is stale; drop it so a reload shows the change.
     invalidateCache();
-    humanLog(`LGTM revoked because the diff changed: ${selection.targetCommitish}`);
+    humanLog(
+      `${approval.notYet ? 'Not yet cleared' : 'LGTM revoked'} because the diff changed: ${selection.targetCommitish}`,
+    );
     fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
   }
 
@@ -1284,7 +1286,7 @@ export async function startServer(options: ServerOptions): Promise<{
   async function revokeApprovalIfDiffChanged(selection: DiffSelection): Promise<void> {
     const approval =
       conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
-    if (!approval?.approved || approval.diffDigest === undefined) return;
+    if (!(approval?.approved || approval?.notYet) || approval.diffDigest === undefined) return;
     revokeIfDiffChanged(selection, await getCurrentDiffDigest(selection));
   }
 
@@ -1358,7 +1360,7 @@ export async function startServer(options: ServerOptions): Promise<{
           fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
         const approval =
           conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
-        if (approval?.approved || approval?.requested) {
+        if (approval?.approved || approval?.requested || approval?.notYet) {
           const revoked = conversation?.setApproval(selection, false, origin) ?? {
             approved: false,
             updatedAt: new Date().toISOString(),
@@ -1665,7 +1667,9 @@ export async function startServer(options: ServerOptions): Promise<{
       );
     });
 
-    app.post(['/api/approval', '/api/approval/conditional'], async (req, res) => {
+    // An older server answers 404 for /not-yet instead of reading it as a revocation.
+    const approvalRoutes = ['/api/approval', '/api/approval/conditional', '/api/approval/not-yet'];
+    app.post(approvalRoutes, async (req, res) => {
       if (!req.is('application/json')) {
         res.status(415).json({ error: 'Approval requires application/json' });
         return;
@@ -1686,11 +1690,18 @@ export async function startServer(options: ServerOptions): Promise<{
         req.path === '/api/approval/conditional' &&
         (!input.approved || input.mode !== 'after-comments')
       ) {
-        res
-          .status(400)
-          .json({ error: 'Conditional approval requires approved: true and mode: after-comments' });
+        res.status(400).json({
+          error: 'Conditional approval requires approved: true and mode: after-comments',
+        });
         return;
       }
+      const notYet = req.path === '/api/approval/not-yet';
+      if (notYet && (input.approved || input.mode !== undefined)) {
+        res.status(400).json({ error: 'Not yet requires approved: false and no mode' });
+        return;
+      }
+      // Approval and not yet are both verdicts on the displayed diff, so both must match it.
+      const verdict = input.approved || notYet;
       if (input.mode !== undefined && input.mode !== 'as-is' && input.mode !== 'after-comments') {
         res.status(400).json({ error: 'Expected mode: as-is or after-comments' });
         return;
@@ -1711,7 +1722,7 @@ export async function startServer(options: ServerOptions): Promise<{
       const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
       // Read Git first: a summary edit during the await must still fail the check below.
       const diffDigest =
-        input.approved && isLiveWorkingTreeSelection(selection)
+        verdict && isLiveWorkingTreeSelection(selection)
           ? await getCurrentDiffDigest(selection)
           : undefined;
       if (diffDigest !== undefined && input.diffDigest !== diffDigest) {
@@ -1728,11 +1739,12 @@ export async function startServer(options: ServerOptions): Promise<{
         ? namedReviews.get(selection.reviewName)?.metadata
         : undefined;
       if (
-        input.approved &&
+        verdict &&
         capture &&
         (input.captureVersion !== capture.version ||
           input.patchDigest !== capture.patchDigest ||
-          input.summaryVersion !== summary.version)
+          // Not yet does not endorse the proposed message, so it ignores the summary.
+          (input.approved && input.summaryVersion !== summary.version))
       ) {
         res.status(409).json({
           error: 'Review capture or summary changed; reload before approving',
@@ -1751,29 +1763,38 @@ export async function startServer(options: ServerOptions): Promise<{
       const key = getDiffSelectionKey(selection);
       const previous = conversation?.getApproval(selection) ?? approvals.get(key);
       const approval = conversation
-        ? conversation.setApproval(
-            selection,
-            input.approved,
-            'user',
-            input.mode ?? 'as-is',
-            diffDigest,
-          )
-        : previous?.approved === input.approved
+        ? notYet
+          ? conversation.setNotYet(selection, diffDigest)
+          : conversation.setApproval(
+              selection,
+              input.approved,
+              'user',
+              input.mode ?? 'as-is',
+              diffDigest,
+            )
+        : previous?.approved === input.approved && previous.notYet === (notYet || undefined)
           ? previous
           : {
               approved: input.approved,
+              ...(notYet ? { notYet: true as const } : {}),
               ...(diffDigest !== undefined ? { diffDigest } : {}),
               updatedAt: new Date().toISOString(),
             };
       approvals.set(key, approval);
-      if (previous?.cursor !== approval.cursor || previous?.approved !== approval.approved) {
+      if (
+        previous?.cursor !== approval.cursor ||
+        previous?.approved !== approval.approved ||
+        previous?.notYet !== approval.notYet
+      ) {
         humanLog(
           `LGTM ${
-            approval.requested && approval.mode === 'after-comments'
-              ? `approved after comments are addressed (${approval.conditions?.filter((condition) => !condition.addressed).length ?? 0} pending; commit ${approval.approved ? 'ready' : 'blocked'})`
-              : approval.approved
-                ? 'approved as-is'
-                : 'revoked'
+            approval.notYet
+              ? 'not yet'
+              : approval.requested && approval.mode === 'after-comments'
+                ? `approved after comments are addressed (${approval.conditions?.filter((condition) => !condition.addressed).length ?? 0} pending; commit ${approval.approved ? 'ready' : 'blocked'})`
+                : approval.approved
+                  ? 'approved as-is'
+                  : 'revoked'
           }: ${selection.targetCommitish}`,
         );
         fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });

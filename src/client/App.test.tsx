@@ -937,7 +937,7 @@ describe('App Component - Ship it', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('approves from the main button and revokes from its options', async () => {
+  it('approves from the as-is button and clears the approval by clicking it again', async () => {
     mockFetch({ ...mockDiffResponse, shipIt: true });
 
     renderApp();
@@ -957,12 +957,12 @@ describe('App Component - Ship it', () => {
     });
     await waitFor(() => expect(button).toHaveTextContent(/^Approved as-is$/));
     expect(button).toBeEnabled();
-    expect(button).toHaveAttribute('title', 'Approve the reviewed patch as-is');
+    expect(button).toHaveAttribute('title', 'Clear this verdict');
     expect(button.querySelector('img')).toBeNull();
     expect(screen.queryByText('Shipped')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Approval options' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Revoke approval' }));
+    fireEvent.click(button);
     await waitFor(() => expect(button).toHaveTextContent(/^Approve as-is$/));
+    expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
     expect(button).toHaveTextContent(/^Approve as-is$/);
     expect(button).toHaveAttribute('title', 'Approve the reviewed patch as-is');
     expect(button).toBeEnabled();
@@ -974,13 +974,15 @@ describe('App Component - Ship it', () => {
     });
   });
 
-  it('edits review intent and waits for the summary to be saved before approval', async () => {
+  it('edits review intent and waits for the summary to be saved before any verdict', async () => {
     mockFetch({ ...mockDiffResponse, shipIt: true });
     renderApp();
     const approval = await screen.findByRole('button', {
       name: /^(Approve as-is|Approved as-is)$/,
     });
+    const notYet = screen.getByRole('button', { name: 'Not yet' });
     await waitFor(() => expect(approval).toBeEnabled());
+    expect(notYet).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: /Change summary/ }));
     fireEvent.change(screen.getByLabelText('Why this change'), {
       target: { value: 'Reviewers need to understand the proposed commit.' },
@@ -989,8 +991,11 @@ describe('App Component - Ship it', () => {
       target: { value: 'feat: explain the proposed commit' },
     });
     expect(approval).toBeDisabled();
+    // Not yet moves on to another review or closes the tab, which would drop the unsaved draft.
+    expect(notYet).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Save summary' }));
     await waitFor(() => expect(approval).toBeEnabled());
+    expect(notYet).toBeEnabled();
     expect(global.fetch).toHaveBeenCalledWith('/api/review-summary?base=HEAD%5E&target=HEAD', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1105,8 +1110,8 @@ describe('App Component - Approval celebration', () => {
     await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approved as-is$/));
     expect(bursts).toBe(1);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Approval options' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Revoke approval' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Verdict options' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear verdict' }));
     await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approve as-is$/));
     expect(bursts).toBe(1);
   });
@@ -1220,7 +1225,7 @@ describe('App Component - Ship it delivery', () => {
     await waitFor(() => expect(button).toBeEnabled());
     fireEvent.click(button);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not update approval');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save the verdict');
     expect(global.fetch).not.toHaveBeenCalledWith(
       expect.stringContaining('/api/approval'),
       expect.objectContaining({ method: 'POST' }),
@@ -1278,7 +1283,7 @@ describe('App Component - Ship it delivery', () => {
       await waitFor(() => expect(button).toBeEnabled());
       fireEvent.click(button);
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('Could not update approval');
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not save the verdict');
       expect(
         screen.getByRole('button', { name: /^(Approve as-is|Approved as-is)$/ }),
       ).toBeEnabled();

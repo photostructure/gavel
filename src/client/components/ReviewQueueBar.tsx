@@ -1,12 +1,13 @@
-import { Check, ChevronDown, Circle } from 'lucide-react';
+import { Check, ChevronDown, Circle, X } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
 import type { ReviewApproval } from '../../types/conversation';
 import type { DiffSelection } from '../../types/diff';
 import { diffSelectionsEqual, getDiffSelectionKey } from '../../utils/diffSelection';
+import { hasVerdict } from '../utils/verdict';
 
-import { describeApproval } from './ApprovalSplitButton';
 import { HeaderMenu } from './HeaderMenu';
+import { describeApproval } from './VerdictControl';
 
 /** A review on this server that proposes a commit for approval. */
 export interface ApprovalRequest {
@@ -16,30 +17,47 @@ export interface ApprovalRequest {
   approval: ReviewApproval;
 }
 
-const approvalLabel = ({ requested = false, approved, mode, conditions }: ReviewApproval) =>
+const approvalLabel = ({ requested = false, approved, mode, conditions, notYet }: ReviewApproval) =>
   describeApproval(
     requested,
     approved,
     mode,
     conditions?.filter((condition) => !condition.addressed).length ?? 0,
-  ) ?? 'Not approved';
+  ) ?? (notYet ? 'Not yet' : 'Needs a verdict');
 
-// An approval after comments stays approved: false until the agent addresses them,
-// but the reviewer's part is done once requested is set.
-const isDone = (review: ApprovalRequest) => review.approval.requested === true;
+const isDone = (review: ApprovalRequest) => hasVerdict(review.approval);
 
 const tabClasses = '-mb-px inline-flex items-center gap-1 rounded-t-md border px-3 py-1.5';
-// The open tab overlaps the bar's bottom border and shares the Change summary row's
-// background, so it reads as attached to the review below it. The accent top border marks
-// it when it sits on an upper row of wrapped tabs.
-const openTabClasses =
-  'border-github-border border-t-2 border-t-github-accent border-b-github-bg-secondary bg-github-bg-secondary font-semibold text-github-text-primary';
+// Each verdict's color, the same as its chosen button in VerdictControl.
+const verdictColor = (approval: ReviewApproval) =>
+  approval.notYet
+    ? { text: 'text-github-danger', topBorder: 'border-t-github-danger' }
+    : approval.requested && approval.mode === 'after-comments'
+      ? { text: 'text-amber-700', topBorder: 'border-t-amber-700' }
+      : approval.requested
+        ? { text: 'text-github-accent', topBorder: 'border-t-github-accent' }
+        : // No verdict yet: neutral, since green would read as approval.
+          { text: 'text-github-text-muted', topBorder: 'border-t-github-text-secondary' };
 
-function ApprovalMark({ done }: { done: boolean }) {
-  return done ? (
-    <Check size={12} aria-hidden="true" className="shrink-0 text-github-accent" />
+// The open tab overlaps the bar's bottom border and shares the Change summary row's
+// background, so it reads as attached to the review below it. Its top border, in its
+// verdict's color, marks it when it sits on an upper row of wrapped tabs.
+const openTabClasses = (approval: ReviewApproval | undefined, approvals: boolean) =>
+  `border-github-border border-t-2 ${approvals && approval ? verdictColor(approval).topBorder : 'border-t-github-accent'} border-b-github-bg-secondary bg-github-bg-secondary font-semibold text-github-text-primary`;
+
+function ApprovalMark({ approval }: { approval: ReviewApproval }) {
+  const { text } = verdictColor(approval);
+  return approval.notYet ? (
+    <X
+      size={12}
+      aria-hidden="true"
+      data-verdict="not-yet"
+      className={`verdict-mark shrink-0 ${text}`}
+    />
+  ) : approval.requested ? (
+    <Check size={12} aria-hidden="true" className={`verdict-mark shrink-0 ${text}`} />
   ) : (
-    <Circle size={10} aria-hidden="true" className="shrink-0 text-github-text-muted" />
+    <Circle size={10} aria-hidden="true" className={`verdict-mark shrink-0 ${text}`} />
   );
 }
 
@@ -47,6 +65,7 @@ export function ReviewQueueBar({
   reviews,
   current,
   approvals,
+  pulse = 0,
   onSelect,
 }: {
   // In the order the server created them, which agents use for commit order.
@@ -54,8 +73,13 @@ export function ReviewQueueBar({
   current: DiffSelection | null;
   // False on a server launched with --no-lgtm, where nothing can be approved.
   approvals: boolean;
+  // Each increase replays a pulse on the tabs of reviews without a verdict.
+  pulse?: number;
   onSelect: (selection: DiffSelection) => void;
 }) {
+  // Two identically animated classes: switching between them restarts the animation.
+  const pulseClass = (review: ApprovalRequest) =>
+    approvals && pulse > 0 && !isDone(review) ? ` verdict-pulse-${pulse % 2}` : '';
   const measureRef = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -80,10 +104,12 @@ export function ReviewQueueBar({
   const count = !approvals
     ? `${reviews.length} reviews`
     : waiting === 0
-      ? `All ${reviews.length} approved`
-      : `${waiting} of ${reviews.length} need approval`;
+      ? `All ${reviews.length} have a verdict`
+      : `${waiting} of ${reviews.length} need a verdict`;
   const countLabel = (
-    <span className="mr-2 shrink-0 self-center whitespace-nowrap pb-1 text-github-text-secondary">
+    // The same box as a tab (padding, transparent border, -mb-px), so its text lines up with
+    // the tab titles in the bar's bottom-aligned row.
+    <span className="-mb-px mr-2 inline-flex shrink-0 items-center whitespace-nowrap border border-transparent py-1.5 text-github-text-secondary">
       {count}
     </span>
   );
@@ -106,7 +132,7 @@ export function ReviewQueueBar({
             key={getDiffSelectionKey(review.selection)}
             className={`${tabClasses} shrink-0 whitespace-nowrap`}
           >
-            {approvals && <ApprovalMark done={isDone(review)} />}
+            {approvals && <ApprovalMark approval={review.approval} />}
             <code className="font-semibold">{review.name}</code>
           </span>
         ))}
@@ -114,11 +140,12 @@ export function ReviewQueueBar({
       {countLabel}
       {collapsed ? (
         <HeaderMenu
-          className={`${tabClasses} min-w-0 ${openTabClasses}`}
+          // The menu hides the other tabs, so it pulses for any review without a verdict.
+          className={`${tabClasses} min-w-0 ${openTabClasses(open?.approval, approvals)}${reviews.map(pulseClass).find(Boolean) ?? ''}`}
           label={
             <>
               <span className="sr-only">All reviews, open: </span>
-              {approvals && open && <ApprovalMark done={isDone(open)} />}
+              {approvals && open && <ApprovalMark approval={open.approval} />}
               <code className="truncate">{open?.name ?? 'Choose a review'}</code>
               <ChevronDown size={12} aria-hidden="true" className="shrink-0" />
             </>
@@ -138,7 +165,7 @@ export function ReviewQueueBar({
                   >
                     {approvals && (
                       <span className="pt-0.5">
-                        <ApprovalMark done={isDone(review)} />
+                        <ApprovalMark approval={review.approval} />
                       </span>
                     )}
                     <span className="min-w-0">
@@ -176,9 +203,9 @@ export function ReviewQueueBar({
                   aria-label={state ? `${review.name}, ${state}` : undefined}
                   title={[review.title, state].filter(Boolean).join('\n')}
                   onClick={() => onSelect(review.selection)}
-                  className={`${tabClasses} ${isOpen ? openTabClasses : 'border-transparent text-github-text-secondary hover:bg-github-bg-secondary hover:text-github-text-primary'}`}
+                  className={`${tabClasses} ${isOpen ? openTabClasses(review.approval, approvals) : 'border-transparent text-github-text-secondary hover:bg-github-bg-secondary hover:text-github-text-primary'}${pulseClass(review)}`}
                 >
-                  {state && <ApprovalMark done={isDone(review)} />}
+                  {state && <ApprovalMark approval={review.approval} />}
                   <code>{review.name}</code>
                 </button>
               </li>

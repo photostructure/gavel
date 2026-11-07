@@ -70,6 +70,7 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     threads: structuredClone(initialThreads),
     commentVersion: 1,
     approved: false,
+    notYet: false,
     showReviewB: true,
     showNamedReviews: true,
     addedLine: 'const stable = true;',
@@ -140,11 +141,14 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
         commitMessage: 'fix: preserve review context',
         rationale: 'Keep the same discussion after requested changes.',
       };
-    } else if (url.pathname === '/api/approval') {
-      if (init?.method === 'POST')
+    } else if (url.pathname === '/api/approval' || url.pathname === '/api/approval/not-yet') {
+      if (init?.method === 'POST') {
         state.approved = (JSON.parse(String(init.body)) as { approved: boolean }).approved;
+        state.notYet = url.pathname === '/api/approval/not-yet';
+      }
       payload = {
         approved: state.approved,
+        ...(state.notYet ? { notYet: true } : {}),
         captureVersion: state.capture.version,
         patchDigest: state.capture.patchDigest,
         summaryVersion: 2,
@@ -166,7 +170,9 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
         summary: { commitMessage: 'fix: preserve review context', rationale: '', version: 2 },
         approval: state.approved
           ? { approved: true, requested: true, mode: 'as-is' }
-          : { approved: false },
+          : state.notYet
+            ? { approved: false, notYet: true }
+            : { approved: false },
         capture: { ...state.capture },
       },
       ...(state.showReviewB
@@ -931,7 +937,7 @@ describe('named captures in the browser', () => {
     state.showReviewB = true;
     await act(async () => watch.captureChanged?.('task-b'));
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
-    expect(within(bar).getByRole('button', { name: 'task-b, Not approved' })).toBeVisible();
+    expect(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' })).toBeVisible();
     expect(diffRequests()).toHaveLength(before);
     expect(window.location.search).toBe('?review=task-a');
   });
@@ -940,11 +946,11 @@ describe('named captures in the browser', () => {
     fixture();
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
-    expect(within(bar).getByRole('button', { name: 'task-a, Not approved' })).toHaveAttribute(
+    expect(within(bar).getByRole('button', { name: 'task-a, Needs a verdict' })).toHaveAttribute(
       'aria-current',
       'page',
     );
-    fireEvent.click(within(bar).getByRole('button', { name: 'task-b, Not approved' }));
+    fireEvent.click(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' }));
     await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
     const latest = diffRequests().at(-1);
     expect(new URL(String(latest?.[0]), window.location.origin).searchParams.get('review')).toBe(
@@ -953,6 +959,16 @@ describe('named captures in the browser', () => {
     expect(
       within(screen.getByRole('status', { name: 'Named review capture' })).getByText('task-b'),
     ).toBeVisible();
+  });
+
+  it('switches reviews from the tabs without adding browser history, so the tab can close itself', async () => {
+    fixture();
+    renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    const entries = window.history.length;
+    fireEvent.click(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' }));
+    await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
+    expect(window.history.length).toBe(entries);
   });
 
   it('replaces the revision picker with the review name while a review asks for approval', async () => {
@@ -1094,7 +1110,7 @@ describe('named captures in the browser', () => {
     expect(toggle()).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(toggle());
 
-    fireEvent.click(within(bar).getByRole('button', { name: 'task-b, Not approved' }));
+    fireEvent.click(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' }));
     await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
     expect(toggle()).toHaveAttribute('aria-expanded', 'true');
 
@@ -1113,12 +1129,96 @@ describe('named captures in the browser', () => {
     const state = fixture();
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
-    expect(bar).toHaveTextContent(/^2 of 2 need approval/);
+    expect(bar).toHaveTextContent(/^2 of 2 need a verdict/);
     state.approved = true;
     await act(async () => watch.approvalChanged?.());
     expect(
       await within(bar).findByRole('button', { name: 'task-a, Approved as-is' }),
     ).toBeVisible();
-    expect(bar).toHaveTextContent(/^1 of 2 need approval/);
+    expect(bar).toHaveTextContent(/^1 of 2 need a verdict/);
+  });
+});
+
+describe('after a verdict', () => {
+  const verdictButton = (name: string) =>
+    within(screen.getByRole('group', { name: 'Verdict' })).getByRole('button', { name });
+  const nextStep = () => screen.getByRole('status', { name: 'Next step' });
+
+  beforeEach(() => {
+    localStorage.clear();
+    window.history.replaceState(null, '', '/?review=task-a');
+    vi.mocked(fetch).mockReset();
+    watch.approvalChanged = undefined;
+    vi.stubGlobal(
+      'EventSource',
+      class {
+        close() {}
+      },
+    );
+    // Fake timers that still advance with real time, so waitFor keeps polling.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('counts down and opens the next review without a verdict', async () => {
+    fixture();
+    renderApp();
+    await waitFor(() => expect(verdictButton('Approve as-is')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve as-is'));
+    await waitFor(() => expect(nextStep()).toHaveTextContent('Switching to task-b in 10s'));
+    const bar = screen.getByRole('navigation', { name: 'Reviews on this server' });
+    expect(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' })).toHaveClass(
+      /verdict-pulse-/,
+    );
+    await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+    await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
+    expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
+  });
+
+  it('says not yet in one click, then counts down to closing the tab once nothing is left', async () => {
+    const state = fixture();
+    state.showReviewB = false;
+    const close = vi.spyOn(window, 'close').mockImplementation(() => {});
+    renderApp();
+    await waitFor(() => expect(verdictButton('Not yet')).toBeEnabled());
+    fireEvent.click(verdictButton('Not yet'));
+    await waitFor(() =>
+      expect(nextStep()).toHaveTextContent('This review has a verdict. Closing this tab in 10s'),
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/approval/not-yet?review=task-a',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(verdictButton('Not yet')).toHaveAttribute('aria-pressed', 'true');
+    await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+    expect(close).toHaveBeenCalledOnce();
+    expect(nextStep()).toHaveTextContent('This review has a verdict. You can close this tab.');
+  });
+
+  it('asks before leaving while a review has no verdict, and pulses its tab', async () => {
+    const state = fixture();
+    renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    await waitFor(() => expect(bar).toHaveTextContent(/^2 of 2 need a verdict/));
+    const leave = new Event('beforeunload', { cancelable: true });
+    act(() => void window.dispatchEvent(leave));
+    expect(leave.defaultPrevented).toBe(true);
+    expect(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' })).toHaveClass(
+      /verdict-pulse-/,
+    );
+
+    state.showReviewB = false;
+    state.approved = true;
+    await act(async () => watch.approvalChanged?.());
+    await waitFor(() =>
+      expect(screen.queryByRole('navigation', { name: 'Reviews on this server' })).toBeNull(),
+    );
+    const leaveAgain = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(leaveAgain);
+    expect(leaveAgain.defaultPrevented).toBe(false);
   });
 });
