@@ -1,10 +1,14 @@
 import type { ApprovalAnimation } from '../components/SettingsModal';
 
-// Units are CSS pixels and seconds.
+// Units are CSS pixels and simulated seconds; SPEED converts them to real time.
 const GRAVITY = 800;
 const FADE = 0.8;
 const STEP = 1 / 120;
 const MAX_FRAME = 0.1;
+/** Simulated seconds per real second: bursts play at double speed along unchanged paths. */
+const SPEED = 2;
+/** No burst lasts longer than this many real seconds, however long its own duration. */
+const MAX_SECONDS = 3;
 /** Longer than any screen's diagonal, so laser beams always reach the edge. */
 const BEAM_LENGTH = 4000;
 const PALETTE = [
@@ -977,7 +981,9 @@ export function celebrateApproval(
   const cy = origin.top + origin.height / 2;
   const viewport = { width, height };
   const at = { origin, cx, cy, aim: Math.atan2(height / 2 - cy, width / 2 - cx), viewport };
-  const { count, duration, make } = BURSTS[animation];
+  const { count, make } = BURSTS[animation];
+  // In simulated seconds, like every other time in this file.
+  const duration = Math.min(BURSTS[animation].duration, MAX_SECONDS * SPEED);
   // A ribbon stays until its whole body, not just its leading end, has fallen off screen.
   const isAlive = (piece: Piece) =>
     piece.life > 0 && Math.min(piece.y, ...piece.chain.map((point) => point.y)) < height + 40;
@@ -990,8 +996,8 @@ export function celebrateApproval(
   let pending = 0;
   let last = performance.now();
   requestAnimationFrame(function tick(now) {
-    // Fixed physics steps keep the flight real-time and stable when frames are dropped.
-    pending += Math.min((now - last) / 1000, MAX_FRAME);
+    // Fixed physics steps keep the flight at a steady speed and stable when frames are dropped.
+    pending += Math.min((now - last) / 1000, MAX_FRAME) * SPEED;
     last = now;
     for (; pending >= STEP; pending -= STEP) {
       elapsed += STEP;

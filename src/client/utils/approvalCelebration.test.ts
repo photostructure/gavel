@@ -75,23 +75,26 @@ describe('celebrateApproval', () => {
     expect(document.querySelector('canvas')).toBeNull();
   });
 
-  it.each(ANIMATIONS)('plays %s to the end and removes its canvas', (animation) => {
-    celebrateApproval(source, only(animation));
-    expect(document.querySelector('canvas')).not.toBeNull();
+  it.each(ANIMATIONS)(
+    'plays %s to the end within 3 seconds and removes its canvas',
+    (animation) => {
+      celebrateApproval(source, only(animation));
+      expect(document.querySelector('canvas')).not.toBeNull();
 
-    let now = performance.now();
-    let frames = 0;
-    for (; frame && frames < 60 * 10; frames++) {
-      const tick = frame;
-      frame = undefined;
-      now += 1000 / 60;
-      tick(now);
-    }
+      let now = performance.now();
+      let frames = 0;
+      for (; frame && frames < 60 * 10; frames++) {
+        const tick = frame;
+        frame = undefined;
+        now += 1000 / 60;
+        tick(now);
+      }
 
-    expect(drawCalls).toBeGreaterThan(0);
-    expect(frames).toBeLessThan(60 * 10);
-    expect(document.querySelector('canvas')).toBeNull();
-  });
+      expect(drawCalls).toBeGreaterThan(0);
+      expect(frames).toBeLessThanOrEqual(60 * 3);
+      expect(document.querySelector('canvas')).toBeNull();
+    },
+  );
 
   it('stops painting disco light specks once the ball starts to rise', () => {
     celebrateApproval(source, only('disco'));
@@ -108,9 +111,9 @@ describe('celebrateApproval', () => {
       specks.push([(now - start) / 1000, calls.get('ellipse') ?? 0]);
     }
 
-    // The ball rests on its line for 3.6 seconds before it is pulled back up.
-    const resting = specks.filter(([t]) => t > 1.2 && t < 3.5);
-    const rising = specks.filter(([t]) => t > 3.65);
+    // The ball rests on its line for 1.8 seconds before it is pulled back up.
+    const resting = specks.filter(([t]) => t > 0.6 && t < 1.75);
+    const rising = specks.filter(([t]) => t > 1.825);
     expect(resting.every(([, count]) => count > 0)).toBe(true);
     expect(rising.length).toBeGreaterThan(0);
     expect(rising.every(([, count]) => count === 0)).toBe(true);
