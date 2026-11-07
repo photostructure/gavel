@@ -14,6 +14,13 @@ Use `pnpm run dev` from this repository's Git root, with no extra `--` separator
 Use `node dist/cli/index.js` for the companion comment commands below.
 Launch `pnpm run dev <target> [base]`. Targets: `.` (uncommitted),
 `working`, `staged`, or omit for HEAD. Add `--include-untracked` when needed.
+When none of this session's work is still uncommitted, don't launch: tell the
+user it is already committed, list each commit's short SHA and subject, and ask
+whether difit should show them. If they say yes, open them with `--no-lgtm`
+and the commit's own message as `--commit-message` (a range: one subject per
+line): one `<sha>`, or `<last-sha> <first-sha>^` for consecutive commits. If
+other commits fall between yours, name them and ask whether to show the whole
+range or each of yours alone.
 difit fills in the **About** panel's agent and session ID from Claude Code's
 environment; override them with `--agent` and `--agent-session-id`. A session
 started from another session's shell (such as `claude -p`) inherits its

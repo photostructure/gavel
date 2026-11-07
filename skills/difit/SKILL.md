@@ -18,8 +18,15 @@ happened. Waiting is covered below and admits no substitute.
 Decide what to show from the request:
 
 - "Show me your difit", or no target: the changes this session made. For
-  uncommitted work, a named review scoped to your own paths and hunks; for work
-  you already committed, those commits.
+  uncommitted work, a named review scoped to your own paths and hunks. When
+  none of your work is still uncommitted, don't launch: tell the user it is
+  already committed, list each commit's short SHA and subject, and ask whether
+  difit should show them. If they say yes, open them with `--no-lgtm`, since
+  they already landed, and pass the commit's own message as `--commit-message`
+  (for a range, each commit's subject on its own line). Show one commit as
+  `<sha>`, and consecutive commits as one range, `<last-sha> <first-sha>^`. If
+  other commits fall between yours, name them and ask whether to show the
+  whole range or each of your commits on its own.
 - A named branch, commit, range, or PR (`--pr <url>`): that diff. Review it for
   defects before launching, and pass `--no-lgtm` unless the user asked to
   approve it. Do not post PR findings to GitHub.

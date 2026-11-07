@@ -52,7 +52,14 @@ they may be reading it on another device.
    On first use, check that `--help` has `--review`, `--background`, and `--jsonl`.
    Reuse that build. Report missing capabilities; do not switch installs or use npx.
 2. For this session's uncommitted work, use a named review restricted to its paths
-   and hunks. For already-committed work, use the relevant immutable commit SHAs.
+   and hunks. When none of this session's work is still uncommitted, don't
+   launch: tell the user it is already committed, list each commit's short SHA
+   and subject, and ask whether difit should show them. If they say yes, open
+   them with `--no-lgtm`, since they already landed, and pass the commit's own
+   message as `--commit-message` (for a range, each commit's subject on its own
+   line). Show one commit as `<sha>`, and consecutive commits as
+   `<last-sha> <first-sha>^`. If other commits fall between yours, name them
+   and ask whether to show the whole range or each of your commits on its own.
    For a user-named branch, range, or PR, review that target for defects before
    showing it; use `--no-lgtm` unless the user requested approval.
 3. Include a proposed Conventional Commit message with `--commit-message` and a
