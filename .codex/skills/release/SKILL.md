@@ -41,17 +41,22 @@ and `gavel` is Apiary's unrelated HTTP validator).
 - `publish.yaml` validates the tag and package identity, builds and packs the exact
   source, and stages the verified tarball in an isolated OIDC job. Do not replace
   it with direct `npm publish`, create a release before approval, or retag a release.
-- A brand-new npm package may need an authenticated manual staging bootstrap before
-  its Trusted Publisher settings exist. Use only the exact verified tarball with
-  `npm stage publish <tarball> --ignore-scripts --access public`. Explain that this
-  creates npm's placeholder; it does not make the staged payload public. Complete
-  stage-only Trusted Publisher configuration immediately when npm exposes it.
-  Then reject that workstation stage, which has no provenance, with
-  `npm stage reject <stage-id>` (`npm stage list` shows the ID), and use **Re-run
-  failed jobs** on the failed **Stage npm Release** run within a day, before its
-  `npm-package-vX.Y.Z` artifact expires. The `stage` job then stages the version
-  with provenance, and its `github-release` job starts **Publish GitHub Release
-  after npm approval**.
+- A brand-new npm package has no Trusted Publisher settings, so the `stage` job fails
+  with E401 until an authenticated workstation stage creates the package. Stage a
+  one-file throwaway tarball whose version differs from the release, such as
+  `0.0.1-bootstrap.0`, with
+  `npm stage publish <tarball> --ignore-scripts --access public --tag bootstrap`.
+  Explain that this creates npm's `0.0.0-stage` placeholder; it does not make the
+  staged payload public. Then have the maintainer run
+  `npm trust github @photostructure/gavel --repo photostructure/gavel --file publish.yaml --allow-stage-publish --yes`,
+  which needs 2FA, and use **Re-run failed jobs** on the failed **Stage npm Release** run within a
+  day, before its `npm-package-vX.Y.Z` artifact expires. The `stage` job then stages
+  the release with provenance beside the throwaway, and its `github-release` job
+  starts **Publish GitHub Release after npm approval**. Approve only the release.
+  Do not reject the throwaway until npm serves the release version: after the only
+  stage of a package with no published version was rejected, the registry returned
+  404 for the package. Then have the maintainer reject it with
+  `npm stage reject <stage-id>` (`npm stage list` shows the ID), which needs 2FA.
 
 ## How the release works
 
