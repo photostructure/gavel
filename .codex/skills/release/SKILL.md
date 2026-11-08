@@ -46,6 +46,12 @@ and `gavel` is Apiary's unrelated HTTP validator).
   `npm stage publish <tarball> --ignore-scripts --access public`. Explain that this
   creates npm's placeholder; it does not make the staged payload public. Complete
   stage-only Trusted Publisher configuration immediately when npm exposes it.
+  Then reject that workstation stage, which has no provenance, with
+  `npm stage reject <stage-id>` (`npm stage list` shows the ID), and use **Re-run
+  failed jobs** on the failed **Stage npm Release** run within a day, before its
+  `npm-package-vX.Y.Z` artifact expires. The `stage` job then stages the version
+  with provenance, and its `github-release` job starts **Publish GitHub Release
+  after npm approval**.
 
 ## How the release works
 
