@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Documentation
+
+- Rewrite the README introduction and setup around the gavel walkthrough, explaining reading guides, comment intents, per-commit verdicts, and the Claude Code and Codex feedback workflows.
+- Keep the README logo visible on npm's dark theme by outlining it with a white halo.
+
 ## [6.0.0] - 2026-11-08
 
 ### Added in the PhotoStructure fork
