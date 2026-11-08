@@ -160,7 +160,8 @@ asking again. Separate chat approval is independent; silence/tab closure is not
 approval. This rule never authorizes a push or publication.
 
 For an existing server, run
-`/home/mrm/.local/bin/difit wait --port <port>` from the reviewed repo's Git root.
+`node dist/cli/index.js wait --port <port>` from the Git root or detached worktree
+that launched the server.
 Use exactly one background waiter in the main session, only when the actual
 host supports completion delivery without a background deadline. Retain each
 port's cursor for the next invocation. Recover queued work without implicit

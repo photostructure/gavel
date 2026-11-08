@@ -48,7 +48,7 @@ you. Skip the check when the user's latest message asks for the review, since
 they may be reading it on another device.
 
 1. Run from the reviewed repository's Git root. Use its prescribed gavel launcher
-   for every command; in Matthew's workspace this is `/home/mrm/.local/bin/difit`.
+   for every command.
    On first use, check that `--help` has `--review`, `--background`, and `--jsonl`.
    Reuse that build. Report missing capabilities; do not switch installs or use npx.
 2. For this session's uncommitted work, use a named review restricted to its paths

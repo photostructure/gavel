@@ -8,9 +8,9 @@ metadata:
 # Gavel development reviews in Codex
 
 Read [the Codex gavel skill](../gavel/SKILL.md) and follow its scoped capture,
-feedback, approval, and handoff workflow. Use the repository's prescribed launcher:
-`/home/mrm/.local/bin/difit`. This source-build launcher is shared with Matthew;
-never substitute another install. For stacked commits, follow that skill's rule
+feedback, approval, and handoff workflow. Use the repository's source build as the
+launcher: `node dist/cli/index.js`, run from the Git root. Never substitute another
+install. For stacked commits, follow that skill's rule
 of one named review per commit on one server, in commit order, with one link.
 
 For routine human review, use a detached `--background` server or reuse an
