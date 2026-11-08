@@ -8,7 +8,7 @@ import { MermaidDiagram } from '../components/MermaidDiagram';
 import { PrismSyntaxHighlighter } from '../components/PrismSyntaxHighlighter';
 import type { MergedChunk } from '../hooks/useExpandedLines';
 import { extractFrontmatter, getFrontmatterLines } from '../utils/frontmatter';
-import { computeFrontmatterDiff } from '../utils/frontmatterDiff';
+import { computeFrontmatterDiff, tableAccountsForFrontmatterEdit } from '../utils/frontmatterDiff';
 import { extractMarkdownText, isElementWithCodeProps, isSafeUrl } from '../utils/markdownUtils';
 
 import { PreviewModeTabs, type PreviewMode } from './PreviewModeTabs';
@@ -128,21 +128,23 @@ const stripCarriageReturn = (line: string) => line.replace(/\r$/, '');
 
 /**
  * Removes the leading YAML frontmatter lines from the diff preview blocks so the
- * `---` delimiters and raw YAML are not rendered as markdown below the dedicated
- * frontmatter table. Deleted lines are matched against the base frontmatter,
- * added/changed lines against the target frontmatter, and context lines against
- * both. Matching is content-verified: as soon as a line no longer matches the
- * expected frontmatter (e.g. the diff starts below the frontmatter, so the first
- * lines are body content), stripping stops and the remaining blocks are kept
- * untouched.
+ * `---` delimiters and raw YAML are not rendered as markdown, and returns the
+ * removed lines in diff order for the caller to drop or show literally. Deleted
+ * lines are matched against the base frontmatter, added/changed lines against
+ * the target frontmatter, and context lines against both. Matching is
+ * content-verified: as soon as a line no longer matches the expected frontmatter
+ * (e.g. the diff starts below the frontmatter, so the first lines are body
+ * content), stripping stops and the remaining blocks are kept untouched.
  */
 const stripFrontmatterBlocks = (
   blocks: PreviewBlock[],
   baseLines: string[],
   targetLines: string[],
-): PreviewBlock[] => {
+): { blocks: PreviewBlock[]; strippedLines: PreviewLineEntry[] } => {
+  const strippedLines: PreviewLineEntry[] = [];
+
   if (baseLines.length === 0 && targetLines.length === 0) {
-    return blocks;
+    return { blocks, strippedLines };
   }
 
   let baseIndex = 0;
@@ -192,6 +194,8 @@ const stripFrontmatterBlocks = (
         continue;
       }
 
+      strippedLines.push({ type: block.type, content: line });
+
       if (baseIndex >= baseLines.length && targetIndex >= targetLines.length) {
         stripping = false;
       }
@@ -202,7 +206,7 @@ const stripFrontmatterBlocks = (
     }
   }
 
-  return result;
+  return { blocks: result, strippedLines };
 };
 
 const getMarkdownComponents = (syntaxTheme?: DiffViewerBodyProps['syntaxTheme']) => ({
@@ -475,6 +479,12 @@ const getCodeLineClass = (type: PreviewBlockType) => {
   }
 };
 
+const KEEP_FRONTMATTER_IN_BLOCKS = {
+  stripBaseLines: [] as string[],
+  stripTargetLines: [] as string[],
+  showStrippedLines: false,
+};
+
 const MarkdownDiffPreview = ({
   blocks,
   syntaxTheme,
@@ -505,7 +515,8 @@ const MarkdownDiffPreview = ({
       targetAvailable && targetData === null && getFrontmatterLines(targetContent).length > 0;
 
     // When both sides needed for the diff are available we render a structured
-    // table and strip the raw frontmatter lines from the preview blocks below.
+    // table and take the raw frontmatter lines out of the preview blocks below,
+    // showing them literally if the table does not account for every changed line.
     const canDiff =
       fileStatus === 'added'
         ? targetAvailable
@@ -521,7 +532,7 @@ const MarkdownDiffPreview = ({
         (fileStatus !== 'added' && baseUnmapped) ||
         (fileStatus !== 'deleted' && targetUnmapped)
       ) {
-        return { view: null, stripBaseLines: [] as string[], stripTargetLines: [] as string[] };
+        return { view: null, ...KEEP_FRONTMATTER_IN_BLOCKS };
       }
 
       // Stripping only applies when the diff actually reaches the top of the
@@ -542,7 +553,12 @@ const MarkdownDiffPreview = ({
       const view = hasFrontmatterChanges ? (
         <FrontmatterTable mode="diff" entries={entries} label="Frontmatter" />
       ) : null;
-      return { view, stripBaseLines, stripTargetLines };
+      const showStrippedLines = !tableAccountsForFrontmatterEdit(
+        stripBaseLines,
+        stripTargetLines,
+        entries,
+      );
+      return { view, stripBaseLines, stripTargetLines, showStrippedLines };
     }
 
     // partial fetch failure or stdin — snapshot fallback with explanatory label.
@@ -556,8 +572,7 @@ const MarkdownDiffPreview = ({
             label="Frontmatter (target only — base unavailable)"
           />
         ),
-        stripBaseLines: [] as string[],
-        stripTargetLines: [] as string[],
+        ...KEEP_FRONTMATTER_IN_BLOCKS,
       };
     }
     if (baseAvailable && baseData !== null) {
@@ -569,25 +584,32 @@ const MarkdownDiffPreview = ({
             label="Frontmatter (base only — target unavailable)"
           />
         ),
-        stripBaseLines: [] as string[],
-        stripTargetLines: [] as string[],
+        ...KEEP_FRONTMATTER_IN_BLOCKS,
       };
     }
 
-    return { view: null, stripBaseLines: [] as string[], stripTargetLines: [] as string[] };
+    return { view: null, ...KEEP_FRONTMATTER_IN_BLOCKS };
   }, [baseContent, targetContent, fileStatus, diffStartsAtFileTop]);
 
-  const renderBlocks = useMemo(
-    () =>
-      buildRenderBlocks(
-        stripFrontmatterBlocks(
-          blocks,
-          frontmatterView.stripBaseLines,
-          frontmatterView.stripTargetLines,
-        ),
-      ),
-    [blocks, frontmatterView.stripBaseLines, frontmatterView.stripTargetLines],
-  );
+  const renderBlocks = useMemo<PreviewRenderBlock[]>(() => {
+    const { blocks: bodyBlocks, strippedLines } = stripFrontmatterBlocks(
+      blocks,
+      frontmatterView.stripBaseLines,
+      frontmatterView.stripTargetLines,
+    );
+    const bodyRenderBlocks = buildRenderBlocks(bodyBlocks);
+    // Literal lines: as Markdown, `# note` would be an H1 and `title: Same` above
+    // the closing `---` an H2. No line matches when the diff disagrees with the
+    // fetched file, and an empty block would draw a bare box.
+    return frontmatterView.showStrippedLines && strippedLines.length > 0
+      ? [{ kind: 'fenced-code', lines: strippedLines }, ...bodyRenderBlocks]
+      : bodyRenderBlocks;
+  }, [
+    blocks,
+    frontmatterView.stripBaseLines,
+    frontmatterView.stripTargetLines,
+    frontmatterView.showStrippedLines,
+  ]);
 
   return (
     <div className="space-y-4">

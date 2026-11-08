@@ -77,3 +77,56 @@ export function computeFrontmatterDiff(
 
   return entries;
 }
+
+// A plain, double-quoted, or single-quoted mapping key at column 0.
+const KEY_LINE_PATTERN = /^(?:"([^"]*)"|'([^']*)'|([^\s#"'].*?))\s*:(?:\s|$)/;
+
+/**
+ * Returns the lines between the frontmatter delimiters that no changed key owns.
+ * A key owns its `key:` line and the following lines that are indented or start
+ * with `-` at column 0, which is how a sequence value may sit under its key. A
+ * blank line or column-0 comment is always returned, without ending the key: a
+ * block scalar or sequence can continue after one. A line the pattern cannot
+ * attribute ends the key and is returned.
+ */
+function linesOutsideChangedKeys(frontmatterLines: string[], changedKeys: Set<string>): string[] {
+  const lines: string[] = [];
+  let inChangedKey = false;
+
+  for (const line of frontmatterLines.slice(1, -1)) {
+    if (line === '' || line.startsWith('#')) {
+      lines.push(line);
+      continue;
+    }
+    if (!/^[\s-]/.test(line)) {
+      const match = KEY_LINE_PATTERN.exec(line);
+      const key = match?.[1] ?? match?.[2] ?? match?.[3];
+      inChangedKey = key !== undefined && changedKeys.has(key);
+    }
+    if (!inChangedKey) {
+      lines.push(line);
+    }
+  }
+
+  return lines;
+}
+
+/**
+ * Whether the frontmatter table shows every changed frontmatter line, so the raw
+ * lines can be hidden. Both arguments are `getFrontmatterLines` output, empty
+ * for a side without frontmatter. Comments on a changed key's own lines are not
+ * compared, so `title: Old # a` to `title: New # b` counts as accounted for.
+ */
+export function tableAccountsForFrontmatterEdit(
+  baseLines: string[],
+  targetLines: string[],
+  entries: FrontmatterDiffEntry[],
+): boolean {
+  const changedKeys = new Set(
+    entries.filter((entry) => entry.status !== 'unchanged').map((entry) => entry.key),
+  );
+  return (
+    canonicalStringify(linesOutsideChangedKeys(baseLines, changedKeys)) ===
+    canonicalStringify(linesOutsideChangedKeys(targetLines, changedKeys))
+  );
+}

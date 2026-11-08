@@ -5,7 +5,10 @@ section: Markdown viewer
 
 # Diff Preview hides frontmatter edits that do not change the parsed data
 
-Placeholder. Not started.
+Fixed. Raw frontmatter is hidden only when the table accounts for every changed line (`tableAccountsForFrontmatterEdit` in `src/client/utils/frontmatterDiff.ts`). Otherwise all raw lines stay beside the table as literal lines with add/delete colors. Accepted as recommended on 2026-11-08, including two pinned limits: an inline comment on a changed line and an indented comment inside a changed key stay hidden.
+
+- [x] Red, then green: `pnpm vitest run src/client/utils/frontmatterDiff.test.ts src/client/viewers/MarkdownDiffViewer.test.tsx`
+- [x] Reviewed with `coding:second-opinion`: LAND on base `f3e74c3`. Codex skipped (front-end; the maintainer's standing instruction).
 
 ## Problem
 

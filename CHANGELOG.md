@@ -58,6 +58,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Show comments on the old side of an unchanged line in the unified diff, under the row with that old line number. They used to appear only in split view and Conversation.
+- Show the literal frontmatter lines in **Diff Preview** when the frontmatter table can't account for an edit, such as a comment, quoting, or key order change, including when it happens alongside a value change. Those edits used to appear in neither the table nor the preview. A comment on a line the table already shows as changed, such as `title: New # b`, stays hidden.
 
 ## [6.0.0] - 2026-11-08
 

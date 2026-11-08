@@ -1,6 +1,83 @@
 import { describe, it, expect } from 'vitest';
 
-import { computeFrontmatterDiff } from './frontmatterDiff';
+import { extractFrontmatter, getFrontmatterLines } from './frontmatter';
+import { computeFrontmatterDiff, tableAccountsForFrontmatterEdit } from './frontmatterDiff';
+
+describe('tableAccountsForFrontmatterEdit', () => {
+  const toDocument = (yaml: string) => `---\n${yaml}\n---\n\nBody\n`;
+
+  const tableAccounts = (oldYaml: string | null, newYaml: string) => {
+    const oldDocument = oldYaml === null ? null : toDocument(oldYaml);
+    const newDocument = toDocument(newYaml);
+    return tableAccountsForFrontmatterEdit(
+      oldDocument === null ? [] : getFrontmatterLines(oldDocument),
+      getFrontmatterLines(newDocument),
+      computeFrontmatterDiff(
+        oldDocument === null ? null : extractFrontmatter(oldDocument).data,
+        extractFrontmatter(newDocument).data,
+      ),
+    );
+  };
+
+  it.each([
+    ['a comment edit', '# draft\ntitle: Same', '# final\ntitle: Same'],
+    ['a quoting edit', 'title: Old', 'title: "Old"'],
+    ['a key order edit', 'a: 1\nb: 2', 'b: 2\na: 1'],
+    ['a comment edit mixed with a value edit', '# draft\ntitle: Old', '# final\ntitle: New'],
+    ['a key order edit mixed with a value edit', 'a: 1\nb: 2\nc: 3', 'c: 3\na: 1\nb: 9'],
+    ['an added blank line', 'title: Same\nauthor: X', 'title: Same\n\nauthor: X'],
+    ['a blank line added above a changed key', 'title: Old', '\ntitle: New'],
+    ['a comment edit below a changed key', 'title: Old\n# a', 'title: New\n# b'],
+    ['a blank line added below a changed key', 'title: Old\nauthor: X', 'title: New\n\nauthor: X'],
+    ['a flow to block style edit', 'tags: [a, b]', 'tags:\n- a\n- b'],
+    ['an inline comment on an unchanged line', 'title: Same # a', 'title: Same # b'],
+  ])('does not account for %s', (_case, oldYaml, newYaml) => {
+    expect(tableAccounts(oldYaml, newYaml)).toBe(false);
+  });
+
+  it.each([
+    ['identical frontmatter', '# note\ntitle: Same', '# note\ntitle: Same'],
+    ['a plain value edit', 'title: Old', 'title: New'],
+    ['an added key', 'title: Same', 'title: Same\nauthor: X'],
+    ['a nested value edit', 'seo:\n  title: A', 'seo:\n  title: B'],
+    ['a column-0 sequence value edit', 'tags:\n- a\n- b', 'tags:\n- a\n- c'],
+    [
+      'a block scalar edit after a blank line',
+      'description: |\n  one\n\n  two',
+      'description: |\n  one\n\n  TWO',
+    ],
+    ['a nested value edit after a blank line', 'seo:\n  a: 1\n\n  b: 2', 'seo:\n  a: 1\n\n  b: 3'],
+    [
+      'a sequence edit after a column-0 comment',
+      'tags:\n- a\n# note\n- b',
+      'tags:\n- a\n# note\n- c',
+    ],
+    ['a double-quoted key value edit', '"title": Old', '"title": New'],
+    ['a single-quoted key value edit', "'title': Old", "'title': New"],
+    ['a number becoming a quoted string', 'version: 1', 'version: "1"'],
+    ['a boolean becoming a quoted string', 'draft: true', 'draft: "true"'],
+  ])('accounts for %s', (_case, oldYaml, newYaml) => {
+    expect(tableAccounts(oldYaml, newYaml)).toBe(true);
+  });
+
+  it('accounts for an added file with no comments', () => {
+    expect(tableAccounts(null, 'title: Same\nauthor: X')).toBe(true);
+  });
+
+  it('does not account for an added file with a comment', () => {
+    expect(tableAccounts(null, '# note\ntitle: Same')).toBe(false);
+  });
+
+  // Known limits: both comments sit on lines attributed to a key the table shows
+  // as changed, so they are dropped from the comparison and stay hidden.
+  it('accounts for an inline comment on a changed line, which stays hidden', () => {
+    expect(tableAccounts('title: Old # a', 'title: New # b')).toBe(true);
+  });
+
+  it('accounts for an indented comment inside a changed key, which stays hidden', () => {
+    expect(tableAccounts('seo:\n  # a\n  title: A', 'seo:\n  # b\n  title: B')).toBe(true);
+  });
+});
 
 describe('computeFrontmatterDiff', () => {
   it('treats key order changes as unchanged (canonical stringify)', () => {

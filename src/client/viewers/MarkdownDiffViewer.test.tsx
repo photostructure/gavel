@@ -914,6 +914,202 @@ describe('MarkdownDiffPreview frontmatter diff', () => {
     expect(container.querySelector('table')).toBeNull();
   });
 
+  type RawLine = ['context' | 'delete' | 'add', string];
+
+  const rawLineChunks = (rawLines: RawLine[], oldStart = 1): MergedChunk[] => [
+    {
+      header: `@@ -${oldStart},${rawLines.length} +1,${rawLines.length} @@`,
+      oldStart,
+      oldLines: rawLines.length,
+      newStart: 1,
+      newLines: rawLines.length,
+      lines: rawLines.map(([type, content]) => ({ type, content })),
+      originalIndices: rawLines.map((_line, index) => index),
+      hiddenLinesBefore: 0,
+      hiddenLinesAfter: 0,
+    },
+  ];
+
+  const literalLines = (container: HTMLElement) => {
+    const fencedBlock = container.querySelector('.markdown-preview-code');
+    expect(fencedBlock).not.toBeNull();
+    return Array.from(fencedBlock?.children ?? []);
+  };
+
+  const lineTexts = (lines: Element[]) => lines.map((line) => line.textContent);
+
+  const lineWithText = (lines: Element[], text: string) =>
+    lines.find((line) => line.textContent === text);
+
+  // Each case's context lines keep a key line directly above the closing `---`
+  // where the edit allows it: rendered as Markdown, that pair would be an <h2>.
+  it.each<[string, string, string, RawLine[], string, string]>([
+    [
+      'only a comment changes',
+      '# draft\ntitle: Same',
+      '# final\ntitle: Same',
+      [
+        ['context', '---'],
+        ['delete', '# draft'],
+        ['add', '# final'],
+        ['context', 'title: Same'],
+        ['context', '---'],
+        ['context', ''],
+        ['context', 'Body text.'],
+      ],
+      '# draft',
+      '# final',
+    ],
+    [
+      'only the quoting changes',
+      'title: Old\nauthor: Same',
+      'title: "Old"\nauthor: Same',
+      [
+        ['context', '---'],
+        ['delete', 'title: Old'],
+        ['add', 'title: "Old"'],
+        ['context', 'author: Same'],
+        ['context', '---'],
+        ['context', ''],
+        ['context', 'Body text.'],
+      ],
+      'title: Old',
+      'title: "Old"',
+    ],
+    [
+      'only the key order changes',
+      'first: 1\nsecond: 2\nthird: 3',
+      'second: 2\nfirst: 1\nthird: 3',
+      [
+        ['context', '---'],
+        ['delete', 'first: 1'],
+        ['context', 'second: 2'],
+        ['add', 'first: 1'],
+        ['context', 'third: 3'],
+        ['context', '---'],
+        ['context', ''],
+        ['context', 'Body text.'],
+      ],
+      'first: 1',
+      'first: 1',
+    ],
+  ])(
+    'shows the literal frontmatter lines when %s',
+    async (_case, oldYaml, newYaml, rawLines, oldLine, newLine) => {
+      (global.fetch as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => `---\n${oldYaml}\n---\n\nBody text.\n`,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => `---\n${newYaml}\n---\n\nBody text.\n`,
+        });
+
+      const { container } = renderViewer({ mergedChunks: rawLineChunks(rawLines) });
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+      });
+
+      goToDiffPreview();
+
+      expect(await screen.findByText('Body text.')).toBeInTheDocument();
+      expect(container.querySelector('table')).toBeNull();
+
+      const lines = literalLines(container);
+      // Every case ends with a blank line and the body line below the frontmatter.
+      expect(lineTexts(lines)).toEqual(rawLines.slice(0, -2).map(([, text]) => text));
+      const deletedLine = lines.find((line) => line.className.includes('bg-diff-deletion-bg'));
+      const addedLine = lines.find((line) => line.className.includes('bg-diff-addition-bg'));
+      expect(deletedLine?.textContent).toBe(oldLine);
+      expect(addedLine?.textContent).toBe(newLine);
+
+      // Routed through Markdown, a `# ` comment is an <h1> and a key line above
+      // the closing `---` is an <h2>.
+      expect(container.querySelector('h1')).toBeNull();
+      expect(container.querySelector('h2')).toBeNull();
+      expect(container.querySelector('hr')).toBeNull();
+    },
+  );
+
+  it('shows the table and the literal comment when a comment changes alongside a value', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => '---\n# draft\ntitle: Old\n---\n\nBody text.\n',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => '---\n# final\ntitle: New\n---\n\nBody text.\n',
+      });
+
+    const { container } = renderViewer({
+      mergedChunks: rawLineChunks([
+        ['context', '---'],
+        ['delete', '# draft'],
+        ['delete', 'title: Old'],
+        ['add', '# final'],
+        ['add', 'title: New'],
+        ['context', '---'],
+        ['context', ''],
+        ['context', 'Body text.'],
+      ]),
+    });
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    goToDiffPreview();
+
+    expect(await screen.findByText('Old')).toBeInTheDocument();
+    expect(screen.getByText('New')).toBeInTheDocument();
+    expect(container.querySelector('table')).not.toBeNull();
+
+    const lines = literalLines(container);
+    expect(lineWithText(lines, '# final')?.className).toContain('bg-diff-addition-bg');
+    expect(lineWithText(lines, '# draft')?.className).toContain('bg-diff-deletion-bg');
+    expect(container.querySelector('h1')).toBeNull();
+  });
+
+  it('shows the table and the literal comment for an added file with a comment', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      text: async () => '---\n# note\ntitle: Hello\n---\n\nBody text.\n',
+    });
+
+    const { container } = renderViewer({
+      file: createFile({ status: 'added', additions: 6, deletions: 0 }),
+      mergedChunks: rawLineChunks(
+        [
+          ['add', '---'],
+          ['add', '# note'],
+          ['add', 'title: Hello'],
+          ['add', '---'],
+          ['add', ''],
+          ['add', 'Body text.'],
+        ],
+        0,
+      ),
+    });
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    goToDiffPreview();
+
+    expect(await screen.findByText('Hello')).toBeInTheDocument();
+    expect(container.querySelector('table')).not.toBeNull();
+    expect(screen.getByText('Body text.')).toBeInTheDocument();
+
+    const lines = literalLines(container);
+    expect(lineTexts(lines)).toEqual(['---', '# note', 'title: Hello', '---']);
+    expect(lineWithText(lines, '# note')?.className).toContain('bg-diff-addition-bg');
+    expect(container.querySelector('h1')).toBeNull();
+  });
+
   it('renders no frontmatter table for stdin (no fetch performed)', async () => {
     renderViewer({ baseCommitish: 'stdin', targetCommitish: 'stdin' });
 
