@@ -69,8 +69,7 @@ function writeClientSettings(settings: Record<string, unknown>): void {
   }
   document.cookie = `${COOKIE_NAME}=${value}; Path=/; Max-Age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`;
   // Browsers drop cookies without an error: Chromium does inside a cross-site
-  // frame, which is how VS Code's Simple Browser shows difit (not tested there),
-  // and so does any browser with cookies blocked.
+  // frame, and so does any browser with cookies blocked.
   if (readCookieValue() !== value) {
     reportSaveError(
       `The browser did not keep the ${COOKIE_NAME} cookie; settings changes are lost`,

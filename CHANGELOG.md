@@ -50,6 +50,10 @@ All notable changes to this project will be documented in this file.
 - In **Conversation**, Escape in a reply or an edit that holds text closes the panel and keeps any unsent text, as it does for a line draft listed under **Unsent drafts**. Escape used to leave a reply and the panel open, and discard an edit's changes.
 - Escape no longer discards unsent text anywhere; only **Cancel** or Send does. In the diff, Escape in a line comment or an edit with unsaved changes keeps the form open, as it already did for a reply, and Escape in an edit you have not changed closes it; Escape used to discard a line comment's or an edit's text. In **Conversation**, Escape in the general comment form closes the panel and keeps its text for the next open; it used to discard it.
 
+### Removed in the PhotoStructure fork
+
+- Remove the bundled VS Code extension (`packages/vscode`). It was set up to publish under upstream's Marketplace publisher, which this project cannot publish under.
+
 ### Fixed in the PhotoStructure fork
 
 - Keep unsent text in a line comment, a reply, or an edit through a reload, a page crash, a development-server hot update, or a switch to another review tab: each draft is saved in the tab's sessionStorage per review and its form reopens with the text, expanding the context around its line and opening its file even if the file is marked viewed. A draft whose line the diff no longer shows appears at the top of its file. **Conversation** lists every unsent draft under **Unsent drafts**, including drafts on files no longer in the diff, with a pencil badge on the button that counts them; the list is taken when the panel opens. Opening a second line comment in the same hunk no longer closes the first one and discards its text.

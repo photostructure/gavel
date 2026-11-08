@@ -51,7 +51,3 @@ performance-results/
 # OpenSpec
 openspec/
 .claude/commands/openspec/
-
-# VS Code extension artifacts
-packages/vscode/*.vsix
-packages/vscode/.cache/
