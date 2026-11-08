@@ -6,7 +6,7 @@ The TypeScript sources live under `src`, split by runtime: `src/cli` handles com
 
 ## Build, Test, and Development Commands
 
-- `pnpm install` — install workspace dependencies (Node ≥21; use `mise` to stay aligned).
+- `pnpm install` — install workspace dependencies (Node ≥22.14.0; use `mise` to stay aligned).
 - `pnpm dev` — run the local development loop (boots the CLI server and UI with hot reload).
 - `pnpm build` — generate the CLI bundle and production web assets via TypeScript project references and Vite.
 - `pnpm test` / `pnpm test:watch` — execute the Vitest suite once or in watch mode.

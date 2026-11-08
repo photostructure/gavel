@@ -660,7 +660,7 @@ pnpm run format
 
 ## 📋 Requirements
 
-- Node.js ≥ 21.0.0
+- Node.js ≥ 22.14.0
 - Git repository with commits to review
 - GitHub CLI (`gh`) for `--pr` mode
 
