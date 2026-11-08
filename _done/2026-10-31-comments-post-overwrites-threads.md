@@ -5,7 +5,10 @@ section: Comment API
 
 # POST /api/comments without a valid baseVersion replaces every thread
 
-Placeholder. Not started.
+Fixed. A present-but-invalid `baseVersion`, or a body with neither `threads` nor `comments`, returns 400. An absent `baseVersion` merges and returns `merged: true`. Every posted anchor is checked before a merge can fold threads together. Accepted as recommended on 2026-11-08 (5D-1 A). Letting agents create review-scope threads moved to `2026-11-07-server-only-review-state.md`, which adds `scope: "review"` to comment imports before removing this endpoint.
+
+- [x] Red, then green: `pnpm vitest run src/server/server.test.ts -t "Comments API"` and `pnpm vitest run src/server/named-reviews.integration.test.ts -t "rejects unretained per-thread anchors|does not look up a capture"`
+- [x] Reviewed with `coding:second-opinion`: LAND from Codex and Claude on base `f3e74c3`, 3 passes.
 
 ## Problem
 

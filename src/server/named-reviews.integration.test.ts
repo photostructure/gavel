@@ -11,6 +11,7 @@ import type { DiffCommentThread, DiffResponse, RevisionsResponse } from '../type
 import type { ServerEvent } from '../types/events.js';
 import type { CapturedFile, NamedReviewMetadata, ReviewCapture } from '../types/review.js';
 
+import { NamedReviewStore } from './named-reviews.js';
 import { capturePatch, captureWorkingTree } from './review-capture.js';
 import { startServer } from './server.js';
 
@@ -536,25 +537,48 @@ describe('named review HTTP integration', () => {
     }
   });
 
-  it('rejects unretained per-thread anchors before applying any comments', async () => {
+  it.each([
+    ['the current baseVersion', (version: number): number | undefined => version],
+    // Both of these merge, which folds the two matching threads into one.
+    ['no baseVersion', (): number | undefined => undefined],
+    ['a stale baseVersion', (version: number): number | undefined => version + 1],
+  ])(
+    'rejects unretained per-thread anchors before applying any comments, with %s',
+    async (_label, baseVersion) => {
+      const before = await get<CommentsResponse>(`/api/comments-json${query}`);
+      for (const capture of [
+        { version: 99, patchDigest: 'bogus' },
+        { version: 1, patchDigest: '0'.repeat(64) },
+        { version: 0, patchDigest: initialCapture.patchDigest },
+      ]) {
+        await post(
+          `/api/comments${query}`,
+          {
+            baseVersion: baseVersion(before.version),
+            captureVersion: 1,
+            patchDigest: initialCapture.patchDigest,
+            threads: [lineThread('valid-first'), { ...lineThread('invalid-second'), capture }],
+          },
+          400,
+        );
+        expect(await get<CommentsResponse>(`/api/comments-json${query}`)).toEqual(before);
+      }
+      expect(events.some((event) => event.type === 'comment.created')).toBe(false);
+    },
+  );
+
+  it('does not look up a capture for each saved thread when comments are posted', async () => {
+    const threads = Array.from({ length: 20 }, (_, index) => lineThread(`saved-${index}`));
     const before = await get<CommentsResponse>(`/api/comments-json${query}`);
-    for (const capture of [
-      { version: 99, patchDigest: 'bogus' },
-      { version: 1, patchDigest: '0'.repeat(64) },
-      { version: 0, patchDigest: initialCapture.patchDigest },
-    ]) {
-      await post(
-        `/api/comments${query}`,
-        {
-          captureVersion: 1,
-          patchDigest: initialCapture.patchDigest,
-          threads: [lineThread('valid-first'), { ...lineThread('invalid-second'), capture }],
-        },
-        400,
-      );
-      expect(await get<CommentsResponse>(`/api/comments-json${query}`)).toEqual(before);
-    }
-    expect(events.some((event) => event.type === 'comment.created')).toBe(false);
+    const saved = await post<CommentsResponse>(`/api/comments${query}`, {
+      baseVersion: before.version,
+      threads,
+    });
+    // Each lookup deep-copies the whole capture, so its count must not grow with the threads.
+    const lookups = vi.spyOn(NamedReviewStore.prototype, 'get');
+    await post(`/api/comments${query}`, { baseVersion: saved.version, threads: saved.threads });
+    expect(lookups.mock.calls.length).toBeLessThan(threads.length);
+    lookups.mockRestore();
   });
 
   it('retains a valid per-thread older capture and ignores attempts to replace a saved anchor', async () => {

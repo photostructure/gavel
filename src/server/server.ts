@@ -1280,14 +1280,7 @@ export async function startServer(options: ServerOptions): Promise<{
       return payload.comments.map(normalizeComment);
     }
 
-    return [];
-  }
-
-  // Version the client based its push on (omitted by older clients).
-  function parseBaseVersion(payload: unknown): number | undefined {
-    if (!payload || typeof payload !== 'object') return undefined;
-    const value = (payload as { baseVersion?: unknown }).baseVersion;
-    return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
+    throw new Error('Expected threads or comments');
   }
 
   function parseCommentImportsPayload(body: unknown): CommentImport[] {
@@ -1298,6 +1291,35 @@ export async function startServer(options: ServerOptions): Promise<{
     return normalizeCommentImports(body);
   }
 
+  // A saved thread keeps its server anchor; a new thread must name a retained capture.
+  function resolveThreadCapture(
+    selection: DiffSelection,
+    thread: DiffCommentThread,
+    anchorCapture?: DiffCommentThread['capture'],
+  ): DiffCommentThread['capture'] {
+    if (!selection.reviewName) return undefined;
+    const saved = getOrCreateCommentSession(selection).threads.find(
+      (existing) => existing.id === thread.id,
+    )?.capture;
+    if (saved) return saved;
+    // Each lookup deep-copies the whole capture, so saved threads must not reach it.
+    const capture = namedReviews.get(selection.reviewName)?.metadata;
+    if (!capture) return undefined;
+    const requested = thread.capture ??
+      anchorCapture ?? {
+        version: capture.version,
+        patchDigest: capture.patchDigest,
+      };
+    const original = namedReviews.get(selection.reviewName, requested.version);
+    if (!original || original.metadata.patchDigest !== requested.patchDigest) {
+      throw new Error('Comment capture is unavailable');
+    }
+    return {
+      version: original.metadata.version,
+      patchDigest: original.metadata.patchDigest,
+    };
+  }
+
   function updateCommentSession(
     selection: DiffSelection,
     nextThreads: DiffCommentThread[],
@@ -1305,33 +1327,11 @@ export async function startServer(options: ServerOptions): Promise<{
     anchorCapture?: DiffCommentThread['capture'],
   ): boolean {
     const session = getOrCreateCommentSession(selection);
-    const capture = selection.reviewName
-      ? namedReviews.get(selection.reviewName)?.metadata
-      : undefined;
     // Progress is process-local agent state, never restored or overwritten by browser payloads.
     nextThreads = nextThreads.map((thread) => {
-      let threadCapture: DiffCommentThread['capture'];
-      if (capture && selection.reviewName) {
-        threadCapture = session.threads.find((existing) => existing.id === thread.id)?.capture;
-        if (!threadCapture) {
-          threadCapture = thread.capture ??
-            anchorCapture ?? {
-              version: capture.version,
-              patchDigest: capture.patchDigest,
-            };
-          const original = namedReviews.get(selection.reviewName, threadCapture.version);
-          if (!original || original.metadata.patchDigest !== threadCapture.patchDigest) {
-            throw new Error('Comment capture is unavailable');
-          }
-          threadCapture = {
-            version: original.metadata.version,
-            patchDigest: original.metadata.patchDigest,
-          };
-        }
-      }
       return {
         ...thread,
-        capture: threadCapture,
+        capture: resolveThreadCapture(selection, thread, anchorCapture),
         messages: thread.messages.map((message) => ({ ...message, progress: undefined })),
       };
     });
@@ -1601,7 +1601,15 @@ export async function startServer(options: ServerOptions): Promise<{
       const body: unknown =
         typeof req.body === 'string' ? (JSON.parse(req.body) as unknown) : req.body;
       const nextThreads = parseCommentsPayload(body);
-      const baseVersion = parseBaseVersion(body);
+      // The version of the comments the caller read before this post, when it read them.
+      const { baseVersion } = body as { baseVersion?: unknown };
+      if (
+        baseVersion !== undefined &&
+        (typeof baseVersion !== 'number' || !Number.isSafeInteger(baseVersion) || baseVersion < 0)
+      ) {
+        res.status(400).json({ error: 'Expected non-negative integer baseVersion' });
+        return;
+      }
       let anchorCapture: DiffCommentThread['capture'];
       if (selection.reviewName && body && typeof body === 'object') {
         const input = body as { captureVersion?: unknown; patchDigest?: unknown };
@@ -1618,18 +1626,22 @@ export async function startServer(options: ServerOptions): Promise<{
       }
       const session = getOrCreateCommentSession(selection);
 
-      // Stale baseVersion means another writer (e.g. an agent) changed comments since the
-      // client's last read, so merge rather than overwrite. A matching/absent version replaces.
-      const isStale = typeof baseVersion === 'number' && baseVersion !== session.version;
-      const resolvedThreads = isStale
-        ? mergeCommentThreads(session.threads, nextThreads).threads
-        : nextThreads;
+      // Merging folds matching threads together and drops the anchors of those it absorbs,
+      // so every posted anchor is checked first.
+      for (const thread of nextThreads) resolveThreadCapture(selection, thread, anchorCapture);
+
+      // Only a post based on the current version replaces, which is how a browser delete
+      // reaches the server. A stale or absent version may not have seen every thread, so merge.
+      const isCurrent = baseVersion === session.version;
+      const resolvedThreads = isCurrent
+        ? nextThreads
+        : mergeCommentThreads(session.threads, nextThreads).threads;
 
       updateCommentSession(selection, resolvedThreads, 'user', anchorCapture);
 
       res.json({
         success: true,
-        merged: isStale,
+        merged: !isCurrent,
         version: session.version,
         threads: conversation?.withProgress(selection, session.threads) ?? session.threads,
       });

@@ -44,6 +44,7 @@ All notable changes to this project will be documented in this file.
 - Sending a reply to a thread, including **Agreed**, **Still unclear**, or **Disagree**, marks its agent replies read.
 - In the unified view, dragging a comment selection across a row that has no line number on the selection's side no longer pulls the other side's number into the range.
 - Dragging on line numbers now selects a range and opens a comment form for it, as dragging the comment button does. The form's title names the lines, and pointing at a saved comment tints the lines it covers.
+- Keep existing comment threads when `POST /api/comments` omits `baseVersion`: the post now merges and returns `merged: true`, where it used to replace every thread. The endpoint returns HTTP 400 without applying comments for an invalid `baseVersion` (negative, fractional, a string, or `null`), which used to be treated as omitted, and for a body with neither `threads` nor `comments`, which used to delete every thread. Only a `baseVersion` equal to the current version still replaces the thread list.
 
 ### Documentation
 

@@ -245,7 +245,7 @@ describe('Server Integration Tests', () => {
           merged: boolean;
           version: number;
         };
-        expect(apiResult).toMatchObject({ success: true, merged: false });
+        expect(apiResult).toMatchObject({ success: true, merged: true });
         expect(typeof apiResult.version).toBe('number');
 
         // Verify the formatted output
@@ -317,7 +317,7 @@ describe('Server Integration Tests', () => {
       messages: [{ id, body, createdAt: isoNow, updatedAt: isoNow }],
     });
 
-    const postThreads = (port: number, threads: unknown[], baseVersion?: number) =>
+    const postThreads = (port: number, threads: unknown[], baseVersion?: unknown) =>
       fetch(`http://localhost:${port}/api/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -510,6 +510,94 @@ describe('Server Integration Tests', () => {
       }
     });
 
+    it.each([
+      ['negative', -1],
+      ['fractional', 1.5],
+      ['string', '1'],
+      ['null', null],
+    ])('rejects a %s baseVersion and keeps the earlier thread', async (_label, baseVersion) => {
+      const result = await startServer({
+        preferredPort: await getAvailablePort(4966),
+        openBrowser: false,
+      });
+
+      try {
+        await postThreads(result.port, [makeThread('t1', 'src/a.ts', 10, 'human thread')]);
+        const before = await getSession(result.port);
+
+        const response = await postThreads(
+          result.port,
+          [makeThread('t2', 'src/b.ts', 20, 'agent thread')],
+          baseVersion,
+        );
+
+        expect(response.status).toBe(400);
+        expect(((await response.json()) as { error: string }).error).toContain('baseVersion');
+        expect(await getSession(result.port)).toEqual(before);
+      } finally {
+        if (result.server) {
+          await new Promise<void>((resolve) => {
+            result.server!.close(() => resolve());
+          });
+        }
+      }
+    });
+
+    it('merges a post without baseVersion instead of replacing earlier threads', async () => {
+      const result = await startServer({
+        preferredPort: await getAvailablePort(4966),
+        openBrowser: false,
+      });
+
+      try {
+        await postThreads(result.port, [makeThread('t1', 'src/a.ts', 10, 'human thread')]);
+
+        const response = await postThreads(result.port, [
+          makeThread('t2', 'src/b.ts', 20, 'agent thread'),
+        ]);
+
+        expect(response.status).toBe(200);
+        const body = (await response.json()) as { merged: boolean; threads: { id: string }[] };
+        expect(body.merged).toBe(true);
+        expect(body.threads.map((thread) => thread.id)).toEqual(['t1', 't2']);
+        const final = await getSession(result.port);
+        expect(final.threads.map((thread) => thread.id)).toEqual(['t1', 't2']);
+      } finally {
+        if (result.server) {
+          await new Promise<void>((resolve) => {
+            result.server!.close(() => resolve());
+          });
+        }
+      }
+    });
+
+    it('rejects a body with neither threads nor comments and keeps the earlier thread', async () => {
+      const result = await startServer({
+        preferredPort: await getAvailablePort(4966),
+        openBrowser: false,
+      });
+
+      try {
+        await postThreads(result.port, [makeThread('t1', 'src/a.ts', 10, 'human thread')]);
+        const before = await getSession(result.port);
+
+        const response = await fetch(`http://localhost:${result.port}/api/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        });
+
+        expect(response.status).toBe(400);
+        expect(await getSession(result.port)).toEqual(before);
+      } finally {
+        if (result.server) {
+          await new Promise<void>((resolve) => {
+            result.server!.close(() => resolve());
+          });
+        }
+      }
+    });
+
     it('bumps the version when a reply is imported (so the change is broadcast)', async () => {
       const port = await getAvailablePort(4966);
       const result = await startServer({
@@ -653,7 +741,10 @@ describe('Server Integration Tests', () => {
         const snapshot = (await (
           await fetch(`${origin}/api/conversation/snapshot`)
         ).json()) as ConversationSnapshot;
-        expect(snapshot.reviews[0]?.threads[0]?.messages[0]?.progress?.status).toBe('queued');
+        const question = snapshot.reviews[0]?.threads
+          .flatMap((thread) => thread.messages)
+          .find((message) => message.id === 'q');
+        expect(question?.progress?.status).toBe('queued');
         expect(
           (await post('/api/conversation/status', { ...comment, status: 'delivered' })).status,
         ).toBe(200);
@@ -737,12 +828,14 @@ describe('Server Integration Tests', () => {
           'server.ready',
           'comment.created',
           'comment.created',
-          'thread.deleted',
         ]);
         const snapshot = (await (
           await fetch(`${result.url}/api/conversation/snapshot`)
         ).json()) as ConversationSnapshot;
-        expect(snapshot.reviews[0]?.threads[0]?.messages[0]).toMatchObject({
+        const live = snapshot.reviews[0]?.threads
+          .flatMap((thread) => thread.messages)
+          .find((message) => message.id === 'live');
+        expect(live).toMatchObject({
           body: 'Live question',
           progress: { status: 'queued' },
         });
@@ -2893,10 +2986,13 @@ describe('Server Integration Tests', () => {
         },
       ];
       for (const fixture of cases) {
+        const current = (await (await fetch(`${result.url}/api/comments-json`)).json()) as {
+          version: number;
+        };
         const response = await fetch(`${result.url}/api/comments`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ threads: [fixture.thread] }),
+          body: JSON.stringify({ threads: [fixture.thread], baseVersion: current.version }),
         });
         expect(response.status).toBe(200);
         const saved = (await (await fetch(`${result.url}/api/comments-json`)).json()) as {

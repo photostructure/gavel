@@ -606,7 +606,7 @@ const definitions: Record<string, Schema> = {
   CommentsRequest: {
     type: 'object',
     description:
-      'POST /api/comments edits/replaces comments, including message body and intent edits. A stale baseVersion merges instead of replacing; server-owned progress is ignored. For named reviews, a new thread uses its own retained capture anchor when present, otherwise the optional captureVersion and patchDigest pair (both or neither), otherwise the current capture. A partial or unknown body pair, or an invalid new-thread anchor, returns HTTP 400 without applying comments. Saved threads keep their server anchor and ignore supplied replacements. Ordinary reviews discard capture stamps.',
+      'POST /api/comments edits/replaces comments, including message body and intent edits. A baseVersion equal to the current version replaces the thread list; a stale or omitted baseVersion merges, so existing threads stay. An invalid baseVersion, or a body with neither threads nor comments, returns HTTP 400 without applying comments. Server-owned progress is ignored. For named reviews, a new thread uses its own retained capture anchor when present, otherwise the optional captureVersion and patchDigest pair (both or neither), otherwise the current capture. A partial or unknown body pair, or an invalid new-thread anchor, returns HTTP 400 without applying comments. Saved threads keep their server anchor and ignore supplied replacements. Ordinary reviews discard capture stamps.',
     dependentRequired: { captureVersion: ['patchDigest'], patchDigest: ['captureVersion'] },
     anyOf: [
       object(

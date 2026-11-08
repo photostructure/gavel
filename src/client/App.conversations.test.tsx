@@ -72,9 +72,9 @@ describe('review conversation navigation with browser storage', () => {
           threads: DiffCommentThread[];
           baseVersion?: number;
         };
-        // Match /api/comments: an omitted baseVersion allows replacement;
-        // a stale version requires merging with newer server comments.
-        const stale = body.baseVersion !== undefined && body.baseVersion !== version;
+        // Match /api/comments: only the current baseVersion allows replacement;
+        // a stale or omitted version requires merging with newer server comments.
+        const stale = body.baseVersion !== version;
         if (!stale) serverThreads = structuredClone(body.threads);
         payload = { version: ++version, merged: stale, threads: structuredClone(serverThreads) };
       }
