@@ -37,6 +37,6 @@ callers need "commit may proceed" separately from the verdict.
 The approval JSON is read by the HTTP API (`/api/approval`, `comment snapshot`),
 the JSON Schema (`src/cli/schema.ts`), the client (`App.tsx`, `VerdictControl.tsx`,
 `useReviewApproval.ts`, `ReviewQueueBar.tsx`, `utils/verdict.ts`), the skills
-(`skills/difit/SKILL.md`'s snapshot `jq` filter, and the verdict paragraphs in
-that skill and `.claude/skills/difit-dev/SKILL.md`), and review records saved under `.git/difit` (a saved
+(`skills/gavel/SKILL.md`'s snapshot `jq` filter, and the verdict paragraphs in
+that skill and `.claude/skills/gavel-dev/SKILL.md`), and review records saved under `.git/gavel` (a saved
 record with the old flags must still restore). Plan the migration for each.

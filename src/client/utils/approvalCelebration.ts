@@ -942,7 +942,7 @@ function draw(ctx: CanvasRenderingContext2D, piece: Piece) {
 export function pickApprovalAnimation(
   animations: Record<ApprovalAnimation, boolean>,
 ): ApprovalAnimation | null {
-  // Read only the animations this build knows; saved settings are shared with other difit versions.
+  // Read only the animations this build knows; saved settings are shared with other gavel versions.
   const enabled = (Object.keys(BURSTS) as ApprovalAnimation[]).filter(
     (animation) => animations[animation],
   );

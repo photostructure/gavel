@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Gavel (Dev)'
+  short_description: 'Request user review without idle model turns.'
+  default_prompt: 'Use $gavel-dev to show this session’s changes for review, then hand back without polling.'

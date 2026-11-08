@@ -1,14 +1,14 @@
 ---
-name: difit-dev
-description: Ask the user for a code review through difit after code changes in this repository, serving every review shown to the user from a build and using `pnpm run dev` only for your own UI checks.
+name: gavel-dev
+description: Ask the user for a code review through gavel after code changes in this repository, serving every review shown to the user from a build and using `pnpm run dev` only for your own UI checks.
 metadata:
   internal: true
 ---
 
-# Difit Dev
+# Gavel Dev
 
-Use only for an explicit difit/viewer request, skill invocation, or standing
-instruction to request difit reviews. Ordinary review requests belong in chat.
+Use only for an explicit gavel/viewer request, skill invocation, or standing
+instruction to request gavel reviews. Ordinary review requests belong in chat.
 
 Serve every review shown to the user from a build, not from Vite: a proposed commit,
 a stack of them, or committed work, which is read-only (`--no-lgtm`) once it is
@@ -35,14 +35,14 @@ UI check). Targets: `.` (uncommitted),
 `working`, `staged`, or omit for HEAD. Add `--include-untracked` when needed.
 When none of this session's work is still uncommitted, don't launch: tell the
 user it is already committed, list each commit's short SHA and subject, and ask
-whether difit should show them. If they say yes, open them with the commit's
+whether gavel should show them. If they say yes, open them with the commit's
 own message as `--commit-message` (a range: one subject per line): one `<sha>`,
 or `<last-sha> <first-sha>^` for consecutive commits, which takes one approval
 for all of them (a stack, below, takes one each). Keep approvals on while the
 commits are not yet on `main` (`git merge-base --is-ancestor <sha> main` exits
 1); pass `--no-lgtm` once they are. If other commits fall between yours, name
 them and ask whether to show the whole range or each of yours alone.
-difit fills in the **About** panel's agent and session ID from Claude Code's
+gavel fills in the **About** panel's agent and session ID from Claude Code's
 environment; override them with `--agent` and `--agent-session-id`. A session
 started from another session's shell (such as `claude -p`) inherits its
 entrypoint, so pass `--agent` there. Add
@@ -73,7 +73,7 @@ idle reading), then
 `node dist/cli/index.js idle`. If it exits non-zero or prints an `idleMs` of 600000 (10 minutes) or
 more, the user is away: do not launch. Finish everything else, including tests
 and second-opinion review, then end the turn with one line saying the change is
-ready for difit review, and launch when the user says to. Do not run `idle`
+ready for gavel review, and launch when the user says to. Do not run `idle`
 again to see whether they came back; their next message tells you. Skip the
 check when the user's latest message asks for the review, since they may be
 reading it on another device.
@@ -83,7 +83,7 @@ JSON payloads before composing them; omit the selector for events. The Draft
 2020-12 bundle includes request/response definitions in `$defs`. Use command
 `--help` for usage. The commit-message TLDR is the summary's `rationale` field.
 
-For stacked commits, follow the [difit skill](../../../skills/difit/SKILL.md)'s rule
+For stacked commits, follow the [gavel skill](../../../skills/gavel/SKILL.md)'s rule
 for several reviews: launch the first commit with `--review <name>`, add each later
 one with `node dist/cli/index.js review create <name> --port <api-port>` in commit
 order, and give the user one link; the tabs lead to the other reviews. When the
@@ -125,7 +125,7 @@ recover current state; the event endpoint replays the latest 256 events in this
 server process. Use message `progress.cursor` for status/reply,
 not a progress event's stream cursor or the snapshot's cursor. Do not promise
 listening after ending the turn without host support that forwards process output.
-The server saves each review under `.git/difit` and restores it when the same review
+The server saves each review under `.git/gavel` and restores it when the same review
 opens again ([saved reviews](../../../docs/agent-conversations.md#saved-reviews)).
 When the snapshot's `store.error` is set, tell the user that review changes are not
 being saved, and why. `node dist/cli/index.js approval status <sha>` reports a

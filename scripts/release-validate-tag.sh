@@ -9,7 +9,7 @@ fi
 PACKAGE_NAME="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).name")"
 PACKAGE_VERSION="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
 REPOSITORY_URL="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).repository.url")"
-if [[ "$PACKAGE_NAME" != @photostructure/difit || "$GITHUB_REF_NAME" != "v$PACKAGE_VERSION" || "$REPOSITORY_URL" != "https://github.com/$GITHUB_REPOSITORY.git" ]]; then
+if [[ "$PACKAGE_NAME" != @photostructure/gavel || "$GITHUB_REF_NAME" != "v$PACKAGE_VERSION" || "$REPOSITORY_URL" != "https://github.com/$GITHUB_REPOSITORY.git" ]]; then
   echo '::error::The tagged package identity does not match the fork release'
   exit 1
 fi

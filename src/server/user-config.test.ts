@@ -17,7 +17,7 @@ describe('user-config', () => {
   let configPath: string;
 
   beforeEach(async () => {
-    configDir = await fs.mkdtemp(join(tmpdir(), 'difit-user-config-'));
+    configDir = await fs.mkdtemp(join(tmpdir(), 'gavel-user-config-'));
     configPath = join(configDir, 'config.json');
   });
 
@@ -26,23 +26,23 @@ describe('user-config', () => {
   });
 
   describe('getUserConfigPath', () => {
-    const originalConfigDir = process.env.DIFIT_CONFIG_DIR;
+    const originalConfigDir = process.env.GAVEL_CONFIG_DIR;
 
     afterEach(() => {
       if (originalConfigDir === undefined) {
-        delete process.env.DIFIT_CONFIG_DIR;
+        delete process.env.GAVEL_CONFIG_DIR;
       } else {
-        process.env.DIFIT_CONFIG_DIR = originalConfigDir;
+        process.env.GAVEL_CONFIG_DIR = originalConfigDir;
       }
     });
 
-    it('defaults to ~/.difit/config.json', () => {
-      delete process.env.DIFIT_CONFIG_DIR;
-      expect(getUserConfigPath()).toMatch(/\.difit[/\\]config\.json$/);
+    it('defaults to ~/.gavel/config.json', () => {
+      delete process.env.GAVEL_CONFIG_DIR;
+      expect(getUserConfigPath()).toMatch(/\.gavel[/\\]config\.json$/);
     });
 
-    it('respects DIFIT_CONFIG_DIR', () => {
-      process.env.DIFIT_CONFIG_DIR = configDir;
+    it('respects GAVEL_CONFIG_DIR', () => {
+      process.env.GAVEL_CONFIG_DIR = configDir;
       expect(getUserConfigPath()).toBe(join(configDir, 'config.json'));
     });
   });

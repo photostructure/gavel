@@ -18,13 +18,15 @@ import type { CommentProgress, DiffCommentThread, DiffSelection } from '../types
 import type { NamedReviewMetadata, ReviewCapture } from '../types/review.js';
 import { getDiffSelectionKey } from '../utils/diffSelection.js';
 
+import { getGitCommonDirectory } from './review-capture.js';
+
 /** A saved review untouched this long, and a saved patch no review uses, is deleted at server start. */
 export const REVIEW_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** How often a server that saved a review marks itself alive in the store. */
 export const SERVER_HEARTBEAT_MS = 60 * 1000;
 
-// The names difit writes in each store directory. Group 1 marks a leftover: a temporary file
+// The names gavel writes in each store directory. Group 1 marks a leftover: a temporary file
 // (`<name>.<pid or server id>.tmp`) or a reclaim guard (`<lock>.reclaim`, and its own temporary).
 const HASHED_FILE = /^[0-9a-f]{64}\.json((?:\.reclaim)?(?:\.[0-9a-f-]+\.tmp)?|\.reclaim)?$/;
 // A saved review record, as list() reads them.
@@ -130,8 +132,13 @@ function processAlive(pid: number): boolean {
 // Servers running in this process, which share its pid.
 const liveServerIds = new Set<string>();
 
+/** The saved-review store of the repository that contains cwd. */
+export async function openReviewStore(cwd: string): Promise<ReviewStore> {
+  return new ReviewStore(join(await getGitCommonDirectory(cwd), 'gavel'));
+}
+
 /**
- * Review state saved under the repository's Git directory (`<git-common-dir>/difit`), shared by
+ * Review state saved under the repository's Git directory (`<git-common-dir>/gavel`), shared by
  * its worktrees and never committed, cloned or pushed. Each saved review has a lock naming the
  * running server that saves it, so two servers never overwrite each other's copy.
  */
@@ -173,7 +180,7 @@ export class ReviewStore {
           rmSync(this.heartbeatPath(owner), { force: true });
         } catch (error) {
           console.error(
-            `difit could not release its saved-review locks in ${this.directory}: ${error instanceof Error ? error.message : String(error)}`,
+            `gavel could not release its saved-review locks in ${this.directory}: ${error instanceof Error ? error.message : String(error)}`,
           );
         } finally {
           clearInterval(this.heartbeats.get(owner.serverId));
@@ -205,7 +212,7 @@ export class ReviewStore {
       } catch (error) {
         // A timer has no caller to fail; until a beat succeeds, other servers may take over.
         this.heartbeatError = `could not refresh the saved-review heartbeat in ${this.servers}: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(`difit ${this.heartbeatError}`);
+        console.error(`gavel ${this.heartbeatError}`);
       }
     }, SERVER_HEARTBEAT_MS);
     timer.unref();
@@ -351,7 +358,7 @@ export class ReviewStore {
     return JSON.parse(text) as ReviewCapture;
   }
 
-  /** Every saved review; a file that is not one of difit's records is skipped. */
+  /** Every saved review; a file that is not one of gavel's records is skipped. */
   list(): SavedReview[] {
     return this.entries(this.reviews)
       .filter((name) => SAVED_RECORD.test(name))
@@ -390,7 +397,7 @@ export class ReviewStore {
         problems.push(`${path}: ${error instanceof Error ? error.message : String(error)}`);
       }
     };
-    // Cleanup deletes only names difit writes; anything else in these directories stays.
+    // Cleanup deletes only names gavel writes; anything else in these directories stays.
     const ours = (directory: string) =>
       this.entries(directory).flatMap((name) => {
         const match = (directory === this.servers ? SERVER_FILE : HASHED_FILE).exec(name);

@@ -33,8 +33,8 @@ function startVite(cliServerUrl) {
     stdio: ['inherit', 'pipe', 'pipe'],
     env: {
       ...process.env,
-      VITE_DIFIT_API_URL: serverUrl.origin,
-      ...(openBrowser ? { DIFIT_VITE_OPEN_PATH: `/${serverUrl.search}${serverUrl.hash}` } : {}),
+      VITE_GAVEL_API_URL: serverUrl.origin,
+      ...(openBrowser ? { GAVEL_VITE_OPEN_PATH: `/${serverUrl.search}${serverUrl.hash}` } : {}),
     },
   });
   viteProcess.stdout.on('data', writeStderr);

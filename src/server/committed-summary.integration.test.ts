@@ -26,9 +26,9 @@ describe('committed review summary HTTP integration', () => {
       'git',
       [
         '-c',
-        'user.name=difit',
+        'user.name=gavel',
         '-c',
-        'user.email=difit@example.com',
+        'user.email=gavel@example.com',
         '-c',
         'commit.gpgsign=false',
         '-c',
@@ -81,7 +81,7 @@ describe('committed review summary HTTP integration', () => {
     for (const key of Object.keys(process.env)) {
       if (key.startsWith('GIT_')) vi.stubEnv(key, undefined);
     }
-    root = realpathSync(mkdtempSync(join(tmpdir(), 'difit-committed-summary-')));
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'gavel-committed-summary-')));
     git('init', '--quiet');
     for (const [index, message] of ['fixture root', previousMessage, currentMessage].entries()) {
       writeFileSync(join(root, 'fixture.txt'), `revision ${index}\n`);

@@ -31,7 +31,7 @@ function toNotBlank(value: string | undefined): string | undefined {
 }
 
 /**
- * Identifies the agent whose shell launched difit from the variables Claude Code
+ * Identifies the agent whose shell launched gavel from the variables Claude Code
  * and Codex export to it, falling back to AI_AGENT for other agents. Claude Code
  * and Codex can both be present when one agent runs inside the other; Claude
  * Code is chosen then, and --agent/--agent-session-id override it.

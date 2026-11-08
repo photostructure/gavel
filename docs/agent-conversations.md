@@ -1,8 +1,8 @@
 # Review conversations
 
-For uncommitted work, start `difit --review <task-name> --keep-alive` and retain
+For uncommitted work, start `gavel --review <task-name> --keep-alive` and retain
 the foreground process handle. This captures the selected patch under a stable
-review name. For commits, use `difit <target> <base> --keep-alive` with immutable
+review name. For commits, use `gavel <target> <base> --keep-alive` with immutable
 SHAs for approval. Conversation and LGTM are enabled by default. `--keep-alive`
 lets questions continue across browser disconnects; LGTM keeps the review open
 when approval changes.
@@ -31,7 +31,7 @@ Capture the current tracked changes from HEAD with repeatable native Git
 pathspecs. Quote pathspecs so Git receives exclusions and glob syntax unchanged:
 
 ```sh
-difit --review parser-fix --pathspec src --pathspec ':(exclude)src/generated/**' --keep-alive
+gavel --review parser-fix --pathspec src --pathspec ':(exclude)src/generated/**' --keep-alive
 ```
 
 Add `--include-untracked` to include untracked file contents. Capture operations
@@ -55,8 +55,8 @@ selected patch, or launch a new local review from a saved artifact with
 For overlapping changes in one file, save an artifact and use its catalogue IDs:
 
 ```sh
-difit review capture --pathspec src --include-untracked --output /tmp/capture.json
-difit --review parser-subset --capture /tmp/capture.json --select '<file-id>' --select '<hunk-id>' --keep-alive
+gavel review capture --pathspec src --include-untracked --output /tmp/capture.json
+gavel --review parser-subset --capture /tmp/capture.json --select '<file-id>' --select '<hunk-id>' --keep-alive
 ```
 
 `--output` writes the full schema-version-1 artifact and prints a compact file/hunk
@@ -66,7 +66,7 @@ whole files or individual hunks. IDs contain the artifact's patch digest; line o
 hunk numbers alone cannot identify a stable selection. A subset has its own
 digest and catalogue. Binary, mode, rename, addition, deletion, and submodule
 changes require a whole-file ID. Artifacts are bound to their repository root.
-`difit - --review parser-fix < /tmp/selected.patch` also captures a supplied patch.
+`gavel - --review parser-fix < /tmp/selected.patch` also captures a supplied patch.
 `--pathspec` and `--include-untracked` apply only to native captures; `--select`
 can narrow an artifact or supplied patch.
 
@@ -74,9 +74,9 @@ Use the actual `server.ready.port` to create another task on the same server or
 to update an existing task. Read its current metadata before updating:
 
 ```sh
-difit review create docs-update --port 4966 --pathspec docs
+gavel review create docs-update --port 4966 --pathspec docs
 curl --fail --silent http://localhost:4966/api/reviews/parser-fix
-difit review update parser-fix --port 4966 --expected-version 1 --pathspec src --pathspec ':(exclude)src/generated/**'
+gavel review update parser-fix --port 4966 --expected-version 1 --pathspec src --pathspec ':(exclude)src/generated/**'
 ```
 
 A review asks for approval when it carries a capture or a proposed commit
@@ -101,7 +101,7 @@ close itself once every review has a verdict. The **Change summary** panel stays
 reloads, the way the reviewer last left it.
 
 An update can instead use `--capture /tmp/next-capture.json` and repeatable
-`--select` IDs, or `difit review update parser-fix - --port 4966
+`--select` IDs, or `gavel review update parser-fix - --port 4966
 --expected-version 1 < /tmp/selected.patch`. Capture updates are explicit: source
 edits and browser refresh leave the displayed patch unchanged.
 
@@ -120,9 +120,9 @@ capture version/digest and appear outdated after the capture changes.
 
 ## Discover payloads
 
-Run `difit --help` for commands and `difit comment <command> --help` for companion
-command usage. `difit schema` prints a JSON Schema Draft 2020-12 bundle for launch
-events. Select a root with `difit schema events`, `summary`, `reply`, `status`, or
+Run `gavel --help` for commands and `gavel comment <command> --help` for companion
+command usage. `gavel schema` prints a JSON Schema Draft 2020-12 bundle for launch
+events. Select a root with `gavel schema events`, `summary`, `reply`, `status`, or
 `snapshot`; `comments`, `import`, and `approval` describe the other control payloads.
 `capture` validates a saved artifact and `capture-update` describes its guarded
 update request.
@@ -140,7 +140,7 @@ below. Schema discovery does not start a review server.
 Foreground stdout emits one JSON object per line by default. `--jsonl` selects
 this explicitly; `--no-jsonl` selects human-readable output. Startup diagnostics
 go to stderr in both modes; human-mode comment and approval output goes to stdout.
-There is no separate `comment watch` command. `difit wait` long-polls
+There is no separate `comment watch` command. `gavel wait` long-polls
 `GET /api/conversation/events`; see [waiting for human review](waiting-for-review.md).
 Otherwise, read output from the running launch process between tool steps.
 `--background` detaches the server and returns connection information without
@@ -191,13 +191,13 @@ After output loss or server restart, run `comment snapshot --port <port>` to
 obtain `{reviews,cursor}`. Each review includes its `id` (use as `reviewId`),
 selection, threads, and message IDs. A snapshot recovers current state, including
 message deletions and edits, rather than missed events. Reconcile outstanding work
-and existing replies, then continue consuming new launch output. `difit wait
+and existing replies, then continue consuming new launch output. `gavel wait
 --after <cursor>` resumes from a stream cursor; see
 [waiting for human review](waiting-for-review.md). The snapshot and its state checkpoint
 cursor are captured together. Compare that cursor for equality with concurrently
 buffered live event cursors: a matching event's state change is already reflected
 in the snapshot. Treat the tokens as opaque; do not decode or sort them. A
-consumer that waits next with `difit wait` passes the checkpoint cursor to
+consumer that waits next with `gavel wait` passes the checkpoint cursor to
 `--after`, so an approval or summary edit made after the snapshot is not
 missed; only a consumer that keeps reading live launch output may ignore it.
 Use message `progress.cursor` for status/reply
@@ -206,7 +206,7 @@ through snapshots, but it has no launch stream available to the agent.
 
 JSONL output does not itself wake an idle agent. On a host that starts a turn
 when a background command exits and puts no time limit on it, wait while idle by
-running `difit wait` as one background command; the harness wakes the agent
+running `gavel wait` as one background command; the harness wakes the agent
 once, when it exits. On other hosts, end the turn. See
 [waiting for human review](waiting-for-review.md). Do not wait with a monitor on the launch output: in the
 tested Claude harness a Monitor expires after its configured timeout (at most 30
@@ -226,7 +226,7 @@ persisted handled work and existing replies before answering restored questions.
 Reply by IDs from the event, using JSON on stdin to avoid shell quoting errors:
 
 ```sh
-difit comment reply --port 4966 < /tmp/difit-reply.json
+gavel comment reply --port 4966 < /tmp/gavel-reply.json
 ```
 
 ```json
@@ -261,10 +261,10 @@ to keep listening after ending a turn without such a host integration.
 ## Proposed commit message and rationale
 
 The review's proposed commit message and short rationale explain what would be
-committed and why. Seed the initial selection when starting difit:
+committed and why. Seed the initial selection when starting gavel:
 
 ```sh
-difit . --commit-message 'fix: preserve review intent' --why 'Keep the proposed change clear during review.'
+gavel . --commit-message 'fix: preserve review intent' --why 'Keep the proposed change clear during review.'
 ```
 
 The browser can edit and save these fields for each diff selection, including
@@ -288,7 +288,7 @@ Use that review's `id` and summary version to write a proposal without following
 another tab's current selection:
 
 ```sh
-difit comment summary --port 4966 < /tmp/difit-summary.json
+gavel comment summary --port 4966 < /tmp/gavel-summary.json
 ```
 
 ```json
@@ -355,8 +355,8 @@ Resolution is separate from reply status: an answer does not prove that a reques
 change is resolved. Agents should resolve only when the user requests it.
 
 ```sh
-difit comment resolve <threadId> --review <reviewId> --port <port>
-difit comment reopen <threadId> --review <reviewId> --port <port>
+gavel comment resolve <threadId> --review <reviewId> --port <port>
+gavel comment reopen <threadId> --review <reviewId> --port <port>
 ```
 
 Use `--review` from the event to avoid another tab's selected review. Without it,
@@ -378,7 +378,7 @@ Stdout output does not count as delivery. Report `delivered` explicitly after
 consuming a user message. Read, Thinking, and Replying also require agent reports:
 
 ```sh
-difit comment status --port <port> < /tmp/difit-status.json
+gavel comment status --port <port> < /tmp/gavel-status.json
 ```
 
 ```json
@@ -482,8 +482,8 @@ publication, or invoking a landing workflow the user has not requested.
 ## Saved reviews
 
 A server with conversation APIs saves each review's comments, comment progress,
-proposal and approval under `<git-common-dir>/difit/`, the repository's
-`.git/difit`, which its worktrees share and Git never commits, clones or pushes.
+proposal and approval under `<git-common-dir>/gavel/`, the repository's
+`.git/gavel`, which its worktrees share and Git never commits, clones or pushes.
 It saves after every change, so a stopped or crashed server loses nothing it
 saved. A later server restores a review when it opens the same one:
 
@@ -524,18 +524,18 @@ When a server starts, it deletes saved reviews that nobody changed for 7 days,
 saved patches that no remaining review uses once they are 7 days old, and locks
 whose server stopped.
 
-`difit approval status <commit>` lists the saved reviews of a commit without a
+`gavel approval status <commit>` lists the saved reviews of a commit without a
 running server: reviews that targeted the commit, and named reviews of exactly
-`git diff --full-index <commit>^ <commit>`, the stacking recipe in the skills (full object names keep the digest stable as the repository grows). `difit approval status --patch-digest <digest>`
+`git diff --full-index <commit>^ <commit>`, the stacking recipe in the skills (full object names keep the digest stable as the repository grows). `gavel approval status --patch-digest <digest>`
 matches a named review by its current patch. Both print a JSON array, newest
 first, of `{match, approved, name, selection, approval, commitMessage, updatedAt}`;
 an empty array means no saved review matches.
 
 ## Compatibility
 
-Published `@photostructure/difit` 5.1.0 does not contain this launch JSONL
-protocol. Until the next release, use a source build and verify that `--help`
-includes `--jsonl` and `--no-jsonl` and `difit schema` succeeds. Within this repository,
+The last published version, `@photostructure/difit` 5.1.0, does not contain this
+launch JSONL protocol. Until `@photostructure/gavel` is published, use a source build and verify that `--help`
+includes `--jsonl` and `--no-jsonl` and `gavel schema` succeeds. Within this repository,
 run `pnpm build` and launch any review the user will see with
 `node dist/cli/index.js <target> <base> --keep-alive`, which serves the built UI; use
 `pnpm run dev` only for UI development, since its page hot-reloads when client source

@@ -29,8 +29,8 @@ interface EditorOption {
 export const CUSTOM_EDITOR_ID: EditorOptionId = 'custom';
 export const NONE_EDITOR_ID: EditorOptionId = 'none';
 export const DEFAULT_EDITOR_ID: EditorOptionId = 'vscode';
-export const EDITOR_SESSION_FRAGMENT_KEY = 'difit-editor-token';
-export const EDITOR_SESSION_HEADER = 'X-Difit-Editor-Token';
+export const EDITOR_SESSION_FRAGMENT_KEY = 'gavel-editor-token';
+export const EDITOR_SESSION_HEADER = 'X-Gavel-Editor-Token';
 
 export const EDITOR_OPTIONS: readonly [EditorOption, ...EditorOption[]] = [
   {
@@ -94,7 +94,7 @@ const DEFAULT_EDITOR_OPTION: EditorOption =
   EDITOR_OPTIONS.find((option) => option.id === DEFAULT_EDITOR_ID) ?? EDITOR_OPTIONS[0];
 
 /**
- * Case-insensitive lookup by id. Used mostly for the `DIFIT_EDITOR` / `EDITOR`
+ * Case-insensitive lookup by id. Used mostly for the `GAVEL_EDITOR` / `EDITOR`
  * environment-variable selection on the server.
  */
 export const resolveEditorOption = (input?: string): EditorOption => {

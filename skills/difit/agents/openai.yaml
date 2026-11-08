@@ -1,4 +1,0 @@
-interface:
-  display_name: 'Difit'
-  short_description: 'Request user review or open difit from agents.'
-  default_prompt: 'Use $difit to open the requested review and follow the conversation workflow.'

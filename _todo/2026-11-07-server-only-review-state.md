@@ -31,10 +31,10 @@ Accepted as recommended:
 
 ## What the browser stores today
 
-- `localStorage` `difit-storage-v1/<repo>/<base-target>` (`StorageService`,
+- `localStorage` `gavel-storage-v1/<repo>/<base-target>` (`StorageService`,
   `useDiffComments`): sent threads, undo copies of deleted comments, viewed files,
   applied comment-import IDs.
-- `localStorage` `difit-viewed-index-v1/<repo>`: viewed-file hash index.
+- `localStorage` `gavel-viewed-index-v1/<repo>`: viewed-file hash index.
 - `localStorage` agent-reply read marks (`useAgentUpdates`).
 - `sessionStorage` unsent drafts (`useCommentDrafts`).
 - Presentation, which stays: `ReviewSummaryPanel` expanded flag (`localStorage`),

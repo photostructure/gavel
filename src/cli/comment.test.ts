@@ -28,7 +28,7 @@ describe('createCommentCommand', () => {
         await expect(
           command.parseAsync([
             'node',
-            'difit',
+            'gavel',
             action,
             '--port',
             port,
@@ -168,7 +168,7 @@ describe('comment subcommand integration', () => {
             : ['thread'];
       await createCommentCommand().parseAsync([
         'node',
-        'difit',
+        'gavel',
         action,
         '--host',
         '10.1.1.24',
@@ -187,7 +187,7 @@ describe('comment subcommand integration', () => {
       const command = createCommentCommand();
       await command.parseAsync([
         'node',
-        'difit',
+        'gavel',
         'add',
         '--port',
         '4966',
@@ -209,7 +209,7 @@ describe('comment subcommand integration', () => {
 
       await createCommentCommand().parseAsync([
         'node',
-        'difit',
+        'gavel',
         'add',
         '--port',
         '4966',
@@ -226,7 +226,7 @@ describe('comment subcommand integration', () => {
 
     it('validates JSON before sending', async () => {
       const command = createCommentCommand();
-      await command.parseAsync(['node', 'difit', 'add', '--port', '4966', 'not-valid-json']);
+      await command.parseAsync(['node', 'gavel', 'add', '--port', '4966', 'not-valid-json']);
 
       expect(mockFetch).not.toHaveBeenCalled();
       expect(consoleErrors[0]).toContain('Error:');
@@ -239,7 +239,7 @@ describe('comment subcommand integration', () => {
       const command = createCommentCommand();
       await command.parseAsync([
         'node',
-        'difit',
+        'gavel',
         'add',
         '--port',
         '4966',
@@ -257,7 +257,7 @@ describe('comment subcommand integration', () => {
       const command = createCommentCommand();
       await command.parseAsync([
         'node',
-        'difit',
+        'gavel',
         'add',
         '--port',
         '9999',
@@ -275,7 +275,7 @@ describe('comment subcommand integration', () => {
       mockFetch.mockResolvedValue(textResponse('Comments output text'));
 
       const command = createCommentCommand();
-      await command.parseAsync(['node', 'difit', 'get', '--port', '4966']);
+      await command.parseAsync(['node', 'gavel', 'get', '--port', '4966']);
 
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:4966/api/comments-output');
       expect(consoleOutput[0]).toBe('Comments output text');
@@ -285,7 +285,7 @@ describe('comment subcommand integration', () => {
       mockFetch.mockResolvedValue(jsonResponse({ threads: [{ id: '1' }] }));
 
       const command = createCommentCommand();
-      await command.parseAsync(['node', 'difit', 'get', '--port', '4966', '--format', 'json']);
+      await command.parseAsync(['node', 'gavel', 'get', '--port', '4966', '--format', 'json']);
 
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:4966/api/comments-json');
       expect(consoleOutput[0]).toContain('"threads"');
@@ -295,7 +295,7 @@ describe('comment subcommand integration', () => {
       mockFetch.mockRejectedValue(new TypeError('fetch failed'));
 
       const command = createCommentCommand();
-      await command.parseAsync(['node', 'difit', 'get', '--port', '9999']);
+      await command.parseAsync(['node', 'gavel', 'get', '--port', '9999']);
 
       expect(consoleErrors[0]).toContain('Cannot connect');
       expect(process.exit).toHaveBeenCalledWith(1);
@@ -305,7 +305,7 @@ describe('comment subcommand integration', () => {
       mockFetch.mockResolvedValue(textResponse('  '));
 
       const command = createCommentCommand();
-      await command.parseAsync(['node', 'difit', 'get', '--port', '4966']);
+      await command.parseAsync(['node', 'gavel', 'get', '--port', '4966']);
 
       expect(consoleOutput).toHaveLength(0);
     });
@@ -316,7 +316,7 @@ describe('comment subcommand integration', () => {
       mockFetch.mockResolvedValue(jsonResponse({ success: true, threadId: 'abc123', version: 2 }));
 
       const command = createCommentCommand();
-      await command.parseAsync(['node', 'difit', 'resolve', '--port', '4966', 'abc123', 'def456']);
+      await command.parseAsync(['node', 'gavel', 'resolve', '--port', '4966', 'abc123', 'def456']);
 
       expect(mockFetch).toHaveBeenCalledWith(
         'http://localhost:4966/api/comments/abc123/resolution',
@@ -349,7 +349,7 @@ describe('comment subcommand integration', () => {
       mockFetch.mockResolvedValue(jsonResponse({ success: true }));
       await createCommentCommand().parseAsync([
         'node',
-        'difit',
+        'gavel',
         'reopen',
         '--port',
         '4966',
@@ -375,7 +375,7 @@ describe('comment subcommand integration', () => {
       mockFetch.mockResolvedValue(jsonResponse({ success: true, threadId: 'abc123', version: 2 }));
 
       const command = createCommentCommand();
-      await command.parseAsync(['node', 'difit', 'remove', '--port', '4966', 'abc123']);
+      await command.parseAsync(['node', 'gavel', 'remove', '--port', '4966', 'abc123']);
 
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:4966/api/comments/abc123', {
         method: 'DELETE',
@@ -392,7 +392,7 @@ describe('comment subcommand integration', () => {
       mockFetch.mockResolvedValue(jsonResponse({ success: true }));
 
       const command = createCommentCommand();
-      await command.parseAsync(['node', 'difit', 'resolve', '--port', '4966', 'a/b c']);
+      await command.parseAsync(['node', 'gavel', 'resolve', '--port', '4966', 'a/b c']);
 
       expect(mockFetch).toHaveBeenCalledWith(
         'http://localhost:4966/api/comments/a%2Fb%20c/resolution',
@@ -408,7 +408,7 @@ describe('comment subcommand integration', () => {
       mockFetch.mockResolvedValue(jsonResponse({ error: 'Review not found' }, 404));
       await createCommentCommand().parseAsync([
         'node',
-        'difit',
+        'gavel',
         'resolve',
         '--port',
         '4966',
@@ -431,7 +431,7 @@ describe('comment subcommand integration', () => {
         .mockResolvedValueOnce(jsonResponse({ error: 'Thread not found: missing' }, 404));
 
       const command = createCommentCommand();
-      await command.parseAsync(['node', 'difit', 'resolve', '--port', '4966', 'abc123', 'missing']);
+      await command.parseAsync(['node', 'gavel', 'resolve', '--port', '4966', 'abc123', 'missing']);
 
       expect(consoleOutput[0]).toBe(
         JSON.stringify({
@@ -450,7 +450,7 @@ describe('comment subcommand integration', () => {
         .mockResolvedValueOnce(jsonResponse({ success: true, threadId: 'def456', version: 2 }));
 
       const command = createCommentCommand();
-      await command.parseAsync(['node', 'difit', 'resolve', '--port', '4966', 'abc123', 'def456']);
+      await command.parseAsync(['node', 'gavel', 'resolve', '--port', '4966', 'abc123', 'def456']);
 
       expect(consoleOutput[0]).toBe(
         JSON.stringify({
@@ -467,7 +467,7 @@ describe('comment subcommand integration', () => {
       mockFetch.mockRejectedValue(new TypeError('fetch failed'));
 
       const command = createCommentCommand();
-      await command.parseAsync(['node', 'difit', 'resolve', '--port', '9999', 'abc123']);
+      await command.parseAsync(['node', 'gavel', 'resolve', '--port', '9999', 'abc123']);
 
       expect(consoleErrors[0]).toContain('Cannot connect');
       expect(consoleErrors[0]).toContain('9999');

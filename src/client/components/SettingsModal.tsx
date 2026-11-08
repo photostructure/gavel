@@ -421,10 +421,10 @@ export function SettingsModal({
                 <div>
                   <label className="block text-sm ui-heading mb-2">Open In Editor</label>
                   <p className="text-sm text-github-text-secondary">
-                    Set DIFIT_EDITOR before starting difit to choose an editor. If unset, difit uses
+                    Set GAVEL_EDITOR before starting gavel to choose an editor. If unset, gavel uses
                     EDITOR when it names a preset; otherwise it uses VS Code. For a custom editor,
-                    set DIFIT_EDITOR=custom, DIFIT_EDITOR_COMMAND, and DIFIT_EDITOR_ARGS. Pass %file
-                    or %file:%line as a separate argument. Open the full URL printed by difit; its
+                    set GAVEL_EDITOR=custom, GAVEL_EDITOR_COMMAND, and GAVEL_EDITOR_ARGS. Pass %file
+                    or %file:%line as a separate argument. Open the full URL printed by gavel; its
                     fragment authorizes editor launches.
                   </p>
                 </div>

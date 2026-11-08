@@ -18,7 +18,7 @@ async function checkResponse(response: Response): Promise<void> {
   if (body?.error) throw new Error(body.error);
   if (response.status === 404) {
     throw new Error(
-      'Conversation endpoint or thread not found; start difit with --conversation and use IDs from its events',
+      'Conversation endpoint or thread not found; start gavel with --conversation and use IDs from its events',
     );
   }
   throw new Error(`Conversation request failed (${response.status})`);
@@ -27,7 +27,7 @@ async function checkResponse(response: Response): Promise<void> {
 function reportError(error: unknown, port: number, host: string): void {
   const message =
     error instanceof TypeError && error.message.includes('fetch failed')
-      ? `Cannot connect to difit server at ${serverUrl(host, port, '/')}. Check --host and --port.`
+      ? `Cannot connect to gavel server at ${serverUrl(host, port, '/')}. Check --host and --port.`
       : error instanceof Error
         ? error.message
         : 'Conversation request failed';
@@ -40,7 +40,7 @@ export function addConversationCommands(comment: Command): void {
   comment
     .command('snapshot')
     .description('Recover current conversation reviews, messages, and revision state')
-    .requiredOption('--port <port>', 'port of a difit --conversation server', (value: string) =>
+    .requiredOption('--port <port>', 'port of a gavel --conversation server', (value: string) =>
       integerInRange(value, 1, 65535),
     )
     .action(async (options: { port: number; host: string }) => {
@@ -62,7 +62,7 @@ export function addConversationCommands(comment: Command): void {
     .command('summary')
     .description('Update a review proposal by review ID; accepts JSON via stdin')
     .argument('[json]', 'JSON with reviewId, commitMessage, rationale, and baseVersion')
-    .requiredOption('--port <port>', 'port of a difit --conversation server', (value: string) =>
+    .requiredOption('--port <port>', 'port of a gavel --conversation server', (value: string) =>
       integerInRange(value, 1, 65535),
     )
     .action(async (json: string | undefined, options: { port: number; host: string }) => {
@@ -93,7 +93,7 @@ export function addConversationCommands(comment: Command): void {
       'Report delivered, read, thinking, replying, or noted for an exact comment revision; accepts JSON via stdin',
     )
     .argument('[json]', 'JSON with reviewId, threadId, messageId, cursor, and status')
-    .requiredOption('--port <port>', 'port of a difit --conversation server', (value: string) =>
+    .requiredOption('--port <port>', 'port of a gavel --conversation server', (value: string) =>
       integerInRange(value, 1, 65535),
     )
     .action(async (json: string | undefined, options: { port: number; host: string }) => {
@@ -155,7 +155,7 @@ export function addConversationCommands(comment: Command): void {
     .command('reply')
     .description('Reply to an exact review/thread/message using event IDs; accepts JSON via stdin')
     .argument('[json]', 'JSON with reviewId, threadId, inReplyTo, body, and optional cursor/author')
-    .requiredOption('--port <port>', 'port of a difit --conversation server', (value: string) =>
+    .requiredOption('--port <port>', 'port of a gavel --conversation server', (value: string) =>
       integerInRange(value, 1, 65535),
     )
     .action(async (json: string | undefined, options: { port: number; host: string }) => {

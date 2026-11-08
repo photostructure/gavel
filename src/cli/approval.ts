@@ -1,12 +1,11 @@
 import { execFile } from 'node:child_process';
-import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { Command } from 'commander';
 
-import { digest, getGitCommonDirectory } from '../server/review-capture.js';
+import { digest } from '../server/review-capture.js';
 import { shortHash } from './utils.js';
-import { REVIEW_RETENTION_MS, ReviewStore } from '../server/review-store.js';
+import { REVIEW_RETENTION_MS, openReviewStore } from '../server/review-store.js';
 import type { ReviewApproval } from '../types/conversation.js';
 import type { DiffSelection } from '../types/diff.js';
 
@@ -30,14 +29,14 @@ async function git(cwd: string, args: string[]): Promise<string> {
 
 /**
  * Saved reviews of a commit, or of one patch, newest first. A commit matches a review that
- * targeted it and a named review of exactly `git diff --full-index <sha>^ <sha>`, as the difit
+ * targeted it and a named review of exactly `git diff --full-index <sha>^ <sha>`, as the gavel
  * skill pipes it.
  */
 export async function findApprovals(
   cwd: string,
   target: { commit?: string; patchDigest?: string },
 ): Promise<ApprovalStatus[]> {
-  const store = new ReviewStore(join(await getGitCommonDirectory(cwd), 'difit'));
+  const store = await openReviewStore(cwd);
   let sha: string | undefined;
   let patchDigest = target.patchDigest;
   if (target.commit !== undefined) {
@@ -87,7 +86,7 @@ export function createApprovalCommand(): Command {
     .addHelpText(
       'after',
       `
-Reads the reviews difit servers saved under <git-common-dir>/difit; no server needs to run.
+Reads the reviews gavel servers saved under <git-common-dir>/gavel; no server needs to run.
 Prints a JSON array, newest first, of {match, approved, name, selection, approval,
 commitMessage, updatedAt}. An empty array means no saved review matches, for example: no
 review of it was opened by a server that saves reviews, it went untouched for
@@ -115,6 +114,6 @@ ${REVIEW_RETENTION_MS / 86_400_000} days and was deleted, or its patch was piped
       }
     });
   return new Command('approval')
-    .description('Look up approvals that difit servers saved for this repository')
+    .description('Look up approvals that gavel servers saved for this repository')
     .addCommand(status);
 }

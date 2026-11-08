@@ -149,7 +149,7 @@ describe('useFileWatch', () => {
     });
 
     it('uses the direct API url when configured for development', () => {
-      vi.stubEnv('VITE_DIFIT_API_URL', 'http://localhost:4969');
+      vi.stubEnv('VITE_GAVEL_API_URL', 'http://localhost:4969');
 
       renderHook(() => useFileWatch());
 

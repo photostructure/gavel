@@ -81,7 +81,7 @@ vi.mock('./review-capture.js', async (importOriginal) => ({
   getGitCommonDirectory: async () => savedReviews.directory,
 }));
 beforeEach(async () => {
-  savedReviews.directory = await fs.mkdtemp(join(tmpdir(), 'difit-server-test-reviews-'));
+  savedReviews.directory = await fs.mkdtemp(join(tmpdir(), 'gavel-server-test-reviews-'));
 });
 afterEach(async () => {
   await fs.rm(savedReviews.directory, { recursive: true, force: true });
@@ -383,7 +383,7 @@ describe('Server Integration Tests', () => {
         const afterFirst = await getSession(result.port);
         expect(afterFirst.version).toBe(1);
 
-        // An agent adds a second thread out of band (e.g. `difit comment add`).
+        // An agent adds a second thread out of band (e.g. `gavel comment add`).
         const agentImport: CommentImport[] = [
           {
             type: 'thread',
@@ -887,7 +887,7 @@ describe('Server Integration Tests', () => {
       servers.push(result.server);
       port = result.port;
       editorToken =
-        new URLSearchParams(new URL(result.launchUrl).hash.slice(1)).get('difit-editor-token') ??
+        new URLSearchParams(new URL(result.launchUrl).hash.slice(1)).get('gavel-editor-token') ??
         '';
     });
 
@@ -907,7 +907,7 @@ describe('Server Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Difit-Editor-Token': wrongToken,
+          'X-Gavel-Editor-Token': wrongToken,
         },
         body: JSON.stringify({ filePath: 'test.js', line: 1 }),
       });
@@ -919,7 +919,7 @@ describe('Server Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Difit-Editor-Token': editorToken,
+          'X-Gavel-Editor-Token': editorToken,
         },
         body: JSON.stringify({
           filePath: 'test.js',
@@ -932,9 +932,9 @@ describe('Server Integration Tests', () => {
     });
 
     it('uses the custom editor configured at server startup', async () => {
-      vi.stubEnv('DIFIT_EDITOR', 'custom');
-      vi.stubEnv('DIFIT_EDITOR_COMMAND', process.execPath);
-      vi.stubEnv('DIFIT_EDITOR_ARGS', '--version %file');
+      vi.stubEnv('GAVEL_EDITOR', 'custom');
+      vi.stubEnv('GAVEL_EDITOR_COMMAND', process.execPath);
+      vi.stubEnv('GAVEL_EDITOR_ARGS', '--version %file');
       const configured = await startServer({ preferredPort: 9031 });
       servers.push(configured.server);
       vi.unstubAllEnvs();
@@ -943,9 +943,9 @@ describe('Server Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Difit-Editor-Token':
+          'X-Gavel-Editor-Token':
             new URLSearchParams(new URL(configured.launchUrl).hash.slice(1)).get(
-              'difit-editor-token',
+              'gavel-editor-token',
             ) ?? '',
         },
         body: JSON.stringify({ filePath: 'test.js', line: 1 }),
@@ -957,9 +957,9 @@ describe('Server Integration Tests', () => {
     });
 
     it('accepts a custom file-and-line argument', async () => {
-      vi.stubEnv('DIFIT_EDITOR', 'custom');
-      vi.stubEnv('DIFIT_EDITOR_COMMAND', process.execPath);
-      vi.stubEnv('DIFIT_EDITOR_ARGS', '--version %file:%line');
+      vi.stubEnv('GAVEL_EDITOR', 'custom');
+      vi.stubEnv('GAVEL_EDITOR_COMMAND', process.execPath);
+      vi.stubEnv('GAVEL_EDITOR_ARGS', '--version %file:%line');
       const configured = await startServer({ preferredPort: 9033 });
       servers.push(configured.server);
       vi.unstubAllEnvs();
@@ -970,35 +970,35 @@ describe('Server Integration Tests', () => {
     });
 
     it('warns when a custom editor has no command', async () => {
-      vi.stubEnv('DIFIT_EDITOR', 'custom');
-      vi.stubEnv('DIFIT_EDITOR_COMMAND', '');
-      vi.stubEnv('DIFIT_EDITOR_ARGS', '%file');
+      vi.stubEnv('GAVEL_EDITOR', 'custom');
+      vi.stubEnv('GAVEL_EDITOR_COMMAND', '');
+      vi.stubEnv('GAVEL_EDITOR_ARGS', '%file');
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       try {
         const configured = await startServer({ preferredPort: 9034 });
         servers.push(configured.server);
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('DIFIT_EDITOR_COMMAND'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('GAVEL_EDITOR_COMMAND'));
       } finally {
         warn.mockRestore();
       }
     });
 
-    it('warns when DIFIT_EDITOR names an unknown preset', async () => {
-      vi.stubEnv('DIFIT_EDITOR', 'cusor');
+    it('warns when GAVEL_EDITOR names an unknown preset', async () => {
+      vi.stubEnv('GAVEL_EDITOR', 'cusor');
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       try {
         const configured = await startServer({ preferredPort: 9035 });
         servers.push(configured.server);
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('DIFIT_EDITOR'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('GAVEL_EDITOR'));
       } finally {
         warn.mockRestore();
       }
     });
 
     it('disables a custom template that embeds the file in evaluated code', async () => {
-      vi.stubEnv('DIFIT_EDITOR', 'custom');
-      vi.stubEnv('DIFIT_EDITOR_COMMAND', 'emacsclient');
-      vi.stubEnv('DIFIT_EDITOR_ARGS', '--eval "(find-file \\"%file\\")"');
+      vi.stubEnv('GAVEL_EDITOR', 'custom');
+      vi.stubEnv('GAVEL_EDITOR_COMMAND', 'emacsclient');
+      vi.stubEnv('GAVEL_EDITOR_ARGS', '--eval "(find-file \\"%file\\")"');
       const configured = await startServer({ preferredPort: 9032 });
       servers.push(configured.server);
       vi.unstubAllEnvs();
@@ -1010,9 +1010,9 @@ describe('Server Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Difit-Editor-Token':
+          'X-Gavel-Editor-Token':
             new URLSearchParams(new URL(configured.launchUrl).hash.slice(1)).get(
-              'difit-editor-token',
+              'gavel-editor-token',
             ) ?? '',
         },
         body: JSON.stringify({ filePath: 'test.js', line: 1 }),
@@ -1742,19 +1742,19 @@ describe('Server Integration Tests', () => {
     });
 
     describe('user settings API', () => {
-      const originalConfigDir = process.env.DIFIT_CONFIG_DIR;
+      const originalConfigDir = process.env.GAVEL_CONFIG_DIR;
       let configDir: string;
 
       beforeEach(async () => {
-        configDir = await fs.mkdtemp(join(tmpdir(), 'difit-user-settings-'));
-        process.env.DIFIT_CONFIG_DIR = configDir;
+        configDir = await fs.mkdtemp(join(tmpdir(), 'gavel-user-settings-'));
+        process.env.GAVEL_CONFIG_DIR = configDir;
       });
 
       afterEach(async () => {
         if (originalConfigDir === undefined) {
-          delete process.env.DIFIT_CONFIG_DIR;
+          delete process.env.GAVEL_CONFIG_DIR;
         } else {
-          process.env.DIFIT_CONFIG_DIR = originalConfigDir;
+          process.env.GAVEL_CONFIG_DIR = originalConfigDir;
         }
         await fs.rm(configDir, { recursive: true, force: true });
       });
@@ -1989,8 +1989,8 @@ describe('Server Integration Tests', () => {
       const html = await response.text();
 
       expect(response.ok).toBe(true);
-      expect(html).toContain('difit - Dev Mode');
-      expect(html).toContain('difit development mode');
+      expect(html).toContain('gavel - Dev Mode');
+      expect(html).toContain('gavel development mode');
     });
 
     it('serves static files in production mode', async () => {
@@ -2721,7 +2721,7 @@ describe('Server Integration Tests', () => {
       let definitions: Record<string, ObjectDefinition>;
       const log = vi.spyOn(console, 'log').mockImplementation(() => {});
       try {
-        await createSchemaCommand().parseAsync(['node', 'difit']);
+        await createSchemaCommand().parseAsync(['node', 'gavel']);
         expect(log).toHaveBeenCalledTimes(1);
         const schema = JSON.parse(String(log.mock.calls[0]?.[0])) as {
           $defs: Record<string, ObjectDefinition>;
@@ -2890,7 +2890,7 @@ describe('Server Integration Tests', () => {
       try {
         await createCommentCommand().parseAsync([
           'node',
-          'difit',
+          'gavel',
           'add',
           '--port',
           String(result.port),
@@ -2902,7 +2902,7 @@ describe('Server Integration Tests', () => {
         cliLog.mockClear();
         await createCommentCommand().parseAsync([
           'node',
-          'difit',
+          'gavel',
           'resolve',
           edited.threadId,
           '--port',

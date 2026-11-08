@@ -19,7 +19,7 @@ async function writeRollout(day: string, originator: string): Promise<void> {
 }
 
 beforeEach(async () => {
-  codexHome = await mkdtemp(join(tmpdir(), 'difit-codex-home-'));
+  codexHome = await mkdtemp(join(tmpdir(), 'gavel-codex-home-'));
 });
 
 afterEach(async () => {

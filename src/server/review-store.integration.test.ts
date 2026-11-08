@@ -54,9 +54,9 @@ describe('saved review state across server restarts', () => {
       'git',
       [
         '-c',
-        'user.name=difit',
+        'user.name=gavel',
         '-c',
-        'user.email=difit@example.com',
+        'user.email=gavel@example.com',
         '-c',
         'commit.gpgsign=false',
         '-c',
@@ -128,7 +128,7 @@ describe('saved review state across server restarts', () => {
   }
 
   beforeEach(async () => {
-    root = realpathSync(mkdtempSync(join(tmpdir(), 'difit-saved-reviews-')));
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'gavel-saved-reviews-')));
     git('init', '--quiet');
     writeFileSync(join(root, 'first.txt'), 'before first\n');
     git('add', 'first.txt');
@@ -152,7 +152,7 @@ describe('saved review state across server restarts', () => {
       baseVersion: 0,
     });
     await approveNamed('task', summary.version);
-    expect(existsSync(join(root, '.git', 'difit', 'reviews'))).toBe(true);
+    expect(existsSync(join(root, '.git', 'gavel', 'reviews'))).toBe(true);
 
     await restart(() => startNamed('task'));
 
@@ -282,7 +282,7 @@ describe('saved review state across server restarts', () => {
       await request('/api/comments', { threads: [thread('first-server')] });
       running = second;
       await request('/api/comments', { threads: [thread('second-server')] });
-      const saved = new ReviewStore(join(root, '.git', 'difit')).list();
+      const saved = new ReviewStore(join(root, '.git', 'gavel')).list();
       expect(saved.flatMap((review) => review.threads.map((entry) => entry.id))).toEqual([
         'first-server',
       ]);
@@ -347,12 +347,12 @@ describe('saved review state across server restarts', () => {
       patchDigest: original.patchDigest,
     });
     // The record the first capture wrote was replaced, not left beside the new one.
-    expect(new ReviewStore(join(root, '.git', 'difit')).list()).toHaveLength(1);
+    expect(new ReviewStore(join(root, '.git', 'gavel')).list()).toHaveLength(1);
   });
 
   it('keeps serving and retries the save when the store cannot be written', async () => {
     // A read-only reviews directory makes every save fail.
-    const reviews = join(root, '.git', 'difit', 'reviews');
+    const reviews = join(root, '.git', 'gavel', 'reviews');
     mkdirSync(reviews, { recursive: true });
     chmodSync(reviews, 0o500);
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -362,7 +362,7 @@ describe('saved review state across server restarts', () => {
       expect(errors).toHaveBeenCalledWith(expect.stringContaining('could not save review'));
       // A --background server's stderr reaches nobody, so the snapshot reports the failure too.
       expect((await request<ConversationSnapshot>('/api/conversation/snapshot')).store).toEqual({
-        directory: join(root, '.git', 'difit'),
+        directory: join(root, '.git', 'gavel'),
         error: expect.stringContaining('could not save review'),
       });
       chmodSync(reviews, 0o700);
@@ -373,10 +373,10 @@ describe('saved review state across server restarts', () => {
         baseVersion: comments.version,
         threads: [...comments.threads, thread('after-fix')],
       });
-      const [saved] = new ReviewStore(join(root, '.git', 'difit')).list();
+      const [saved] = new ReviewStore(join(root, '.git', 'gavel')).list();
       expect(saved?.threads.map((entry) => entry.id)).toEqual(['while-broken', 'after-fix']);
       expect((await request<ConversationSnapshot>('/api/conversation/snapshot')).store).toEqual({
-        directory: join(root, '.git', 'difit'),
+        directory: join(root, '.git', 'gavel'),
       });
     } finally {
       errors.mockRestore();
@@ -397,7 +397,7 @@ describe('saved review state across server restarts', () => {
       await request('/api/comments?review=task', { threads: [thread('second-server')] });
       running = first;
       await request('/api/reviews/task/capture', { expectedVersion: 1, capture });
-      const saved = new ReviewStore(join(root, '.git', 'difit')).list();
+      const saved = new ReviewStore(join(root, '.git', 'gavel')).list();
       expect(
         saved.map((review) => [review.captures?.at(-1)?.patchDigest, review.threads[0]?.id]),
       ).toEqual(
@@ -417,7 +417,7 @@ describe('saved review state across server restarts', () => {
       createDiffSelection(capture.baseCommit, '.', undefined, 'task'),
       capture,
     )!;
-    const locks = join(root, '.git', 'difit', 'locks');
+    const locks = join(root, '.git', 'gavel', 'locks');
     const lock = join(locks, `${createHash('sha256').update(key).digest('hex')}.json`);
     mkdirSync(locks, { recursive: true });
     writeFileSync(
@@ -433,7 +433,7 @@ describe('saved review state across server restarts', () => {
     ).toMatch(/waiting for another server/);
     rmSync(`${lock}.reclaim`);
     await new Promise((resolve) => setTimeout(resolve, 200));
-    const [saved] = new ReviewStore(join(root, '.git', 'difit')).list();
+    const [saved] = new ReviewStore(join(root, '.git', 'gavel')).list();
     expect(saved?.threads.map((entry) => entry.id)).toEqual(['while-busy']);
     expect((await request<ConversationSnapshot>('/api/conversation/snapshot')).store?.error).toBe(
       undefined,
@@ -449,7 +449,7 @@ describe('saved review state across server restarts', () => {
       summary: { commitMessage: message },
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
-    const [saved] = new ReviewStore(join(root, '.git', 'difit')).list();
+    const [saved] = new ReviewStore(join(root, '.git', 'gavel')).list();
     expect(saved?.threads).toEqual([]);
   });
 
@@ -461,7 +461,7 @@ describe('saved review state across server restarts', () => {
     await request('/api/reviews', { name: 'second', capture });
     expect(await reviewOf('second')).toMatchObject({ threads: [{ id: 'keep-me' }] });
     await new Promise((resolve) => setTimeout(resolve, 50));
-    const saved = new ReviewStore(join(root, '.git', 'difit'))
+    const saved = new ReviewStore(join(root, '.git', 'gavel'))
       .list()
       .find((review) => review.selection.reviewName === 'second');
     expect(saved?.threads.map((entry) => entry.id)).toEqual(['keep-me']);
@@ -518,11 +518,11 @@ describe('saved review state across server restarts', () => {
   });
 
   it('starts and reports it when cleanup cannot delete an expired review', async () => {
-    const store = new ReviewStore(join(root, '.git', 'difit'));
+    const store = new ReviewStore(join(root, '.git', 'gavel'));
     const server = store.registerServer();
     store.save('expired', { ...savedFixture(), repositoryId: capture.repositoryId }, server.owner);
     server.release();
-    const reviews = join(root, '.git', 'difit', 'reviews');
+    const reviews = join(root, '.git', 'gavel', 'reviews');
     const old = (Date.now() - 8 * 24 * 60 * 60 * 1000) / 1000;
     for (const name of readdirSync(reviews)) utimesSync(join(reviews, name), old, old);
     chmodSync(reviews, 0o500);

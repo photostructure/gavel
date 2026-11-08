@@ -66,13 +66,13 @@ describe('FileWatcherService', () => {
 
       expect(subscribe).toHaveBeenCalledTimes(2);
       expect(subscribe).toHaveBeenCalledWith(TEST_REPO_PATH, expect.any(Function), {
-        ignore: ['.git/objects/**', '.git/refs/**', '.git/difit/**', 'node_modules/**'],
+        ignore: ['.git/objects/**', '.git/refs/**', '.git/gavel/**', 'node_modules/**'],
       });
       expect(subscribe).toHaveBeenCalledWith(
         resolve(TEST_REPO_PATH, '.git'),
         expect.any(Function),
         {
-          ignore: ['.git/objects/**', '.git/refs/**', '.git/difit/**', 'node_modules/**'],
+          ignore: ['.git/objects/**', '.git/refs/**', '.git/gavel/**', 'node_modules/**'],
         },
       );
     });
@@ -88,7 +88,7 @@ describe('FileWatcherService', () => {
           '.git/FETCH_HEAD',
           '.git/ORIG_HEAD',
           '.git/logs/**',
-          '.git/difit/**',
+          '.git/gavel/**',
           'node_modules/**',
         ],
       });
@@ -229,8 +229,8 @@ describe('FileWatcherService', () => {
       fileWatcher.addClient(mockResponse);
       const rootCall = vi.mocked(subscribe).mock.calls.find(([path]) => path === TEST_REPO_PATH);
       await rootCall![1](null, [
-        { path: `${TEST_REPO_PATH}/.git/difit/reviews/abc.json`, type: 'update' },
-        { path: `${TEST_REPO_PATH}/.git/difit/captures/def.json.123.tmp`, type: 'create' },
+        { path: `${TEST_REPO_PATH}/.git/gavel/reviews/abc.json`, type: 'update' },
+        { path: `${TEST_REPO_PATH}/.git/gavel/captures/def.json.123.tmp`, type: 'create' },
       ]);
       await new Promise((resolve) => setTimeout(resolve, 350));
       expect(mockResponse.write).not.toHaveBeenCalledWith(
@@ -434,7 +434,7 @@ describe('FileWatcherService', () => {
           '.git/FETCH_HEAD',
           '.git/ORIG_HEAD',
           '.git/logs/**',
-          '.git/difit/**',
+          '.git/gavel/**',
           'node_modules/**',
           'build',
           'coverage',

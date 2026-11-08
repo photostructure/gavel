@@ -79,7 +79,7 @@ describe('readIdle', () => {
   });
 });
 
-describe('difit idle', () => {
+describe('gavel idle', () => {
   afterEach(() => {
     process.exitCode = 0;
     vi.restoreAllMocks();
@@ -90,7 +90,7 @@ describe('difit idle', () => {
     await createIdleCommand(
       'linux',
       runner({ '--dest=org.freedesktop.ScreenSaver': kdeReply }),
-    ).parseAsync(['node', 'difit']);
+    ).parseAsync(['node', 'gavel']);
     expect(log).toHaveBeenCalledExactlyOnceWith(
       JSON.stringify({ idleMs: 3012, source: 'org.freedesktop.ScreenSaver' }),
     );
@@ -100,7 +100,7 @@ describe('difit idle', () => {
   it('exits 1 with the reason when idle time is unavailable', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    await createIdleCommand('aix', runner({})).parseAsync(['node', 'difit']);
+    await createIdleCommand('aix', runner({})).parseAsync(['node', 'gavel']);
     expect(log).not.toHaveBeenCalled();
     expect(error).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('aix'));
     expect(process.exitCode).toBe(1);

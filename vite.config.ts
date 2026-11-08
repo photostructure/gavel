@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
-const apiTarget = process.env.VITE_DIFIT_API_URL || 'http://localhost:4966';
+const apiTarget = process.env.VITE_GAVEL_API_URL || 'http://localhost:4966';
 
 export default defineConfig({
   plugins: [
@@ -32,7 +32,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    open: process.env.DIFIT_VITE_OPEN_PATH ?? false,
+    open: process.env.GAVEL_VITE_OPEN_PATH ?? false,
     proxy: {
       '/api': {
         target: apiTarget,

@@ -10,7 +10,7 @@ interface Props {
 
 // One setting for every review: App remounts the panel per review, and a reviewer
 // stepping through a stack wants it to stay the way they left it.
-const EXPANDED_KEY = 'difit-change-summary-expanded';
+const EXPANDED_KEY = 'gavel-change-summary-expanded';
 
 export function ReviewSummaryPanel({ summary, committed = false }: Props) {
   const [expanded, setExpandedState] = useState(() => localStorage.getItem(EXPANDED_KEY) === '1');

@@ -12,7 +12,7 @@ if (!rootElement) {
   throw new Error('Root element not found');
 }
 
-document.title = 'difit - Preview';
+document.title = 'gavel - Preview';
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>

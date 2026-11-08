@@ -24,10 +24,10 @@ const MODE_WATCH_CONFIGS: Record<DiffMode, ModeWatchConfig> = {
     watchPaths: ['.git'],
     ignore: ['.git/objects/**', '.git/refs/**', 'node_modules/**'],
   },
-  // The checkout-root watch also sees .git; saved reviews (.git/difit) never change a diff.
+  // The checkout-root watch also sees .git; saved reviews (.git/gavel) never change a diff.
   [DiffMode.WORKING]: {
     watchPaths: ['.', '.git'],
-    ignore: ['.git/objects/**', '.git/refs/**', '.git/difit/**', 'node_modules/**'],
+    ignore: ['.git/objects/**', '.git/refs/**', '.git/gavel/**', 'node_modules/**'],
   },
   [DiffMode.STAGED]: {
     watchPaths: ['.git'],
@@ -41,7 +41,7 @@ const MODE_WATCH_CONFIGS: Record<DiffMode, ModeWatchConfig> = {
       '.git/FETCH_HEAD',
       '.git/ORIG_HEAD',
       '.git/logs/**',
-      '.git/difit/**',
+      '.git/gavel/**',
       'node_modules/**',
     ],
   },

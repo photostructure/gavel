@@ -29,7 +29,7 @@ describe('captured patch rendering', () => {
   });
 
   it('renders a selected pure-copy file whose source and target contain spaces', async () => {
-    root = mkdtempSync(join(tmpdir(), 'difit-capture-copy-'));
+    root = mkdtempSync(join(tmpdir(), 'gavel-capture-copy-'));
     const repository = root;
     for (const key of Object.keys(process.env))
       if (key.startsWith('GIT_')) vi.stubEnv(key, undefined);
@@ -38,9 +38,9 @@ describe('captured patch rendering', () => {
         'git',
         [
           '-c',
-          'user.name=difit',
+          'user.name=gavel',
           '-c',
-          'user.email=difit@example.com',
+          'user.email=gavel@example.com',
           '-c',
           'commit.gpgsign=false',
           ...args,
@@ -72,7 +72,7 @@ describe('captured patch rendering', () => {
   });
 
   it('renders all captured file IDs and selected hunk coordinates consistently', async () => {
-    root = mkdtempSync(join(tmpdir(), 'difit-capture-render-'));
+    root = mkdtempSync(join(tmpdir(), 'gavel-capture-render-'));
     const repository = root;
     for (const key of Object.keys(process.env))
       if (key.startsWith('GIT_')) vi.stubEnv(key, undefined);
@@ -81,9 +81,9 @@ describe('captured patch rendering', () => {
         'git',
         [
           '-c',
-          'user.name=difit',
+          'user.name=gavel',
           '-c',
-          'user.email=difit@example.com',
+          'user.email=gavel@example.com',
           '-c',
           'commit.gpgsign=false',
           ...args,
@@ -171,7 +171,7 @@ describe('captured patch rendering', () => {
   it.each(['\r', '\u2028', '\u2029'])(
     'renders captured non-LF separators as content, not phantom files (%j)',
     async (separator) => {
-      root = mkdtempSync(join(tmpdir(), 'difit-capture-line-separator-'));
+      root = mkdtempSync(join(tmpdir(), 'gavel-capture-line-separator-'));
       const repository = root;
       for (const key of Object.keys(process.env))
         if (key.startsWith('GIT_')) vi.stubEnv(key, undefined);
@@ -180,9 +180,9 @@ describe('captured patch rendering', () => {
           'git',
           [
             '-c',
-            'user.name=difit',
+            'user.name=gavel',
             '-c',
-            'user.email=difit@example.com',
+            'user.email=gavel@example.com',
             '-c',
             'commit.gpgsign=false',
             ...args,

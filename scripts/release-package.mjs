@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 
-const packageName = '@photostructure/difit';
+const packageName = '@photostructure/gavel';
 const [command, destination = 'package-artifact'] = process.argv.slice(2);
 const artifactDirectory = resolve(destination);
 const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
@@ -95,7 +95,7 @@ function verify() {
       embedded.version === expectedVersion &&
       packed.filename === basename(tarball) &&
       embedded.repository?.url === repository &&
-      embedded.bin?.difit === './dist/cli/index.js',
+      embedded.bin?.gavel === './dist/cli/index.js',
     'Tarball name, version, repository, or CLI entrypoint does not match the release',
   );
   writeFileSync(join(artifactDirectory, 'CONTENTS.txt'), `${[...paths].sort().join('\n')}\n`);
@@ -127,7 +127,7 @@ if (command === 'pack') {
   verify();
 } else if (command === 'rehearse') {
   const tarball = verify();
-  const directory = mkdtempSync(join(tmpdir(), 'difit-package-'));
+  const directory = mkdtempSync(join(tmpdir(), 'gavel-package-'));
   try {
     writeFileSync(
       join(directory, 'package.json'),
@@ -165,7 +165,7 @@ if (command === 'pack') {
       directory,
       'node_modules',
       '@photostructure',
-      'difit',
+      'gavel',
       'dist',
       'cli',
       'index.js',
@@ -176,7 +176,7 @@ if (command === 'pack') {
       'Installed CLI version differs',
     );
     assert(
-      run(process.execPath, [executable, '--help'], { cwd: directory }).includes('Usage: difit'),
+      run(process.execPath, [executable, '--help'], { cwd: directory }).includes('Usage: gavel'),
       'Installed CLI help failed',
     );
     console.log('Installed tarball CLI acceptance checks passed');

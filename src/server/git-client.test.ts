@@ -21,9 +21,9 @@ function createRepo(root: string, name: string): { path: string; head: string } 
       'git',
       [
         '-c',
-        'user.name=difit',
+        'user.name=gavel',
         '-c',
-        'user.email=difit@example.com',
+        'user.email=gavel@example.com',
         '-c',
         'commit.gpgsign=false',
         ...args,
@@ -46,7 +46,7 @@ describe('git client repository environment', () => {
   });
 
   it('reads the repository named by GIT_DIR and GIT_WORK_TREE', async () => {
-    root = mkdtempSync(join(tmpdir(), 'difit-git-env-'));
+    root = mkdtempSync(join(tmpdir(), 'gavel-git-env-'));
     const cwdRepo = createRepo(root, 'cwd-repo');
     const envRepo = createRepo(root, 'env-repo');
     vi.stubEnv('GIT_DIR', join(envRepo.path, '.git'));
@@ -58,7 +58,7 @@ describe('git client repository environment', () => {
   });
 
   it('uses the same alternate index for staged diffs and blob reads', async () => {
-    root = mkdtempSync(join(tmpdir(), 'difit-git-index-'));
+    root = mkdtempSync(join(tmpdir(), 'gavel-git-index-'));
     const repo = createRepo(root, 'index-repo');
     const index = join(root, 'alternate-index');
     const env = { ...setupEnv, GIT_INDEX_FILE: index };

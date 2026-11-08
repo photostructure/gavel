@@ -1,4 +1,4 @@
-// ~/.difit/config.json holds the auto-viewed patterns, which apply to files
+// ~/.gavel/config.json holds the auto-viewed patterns, which apply to files
 // rather than screens and so are shared by every browser. Its `client` object
 // holds UI settings that difit saved before they moved to a per-browser
 // cookie; browsers read it once to copy them.
@@ -18,11 +18,11 @@ const CONFIG_VERSION = 1 as const;
 export const MAX_USER_CONFIG_BYTES = 64 * 1024;
 
 export function getUserConfigPath(): string {
-  const configDir = process.env.DIFIT_CONFIG_DIR?.trim();
+  const configDir = process.env.GAVEL_CONFIG_DIR?.trim();
   if (configDir) {
     return join(configDir, 'config.json');
   }
-  return join(homedir(), '.difit', 'config.json');
+  return join(homedir(), '.gavel', 'config.json');
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

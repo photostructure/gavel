@@ -1138,7 +1138,7 @@ function App() {
           signal: controller.signal,
         });
         if (!response.ok) {
-          // The server explains some failures (e.g. a broken ~/.difit/config.json)
+          // The server explains some failures (e.g. a broken ~/.gavel/config.json)
           // in a JSON body; Express's own error pages are HTML.
           const body = (await response.json().catch(() => null)) as { error?: string } | null;
           throw new Error(body?.error ?? 'Failed to fetch diff data');
@@ -1282,7 +1282,7 @@ function App() {
     };
   }, []);
 
-  // Save only values that changed, so opening difit writes no settings cookie,
+  // Save only values that changed, so opening gavel writes no settings cookie,
   // including when development mode runs mount effects twice.
   const savedSidebarWidthRef = useRef(sidebarWidth);
   useEffect(() => {
@@ -1593,7 +1593,7 @@ function App() {
   useEffect(() => {
     if (!reviewContext || diffData?.title) return;
     const previous = document.title;
-    document.title = `${reviewContext.repositoryName || 'Imported diff'} — difit (${window.location.host})`;
+    document.title = `${reviewContext.repositoryName || 'Imported diff'} — gavel (${window.location.host})`;
     return () => {
       document.title = previous;
     };
@@ -2096,7 +2096,7 @@ function App() {
                     <span className="text-sm">Shortcuts</span>
                   </button>
                   <a
-                    href="https://github.com/yoshiko-pg/difit"
+                    href="https://github.com/photostructure/gavel"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-github-text-secondary hover:text-github-text-primary transition-colors"

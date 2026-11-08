@@ -23,7 +23,7 @@ describe('browser presence connection', () => {
   });
 
   it('receives listener state and reports visibility without opening another stream', async () => {
-    vi.stubEnv('VITE_DIFIT_API_URL', 'http://localhost:4966');
+    vi.stubEnv('VITE_GAVEL_API_URL', 'http://localhost:4966');
     vi.stubGlobal('EventSource', Stream);
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response('{}'));
     vi.stubGlobal('fetch', fetchMock);

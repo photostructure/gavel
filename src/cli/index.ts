@@ -116,7 +116,7 @@ interface CliOptions {
 const program = new Command();
 
 program
-  .name('difit')
+  .name('gavel')
   .description('A lightweight Git diff viewer with GitHub-like interface')
   .version(pkg.version, '-v, --version', 'output the version number')
   .enablePositionalOptions()
@@ -198,12 +198,12 @@ Review tabs:
   not, the page header shows the open review's name instead of the revision
   picker, and tabs under the header switch between the reviews that ask.
 
-Editor configuration (set before starting difit):
-  DIFIT_EDITOR          Editor preset: vscode (default), cursor, zed, textmate,
+Editor configuration (set before starting gavel):
+  GAVEL_EDITOR          Editor preset: vscode (default), cursor, zed, textmate,
                         bbedit, emacs, macvim, sublime, nova, custom, or none.
                         Falls back to EDITOR when unset.
-  DIFIT_EDITOR_COMMAND  Executable for DIFIT_EDITOR=custom.
-  DIFIT_EDITOR_ARGS     Custom arguments; pass %file or %file:%line separately.
+  GAVEL_EDITOR_COMMAND  Executable for GAVEL_EDITOR=custom.
+  GAVEL_EDITOR_ARGS     Custom arguments; pass %file or %file:%line separately.
 `,
   )
   .action(async (commitish: string, compareWith: string | undefined, options: CliOptions) => {
@@ -390,7 +390,7 @@ Editor configuration (set before starting difit):
           if (isBackgroundChild) ignoreStdioErrorsForBackgroundDaemon();
           return;
         }
-        console.error(`\n🚀 difit server started on ${launchUrl}`);
+        console.error(`\n🚀 gavel server started on ${launchUrl}`);
         console.error(`📋 Reviewing: ${namedReview.name}`);
         if (isEmpty) {
           console.error(
@@ -439,7 +439,7 @@ Editor configuration (set before starting difit):
           }
           return;
         }
-        console.error(`\n🚀 difit server started on ${launchUrl}`);
+        console.error(`\n🚀 gavel server started on ${launchUrl}`);
         console.error(`📋 Reviewing: ${stdinReviewLabel}`);
         if (options.keepAlive) {
           console.error('🔒 Keep-alive mode: server will stay running after browser disconnects');
@@ -516,7 +516,7 @@ Editor configuration (set before starting difit):
         return;
       }
 
-      console.error(`\n🚀 difit server started on ${launchUrl}`);
+      console.error(`\n🚀 gavel server started on ${launchUrl}`);
       console.error(`📋 Reviewing: ${selection.targetCommitish}`);
 
       if (options.keepAlive) {
@@ -548,11 +548,11 @@ program.addHelpText(
 Agent protocol:
   A foreground server emits JSONL on stdout; diagnostics and prompts use stderr.
   Use the host and API port from server.ready.url for companion commands.
-  difit schema                  JSON Schema for events and all protocol definitions
-  difit schema summary          Commit-message/TLDR edit request schema
-  difit comment reply --help    Exact-thread reply payload
-  difit comment status --help   Explicit delivery and progress receipts
-  difit comment snapshot --host <host> --port <port>  Recover current review state
+  gavel schema                  JSON Schema for events and all protocol definitions
+  gavel schema summary          Commit-message/TLDR edit request schema
+  gavel comment reply --help    Exact-thread reply payload
+  gavel comment status --help   Explicit delivery and progress receipts
+  gavel comment snapshot --host <host> --port <port>  Recover current review state
   Address examples: docs/server-addresses.md
   Approval modes and completion: docs/approval-modes.md (schema approval, schema address)
 
@@ -573,7 +573,7 @@ function registerShutdownHandlers(
   const stop = async (signal: 'SIGINT' | 'SIGTERM' | 'SIGHUP') => {
     if (closing) return;
     closing = true;
-    console.error('\n👋 Shutting down difit server...');
+    console.error('\n👋 Shutting down gavel server...');
     let exitCode = 0;
     if (!jsonl) {
       try {
@@ -591,7 +591,7 @@ function registerShutdownHandlers(
     try {
       await shutdown(signal);
     } catch (error) {
-      console.error('Error shutting down difit:', error instanceof Error ? error.message : error);
+      console.error('Error shutting down gavel:', error instanceof Error ? error.message : error);
       exitCode = 1;
     }
     process.stdout.write('', () => process.exit(exitCode));

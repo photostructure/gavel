@@ -36,7 +36,7 @@ describe('native Git metadata paths', () => {
   );
 
   it('renders a pure copy from actual Git output without ordinary file headers', () => {
-    const root = mkdtempSync(join(tmpdir(), 'difit-metadata-copy-'));
+    const root = mkdtempSync(join(tmpdir(), 'gavel-metadata-copy-'));
     const env = {
       ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))),
       GIT_CONFIG_GLOBAL: devNull,
@@ -47,9 +47,9 @@ describe('native Git metadata paths', () => {
         'git',
         [
           '-c',
-          'user.name=difit',
+          'user.name=gavel',
           '-c',
-          'user.email=difit@example.com',
+          'user.email=gavel@example.com',
           '-c',
           'commit.gpgsign=false',
           '-c',

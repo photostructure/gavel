@@ -40,7 +40,7 @@ describe('background process lifecycle', () => {
   beforeEach(() => {
     child = createMockChild();
     spawnProcess = vi.fn(() => child as unknown as ChildProcess) as unknown as typeof spawnProcess;
-    process.argv = [originalArgv[0], '/tmp/difit-entry.js', 'HEAD', '--background'];
+    process.argv = [originalArgv[0], '/tmp/gavel-entry.js', 'HEAD', '--background'];
   });
 
   afterEach(() => {
@@ -75,7 +75,7 @@ describe('background process lifecycle', () => {
 
     expect(spawnProcess).toHaveBeenCalledWith(
       process.execPath,
-      ['/tmp/difit-entry.js', 'HEAD', '--keep-alive', '--no-open'],
+      ['/tmp/gavel-entry.js', 'HEAD', '--keep-alive', '--no-open'],
       expect.objectContaining({
         detached: true,
         stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
@@ -104,7 +104,7 @@ describe('background process lifecycle', () => {
     const received: Buffer[] = [];
     stdin.on('data', (chunk: Buffer) => received.push(chunk));
     Object.assign(child, { stdin });
-    process.argv = [originalArgv[0], '/tmp/difit-entry.js', '-', '--background'];
+    process.argv = [originalArgv[0], '/tmp/gavel-entry.js', '-', '--background'];
 
     const result = startBackgroundProcess(spawnProcess, 'diff --git a/x b/x\n');
     child.emit('message', { port: 4968, url: 'http://localhost:4968', pid: 43 });
@@ -112,7 +112,7 @@ describe('background process lifecycle', () => {
 
     expect(spawnProcess).toHaveBeenCalledWith(
       process.execPath,
-      ['/tmp/difit-entry.js', '-', '--keep-alive', '--no-open'],
+      ['/tmp/gavel-entry.js', '-', '--keep-alive', '--no-open'],
       expect.objectContaining({ stdio: ['pipe', 'ignore', 'pipe', 'ipc'] }),
     );
     expect(Buffer.concat(received).toString('utf8')).toBe('diff --git a/x b/x\n');
@@ -144,7 +144,7 @@ describe('background process lifecycle', () => {
 
     const result = startBackgroundProcess(spawnProcess);
     const rejection = expect(result).rejects.toThrow(
-      'Timed out while starting background difit server',
+      'Timed out while starting background gavel server',
     );
     await vi.advanceTimersByTimeAsync(10_000);
     await rejection;

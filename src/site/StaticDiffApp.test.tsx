@@ -6,7 +6,7 @@ import StaticDiffApp from './StaticDiffApp';
 import type { StaticDiffDataset, StaticDiffManifest, StaticDiffSnapshot } from './types/staticDiff';
 
 const staticDataset: StaticDiffDataset = {
-  repository: 'difit',
+  repository: 'gavel',
   initialRevisionId: '1111111...2222222',
   revisions: [
     {

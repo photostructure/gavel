@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Gavel (Codex)'
+  short_description: 'Open gavel reviews without idle model turns.'
+  default_prompt: 'Use $gavel to open the requested review, then hand back without polling.'

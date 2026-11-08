@@ -259,11 +259,12 @@ function RevisionQuickMenu({
 }
 
 const LANDING_ASCII = [
-  '     _ _  __ _ _',
-  '  __| (_)/ _(_) |_',
-  ' / _` | | |_| | __|',
-  '| (_| | |  _| | |_',
-  ' \\__,_|_|_| |_|\\__|',
+  '                       _',
+  '  __ _  __ ___   _____| |',
+  ' / _` |/ _` \\ \\ / / _ \\ |',
+  '| (_| | (_| |\\ V /  __/ |',
+  ' \\__, |\\__,_| \\_/ \\___|_|',
+  ' |___/',
 ] as const;
 
 function renderUsageCommand(cmd: string) {
@@ -271,7 +272,7 @@ function renderUsageCommand(cmd: string) {
     <span>
       {cmd.split(' ').map((part, index, array) => (
         <span key={`${part}-${index}`}>
-          {part === 'difit' ? <span className="text-[#f1e927]">{part}</span> : part}
+          {part === 'gavel' ? <span className="text-[#f1e927]">{part}</span> : part}
           {index < array.length - 1 ? ' ' : ''}
         </span>
       ))}
@@ -348,30 +349,30 @@ function SitePage() {
 
   const usageExamples: UsageExample[] = [
     { type: 'heading', title: '## Basic Usage' },
-    { type: 'command', cmd: 'difit <target>', commentKey: 'singleCommitDiff', align: true },
+    { type: 'command', cmd: 'gavel <target>', commentKey: 'singleCommitDiff', align: true },
     {
       type: 'command',
-      cmd: 'difit <target> [compare-with]',
+      cmd: 'gavel <target> [compare-with]',
       commentKey: 'compareTwoTargets',
       align: false,
     },
 
     { type: 'heading', title: '## Single commit review' },
-    { type: 'command', cmd: 'difit', commentKey: 'headCommit', align: true },
-    { type: 'command', cmd: 'difit 6f4a9b7', commentKey: 'specificCommit', align: true },
+    { type: 'command', cmd: 'gavel', commentKey: 'headCommit', align: true },
+    { type: 'command', cmd: 'gavel 6f4a9b7', commentKey: 'specificCommit', align: true },
     {
       type: 'command',
-      cmd: 'difit feature',
+      cmd: 'gavel feature',
       commentKey: 'featureLatestCommit',
       align: true,
     },
 
     { type: 'heading', title: '## Compare two commits' },
-    { type: 'command', cmd: 'difit @ main', commentKey: 'compareWithMain', align: true },
-    { type: 'command', cmd: 'difit foobar main', commentKey: 'compareBranches', align: true },
+    { type: 'command', cmd: 'gavel @ main', commentKey: 'compareWithMain', align: true },
+    { type: 'command', cmd: 'gavel foobar main', commentKey: 'compareBranches', align: true },
     {
       type: 'command',
-      cmd: 'difit . origin/main',
+      cmd: 'gavel . origin/main',
       commentKey: 'compareWorkingAndRemoteMain',
       align: false,
     },
@@ -379,29 +380,29 @@ function SitePage() {
     { type: 'heading', title: '## Special Arguments' },
     {
       type: 'command',
-      cmd: 'difit .',
+      cmd: 'gavel .',
       commentKey: 'allUncommitted',
       align: true,
     },
-    { type: 'command', cmd: 'difit staged', commentKey: 'stagingAreaChanges', align: true },
-    { type: 'command', cmd: 'difit working', commentKey: 'unstagedOnly', align: true },
+    { type: 'command', cmd: 'gavel staged', commentKey: 'stagingAreaChanges', align: true },
+    { type: 'command', cmd: 'gavel working', commentKey: 'unstagedOnly', align: true },
 
     { type: 'heading', title: '## Others' },
     {
       type: 'command',
-      cmd: 'difit --pr https://github.com/owner/repo/pull/123',
+      cmd: 'gavel --pr https://github.com/owner/repo/pull/123',
       commentKey: 'reviewPrUrl',
       align: false,
     },
     {
       type: 'command',
-      cmd: 'diff -u file1.txt file2.txt | difit',
+      cmd: 'diff -u file1.txt file2.txt | gavel',
       commentKey: 'viewExternalDiffs',
       align: false,
     },
     {
       type: 'command',
-      cmd: 'cat changes.patch | difit',
+      cmd: 'cat changes.patch | gavel',
       commentKey: 'reviewSavedPatches',
       align: false,
     },
@@ -467,9 +468,9 @@ function SitePage() {
         <div className="flex items-center gap-2">
           <Prompt>
             <span className="text-[#f1e927]">npx</span>{' '}
-            <span className="text-[#f1e927]">difit</span>
+            <span className="text-[#f1e927]">@photostructure/gavel</span>
           </Prompt>
-          <CopyBtn text="npx difit" />
+          <CopyBtn text="npx @photostructure/gavel" />
         </div>
         <Stdout className="pl-0">
           <span className="text-github-text-muted">
@@ -522,7 +523,7 @@ function SitePage() {
             )}
           </div>
           <iframe
-            title="difit live preview"
+            title="gavel live preview"
             src={previewUrl}
             loading="eager"
             className="w-full bg-white"
@@ -539,9 +540,9 @@ function SitePage() {
         <div className="flex items-center gap-2">
           <Prompt>
             <span className="text-github-text-primary">npm</span> install -g{' '}
-            <span className="text-[#f1e927]">difit</span>
+            <span className="text-[#f1e927]">@photostructure/gavel</span>
           </Prompt>
-          <CopyBtn text="npm install -g difit" />
+          <CopyBtn text="npm install -g @photostructure/gavel" />
         </div>
       </section>
 
@@ -550,9 +551,9 @@ function SitePage() {
         <div className="flex items-center gap-2">
           <Prompt>
             <span className="text-github-text-primary">npx skills add </span>
-            <span className="text-[#f1e927]">yoshiko-pg/difit</span>
+            <span className="text-[#f1e927]">photostructure/gavel</span>
           </Prompt>
-          <CopyBtn text="npx skills add yoshiko-pg/difit" />
+          <CopyBtn text="npx skills add photostructure/gavel" />
         </div>
       </section>
 
@@ -596,10 +597,10 @@ function SitePage() {
         <Prompt>
           <span className="text-github-text-primary">open</span>{' '}
           <a
-            href="https://github.com/yoshiko-pg/difit"
+            href="https://github.com/photostructure/gavel"
             className="text-cyan-400 hover:text-cyan-300 transition-colors"
           >
-            https://github.com/yoshiko-pg/difit
+            https://github.com/photostructure/gavel
           </a>
           <span className="text-github-text-muted ml-3"># {shellCommentText.starOnGitHub}</span>
         </Prompt>

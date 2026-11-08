@@ -1,6 +1,6 @@
 # Release procedure
 
-Releases of `@photostructure/difit` use signed Git tags and npm staged
+Releases of `@photostructure/gavel` use signed Git tags and npm staged
 publishing. The workflow stages an exact package, but a maintainer must approve
 that package with two-factor authentication (2FA) before npm makes it public.
 

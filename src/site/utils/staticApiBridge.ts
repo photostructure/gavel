@@ -24,7 +24,7 @@ export interface StaticApiBridge {
 }
 
 interface StaticBlobWindow {
-  __DIFIT_STATIC_BLOB_URLS__?: Record<string, string>;
+  __GAVEL_STATIC_BLOB_URLS__?: Record<string, string>;
 }
 
 interface StaticDiffRequest {
@@ -118,7 +118,7 @@ const resolveRequestedSnapshotId = (manifest: StaticDiffManifest): string | null
 };
 
 // The demo site has no server, so this browser keeps the auto-viewed patterns.
-const AUTO_VIEWED_PATTERNS_STORAGE_KEY = 'difit-demo.autoViewedPatterns';
+const AUTO_VIEWED_PATTERNS_STORAGE_KEY = 'gavel-demo.autoViewedPatterns';
 
 // Before they had their own key, the demo kept them with the appearance settings.
 const LEGACY_APPEARANCE_STORAGE_KEY = 'reviewit-appearance-settings';
@@ -146,13 +146,13 @@ export const installStaticApiBridge = (dataset: StaticDiffDataset): StaticApiBri
   const OriginalEventSource = window.EventSource;
   const originalSendBeacon = navigator.sendBeacon?.bind(navigator);
   const staticBlobWindow = window as Window & StaticBlobWindow;
-  const originalStaticBlobUrls = staticBlobWindow.__DIFIT_STATIC_BLOB_URLS__;
+  const originalStaticBlobUrls = staticBlobWindow.__GAVEL_STATIC_BLOB_URLS__;
 
   const diffIndex = buildDiffIndex(dataset);
   const blobRefIndex = buildBlobRefIndex(dataset);
   let currentRevisionId = resolveRequestedSnapshotId(dataset);
 
-  staticBlobWindow.__DIFIT_STATIC_BLOB_URLS__ = Object.fromEntries(
+  staticBlobWindow.__GAVEL_STATIC_BLOB_URLS__ = Object.fromEntries(
     Object.entries(dataset.blobUrls ?? {}).map(([key, path]) => [key, withBasePath(path)]),
   );
 
@@ -329,7 +329,7 @@ export const installStaticApiBridge = (dataset: StaticDiffDataset): StaticApiBri
         writable: true,
         value: originalSendBeacon,
       });
-      staticBlobWindow.__DIFIT_STATIC_BLOB_URLS__ = originalStaticBlobUrls;
+      staticBlobWindow.__GAVEL_STATIC_BLOB_URLS__ = originalStaticBlobUrls;
     },
   };
 };

@@ -1,4 +1,4 @@
-const CLI_SERVER_URL_PATTERN = /^🚀 difit server started on (https?:\/\/\S+)$/;
+const CLI_SERVER_URL_PATTERN = /^🚀 gavel server started on (https?:\/\/\S+)$/;
 
 /**
  * @param {{

@@ -2,18 +2,18 @@
 
 Reviewer presence and event subscriptions work independently of the agent host.
 The host determines how a real human event reaches its model. Do not put a Codex
-model in a loop that checks difit, shell-job status or browser state.
+model in a loop that checks gavel, shell-job status or browser state.
 
 ## Install the Codex entry point
 
-The Codex skill is [`.codex/skills/difit/SKILL.md`](../.codex/skills/difit/SKILL.md).
+The Codex skill is [`.codex/skills/gavel/SKILL.md`](../.codex/skills/gavel/SKILL.md).
 It keeps the Codex handoff rules separate from the Claude entry point at
-`skills/difit/SKILL.md`. The repository's `difit-dev` skill uses the same Codex
+`skills/gavel/SKILL.md`. The repository's `gavel-dev` skill uses the same Codex
 workflow.
 
-Point the user-level Codex skill, `~/.agents/skills/difit`, at this checkout's
-`.codex/skills/difit` directory. Keep Claude's `~/.claude/skills/difit` pointing
-directly at `skills/difit`. A Claude link through `~/.agents/skills/difit` would
+Point the user-level Codex skill, `~/.agents/skills/gavel`, at this checkout's
+`.codex/skills/gavel` directory. Keep Claude's `~/.claude/skills/gavel` pointing
+directly at `skills/gavel`. A Claude link through `~/.agents/skills/gavel` would
 make changing the Codex target change Claude's skill too. Preserve the existing
 Claude content when separating those links.
 
@@ -24,13 +24,13 @@ human is away. Use it for desktop, CLI, IDE, and subagent reviews unless an
 external event controller is already configured:
 
 1. From the reviewed repository's Git root, launch the source build using
-   the difit launcher prescribed by the checkout's instructions with `--background`.
+   the gavel launcher prescribed by the checkout's instructions with `--background`.
    Save its API host/port, review ID,
    browser URL, capture/summary versions, and pending message revisions. Use a
    named review when the patch must remain frozen.
 2. Send any explicit receipts only after recording the corresponding work. Hand
    the URL to Matthew and end the Codex turn. Leave the detached server running.
-3. After leaving feedback in difit, Matthew clicks **Copy resume prompt** and
+3. After leaving feedback in gavel, Matthew clicks **Copy resume prompt** and
    pastes it into the owning Codex chat. The button also works when the browser
    cannot determine listener presence. It copies a snapshot command and the
    review URL, with the editor-session fragment removed.
@@ -68,8 +68,8 @@ controller owns waiting when automatic delivery is configured.
 OpenAI's [app-server protocol](https://learn.chatgpt.com/docs/app-server#lifecycle-overview)
 documents `initialize`, `thread/resume`, and `turn/start`. A controller that owns
 the real app-server connection can keep the model idle and call `turn/start`
-when difit returns a nonempty human-event batch. This is an integration contract,
-not a claim that the difit CLI currently controls an arbitrary desktop chat.
+when gavel returns a nonempty human-event batch. This is an integration contract,
+not a claim that the gavel CLI currently controls an arbitrary desktop chat.
 
 An implementation must:
 
@@ -98,6 +98,6 @@ does not include building or probing an automatic bridge.
 ## Claude integration
 
 Claude's host-specific waiting instructions live in
-[its skill](../skills/difit/SKILL.md). Changes to that workflow do not change the
+[its skill](../skills/gavel/SKILL.md). Changes to that workflow do not change the
 Codex handoff rule. Both workflows preserve explicit comment receipts, approval
 guards, and existing review servers.

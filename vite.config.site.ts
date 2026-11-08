@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 const siteBasePath =
-  process.env.SITE_BASE_PATH ?? (process.env.GITHUB_PAGES === 'true' ? '/difit/' : '/');
+  process.env.SITE_BASE_PATH ?? (process.env.GITHUB_PAGES === 'true' ? '/gavel/' : '/');
 
 const normalizeDevRoute = (url: string): string | null => {
   const [pathname, query = ''] = url.split('?', 2);

@@ -15,7 +15,7 @@ describe.skipIf(process.platform === 'win32')('development readiness protocol', 
   ] as const)(
     'starts Vite and forwards complete output (JSONL: %s, mode: %s)',
     async (jsonl, mode) => {
-      const directory = await mkdtemp(join(tmpdir(), 'difit-dev-readiness-'));
+      const directory = await mkdtemp(join(tmpdir(), 'gavel-dev-readiness-'));
       let child: ReturnType<typeof spawn> | undefined;
       try {
         for (const folder of ['scripts', 'dev', 'bin', 'dist/cli']) {
@@ -45,7 +45,7 @@ describe.skipIf(process.platform === 'win32')('development readiness protocol', 
           `
 import { writeFileSync } from 'node:fs';
 const vite = process.env.FIXTURE_ROLE === 'vite';
-if (vite) writeFileSync('vite-env', JSON.stringify({ apiUrl: process.env.VITE_DIFIT_API_URL, openPath: process.env.DIFIT_VITE_OPEN_PATH }));
+if (vite) writeFileSync('vite-env', JSON.stringify({ apiUrl: process.env.VITE_GAVEL_API_URL, openPath: process.env.GAVEL_VITE_OPEN_PATH }));
 console.log(vite ? 'vite diagnostic' : 'compiler diagnostic');
 `,
         );
@@ -76,9 +76,9 @@ await import('../worker.js');
           join(directory, 'dist/cli/index.js'),
           `
 import { existsSync, writeFileSync } from 'node:fs';
-const ready = { type: 'server.ready', url: 'http://localhost:4966', launchUrl: 'http://localhost:4966?mode=fixture#difit-editor-token=capability', port: 4966 };
+const ready = { type: 'server.ready', url: 'http://localhost:4966', launchUrl: 'http://localhost:4966?mode=fixture#gavel-editor-token=capability', port: 4966 };
 if (${jsonl}) process.stdout.write(JSON.stringify(ready) + '\\n');
-else process.stderr.write('🚀 difit server started on ' + ready.launchUrl + '\\n');
+else process.stderr.write('🚀 gavel server started on ' + ready.launchUrl + '\\n');
 if (${JSON.stringify(mode)} === 'burst') {
   const events = Array.from({ length: 60 }, (_, index) => ({ type: 'comment.updated', index, body: 'x'.repeat(16384) }));
   events.push({ type: 'server.shutdown', reason: 'closed' });
@@ -132,7 +132,7 @@ if (${JSON.stringify(mode)} === 'burst') {
         ]);
         expect(JSON.parse(await readFile(join(directory, 'vite-env'), 'utf8'))).toEqual({
           apiUrl: 'http://localhost:4966',
-          openPath: '/?mode=fixture#difit-editor-token=capability',
+          openPath: '/?mode=fixture#gavel-editor-token=capability',
         });
         expect(stderr).toContain('compiler diagnostic');
         expect(stderr).toContain('vite diagnostic');

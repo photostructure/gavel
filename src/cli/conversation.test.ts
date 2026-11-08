@@ -31,7 +31,7 @@ describe('conversation commands', () => {
       fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true })));
       await createCommentCommand().parseAsync([
         'node',
-        'difit',
+        'gavel',
         action,
         '--host',
         '10.1.1.24',
@@ -50,7 +50,7 @@ describe('conversation commands', () => {
     fetchMock.mockRejectedValue(new TypeError('fetch failed'));
     await createCommentCommand().parseAsync([
       'node',
-      'difit',
+      'gavel',
       'snapshot',
       '--host',
       '10.1.1.24',
@@ -74,7 +74,7 @@ describe('conversation commands', () => {
     async ({ args }) => {
       const stderr = vi.fn();
       const command = createCommentCommand().exitOverride().configureOutput({ writeErr: stderr });
-      await expect(command.parseAsync(['node', 'difit', 'watch', ...args])).rejects.toThrow(
+      await expect(command.parseAsync(['node', 'gavel', 'watch', ...args])).rejects.toThrow(
         "unknown command 'watch'",
       );
       expect(stderr).toHaveBeenCalledWith(expect.stringContaining("unknown command 'watch'"));
@@ -92,7 +92,7 @@ describe('conversation commands', () => {
           .find((subcommand) => subcommand.name() === action)!
           .exitOverride()
           .configureOutput({ writeErr: vi.fn() });
-        await expect(command.parseAsync(['node', 'difit', action, '--port', port])).rejects.toThrow(
+        await expect(command.parseAsync(['node', 'gavel', action, '--port', port])).rejects.toThrow(
           'Expected an integer from 1 to 65535',
         );
       }
@@ -104,7 +104,7 @@ describe('conversation commands', () => {
     'requires JSON on an interactive terminal for %s',
     async (action) => {
       vi.mocked(detectStdinSource).mockReturnValue('tty');
-      await createCommentCommand().parseAsync(['node', 'difit', action, '--port', '4966']);
+      await createCommentCommand().parseAsync(['node', 'gavel', action, '--port', '4966']);
       expect(error).toHaveBeenCalledWith(
         `Error: Provide ${action === 'summary' ? 'review summary' : action} JSON as an argument or via stdin`,
       );
@@ -119,7 +119,7 @@ describe('conversation commands', () => {
     async (action) => {
       await createCommentCommand().parseAsync([
         'node',
-        'difit',
+        'gavel',
         action,
         '--port',
         '4966',
@@ -143,7 +143,7 @@ describe('conversation commands', () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true })));
     await createCommentCommand().parseAsync([
       'node',
-      'difit',
+      'gavel',
       'status',
       '--port',
       '4966',
@@ -168,7 +168,7 @@ describe('conversation commands', () => {
     vi.mocked(detectStdinSource).mockReturnValue('pipe');
     vi.mocked(readStdin).mockResolvedValue(JSON.stringify(status));
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true })));
-    await createCommentCommand().parseAsync(['node', 'difit', 'status', '--port', '4966']);
+    await createCommentCommand().parseAsync(['node', 'gavel', 'status', '--port', '4966']);
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:4966/api/conversation/status',
       expect.objectContaining({ method: 'POST', body: JSON.stringify(status) }),
@@ -186,7 +186,7 @@ describe('conversation commands', () => {
     vi.mocked(detectStdinSource).mockReturnValue('pipe');
     vi.mocked(readStdin).mockResolvedValue(JSON.stringify(input));
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...input, version: 4 })));
-    await createCommentCommand().parseAsync(['node', 'difit', 'summary', '--port', '4966']);
+    await createCommentCommand().parseAsync(['node', 'gavel', 'summary', '--port', '4966']);
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:4966/api/conversation/summary',
       expect.objectContaining({ method: 'POST', body: JSON.stringify(input) }),
@@ -197,7 +197,7 @@ describe('conversation commands', () => {
   it('prints a reconciliation snapshot with its state checkpoint cursor', async () => {
     const snapshot = { reviews: [{ id: 'review-a', threads: [] }], cursor: 'stream:8' };
     fetchMock.mockResolvedValue(new Response(JSON.stringify(snapshot)));
-    await createCommentCommand().parseAsync(['node', 'difit', 'snapshot', '--port', '4966']);
+    await createCommentCommand().parseAsync(['node', 'gavel', 'snapshot', '--port', '4966']);
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:4966/api/conversation/snapshot',
       expect.anything(),
@@ -216,7 +216,7 @@ describe('conversation commands', () => {
     };
     await createCommentCommand().parseAsync([
       'node',
-      'difit',
+      'gavel',
       'reply',
       '--port',
       '4966',
@@ -239,7 +239,7 @@ describe('conversation commands', () => {
         { status: 404 },
       ),
     );
-    await createCommentCommand().parseAsync(['node', 'difit', 'reply', '--port', '4966', '{}']);
+    await createCommentCommand().parseAsync(['node', 'gavel', 'reply', '--port', '4966', '{}']);
     expect(error).toHaveBeenCalledWith('Error: Review, thread, or parent message no longer exists');
     expect(process.exitCode).toBe(1);
   });
@@ -247,12 +247,12 @@ describe('conversation commands', () => {
   it.each([
     [
       404,
-      'Conversation endpoint or thread not found; start difit with --conversation and use IDs from its events',
+      'Conversation endpoint or thread not found; start gavel with --conversation and use IDs from its events',
     ],
     [500, 'Conversation request failed (500)'],
   ])('reports HTTP %s when no JSON error is available', async (status, message) => {
     fetchMock.mockResolvedValue(new Response('Not JSON', { status }));
-    await createCommentCommand().parseAsync(['node', 'difit', 'snapshot', '--port', '4966']);
+    await createCommentCommand().parseAsync(['node', 'gavel', 'snapshot', '--port', '4966']);
     expect(log).not.toHaveBeenCalled();
     expect(error).toHaveBeenCalledWith(`Error: ${message}`);
     expect(process.exitCode).toBe(1);
@@ -264,14 +264,14 @@ describe('conversation commands', () => {
       fetchMock.mockRejectedValue(new TypeError('fetch failed'));
       await createCommentCommand().parseAsync([
         'node',
-        'difit',
+        'gavel',
         command,
         '--port',
         '4966',
         ...(command === 'snapshot' ? [] : ['{}']),
       ]);
       expect(error).toHaveBeenCalledWith(
-        'Error: Cannot connect to difit server at http://localhost:4966/. Check --host and --port.',
+        'Error: Cannot connect to gavel server at http://localhost:4966/. Check --host and --port.',
       );
       expect(process.exitCode).toBe(1);
     },
@@ -287,7 +287,7 @@ describe('conversation commands', () => {
     vi.mocked(detectStdinSource).mockReturnValue('pipe');
     vi.mocked(readStdin).mockResolvedValue(JSON.stringify(reply));
     fetchMock.mockResolvedValue(new Response('{}'));
-    await createCommentCommand().parseAsync(['node', 'difit', 'reply', '--port', '4966']);
+    await createCommentCommand().parseAsync(['node', 'gavel', 'reply', '--port', '4966']);
     expect(readStdin).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:4966/api/conversation/reply',

@@ -1,13 +1,13 @@
 # Waiting for human review
 
-`difit wait` attaches to running conversation-enabled servers and stays silent
+`gavel wait` attaches to running conversation-enabled servers and stays silent
 while waiting for human activity. It has no overall timeout. HTTP request
 deadlines stay inside the process: empty responses do not print a checkpoint or
 complete the command.
 
 ```sh
-difit wait --port 4966
-difit wait --port 4966 --port 4967
+gavel wait --port 4966
+gavel wait --port 4966 --port 4967
 ```
 
 Use `--host <hostname-or-IP>` when the server listens on a particular interface.
@@ -93,8 +93,8 @@ Save each server's last returned `cursor`. Resume using it after handling the
 batch; this covers human activity that arrives while the agent works:
 
 ```sh
-difit wait --port 4966 --after 'opaque-stream:17'
-difit wait --port 4966 --port 4967 \
+gavel wait --port 4966 --after 'opaque-stream:17'
+gavel wait --port 4966 --port 4967 \
   --after '4966=first-stream:17' --after '4967=second-stream:8'
 ```
 
@@ -136,7 +136,7 @@ disconnecting the tab. Closing one of several tabs does not shut down the server
 Connected hidden tabs count as connected; visibility does not prove attention.
 An interrupted browser connection is not approval or evidence that review is done.
 
-The browser shows whether an agent listener is attached. `difit wait` supplies a
+The browser shows whether an agent listener is attached. `gavel wait` supplies a
 stable listener ID on its requests; a one-second grace period covers renewals.
 This reports a subscription, not a model reading or answering messages. Existing
 explicit receipts remain authoritative for message progress. Presence changes
@@ -152,8 +152,8 @@ rather than running the model to check for feedback.
 
 `GET /api/conversation/events?after=<cursor>&wait=25000` returns `{events, cursor}`.
 The HTTP wait accepts an integer from 0 to 25000 milliseconds. Unlike the CLI,
-this transport may return an empty batch. `difit wait` silently renews it.
-`difit schema batch` describes this response and `difit schema wait` describes the
+this transport may return an empty batch. `gavel wait` silently renews it.
+`gavel schema batch` describes this response and `gavel schema wait` describes the
 CLI result. Launch JSONL remains available alongside the subscription endpoint.
 
 The journal retains the latest 256 events, including agent events, in memory.

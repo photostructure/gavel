@@ -22,9 +22,9 @@ describe('approval of a staged review', () => {
       'git',
       [
         '-c',
-        'user.name=difit',
+        'user.name=gavel',
         '-c',
-        'user.email=difit@example.com',
+        'user.email=gavel@example.com',
         '-c',
         'commit.gpgsign=false',
         '-c',
@@ -70,7 +70,7 @@ describe('approval of a staged review', () => {
     for (const key of Object.keys(process.env)) {
       if (key.startsWith('GIT_')) vi.stubEnv(key, undefined);
     }
-    root = realpathSync(mkdtempSync(join(tmpdir(), 'difit-live-approval-')));
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'gavel-live-approval-')));
     git('init', '--quiet');
     writeFileSync(join(root, 'a.txt'), 'one\n');
     writeFileSync(join(root, 'b.txt'), 'two\n');

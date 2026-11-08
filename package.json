@@ -1,7 +1,7 @@
 {
-  "name": "@photostructure/difit",
+  "name": "@photostructure/gavel",
   "version": "5.1.0",
-  "description": "PhotoStructure fork of difit with live agent conversations and reversible LGTM review approval",
+  "description": "Local Git diff viewer where you review an agent's changes, discuss them with the agent, and record a verdict",
   "keywords": [
     "cli",
     "code-review",
@@ -13,18 +13,18 @@
     "review",
     "tailwind"
   ],
-  "homepage": "https://github.com/photostructure/difit",
+  "homepage": "https://github.com/photostructure/gavel",
   "bugs": {
-    "url": "https://github.com/photostructure/difit/issues"
+    "url": "https://github.com/photostructure/gavel/issues"
   },
   "license": "MIT",
   "author": "yoshiko-pg",
   "repository": {
     "type": "git",
-    "url": "https://github.com/photostructure/difit.git"
+    "url": "https://github.com/photostructure/gavel.git"
   },
   "bin": {
-    "difit": "./dist/cli/index.js"
+    "gavel": "./dist/cli/index.js"
   },
   "files": [
     "dist",

@@ -9,7 +9,7 @@ Placeholder. Not started.
 
 ## Problem
 
-`skills/difit/SKILL.md` tells agents to pipe `comment snapshot` through a
+`skills/gavel/SKILL.md` tells agents to pipe `comment snapshot` through a
 one-line jq program of 839 characters, because the raw snapshot carries
 every thread and code snapshot and floods the agent's context. The filter
 derives what an agent acts on:
@@ -32,5 +32,5 @@ be mirrored in the skills, and a malformed copy fails only at run time.
 - How to read one thread (`--thread <id>`) without the rest.
 - Whether `confirmed` is computed by the server, since it compares
   `resolution.updatedAt` with the message's `updatedAt`.
-- Updating `skills/difit/SKILL.md`, `.codex/skills/difit/SKILL.md`, and
+- Updating `skills/gavel/SKILL.md`, `.codex/skills/gavel/SKILL.md`, and
   `docs/agent-conversations.md` to use it, and adding the shape to `schema`.

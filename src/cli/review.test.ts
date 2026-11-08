@@ -58,7 +58,7 @@ function command(): Command {
 }
 
 async function run(...args: string[]): Promise<Command> {
-  return command().parseAsync(['node', 'difit', ...args]);
+  return command().parseAsync(['node', 'gavel', ...args]);
 }
 
 describe('named review CLI', () => {
@@ -68,7 +68,7 @@ describe('named review CLI', () => {
   let directory: string;
 
   beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), 'difit-review-cli-'));
+    directory = await mkdtemp(join(tmpdir(), 'gavel-review-cli-'));
     vi.stubGlobal('fetch', fetchMock);
     vi.spyOn(console, 'log').mockImplementation(log);
     vi.spyOn(console, 'error').mockImplementation(error);
@@ -188,7 +188,7 @@ describe('named review CLI', () => {
     { action: 'create', patch: ' \n\t' },
     { action: 'update', patch: ' \n\t' },
   ])('rejects blank stdin before $action sends a capture', async ({ action, patch }) => {
-    // Ground truth: difit - --review task rejects blank stdin with No diff content received from stdin.
+    // Ground truth: gavel - --review task rejects blank stdin with No diff content received from stdin.
     vi.mocked(readStdin).mockResolvedValue(patch);
     await run(
       action,
@@ -504,7 +504,7 @@ describe('named review CLI', () => {
     fetchMock.mockRejectedValue(new TypeError('fetch failed'));
     await run('update', 'task', '--port', '4983', '--expected-version', '1');
     expect(error).toHaveBeenCalledWith(
-      'Error: Cannot connect to difit server at http://localhost:4983/. Check --host and --port.',
+      'Error: Cannot connect to gavel server at http://localhost:4983/. Check --host and --port.',
     );
     expect(process.exitCode).toBe(1);
   });

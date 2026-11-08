@@ -1,13 +1,13 @@
 ---
-name: difit-dev
-description: Request human review of changes in this repository through difit, using the Codex workflow that ends the turn during human review.
+name: gavel-dev
+description: Request human review of changes in this repository through gavel, using the Codex workflow that ends the turn during human review.
 metadata:
   internal: true
 ---
 
-# Difit development reviews in Codex
+# Gavel development reviews in Codex
 
-Read [the Codex difit skill](../difit/SKILL.md) and follow its scoped capture,
+Read [the Codex gavel skill](../gavel/SKILL.md) and follow its scoped capture,
 feedback, approval, and handoff workflow. Use the repository's prescribed launcher:
 `/home/mrm/.local/bin/difit`. This source-build launcher is shared with Matthew;
 never substitute another install. For stacked commits, follow that skill's rule

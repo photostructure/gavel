@@ -30,7 +30,7 @@ function readSeenMessages(prefix: string | null): Record<string, string> {
 }
 
 export function useAgentUpdates(threads: CommentThread[], scope: string | null, ready: boolean) {
-  const storagePrefix = scope === null ? null : `difit-agent-updates-v1:${JSON.stringify(scope)}:`;
+  const storagePrefix = scope === null ? null : `gavel-agent-updates-v1:${JSON.stringify(scope)}:`;
   const [state, setState] = useState<{ scope: string | null; seen: Record<string, string> }>({
     scope: null,
     seen: {},

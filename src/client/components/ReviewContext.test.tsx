@@ -6,9 +6,9 @@ import { ReviewContext } from './ReviewContext';
 
 const context: ReviewContextData = {
   source: 'git',
-  repositoryName: 'difit',
-  repositoryPath: '/projects/worktrees/conversation-view/difit',
-  workingDirectory: '/projects/worktrees/conversation-view/difit/src',
+  repositoryName: 'gavel',
+  repositoryPath: '/projects/worktrees/conversation-view/gavel',
+  workingDirectory: '/projects/worktrees/conversation-view/gavel/src',
   hostname: 'review-host',
 };
 

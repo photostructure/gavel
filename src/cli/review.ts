@@ -144,7 +144,7 @@ function addSourceOptions(command: Command): Command {
       collect,
       [],
     )
-    .requiredOption('--port <port>', 'port of the running difit server', (value: string) =>
+    .requiredOption('--port <port>', 'port of the running gavel server', (value: string) =>
       integerInRange(value, 1, 65535),
     );
 }
@@ -221,7 +221,7 @@ function reportError(error: unknown, port?: number, host?: string): void {
     host !== undefined &&
     error instanceof TypeError &&
     error.message.includes('fetch failed')
-      ? `Cannot connect to difit server at ${serverUrl(host, port, '/')}. Check --host and --port.`
+      ? `Cannot connect to gavel server at ${serverUrl(host, port, '/')}. Check --host and --port.`
       : error instanceof Error
         ? error.message
         : 'Named review request failed';

@@ -73,7 +73,7 @@ function compile(files: string[]): void {
 }
 
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'difit-cli-protocol-'));
+  directory = await mkdtemp(join(tmpdir(), 'gavel-cli-protocol-'));
   await symlink(join(repository, 'node_modules'), join(directory, 'node_modules'), 'junction');
   await writeFile(
     join(directory, 'package.json'),
@@ -348,7 +348,7 @@ describe('actual CLI launch protocol', () => {
   ])(
     'rejects $label before starting a server',
     async ({ args, error }) => {
-      // Ground truth: each command is forbidden by difit --help's named capture contract.
+      // Ground truth: each command is forbidden by gavel --help's named capture contract.
       const fixture = launch(
         [...args, '--host', '127.0.0.1', '--port', '0', '--no-open', '--keep-alive'],
         'SIGTERM',
@@ -381,7 +381,7 @@ describe('actual CLI launch protocol', () => {
     let requestedShutdown = false;
     fixture.child.stderr!.on('data', () => {
       // Let the unfixed human-output server stop so this rejection regression cannot leak it.
-      if (!requestedShutdown && fixture.output().stderr.includes('difit server started on')) {
+      if (!requestedShutdown && fixture.output().stderr.includes('gavel server started on')) {
         requestedShutdown = true;
         fixture.child.kill('SIGTERM');
       }
@@ -390,7 +390,7 @@ describe('actual CLI launch protocol', () => {
       expect(await fixture.closed).toBe(1);
       expect(fixture.output().stdout).toBe('');
       expect(fixture.output().stderr).toContain('Named reviews require conversation mode');
-      expect(fixture.output().stderr).not.toContain('difit server started on');
+      expect(fixture.output().stderr).not.toContain('gavel server started on');
     } finally {
       await stop(fixture.child);
     }
@@ -674,7 +674,7 @@ describe('actual CLI launch protocol', () => {
       ]);
       let signalled = false;
       fixture.child.stderr?.on('data', () => {
-        if (!signalled && fixture.output().stderr.includes('difit server started on')) {
+        if (!signalled && fixture.output().stderr.includes('gavel server started on')) {
           signalled = true;
           fixture.child.kill('SIGHUP');
         }
@@ -732,7 +732,7 @@ if (process.argv.slice(2).includes('diff')) {
         await expect.poll(() => fixture.child.signalCode, { timeout: 1000 }).toBe(signal);
         expect(await fixture.closed).toBeNull();
         expect(fixture.output().stdout).toBe('');
-        expect(fixture.output().stderr).not.toContain('difit server started');
+        expect(fixture.output().stderr).not.toContain('gavel server started');
         expect(fixture.output().stderr).not.toContain('Opening browser');
       } finally {
         watcher.close();
@@ -822,7 +822,7 @@ if (process.argv.slice(2).includes('diff')) {
     'isolates real fixture setup and CLI startup from linked-worktree hook variables',
     async () => {
       // The nested selected cases wait for real readiness and shutdown, so both setup and child Git lookup are exercised.
-      const hookRoot = await mkdtemp(join(tmpdir(), 'difit-protocol-hook-'));
+      const hookRoot = await mkdtemp(join(tmpdir(), 'gavel-protocol-hook-'));
       const caller = join(hookRoot, 'caller');
       const linked = join(hookRoot, 'linked');
       const environment = withoutGitEnvironment(process.env);

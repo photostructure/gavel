@@ -883,7 +883,7 @@ describe('named captures in the browser', () => {
       target: { value: 'Unsaved proposal detail' },
     });
     const storageKeys = Object.keys(localStorage).filter((key) =>
-      key.startsWith('difit-storage-v1/repository-one/'),
+      key.startsWith('gavel-storage-v1/repository-one/'),
     );
     expect(storageKeys).toHaveLength(1);
     const before = diffRequests().length;
@@ -905,7 +905,7 @@ describe('named captures in the browser', () => {
       'Unsaved proposal detail',
     );
     expect(
-      Object.keys(localStorage).filter((key) => key.startsWith('difit-storage-v1/repository-one/')),
+      Object.keys(localStorage).filter((key) => key.startsWith('gavel-storage-v1/repository-one/')),
     ).toEqual(storageKeys);
     expect(state.threads[0]?.capture).toEqual({
       version: 1,

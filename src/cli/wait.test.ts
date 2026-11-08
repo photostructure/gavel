@@ -21,7 +21,7 @@ const response = (body: unknown, status = 200) =>
     { status },
   );
 
-describe('difit wait', () => {
+describe('gavel wait', () => {
   const fetchMock = vi.fn<typeof fetch>();
   const log = vi.fn();
   const error = vi.fn();
@@ -44,7 +44,7 @@ describe('difit wait', () => {
       createWaitCommand()
         .exitOverride()
         .configureOutput({ writeErr: vi.fn() })
-        .parseAsync(['node', 'difit']),
+        .parseAsync(['node', 'gavel']),
     ).rejects.toThrow("required option '--port <port>' not specified");
     expect(fetchMock).not.toHaveBeenCalled();
     expect(log).not.toHaveBeenCalled();
@@ -65,7 +65,7 @@ describe('difit wait', () => {
     });
     let finished = false;
     const waiting = createWaitCommand()
-      .parseAsync(['node', 'difit', '--port', '4966'])
+      .parseAsync(['node', 'gavel', '--port', '4966'])
       .then(() => {
         finished = true;
       });
@@ -89,7 +89,7 @@ describe('difit wait', () => {
       fetchMock
         .mockResolvedValueOnce(response(snapshot))
         .mockResolvedValueOnce(response({ events: [event], cursor: event.cursor }));
-      await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966']);
+      await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966']);
       expect(JSON.parse(String(log.mock.calls[0]?.[0])).events).toEqual([event]);
       expect(fetchMock.mock.calls.every(([, init]) => init?.method === undefined)).toBe(true);
     },
@@ -112,7 +112,7 @@ describe('difit wait', () => {
       .mockResolvedValueOnce(response(snapshot))
       .mockResolvedValueOnce(response({ events: ignored, cursor: 'stream:10' }))
       .mockResolvedValueOnce(response({ events: [revoked], cursor: 'stream:11' }));
-    await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966']);
+    await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966']);
     expect(fetchMock.mock.calls[2]?.[0]).toContain('after=stream%3A10');
     expect(log).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(log.mock.calls[0]?.[0])).events).toEqual([revoked]);
@@ -148,7 +148,7 @@ describe('difit wait', () => {
       .mockResolvedValueOnce(response({ events: [], cursor: 'stream:20' }));
     await createWaitCommand().parseAsync([
       'node',
-      'difit',
+      'gavel',
       '--port',
       '4966',
       '--after',
@@ -168,7 +168,7 @@ describe('difit wait', () => {
       .mockResolvedValueOnce(response({ events: [activity()], cursor: 'stream:9' }));
     await createWaitCommand().parseAsync([
       'node',
-      'difit',
+      'gavel',
       '--port',
       '4966',
       '--after',
@@ -191,7 +191,7 @@ describe('difit wait', () => {
     });
     await createWaitCommand().parseAsync([
       'node',
-      'difit',
+      'gavel',
       '--port',
       '4966',
       '--port',
@@ -215,7 +215,7 @@ describe('difit wait', () => {
     fetchMock
       .mockResolvedValueOnce(response(snapshot))
       .mockResolvedValueOnce(response({ error: 'Cannot resume' }, status));
-    await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966']);
+    await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966']);
     expect(process.exitCode).toBe(exitCode);
     expect(log).not.toHaveBeenCalled();
     expect(error).toHaveBeenCalledTimes(1);
@@ -226,7 +226,7 @@ describe('difit wait', () => {
     fetchMock
       .mockResolvedValueOnce(response(snapshot))
       .mockRejectedValueOnce(new TypeError('fetch failed'));
-    await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966']);
+    await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966']);
     expect(process.exitCode).toBe(2);
     expect(log).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -239,7 +239,7 @@ describe('difit wait', () => {
       .mockResolvedValueOnce(response({ events: [], cursor: snapshot.cursor, presence: absent }))
       .mockResolvedValueOnce(response({ ...snapshot, presence: absent }))
       .mockResolvedValueOnce(response({ events: [], cursor: snapshot.cursor, presence: absent }));
-    await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966']);
+    await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966']);
     expect(process.exitCode).toBe(4);
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[1]?.[0]).toContain('wait=0');
@@ -254,7 +254,7 @@ describe('difit wait', () => {
       .mockResolvedValueOnce(
         response({ events: [activity()], cursor: 'stream:1', presence: absent }),
       );
-    await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966']);
+    await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966']);
     expect(log).toHaveBeenCalledTimes(1);
     expect(error).not.toHaveBeenCalled();
   });
@@ -268,7 +268,7 @@ describe('difit wait', () => {
       .mockResolvedValueOnce(
         response({ events: [activity()], cursor: 'stream:1', presence: absent }),
       );
-    await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966']);
+    await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966']);
     expect(log).toHaveBeenCalledTimes(1);
     expect(error).not.toHaveBeenCalled();
   });
@@ -279,7 +279,7 @@ describe('difit wait', () => {
       .mockResolvedValueOnce(response({ events: [activity()], cursor: 'stream:1' }));
     await createWaitCommand().parseAsync([
       'node',
-      'difit',
+      'gavel',
       '--host',
       '10.1.1.24',
       '--port',
@@ -297,14 +297,14 @@ describe('difit wait', () => {
       .mockResolvedValueOnce(response({ events: [], cursor: snapshot.cursor, presence: absent }))
       .mockResolvedValueOnce(response({ ...snapshot, presence: absent }))
       .mockResolvedValueOnce(response({ events: [], cursor: snapshot.cursor, presence: absent }));
-    await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966']);
+    await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966']);
     expect(process.exitCode).toBe(4);
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it('rejects an older server that cannot report presence', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ cursor: 'old:0', reviews: [] })));
-    await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966']);
+    await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966']);
     expect(process.exitCode).toBe(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(error).toHaveBeenCalledWith(expect.stringContaining('presence is unavailable'));
@@ -332,7 +332,7 @@ describe('difit wait', () => {
         init!.signal!.addEventListener('abort', () => reject(new Error('Aborted')), { once: true }),
       );
     });
-    await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966', '--port', '4967']);
+    await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966', '--port', '4967']);
     expect(rounds).toBe(2);
     expect(JSON.parse(String(log.mock.calls[0]?.[0])).port).toBe(4966);
     expect(
@@ -346,7 +346,7 @@ describe('difit wait', () => {
     const dropped = response({});
     vi.spyOn(dropped, 'json').mockRejectedValue(new TypeError('terminated'));
     fetchMock.mockResolvedValueOnce(response(snapshot)).mockResolvedValueOnce(dropped);
-    await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966']);
+    await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966']);
     expect(process.exitCode).toBe(2);
     expect(log).not.toHaveBeenCalled();
   });
@@ -355,7 +355,7 @@ describe('difit wait', () => {
     fetchMock
       .mockResolvedValueOnce(response(snapshot))
       .mockResolvedValueOnce(new Response('<html>'));
-    await createWaitCommand().parseAsync(['node', 'difit', '--port', '4966']);
+    await createWaitCommand().parseAsync(['node', 'gavel', '--port', '4966']);
     expect(process.exitCode).toBe(1);
     expect(log).not.toHaveBeenCalled();
   });
@@ -367,7 +367,7 @@ describe('difit wait', () => {
         createWaitCommand()
           .exitOverride()
           .configureOutput({ writeErr: vi.fn() })
-          .parseAsync(['node', 'difit', '--port', '4966', option, '25']),
+          .parseAsync(['node', 'gavel', '--port', '4966', option, '25']),
       ).rejects.toThrow('unknown option');
       expect(fetchMock).not.toHaveBeenCalled();
     },
@@ -378,7 +378,7 @@ describe('difit wait', () => {
       createWaitCommand()
         .exitOverride()
         .configureOutput({ writeErr: vi.fn() })
-        .parseAsync(['node', 'difit', '--port', port]),
+        .parseAsync(['node', 'gavel', '--port', port]),
     ).rejects.toThrow('Expected an integer from 1 to 65535');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -386,7 +386,7 @@ describe('difit wait', () => {
   it('rejects ambiguous multi-port cursors before making a request', async () => {
     await createWaitCommand().parseAsync([
       'node',
-      'difit',
+      'gavel',
       '--port',
       '4966',
       '--port',

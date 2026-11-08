@@ -63,19 +63,19 @@ async function getGitInfo() {
   }
 }
 
-async function startDifitServer(size, options = {}) {
-  log('Starting difit server...', colors.blue);
+async function startGavelServer(size, options = {}) {
+  log('Starting gavel server...', colors.blue);
 
   let actualPort = config.port;
   let diffInput;
 
-  // Use provided difit path or default
-  const difitBinaryPath =
-    options.difitPath || path.join(__dirname, '..', 'dist', 'cli', 'index.js');
+  // Use provided gavel path or default
+  const gavelBinaryPath =
+    options.gavelPath || path.join(__dirname, '..', 'dist', 'cli', 'index.js');
 
-  const difitProcess = spawn(
+  const gavelProcess = spawn(
     'node',
-    [difitBinaryPath, '--port', config.port.toString(), '--no-open'],
+    [gavelBinaryPath, '--port', config.port.toString(), '--no-open'],
     {
       env: { ...process.env, NODE_ENV: 'production' },
     },
@@ -86,7 +86,7 @@ async function startDifitServer(size, options = {}) {
     diffInput.on('error', (error) => {
       log(`  Diff input error: ${error.message}`, colors.red);
     });
-    diffInput.pipe(difitProcess.stdin);
+    diffInput.pipe(gavelProcess.stdin);
   } else {
     const generateArgs = [path.join(__dirname, 'generate-large-diff.js'), '--size', size];
 
@@ -95,7 +95,7 @@ async function startDifitServer(size, options = {}) {
     }
 
     diffInput = spawn('node', generateArgs);
-    diffInput.stdout.pipe(difitProcess.stdin);
+    diffInput.stdout.pipe(gavelProcess.stdin);
     diffInput.stderr.on('data', (data) => {
       log(`  Diff generator error: ${data.toString().trim()}`, colors.red);
     });
@@ -103,7 +103,7 @@ async function startDifitServer(size, options = {}) {
 
   // Promise to wait for server start
   const serverStarted = new Promise((resolve) => {
-    difitProcess.stdout.on('data', (data) => {
+    gavelProcess.stdout.on('data', (data) => {
       const output = data.toString().trim();
       log(`  Server output: ${output}`, colors.cyan);
 
@@ -115,7 +115,7 @@ async function startDifitServer(size, options = {}) {
       }
     });
 
-    difitProcess.stderr.on('data', (data) => {
+    gavelProcess.stderr.on('data', (data) => {
       log(`  Server error: ${data.toString().trim()}`, colors.red);
     });
   });
@@ -126,7 +126,7 @@ async function startDifitServer(size, options = {}) {
     new Promise((resolve) => setTimeout(() => resolve(actualPort), 5000)),
   ]);
 
-  return { process: difitProcess, port, diffInput };
+  return { process: gavelProcess, port, diffInput };
 }
 
 async function measureKeyboardNavigation(page) {
@@ -249,10 +249,10 @@ async function measurePerformance(size, options = {}) {
     log(`\nIteration ${i + 1}/${totalIterations}${isWarmup ? ' (warm-up)' : ''}`, colors.blue);
 
     const {
-      process: difitProcess,
+      process: gavelProcess,
       port: actualPort,
       diffInput,
-    } = await startDifitServer(size, options);
+    } = await startGavelServer(size, options);
     const iterationMetrics = {
       iteration: isWarmup ? i + 1 : i + 1 - warmupIterations,
       phase: isWarmup ? 'warmup' : 'measured',
@@ -287,7 +287,7 @@ async function measurePerformance(size, options = {}) {
         };
       });
 
-      // Navigate to difit
+      // Navigate to gavel
       const loadStartTime = Date.now();
       await page.goto(`http://localhost:${actualPort}`, {
         waitUntil: 'domcontentloaded',
@@ -324,7 +324,7 @@ async function measurePerformance(size, options = {}) {
       }
     } finally {
       // Kill the process
-      difitProcess.kill('SIGTERM');
+      gavelProcess.kill('SIGTERM');
       if (diffInput?.kill) {
         diffInput.kill('SIGTERM');
       } else if (diffInput?.destroy) {
@@ -417,7 +417,7 @@ async function main() {
         '--memo',
         '--iterations',
         '--warmup-iterations',
-        '--difit-path',
+        '--gavel-path',
         '--diff-file',
         '--seed',
         '--output',
@@ -435,10 +435,10 @@ async function main() {
 
   const memo = args.includes('--memo') ? args[args.indexOf('--memo') + 1] : undefined;
 
-  // Get difit path from --difit-path flag or use default
-  const difitPathIndex = args.indexOf('--difit-path');
-  const difitPath =
-    difitPathIndex !== -1 && args[difitPathIndex + 1] ? args[difitPathIndex + 1] : undefined;
+  // Get gavel path from --gavel-path flag or use default
+  const gavelPathIndex = args.indexOf('--gavel-path');
+  const gavelPath =
+    gavelPathIndex !== -1 && args[gavelPathIndex + 1] ? args[gavelPathIndex + 1] : undefined;
   const diffFileIndex = args.indexOf('--diff-file');
   const diffFile =
     diffFileIndex !== -1 && args[diffFileIndex + 1] ? args[diffFileIndex + 1] : undefined;
@@ -458,7 +458,7 @@ async function main() {
     warmupIterations: args.includes('--warmup-iterations')
       ? parseInt(args[args.indexOf('--warmup-iterations') + 1])
       : undefined,
-    difitPath,
+    gavelPath,
     diffFile,
     diffSeed,
   };
@@ -474,14 +474,14 @@ async function main() {
     log(`  --warmup-iterations <n>  Warm-up iterations to discard (default: 0)`);
     log(`  --memo <text>        Add a memo to the results`);
     log(`  --devtools           Open browser devtools`);
-    log(`  --difit-path <path>  Path to difit CLI (default: dist/cli/index.js)`);
+    log(`  --gavel-path <path>  Path to gavel CLI (default: dist/cli/index.js)`);
     log(`  --diff-file <path>   Use an existing diff file instead of generating one`);
     log(`  --seed <value>       Seed for deterministic diff generation`);
     log(`  --output <path>      Write results to a specific file`);
     process.exit(1);
   }
 
-  log(`${colors.bright}Difit Performance Test${colors.reset}`);
+  log(`${colors.bright}Gavel Performance Test${colors.reset}`);
   log('======================\n');
 
   // Get git information

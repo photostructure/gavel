@@ -262,8 +262,8 @@ describe('StorageService - Repository Isolation', () => {
       ).toEqual(mergeBaseComments);
 
       const keys = (localStorage as any)._keys;
-      expect(keys).toContain('difit-storage-v1/repo-1/abc123-WORKING');
-      expect(keys).toContain('difit-storage-v1/repo-1/abc123-WORKING-merge-base');
+      expect(keys).toContain('gavel-storage-v1/repo-1/abc123-WORKING');
+      expect(keys).toContain('gavel-storage-v1/repo-1/abc123-WORKING-merge-base');
       expect(keys.some((key: string) => key.endsWith('-direct'))).toBe(false);
     });
   });
@@ -387,7 +387,7 @@ describe('StorageService - Viewed Hash Index', () => {
       { filePath: 'a.ts', diffContentHash: 'h1', hashVersion: 1, viewedAt: '2020-01-01T00:00:00Z' },
     ]);
     // Force the index's lastModifiedAt to look ancient.
-    const key = 'difit-viewed-index-v1/repo-1';
+    const key = 'gavel-viewed-index-v1/repo-1';
     const raw = JSON.parse(localStorage.getItem(key) ?? '{}');
     raw.lastModifiedAt = '2020-01-01T00:00:00Z';
     localStorage.setItem(key, JSON.stringify(raw));

@@ -9,9 +9,9 @@ import { Agent, setGlobalDispatcher } from 'undici';
 // Use pipelining=0 instead of keepAlive=false for this version of undici
 setGlobalDispatcher(new Agent({ pipelining: 0 }));
 
-// Keep servers under test away from the developer's ~/.difit/config.json. Nothing
-// creates this directory; tests that save settings point DIFIT_CONFIG_DIR at their own.
-process.env.DIFIT_CONFIG_DIR = join(tmpdir(), `difit-test-config-${process.pid}`);
+// Keep servers under test away from the developer's ~/.gavel/config.json. Nothing
+// creates this directory; tests that save settings point GAVEL_CONFIG_DIR at their own.
+process.env.GAVEL_CONFIG_DIR = join(tmpdir(), `gavel-test-config-${process.pid}`);
 
 // Mock fetch globally for component tests, but not for server integration tests
 if (!process.env.VITEST_SERVER_TEST) {

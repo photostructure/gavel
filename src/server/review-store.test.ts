@@ -30,7 +30,7 @@ import {
 
 const now = Date.parse('2026-11-07T12:00:00.000Z');
 const base = 'c'.repeat(40);
-// Names difit generates, which cleanup acts on.
+// Names gavel generates, which cleanup acts on.
 const corrupt = `${'f'.repeat(64)}.json`;
 const gone = {
   hashed: `${'e'.repeat(64)}.json`,
@@ -73,7 +73,7 @@ describe('ReviewStore', () => {
   let server: ReturnType<ReviewStore['registerServer']>;
 
   beforeEach(() => {
-    directory = mkdtempSync(join(tmpdir(), 'difit-review-store-'));
+    directory = mkdtempSync(join(tmpdir(), 'gavel-review-store-'));
     store = new ReviewStore(directory, () => now);
     server = store.registerServer();
   });
@@ -220,14 +220,14 @@ describe('ReviewStore', () => {
     }
   });
 
-  it('deletes only files whose names difit generates', () => {
+  it('deletes only files whose names gavel generates', () => {
     store.save('old', review(), server.owner);
     for (const subdirectory of ['reviews', 'captures', 'servers', 'locks']) {
       mkdirSync(join(directory, subdirectory), { recursive: true });
       writeFileSync(join(directory, subdirectory, 'notes.txt'), 'not ours');
       writeFileSync(join(directory, subdirectory, 'README.json'), '{}');
     }
-    // A lock that names no running server, under a name difit would not write.
+    // A lock that names no running server, under a name gavel would not write.
     writeFileSync(
       join(directory, 'locks', 'foreign.json'),
       JSON.stringify({ serverId: 'x', pid: 2 ** 22 + 1, hostname: hostname() }),

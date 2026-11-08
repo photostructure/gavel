@@ -19,8 +19,8 @@ import type { ServerEvent, ServerShutdownEvent } from '../types/events.js';
 import { writeJsonl } from './event-output.js';
 import type { NamedReviewStart, ReviewCapture } from '../types/review.js';
 import { NamedReviewError, NamedReviewStore, type NamedReviewState } from './named-reviews.js';
-import { getCaptureRepository, getGitCommonDirectory, validateCapture } from './review-capture.js';
-import { ReviewStore, savedReviewKey, type SavedReview } from './review-store.js';
+import { getCaptureRepository, validateCapture } from './review-capture.js';
+import { openReviewStore, savedReviewKey, type SavedReview } from './review-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -217,9 +217,7 @@ export async function startServer(options: ServerOptions): Promise<{
   );
   // Review state outlives this process only for a Git repository's conversation reviews.
   const reviewStore =
-    captureRepository && conversationEnabled
-      ? new ReviewStore(join(await getGitCommonDirectory(repositoryPath), 'difit'))
-      : undefined;
+    captureRepository && conversationEnabled ? await openReviewStore(repositoryPath) : undefined;
   const storeServer = reviewStore?.registerServer();
   // Cleanup that fails, such as on a read-only store, leaves the files and lets the server run.
   let cleanupError: string | undefined;
@@ -234,7 +232,7 @@ export async function startServer(options: ServerOptions): Promise<{
     }
     if (problems.length) {
       cleanupError = `could not clean up ${problems.length} saved-review file(s), which stay; saving is unaffected: ${problems.join('; ')}`;
-      console.error(`difit ${cleanupError}`);
+      console.error(`gavel ${cleanupError}`);
     }
   }
   // Reviews another running server owns: this one neither restores nor saves them, and the
@@ -279,21 +277,21 @@ export async function startServer(options: ServerOptions): Promise<{
     : undefined;
   const editorSessionToken = randomBytes(16).toString('base64url');
   const editorSessionTokenBytes = Buffer.from(editorSessionToken);
-  const editorSelection = process.env.DIFIT_EDITOR ?? process.env.EDITOR;
+  const editorSelection = process.env.GAVEL_EDITOR ?? process.env.EDITOR;
   const editorOption = resolveEditorOption(editorSelection);
   if (
-    process.env.DIFIT_EDITOR &&
-    !EDITOR_OPTIONS.some((option) => option.id === process.env.DIFIT_EDITOR?.toLowerCase())
+    process.env.GAVEL_EDITOR &&
+    !EDITOR_OPTIONS.some((option) => option.id === process.env.GAVEL_EDITOR?.toLowerCase())
   ) {
-    console.warn(`Unknown DIFIT_EDITOR preset: ${process.env.DIFIT_EDITOR}; using vscode`);
+    console.warn(`Unknown GAVEL_EDITOR preset: ${process.env.GAVEL_EDITOR}; using vscode`);
   }
   const editorCommand =
     editorOption.id === CUSTOM_EDITOR_ID
-      ? (process.env.DIFIT_EDITOR_COMMAND ?? '').trim()
+      ? (process.env.GAVEL_EDITOR_COMMAND ?? '').trim()
       : editorOption.command;
   const editorArgsTemplate =
     editorOption.id === CUSTOM_EDITOR_ID
-      ? (process.env.DIFIT_EDITOR_ARGS ?? '').trim()
+      ? (process.env.GAVEL_EDITOR_ARGS ?? '').trim()
       : editorOption.argsTemplate;
   const customEditorArgsSafe =
     editorOption.id !== CUSTOM_EDITOR_ID ||
@@ -308,11 +306,11 @@ export async function startServer(options: ServerOptions): Promise<{
     })();
   if (editorOption.id === CUSTOM_EDITOR_ID) {
     if (!editorCommand) {
-      console.warn('DIFIT_EDITOR=custom requires DIFIT_EDITOR_COMMAND');
+      console.warn('GAVEL_EDITOR=custom requires GAVEL_EDITOR_COMMAND');
     } else if (!editorArgsTemplate) {
-      console.warn('DIFIT_EDITOR=custom requires DIFIT_EDITOR_ARGS');
+      console.warn('GAVEL_EDITOR=custom requires GAVEL_EDITOR_ARGS');
     } else if (!customEditorArgsSafe) {
-      console.warn('DIFIT_EDITOR_ARGS must pass %file or %file:%line as a separate argument');
+      console.warn('GAVEL_EDITOR_ARGS must pass %file or %file:%line as a separate argument');
     }
   }
   const editorAvailable =
@@ -392,7 +390,7 @@ export async function startServer(options: ServerOptions): Promise<{
         // Throwing here would end the server and lose every review it holds in memory. The
         // review stays queued, so its next change retries the save.
         saveError = `could not save review ${id} under ${reviewStore.directory}: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(`difit ${saveError}`);
+        console.error(`gavel ${saveError}`);
       }
     }
     if (unsavedReviews.size === 0) saveError = undefined;
@@ -1352,7 +1350,7 @@ export async function startServer(options: ServerOptions): Promise<{
           reviewStore.heartbeatError,
           cleanupError,
           memoryOnly.length
-            ? `kept in memory only because another running difit server saves them: ${memoryOnly.join(', ')}`
+            ? `kept in memory only because another running gavel server saves them: ${memoryOnly.join(', ')}`
             : undefined,
         ]
           .filter(Boolean)
@@ -2142,12 +2140,12 @@ export async function startServer(options: ServerOptions): Promise<{
         <!DOCTYPE html>
         <html>
           <head>
-            <title>difit - Dev Mode</title>
+            <title>gavel - Dev Mode</title>
           </head>
           <body>
             <div id="root"></div>
             <script>
-              console.log('difit development mode');
+              console.log('gavel development mode');
               console.log('Diff data available at /api/diff');
             </script>
           </body>

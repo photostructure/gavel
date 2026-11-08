@@ -5,7 +5,7 @@ import SitePage from './SitePage';
 import type { StaticDiffManifest } from './types/staticDiff';
 
 const mockManifest: StaticDiffManifest = {
-  repository: 'difit-demo',
+  repository: 'gavel-demo',
   initialRevisionId: 'abc1234...def5678',
   revisions: [
     {
@@ -49,7 +49,7 @@ describe('SitePage', () => {
     );
 
     render(<SitePage />);
-    const frame = await screen.findByTitle('difit live preview');
+    const frame = await screen.findByTitle('gavel live preview');
     const menuButton = await screen.findByRole('button', {
       name: /Revision menu: Large implementation diff/,
     });

@@ -22,7 +22,7 @@ interface CommentImportResponse {
 function handleCommandError(error: unknown, port: number, host: string): never {
   if (error instanceof TypeError && error.message.includes('fetch failed')) {
     console.error(
-      `Error: Cannot connect to difit server at ${serverUrl(host, port, '/')}. Check --host and --port.`,
+      `Error: Cannot connect to gavel server at ${serverUrl(host, port, '/')}. Check --host and --port.`,
     );
   } else {
     console.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -49,15 +49,15 @@ async function parseCommentAddInput(json?: string): Promise<string> {
 
 export function createCommentCommand(): Command {
   const comment = new Command('comment').description(
-    'Add, retrieve, or resolve comments on a running difit server',
+    'Add, retrieve, or resolve comments on a running gavel server',
   );
   addConversationCommands(comment);
 
   comment
     .command('add')
-    .description('Add comments to a running difit server')
+    .description('Add comments to a running gavel server')
     .argument('[json]', 'comment import JSON (object or array)')
-    .requiredOption('--port <port>', 'port of the running difit server', parseServerPort)
+    .requiredOption('--port <port>', 'port of the running gavel server', parseServerPort)
     .option(
       '--review <name>',
       'named review to add the comments to (default: the review the viewer last loaded)',
@@ -101,8 +101,8 @@ export function createCommentCommand(): Command {
 
   comment
     .command('get')
-    .description('Retrieve comments from a running difit server')
-    .requiredOption('--port <port>', 'port of the running difit server', parseServerPort)
+    .description('Retrieve comments from a running gavel server')
+    .requiredOption('--port <port>', 'port of the running gavel server', parseServerPort)
     .addOption(
       new Option('--format <format>', 'output format').choices(['text', 'json']).default('text'),
     )
@@ -143,7 +143,7 @@ export function createCommentCommand(): Command {
         }[action],
       )
       .argument('<threadIds...>', 'thread IDs')
-      .requiredOption('--port <port>', 'port of the running difit server', parseServerPort)
+      .requiredOption('--port <port>', 'port of the running gavel server', parseServerPort)
       .action(
         async (threadIds: string[], opts: { host: string; port: number; review?: string }) => {
           try {

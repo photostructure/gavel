@@ -112,7 +112,7 @@ jobs:
             --diff-file ../performance-inputs/perf-"$PERF_SIZE".diff \
             --output performance-results/base-round-1.json \
             --memo "ci round 1 (base first)" \
-            --difit-path ../base/dist/cli/index.js
+            --gavel-path ../base/dist/cli/index.js
 
       - name: Run head benchmark round 1
         if: steps.changes.outputs.run_benchmark == 'true'
@@ -149,7 +149,7 @@ jobs:
             --diff-file ../performance-inputs/perf-"$PERF_SIZE".diff \
             --output performance-results/base-round-2.json \
             --memo "ci round 2 (base second)" \
-            --difit-path ../base/dist/cli/index.js
+            --gavel-path ../base/dist/cli/index.js
 
       - name: Merge benchmark results
         if: steps.changes.outputs.run_benchmark == 'true'

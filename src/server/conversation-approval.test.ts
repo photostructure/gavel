@@ -208,7 +208,7 @@ describe('conditional review approval', () => {
       for (const condition of approval.conditions ?? []) {
         await createCommentCommand().parseAsync([
           'node',
-          'difit',
+          'gavel',
           'reply',
           JSON.stringify({
             reviewId,
@@ -224,7 +224,7 @@ describe('conditional review approval', () => {
         ]);
         await createCommentCommand().parseAsync([
           'node',
-          'difit',
+          'gavel',
           'address',
           JSON.stringify({
             reviewId,

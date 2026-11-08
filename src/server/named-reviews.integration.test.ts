@@ -59,9 +59,9 @@ describe('named review HTTP integration', () => {
       'git',
       [
         '-c',
-        'user.name=difit',
+        'user.name=gavel',
         '-c',
-        'user.email=difit@example.com',
+        'user.email=gavel@example.com',
         '-c',
         'commit.gpgsign=false',
         '-c',
@@ -114,7 +114,7 @@ describe('named review HTTP integration', () => {
     for (const key of Object.keys(process.env)) {
       if (key.startsWith('GIT_')) vi.stubEnv(key, undefined);
     }
-    root = realpathSync(mkdtempSync(join(tmpdir(), 'difit-named-http-')));
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'gavel-named-http-')));
     cleanupDirectories.push(root);
     git('init', '--quiet');
     writeFileSync(join(root, 'first.txt'), 'before first\n');
@@ -467,7 +467,7 @@ describe('named review HTTP integration', () => {
 
   it('rejects foreign and tampered captures without changing either review state or working files', async () => {
     const before = await review();
-    const foreignRoot = realpathSync(mkdtempSync(join(tmpdir(), 'difit-named-foreign-')));
+    const foreignRoot = realpathSync(mkdtempSync(join(tmpdir(), 'gavel-named-foreign-')));
     cleanupDirectories.push(foreignRoot);
     const foreign = capturePatch(initialCapture.patch, {
       repositoryRoot: foreignRoot,

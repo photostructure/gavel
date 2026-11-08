@@ -45,8 +45,8 @@ older agents cannot mistake pending conditional permission for completed approva
    and ensure the changes implement only the approved feedback. The server records
    agent attestations; it cannot judge the correctness or scope of source changes.
 4. Skip conditions already confirmed by the reviewer. Certify each remaining
-   condition with `difit comment address --host <host> --port <port>`.
-   Use the checkout's prescribed difit launcher. Supply JSON on stdin:
+   condition with `gavel comment address --host <host> --port <port>`.
+   Use the checkout's prescribed gavel launcher. Supply JSON on stdin:
 
    ```json
    {
@@ -100,4 +100,4 @@ A restarted server that opens the same review restores its approval
 ([saved reviews](agent-conversations.md#saved-reviews)). Presence and browser
 closure never grant approval.
 
-Use `difit schema approval` and `difit schema address` for request schemas.
+Use `gavel schema approval` and `gavel schema address` for request schemas.

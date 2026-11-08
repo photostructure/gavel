@@ -485,7 +485,7 @@ const definitions: Record<string, Schema> = {
       cursor,
     }),
     description:
-      'One nonempty batch from difit wait. Save port/cursor for the next --after; events retain their exact revision cursors. No delivery receipt is implied.',
+      'One nonempty batch from gavel wait. Save port/cursor for the next --after; events retain their exact revision cursors. No delivery receipt is implied.',
   },
   ServerEvent: {
     description:
@@ -553,7 +553,7 @@ const definitions: Record<string, Schema> = {
       store: {
         ...object({ directory: string, error: string }, ['directory']),
         description:
-          'Where this server saves its reviews (<git-common-dir>/difit). error, when present, lists what it is not saving and why: a failed or lock-waiting save, a failed heartbeat, or reviews another running server saves, which this one keeps in memory only; until those clear, their changes are lost when the server stops. It also lists files startup cleanup could not handle, which stay without affecting saving.',
+          'Where this server saves its reviews (<git-common-dir>/gavel). error, when present, lists what it is not saving and why: a failed or lock-waiting save, a failed heartbeat, or reviews another running server saves, which this one keeps in memory only; until those clear, their changes are lost when the server stops. It also lists files startup cleanup could not handle, which stay without affecting saving.',
       },
       cursor: {
         ...cursor,
@@ -717,11 +717,11 @@ input; snapshot validates the response and capture validates a saved artifact.
 All roots include every $defs definition.
 
 Examples:
-  difit schema > difit.schema.json
-  difit schema summary > summary-request.schema.json
-  difit schema snapshot > snapshot-response.schema.json
-  difit schema capture > capture.schema.json
-  difit schema capture-update > capture-update.schema.json
+  gavel schema > gavel.schema.json
+  gavel schema summary > summary-request.schema.json
+  gavel schema snapshot > snapshot-response.schema.json
+  gavel schema capture > capture.schema.json
+  gavel schema capture-update > capture-update.schema.json
 `,
     )
     .action((name: keyof typeof roots) => {
@@ -729,7 +729,7 @@ Examples:
         JSON.stringify(
           {
             $schema: 'https://json-schema.org/draft/2020-12/schema',
-            title: 'difit events, captures and review API',
+            title: 'gavel events, captures and review API',
             description:
               'Machine-readable event and JSON request/response contracts for expected-valid payloads. Additional properties are tolerated. The server checks existence, revision matching, version conflicts, and import dates/ranges. POST /api/comments is not a validation boundary: it may preserve invalid thread positions or normalize invalid display ranges.',
             $ref: `#/$defs/${roots[name]}`,

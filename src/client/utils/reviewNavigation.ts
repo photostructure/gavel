@@ -26,8 +26,8 @@ export function readReviewLocation(): ReviewSelection | null {
 /** Restore a resolved history entry; initial page loads keep following the URL refs. */
 export function readReviewHistoryLocation(): ReviewSelection | null {
   const state: unknown = window.history.state;
-  if (state && typeof state === 'object' && 'difitReview' in state) {
-    const saved = state.difitReview;
+  if (state && typeof state === 'object' && 'gavelReview' in state) {
+    const saved = state.gavelReview;
     if (
       saved &&
       typeof saved === 'object' &&
@@ -92,7 +92,7 @@ export function writeReviewLocation(
   const state = resolvedSelection
     ? {
         ...(previous && typeof previous === 'object' ? previous : {}),
-        difitReview: { href: url.href, selection: resolvedSelection },
+        gavelReview: { href: url.href, selection: resolvedSelection },
       }
     : previous;
   if (mode === 'push') window.history.pushState(state, '', url);

@@ -33,7 +33,7 @@ type Drafts = Record<string, CommentDraft>;
 // appear in another.
 export const CommentDraftScope = createContext('default');
 
-const STORAGE_PREFIX = 'difit:comment-drafts:';
+const STORAGE_PREFIX = 'gavel:comment-drafts:';
 
 export function draftKey(anchor: DraftAnchor): string {
   switch (anchor.kind) {

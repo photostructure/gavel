@@ -1,4 +1,0 @@
-interface:
-  display_name: 'Difit (Codex)'
-  short_description: 'Open difit reviews without idle model turns.'
-  default_prompt: 'Use $difit to open the requested review, then hand back without polling.'

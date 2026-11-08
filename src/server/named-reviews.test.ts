@@ -9,8 +9,8 @@ import { getDiffSelectionKey } from '../utils/diffSelection.js';
 import { NamedReviewError, NamedReviewStore } from './named-reviews.js';
 import { capturePatch } from './review-capture.js';
 
-const repositoryRoot = resolve(tmpdir(), 'difit-named-review-store');
-const foreignRepositoryRoot = resolve(tmpdir(), 'difit-another-repository');
+const repositoryRoot = resolve(tmpdir(), 'gavel-named-review-store');
+const foreignRepositoryRoot = resolve(tmpdir(), 'gavel-another-repository');
 const baseCommit = 'a'.repeat(40);
 
 function capture(newValue = 'after', base = baseCommit, root = repositoryRoot): ReviewCapture {

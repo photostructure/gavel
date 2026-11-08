@@ -1,12 +1,12 @@
 ---
-name: difit
-description: Open a diff in difit, the local diff viewer, with reading-guide comments and a proposed commit message — either your own changes for the user to review, or a branch, commit, or GitHub PR the user names, which you first review for defects. Explicit opt-in only — use when the user names difit or $difit, asks to open, show, or annotate a diff in the viewer, or has a standing instruction to request reviews through difit after changes. Do not use it for ordinary requests to review code, diffs, commits, branches, or pull requests; answer those in chat.
+name: gavel
+description: Open a diff in gavel, the local diff viewer, with reading-guide comments and a proposed commit message — either your own changes for the user to review, or a branch, commit, or GitHub PR the user names, which you first review for defects. Explicit opt-in only — use when the user names gavel or $gavel, asks to open, show, or annotate a diff in the viewer, or has a standing instruction to request reviews through gavel after changes. Do not use it for ordinary requests to review code, diffs, commits, branches, or pull requests; answer those in chat.
 ---
 
-# Difit
+# Gavel
 
-Use only for an explicit difit/viewer request, skill invocation, or standing
-instruction to request difit reviews. Ordinary review requests belong in chat.
+Use only for an explicit gavel/viewer request, skill invocation, or standing
+instruction to request gavel reviews. Ordinary review requests belong in chat.
 
 Token use is a hard limit, not a preference. A review can stay open for hours,
 and every model turn you take re-sends your whole context; agents that woke
@@ -17,11 +17,11 @@ happened. Waiting is covered below and admits no substitute.
 
 Decide what to show from the request:
 
-- "Show me your difit", or no target: the changes this session made. For
+- "Show me in gavel", or no target: the changes this session made. For
   uncommitted work, a named review scoped to your own paths and hunks. When
   none of your work is still uncommitted, don't launch: tell the user it is
   already committed, list each commit's short SHA and subject, and ask whether
-  difit should show them. If they say yes, pass the commit's own message as
+  gavel should show them. If they say yes, pass the commit's own message as
   `--commit-message` (for a range, each commit's subject on its own line). Keep
   approvals on while the commits are not yet on the branch they will land on
   (`git merge-base --is-ancestor <sha> <base>` exits 1), so the user can approve
@@ -36,30 +36,32 @@ Decide what to show from the request:
   approve it. Do not post PR findings to GitHub.
 
 Open a review you start on your own, such as a commit approval at the end of
-your work, only while the user is at the desk. Run `<difit-command> idle` first.
+your work, only while the user is at the desk. Run `<gavel-command> idle` first.
 If it exits non-zero or prints an `idleMs` of 600000 (10 minutes) or more, the
 user is away: do not launch. Finish everything else, including tests and
 second-opinion review, then end the turn with one line saying the change is
-ready for difit review, and launch when the user says to. Do not run `idle`
+ready for gavel review, and launch when the user says to. Do not run `idle`
 again to see whether they came back; their next message tells you. Skip the
 check when the user's latest message asks for the review, since they may be
 reading it on another device.
 
-Use a source build of `@photostructure/difit` for `<difit-command>` until the
-next release: published 5.1.0 lacks named captures and the launch JSONL protocol.
+Use a source build of `@photostructure/gavel` for `<gavel-command>` until its
+first release: the last published version, `@photostructure/difit` 5.1.0, lacks
+named captures and the launch JSONL protocol.
 Check `--version` and `--help` for `--review` and `--jsonl`; use the same build for server and
-comment commands. Never substitute unscoped npm `difit`. Run from the reviewed
+comment commands. Never substitute an unscoped npm package: `gavel` is Apiary's
+unrelated HTTP validator, and `difit` is upstream's viewer. Run from the reviewed
 Git root. Report missing capabilities rather than switching/installing.
-For uncommitted work, use `<difit-command> --review <task-name> --keep-alive`.
+For uncommitted work, use `<gavel-command> --review <task-name> --keep-alive`.
 Repeat `--pathspec <git-pathspec>` for native Git filters/exclusions and add
 `--include-untracked` when needed. Names are 1–80 ASCII letters, digits, dots,
 underscores, or hyphens, starting with a letter or digit. Check the captured patch
 against the requested scope; a matching file may also contain another task's work.
 Capture operations leave the Git index and working files unchanged.
-For commits, launch `<difit-command> <target> [base]` using immutable SHAs when
+For commits, launch `<gavel-command> <target> [base]` using immutable SHAs when
 approval matters. Existing unnamed `.`, `working`, and `staged` remain available.
 The viewer's **About** panel names the agent, session, and session ID that
-launched the review. difit fills in the agent and ID itself from
+launched the review. gavel fills in the agent and ID itself from
 `$CLAUDE_CODE_ENTRYPOINT` and `$CLAUDE_CODE_SESSION_ID` (Codex:
 `$CODEX_THREAD_ID` and its thread rollout; other agents: `$AI_AGENT`, agent
 only); override them with `--agent <host>` and `--agent-session-id <id>` when
@@ -73,14 +75,14 @@ host exports it; never invent a title. They are set per server at launch;
 To select part of an overlapping file, save an artifact and use its catalogue IDs:
 
 ```sh
-<difit-command> review capture --pathspec src --output /tmp/capture.json
-<difit-command> --review parser-fix --capture /tmp/capture.json --select '<hunk-id>' --keep-alive
+<gavel-command> review capture --pathspec src --output /tmp/capture.json
+<gavel-command> --review parser-fix --capture /tmp/capture.json --select '<hunk-id>' --keep-alive
 ```
 
 Replace the placeholder with a printed ID; repeat `--select` for files/hunks.
 IDs belong to that artifact's digest. File-only changes such as binary or rename
 changes require a file ID. Artifacts are bound to the repository root.
-`<difit-command> - --review <task-name> < /tmp/selected.patch` captures a supplied
+`<gavel-command> - --review <task-name> < /tmp/selected.patch` captures a supplied
 patch. Pathspecs and `--include-untracked` apply only to native captures.
 
 Native capture rejects affected external clean/process filters, including inside
@@ -100,9 +102,9 @@ stacked commits, create one named review per commit on one server, in commit
 order, and give the user one link, the `launchUrl`; the tabs lead to the other
 reviews. An LGTM approves only its own review: commit the stack in creation
 order, each commit once its own review is approved. For a stack of commits that
-already exist, launch the first as `<difit-command> <sha> --keep-alive
+already exist, launch the first as `<gavel-command> <sha> --keep-alive
 --commit-message <its message>`, add each later one with
-`git diff --full-index <sha>^ <sha> | <difit-command> review create <name> - --port <api-port>`
+`git diff --full-index <sha>^ <sha> | <gavel-command> review create <name> - --port <api-port>`
 (without the `-`, `review create` captures the uncommitted tree instead), and
 give each its own message with `comment summary`. Approve as-is on an existing
 commit approves it for landing, with nothing to commit. Fixes that Approve
@@ -123,10 +125,10 @@ comments itself, but a restored review has a new review ID and event stream, so
 read it with `comment snapshot` before sending it a status, a reply or a summary;
 its summary `version` is the `baseVersion` for `comment summary`. To learn whether a
 commit was approved, also after its server stopped, run
-`<difit-command> approval status <sha>`. When
+`<gavel-command> approval status <sha>`. When
 the snapshot's `store.error` (`storeError` in the filtered snapshot below) is set,
 tell the user that review changes are not being saved, and why
-([saved reviews](https://github.com/photostructure/difit/blob/main/docs/agent-conversations.md#saved-reviews)).
+([saved reviews](https://github.com/photostructure/gavel/blob/main/docs/agent-conversations.md#saved-reviews)).
 
 Stdout is JSONL by default (`--jsonl` is explicit; `--no-jsonl` selects human output).
 JSONL and named reviews require conversation APIs. An unnamed review can disable
@@ -139,13 +141,13 @@ that launch URL. Diagnostics go to stderr.
 Conversation and LGTM are enabled by default. Use `--keep-alive` for review rounds
 and `--no-lgtm` for read-only review. `--background` detaches without live stdout;
 recover its state with the filtered snapshot and wait on it with
-`<difit-command> wait`, never by reading launch output. A `--background` launch
+`<gavel-command> wait`, never by reading launch output. A `--background` launch
 opens no browser tab, and `wait` exits 4 at once while no review tab is
 connected, so wait on it only after the user has opened the review URL.
 A viewer request grants no edit/commit permission; make requested, authorized
 fixes only in the owning checkout.
 
-Use `<difit-command> schema [events|summary|reply|status|snapshot|comments|import|approval|capture|capture-update]` to discover
+Use `<gavel-command> schema [events|summary|reply|status|snapshot|comments|import|approval|capture|capture-update]` to discover
 JSON payloads before composing them; omit the selector for events. The Draft
 2020-12 bundle includes request/response definitions in `$defs`. Use command
 `--help` for usage. The commit-message TLDR is the summary's `rationale` field.
@@ -157,7 +159,7 @@ diff with repeatable `--comment` arguments (on a reused server, `comment add
 for target lines, and a number or `{"start":36,"end":39}` for a range:
 
 ```sh
-<difit-command> <target> [base] --keep-alive \
+<gavel-command> <target> [base] --keep-alive \
   --comment '{"type":"thread","filePath":"src/example.ts","position":{"side":"new","line":36},"body":"Start here: ..."}'
 ```
 
@@ -196,7 +198,7 @@ capture metadata identifies the original anchor, which can be outdated after an 
 progress, thread changes, and `comment.deleted` update
 state without requesting work; deletion identifies IDs and contains no body.
 Writing to stdout does not mark a comment Delivered. Report receipt explicitly:
-`<difit-command> comment <status|reply> --port <port> < <json-file>`.
+`<gavel-command> comment <status|reply> --port <port> < <json-file>`.
 Status JSON needs event `reviewId`, `threadId`, `messageId`, `cursor`, and `status`
 (`delivered`, `read`, `thinking`, `replying`, or `noted` when no answer is needed).
 Reply JSON needs `reviewId`, `threadId`, `inReplyTo` (event `messageId`), `cursor`,
@@ -205,11 +207,11 @@ replies nor Noted resolve threads. Resolve/delete only on request. Intent guides
 responses, not authorization. After missed output, restart, or HTTP 409, use
 the filtered snapshot (below) to reconcile IDs, current messages, and replies,
 then continue reading new launch output. Snapshots recover current state;
-`<difit-command> wait --after` resumes from a stream cursor. Use message `progress.cursor` for status/reply,
+`<gavel-command> wait --after` resumes from a stream cursor. Use message `progress.cursor` for status/reply,
 not a progress event's stream cursor or the snapshot's cursor. Do not promise
 listening after ending the turn without host support that forwards process output.
 
-Wait for the user only with `<difit-command> wait`, as one background command
+Wait for the user only with `<gavel-command> wait`, as one background command
 (Claude Code's Bash `run_in_background`) in the main session, and only where the
 host starts a new turn for you when that command exits and puts no time limit
 on it. It spends no tokens while it waits. Read your Bash tool's description:
@@ -243,7 +245,7 @@ read is for the single approval check right before a commit. Pass `--host` and
 resume prompt resumes you, run this in place of the raw snapshot it names:
 
 ```sh
-set -o pipefail; <difit-command> comment snapshot --host <host> --port <api-port> | jq -c '{cursor, connected: .presence.reviewers.connected, storeError: (.store.error // null), reviews: [.reviews[] as $r | {id: $r.id, selection: $r.selection, capture: ($r.capture | if . then {version, patchDigest} else null end), approval: ($r.approval | {approved, mode, requested, notYet: (.notYet // false), cursor, open: [.conditions[]? | select(.addressed | not) | {threadId, messageId, cursor, intent}]}), commitMessage: $r.summary.commitMessage, fromCommit: ($r.summary.fromCommit // false), summaryVersion: $r.summary.version, pending: [$r.threads[] as $t | $t.messages[] | select(.progress and (.progress.status | IN("replied","noted") | not)) | {threadId: $t.id, messageId: .id, cursor: .progress.cursor, confirmed: (($t.resolution.resolved // false) and $t.resolution.updatedAt >= .updatedAt), filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}]}]}'
+set -o pipefail; <gavel-command> comment snapshot --host <host> --port <api-port> | jq -c '{cursor, connected: .presence.reviewers.connected, storeError: (.store.error // null), reviews: [.reviews[] as $r | {id: $r.id, selection: $r.selection, capture: ($r.capture | if . then {version, patchDigest} else null end), approval: ($r.approval | {approved, mode, requested, notYet: (.notYet // false), cursor, open: [.conditions[]? | select(.addressed | not) | {threadId, messageId, cursor, intent}]}), commitMessage: $r.summary.commitMessage, fromCommit: ($r.summary.fromCommit // false), summaryVersion: $r.summary.version, pending: [$r.threads[] as $t | $t.messages[] | select(.progress and (.progress.status | IN("replied","noted") | not)) | {threadId: $t.id, messageId: .id, cursor: .progress.cursor, confirmed: (($t.resolution.resolved // false) and $t.resolution.updatedAt >= .updatedAt), filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}]}]}'
 ```
 
 The user gives each review one of three verdicts: **Approve as-is**
@@ -262,7 +264,7 @@ is the browsed commit's own message, which the server copied; nobody proposed
 it, and its review has no tab. `approval.requested: true` with `open`
 conditions is an Approve after comments: complete each condition with `comment
 address`, as the
-[approval guide](https://github.com/photostructure/difit/blob/main/docs/approval-modes.md)
+[approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md)
 describes. A pending message with `confirmed: true` sits in a thread the
 reviewer resolved after its last edit, which confirms its work: mark it `noted`
 with `comment status` rather than redoing it. A message the reviewer added or
@@ -284,7 +286,7 @@ When a pending message continues an earlier
 exchange (such as **Still unclear**), read only its thread:
 
 ```sh
-set -o pipefail; <difit-command> comment snapshot --host <host> --port <api-port> | jq -c --arg t <threadId> '.reviews[].threads[] | select(.id == $t) | {filePath, position, resolved: (.resolution.resolved // false), code: .codeSnapshot.content, messages: [.messages[] | {id, origin: (.origin // "user"), body}]}'
+set -o pipefail; <gavel-command> comment snapshot --host <host> --port <api-port> | jq -c --arg t <threadId> '.reviews[].threads[] | select(.id == $t) | {filePath, position, resolved: (.resolution.resolved // false), code: .codeSnapshot.content, messages: [.messages[] | {id, origin: (.origin // "user"), body}]}'
 ```
 
 Before the first wait on a server, run it: act on an LGTM, an Approve after
@@ -327,4 +329,4 @@ later shared-tree edits do not acquire approval. Revocation invalidates prior bu
 approval; after a restart, only the approval a fresh snapshot shows counts. Then commit without asking again. Separate chat approval is independent; silence/tab closure is not
 approval. This rule never authorizes a push or publication.
 
-Details: [conversation protocol](https://github.com/photostructure/difit/blob/main/docs/agent-conversations.md).
+Details: [conversation protocol](https://github.com/photostructure/gavel/blob/main/docs/agent-conversations.md).

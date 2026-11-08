@@ -24,7 +24,7 @@ test Firefox.
 
 - [x] Server verdict — `pnpm vitest run src/server/conversation-approval.test.ts src/server/live-approval.integration.test.ts src/server/named-reviews.integration.test.ts`
 - [x] Verdict buttons, tab marks, follow-up countdown — `pnpm vitest run src/client/components/VerdictControl.test.tsx src/client/components/VerdictFollowUpNotice.test.tsx src/client/hooks/useVerdictFollowUp.test.ts src/client/components/ReviewQueueBar.test.tsx`, then `pnpm vitest run src/client/App.namedReviews.test.tsx -t "after a verdict"` (a `-t` filter applies to every file listed)
-- [x] Docs and skills — `docs/approval-modes.md`, `docs/agent-conversations.md`, `README.md`, `skills/difit/SKILL.md`, `.claude/skills/difit-dev/SKILL.md`, `CHANGELOG.md`
+- [x] Docs and skills — `docs/approval-modes.md`, `docs/agent-conversations.md`, `README.md`, `skills/gavel/SKILL.md`, `.claude/skills/gavel-dev/SKILL.md`, `CHANGELOG.md`
 - [x] Reviewed — `coding:second-opinion` LAND on every batch, base `646b773`. Codex
       reviewed only the server batch; front-end batches ran the Claude reviewer alone
       (the maintainer's standing instruction).

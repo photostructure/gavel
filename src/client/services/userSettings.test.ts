@@ -11,8 +11,8 @@ import {
 const settingsCookie = () =>
   document.cookie
     .split('; ')
-    .find((cookie) => cookie.startsWith('difit-settings='))
-    ?.slice('difit-settings='.length);
+    .find((cookie) => cookie.startsWith('gavel-settings='))
+    ?.slice('gavel-settings='.length);
 
 const serverResponse = (body: unknown) =>
   new Response(JSON.stringify(body), {

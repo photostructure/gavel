@@ -46,7 +46,7 @@ async function startFixture(
   environment: NodeJS.ProcessEnv = process.env,
   launcherArgs: string[] = [],
 ): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'difit-dev-launcher-'));
+  const directory = await mkdtemp(join(tmpdir(), 'gavel-dev-launcher-'));
   const fixtureEnv = withoutGitEnvironment(environment);
   try {
     for (const folder of [
@@ -82,8 +82,8 @@ import { existsSync, writeFileSync } from 'node:fs';
 const role = process.env.FIXTURE_ROLE;
 console.log(role + ' diagnostic');
 if (role === 'vite') writeFileSync('vite-env', JSON.stringify({
-  apiUrl: process.env.VITE_DIFIT_API_URL,
-  openPath: process.env.DIFIT_VITE_OPEN_PATH,
+  apiUrl: process.env.VITE_GAVEL_API_URL,
+  openPath: process.env.GAVEL_VITE_OPEN_PATH,
 }));
 if (role === 'compile' && ${JSON.stringify(mode)} === 'compile-fail') {
   const diagnostic = 'x'.repeat(2000000);
@@ -171,11 +171,11 @@ writeFileSync('cli.pid', String(process.pid));
 const ready = {
   type: 'server.ready',
   url: 'http://localhost:4966',
-  launchUrl: 'http://localhost:4966?review=agent-task#difit-editor-token=fixture-capability',
+  launchUrl: 'http://localhost:4966?review=agent-task#gavel-editor-token=fixture-capability',
   port: 4966,
 };
 const announceReady = () => {
-  if (process.argv.includes('--no-jsonl')) process.stderr.write('🚀 difit server started on ' + ready.launchUrl + '\\n');
+  if (process.argv.includes('--no-jsonl')) process.stderr.write('🚀 gavel server started on ' + ready.launchUrl + '\\n');
   else process.stdout.write(JSON.stringify(ready) + '\\n');
 };
 if (${JSON.stringify(mode)} === 'burst') {
@@ -282,7 +282,7 @@ describe.skipIf(process.platform === 'win32')('development launcher subprocess o
         };
         expect(viteEnv).toEqual({
           apiUrl: 'http://localhost:4966',
-          openPath: '/?review=agent-task#difit-editor-token=fixture-capability',
+          openPath: '/?review=agent-task#gavel-editor-token=fixture-capability',
         });
       } finally {
         await fixture.cleanup();
@@ -400,7 +400,7 @@ describe.skipIf(process.platform === 'win32')('development launcher subprocess o
   }, 10000);
 
   it('isolates fixture Git setup from the Git environment of linked-worktree hooks', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'difit-hook-git-'));
+    const directory = await mkdtemp(join(tmpdir(), 'gavel-hook-git-'));
     const repository = join(directory, 'repository');
     const linked = join(directory, 'linked');
     const env = withoutGitEnvironment(process.env);

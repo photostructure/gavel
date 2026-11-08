@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Gavel'
+  short_description: 'Request user review or open gavel from agents.'
+  default_prompt: 'Use $gavel to open the requested review and follow the conversation workflow.'

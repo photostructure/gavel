@@ -1,15 +1,16 @@
 ---
 name: release
-description: Prepare and stage a release of @photostructure/difit through the fork's GitHub Actions workflows, then report the npm approval step. Use when asked to cut or publish a CLI release.
+description: Prepare and stage a release of @photostructure/gavel through the repository's GitHub Actions workflows, then report the npm approval step. Use when asked to cut or publish a CLI release.
 metadata:
   internal: true
 ---
 
-# PhotoStructure difit releases
+# PhotoStructure gavel releases
 
-This fork publishes `@photostructure/difit` from `photostructure/difit`.
-The executable remains `difit`. Inspect `package.json` and the current workflow
-files before releasing; never publish the unscoped upstream package.
+This repository publishes `@photostructure/gavel` from `photostructure/gavel`.
+The executable is `gavel`. Inspect `package.json` and the current workflow
+files before releasing; never publish an unscoped package (`difit` is upstream's,
+and `gavel` is Apiary's unrelated HTTP validator).
 
 ## Prepare
 
@@ -76,7 +77,7 @@ Wait for **Build & Prepare Release** to finish, then for the `stage` job of the
 tag-bound **Stage npm Release** run. The maintainer inspects the staged contents
 and approves them through npm with 2FA. Report the stage identifier and approval
 link returned by npm. Staging alone is not a public release and does not make
-`npx @photostructure/difit` available.
+`npx @photostructure/gavel` available.
 
 After approval, wait for the tag's **Publish GitHub Release after npm approval**
 run to finish, then confirm that the GitHub release exists, is immutable, and has

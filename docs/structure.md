@@ -1,8 +1,8 @@
-# difit Codebase Structure
+# gavel Codebase Structure
 
 ## Overview
 
-difit is a CLI tool that displays Git diffs in a GitHub-like web interface. The architecture consists of three main components:
+gavel is a CLI tool that displays Git diffs in a GitHub-like web interface. The architecture consists of three main components:
 
 1. CLI entry point that handles command-line arguments
 2. Server component that provides APIs and serves the web interface
@@ -30,7 +30,7 @@ src/
 ### Basic Usage
 
 ```bash
-difit [commit-ish] [compare-with]
+gavel [commit-ish] [compare-with]
 ```
 
 ### Positional Arguments
@@ -121,7 +121,7 @@ difit [commit-ish] [compare-with]
 1. CLI validates arguments and starts server
 2. Server fetches Git diff data on startup
 3. Client connects and requests diff via API
-4. Comments are kept in memory and, with conversation APIs, saved under `.git/difit`
+4. Comments are kept in memory and, with conversation APIs, saved under `.git/gavel`
 5. On disconnect, comments are output to console
 
 ## Dependencies

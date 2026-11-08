@@ -184,7 +184,7 @@ export interface ConversationBatch {
   cursor: string;
 }
 
-/** One nonempty batch from one of the servers passed to difit wait. */
+/** One nonempty batch from one of the servers passed to gavel wait. */
 export interface WaitResult extends ConversationBatch {
   type: 'wait.events';
   port: number;

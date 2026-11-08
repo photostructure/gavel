@@ -1,4 +1,0 @@
-interface:
-  display_name: 'Difit(Dev)'
-  short_description: 'Request user review without idle model turns.'
-  default_prompt: 'Use $difit-dev to show this session’s changes for review, then hand back without polling.'

@@ -1,9 +1,9 @@
 // UI settings live in one cookie per browser. Cookies ignore the port, so
-// settings survive difit starting on a different port, while each browser (a
+// settings survive gavel starting on a different port, while each browser (a
 // desktop and an iPad, say) keeps its own font size and theme.
 
-const COOKIE_NAME = 'difit-settings';
-// The property of the difit-settings cookie's JSON that holds the appearance settings.
+const COOKIE_NAME = 'gavel-settings';
+// The property of the gavel-settings cookie's JSON that holds the appearance settings.
 export const APPEARANCE_SETTINGS_KEY = 'appearance';
 // Chrome caps cookie lifetime at 400 days; every save renews it.
 const COOKIE_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
@@ -63,7 +63,7 @@ function writeClientSettings(settings: Record<string, unknown>): void {
   const value = encodeURIComponent(JSON.stringify(settings));
   if (value.length > MAX_COOKIE_VALUE_BYTES) {
     reportSaveError(
-      `difit settings need ${value.length} bytes, over the ${MAX_COOKIE_VALUE_BYTES}-byte cookie limit`,
+      `gavel settings need ${value.length} bytes, over the ${MAX_COOKIE_VALUE_BYTES}-byte cookie limit`,
     );
     return;
   }

@@ -21,9 +21,9 @@ describe('findApprovals', () => {
       'git',
       [
         '-c',
-        'user.name=difit',
+        'user.name=gavel',
         '-c',
-        'user.email=difit@example.com',
+        'user.email=gavel@example.com',
         '-c',
         'commit.gpgsign=false',
         ...args,
@@ -62,14 +62,14 @@ describe('findApprovals', () => {
       if (key.startsWith('GIT_')) vi.stubEnv(key, undefined);
     vi.stubEnv('GIT_CONFIG_GLOBAL', devNull);
     vi.stubEnv('GIT_CONFIG_SYSTEM', devNull);
-    root = realpathSync(mkdtempSync(join(tmpdir(), 'difit-approval-status-')));
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'gavel-approval-status-')));
     git('init', '--quiet');
     writeFileSync(join(root, 'file.txt'), 'one\n');
     git('add', 'file.txt');
     git('commit', '--quiet', '--no-verify', '-m', 'first');
     writeFileSync(join(root, 'file.txt'), 'two\n');
     git('commit', '--quiet', '--no-verify', '-am', 'second');
-    store = new ReviewStore(join(root, '.git', 'difit'));
+    store = new ReviewStore(join(root, '.git', 'gavel'));
     server = store.registerServer();
   });
 

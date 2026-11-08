@@ -107,7 +107,7 @@ describe('conversation event HTTP subscription', () => {
     const output = vi.spyOn(console, 'log').mockImplementation(() => {});
     await createCommentCommand().parseAsync([
       'node',
-      'difit',
+      'gavel',
       'reply',
       '--host',
       '127.0.0.1',
@@ -163,7 +163,7 @@ describe('conversation event HTTP subscription', () => {
     });
     const { port, conversation } = await start(new Conversation(), () => pollStarted());
     const output = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const waiting = createWaitCommand().parseAsync(['node', 'difit', '--port', String(port)]);
+    const waiting = createWaitCommand().parseAsync(['node', 'gavel', '--port', String(port)]);
     await polled;
     conversation.update(selection, [], [thread], 'user');
     await waiting;
@@ -171,7 +171,7 @@ describe('conversation event HTTP subscription', () => {
     expect(result).toMatchObject({ type: 'wait.events', port, events: [{ messageId: 'message' }] });
     await createWaitCommand().parseAsync([
       'node',
-      'difit',
+      'gavel',
       '--port',
       String(port),
       '--after',
@@ -190,7 +190,7 @@ describe('conversation event HTTP subscription', () => {
     });
     const { port, server } = await start(new Conversation(), () => pollStarted());
     const output = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const waiting = createWaitCommand().parseAsync(['node', 'difit', '--port', String(port)]);
+    const waiting = createWaitCommand().parseAsync(['node', 'gavel', '--port', String(port)]);
     await polled;
     server.closeAllConnections();
     await waiting;

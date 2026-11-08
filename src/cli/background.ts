@@ -6,7 +6,7 @@ export interface BackgroundServerInfo {
   pid: number;
 }
 
-export const BACKGROUND_CHILD_ENV = 'DIFIT_BACKGROUND_CHILD';
+export const BACKGROUND_CHILD_ENV = 'GAVEL_BACKGROUND_CHILD';
 
 export function parseBackgroundHandshakeMessage(message: unknown): BackgroundServerInfo | null {
   if (!message || typeof message !== 'object') {
@@ -49,7 +49,7 @@ export async function startBackgroundProcess(
 ): Promise<void> {
   const scriptPath = process.argv[1];
   if (!scriptPath) {
-    throw new Error('Unable to determine difit entrypoint for background process');
+    throw new Error('Unable to determine gavel entrypoint for background process');
   }
 
   const childArgs = process.argv.slice(2).filter((arg) => arg !== '--background');
@@ -133,7 +133,7 @@ export async function startBackgroundProcess(
         const startupError = stderr.trim();
         reject(
           new Error(
-            startupError || `Background difit server exited early (code ${code ?? 'unknown'})`,
+            startupError || `Background gavel server exited early (code ${code ?? 'unknown'})`,
           ),
         );
       });
@@ -143,7 +143,7 @@ export async function startBackgroundProcess(
       finish(() => {
         child.kill();
         child.stderr?.destroy();
-        reject(new Error('Timed out while starting background difit server'));
+        reject(new Error('Timed out while starting background gavel server'));
       });
     }, 10_000);
 

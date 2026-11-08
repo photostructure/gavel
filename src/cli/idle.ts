@@ -15,7 +15,7 @@ const execFileAsync = promisify(execFile);
 const runCommand: RunCommand = async (file, args) =>
   (await execFileAsync(file, args, { encoding: 'utf8' })).stdout;
 
-// Each platform's idle time comes from a tool the OS already ships, so difit
+// Each platform's idle time comes from a tool the OS already ships, so gavel
 // needs no native module. Agents call this before opening a review to tell
 // whether the user is at the desk.
 const dbusSources = [
@@ -35,7 +35,7 @@ const dbusSources = [
 // has never received keyboard or mouse input, so dwTime is 0 there and the
 // script prints -1 rather than the machine's uptime.
 const windowsScript = `$ProgressPreference = 'SilentlyContinue'
-Add-Type -Namespace DifitIdle -Name Native -MemberDefinition @'
+Add-Type -Namespace GavelIdle -Name Native -MemberDefinition @'
 [StructLayout(LayoutKind.Sequential)] public struct LastInputInfo { public uint cbSize; public uint dwTime; }
 [DllImport("user32.dll")] static extern bool GetLastInputInfo(ref LastInputInfo info);
 [DllImport("kernel32.dll")] static extern uint GetTickCount();
@@ -46,7 +46,7 @@ public static long IdleMs() {
   return unchecked(GetTickCount() - info.dwTime);
 }
 '@
-[DifitIdle.Native]::IdleMs()`;
+[GavelIdle.Native]::IdleMs()`;
 
 function parse(output: string, pattern: RegExp, what: string): bigint {
   const match = pattern.exec(output);
@@ -88,7 +88,7 @@ export async function readIdle(platform: NodeJS.Platform, run: RunCommand): Prom
       const idleMs = Number(parse(output, /^\s*(-?\d+)\s*$/m, 'an idle time'));
       if (idleMs < 0)
         throw new Error(
-          'This Windows session has no keyboard or mouse input (an ssh session?); run difit idle from the desktop session',
+          'This Windows session has no keyboard or mouse input (an ssh session?); run gavel idle from the desktop session',
         );
       return { idleMs, source: 'GetLastInputInfo' };
     }

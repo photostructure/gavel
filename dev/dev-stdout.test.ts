@@ -8,14 +8,14 @@ describe('createCliStdoutProxy', () => {
     const output: string[] = [];
     const proxy = createCliStdoutProxy({ onServerUrl, onOutput: (text) => output.push(text) });
     const chunks = [
-      '\nPort 4966 is busy, trying 4967...\r\n🚀 difit server started on http://local',
-      'host:4967#difit-editor-token=legacy-capability\r\n📋 Reviewing: HEAD\n\n',
-      '🚀 difit server started on http://localhost:4999\n\n',
+      '\nPort 4966 is busy, trying 4967...\r\n🚀 gavel server started on http://local',
+      'host:4967#gavel-editor-token=legacy-capability\r\n📋 Reviewing: HEAD\n\n',
+      '🚀 gavel server started on http://localhost:4999\n\n',
     ];
     for (const chunk of chunks) proxy.push(chunk);
     proxy.flush();
     expect(onServerUrl).toHaveBeenCalledExactlyOnceWith(
-      'http://localhost:4967#difit-editor-token=legacy-capability',
+      'http://localhost:4967#gavel-editor-token=legacy-capability',
     );
     expect(output.join('')).toBe(chunks.join(''));
   });
@@ -27,7 +27,7 @@ describe('createCliStdoutProxy', () => {
     const ready = JSON.stringify({
       type: 'server.ready',
       url: 'http://localhost:4981',
-      launchUrl: 'http://localhost:4981#difit-editor-token=jsonl-capability',
+      launchUrl: 'http://localhost:4981#gavel-editor-token=jsonl-capability',
       port: 4981,
     });
     const comment = JSON.stringify({ type: 'comment.created', body: 'line one\nline two' });
@@ -36,7 +36,7 @@ describe('createCliStdoutProxy', () => {
     proxy.push(`${ready.slice(17)}\n${comment}\n`);
     proxy.flush();
     expect(onServerUrl).toHaveBeenCalledExactlyOnceWith(
-      'http://localhost:4981#difit-editor-token=jsonl-capability',
+      'http://localhost:4981#gavel-editor-token=jsonl-capability',
     );
     expect(output.join('')).toBe(`${ready}\n${comment}\n`);
   });
@@ -69,7 +69,7 @@ describe('createCliStdoutProxy', () => {
     const proxy = createCliStdoutProxy({ onServerUrl, onOutput: (text) => output.push(text) });
     const comment = JSON.stringify({
       type: 'comment.created',
-      body: '🚀 difit server started on http://localhost:4981',
+      body: '🚀 gavel server started on http://localhost:4981',
     });
     proxy.push(`${comment}\n`);
     expect(onServerUrl).not.toHaveBeenCalled();

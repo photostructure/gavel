@@ -344,7 +344,7 @@ describe('App Component - Clear Comments Functionality', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'About' }));
     expect(await screen.findByRole('region', { name: 'Review context' })).toBeVisible();
     expect(screen.getByText('example-project')).toBeVisible();
-    expect(document.title).toBe(`example-project — difit (${window.location.host})`);
+    expect(document.title).toBe(`example-project — gavel (${window.location.host})`);
     expect(screen.getByText('Files changed (1)')).toBeVisible();
     vi.mocked(useViewport).mockReturnValue({ isMobile: false, isDesktop: true });
   });
@@ -687,7 +687,7 @@ describe('App Component - Heartbeat Connection', () => {
   });
 
   it('uses the direct API url for heartbeat when configured in development', async () => {
-    vi.stubEnv('VITE_DIFIT_API_URL', 'http://localhost:4969');
+    vi.stubEnv('VITE_GAVEL_API_URL', 'http://localhost:4969');
 
     renderApp();
 
@@ -748,7 +748,7 @@ describe('App Component - Diff load errors', () => {
         ? ({
             ok: false,
             status: 500,
-            json: async () => ({ error: '/home/u/.difit/config.json is not valid JSON' }),
+            json: async () => ({ error: '/home/u/.gavel/config.json is not valid JSON' }),
           } as Response)
         : ({ ok: false, status: 404, json: async () => ({}) } as Response),
     );
@@ -756,7 +756,7 @@ describe('App Component - Diff load errors', () => {
     renderApp();
 
     expect(
-      await screen.findByText('/home/u/.difit/config.json is not valid JSON'),
+      await screen.findByText('/home/u/.gavel/config.json is not valid JSON'),
     ).toBeInTheDocument();
   });
 
@@ -869,7 +869,7 @@ describe('App Component - Editor launch', () => {
   ])('sends only the file and line $name', async ({ navigateToAnchor }) => {
     vi.clearAllMocks();
     mockComments = [];
-    window.history.replaceState({}, '', '/#difit-editor-token=test-capability');
+    window.history.replaceState({}, '', '/#gavel-editor-token=test-capability');
     mockFetch({
       ...mockDiffResponse,
       files: [
@@ -912,7 +912,7 @@ describe('App Component - Editor launch', () => {
         '/api/open-in-editor',
         expect.objectContaining({
           method: 'POST',
-          headers: expect.objectContaining({ 'X-Difit-Editor-Token': 'test-capability' }),
+          headers: expect.objectContaining({ 'X-Gavel-Editor-Token': 'test-capability' }),
           body: JSON.stringify({ filePath: mockDiffResponse.files[0]!.path, line: 1 }),
         }),
       );
@@ -2160,7 +2160,7 @@ describe('App Component - Review navigation', () => {
     window.history.replaceState(
       { retained: true },
       '',
-      '/?base=chosen-base&target=chosen-tip&baseMode=merge-base&retained=yes#difit-editor-token=fixture',
+      '/?base=chosen-base&target=chosen-tip&baseMode=merge-base&retained=yes#gavel-editor-token=fixture',
     );
     mockFetch({
       ...mockDiffResponse,
@@ -2184,7 +2184,7 @@ describe('App Component - Review navigation', () => {
       expect(new URLSearchParams(window.location.search).get('base')).toBe('chosen-base'),
     );
     expect(new URLSearchParams(window.location.search).get('retained')).toBe('yes');
-    expect(window.location.hash).toBe('#difit-editor-token=fixture');
+    expect(window.location.hash).toBe('#gavel-editor-token=fixture');
     expect(window.history.state).toMatchObject({ retained: true });
   });
 

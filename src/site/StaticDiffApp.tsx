@@ -45,7 +45,7 @@ function StaticDiffApp() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-dvh bg-github-bg-primary">
-        <div className="text-github-text-secondary text-base">Loading static difit snapshot...</div>
+        <div className="text-github-text-secondary text-base">Loading static gavel snapshot...</div>
       </div>
     );
   }

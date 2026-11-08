@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# Manual pre-release check: does a real Claude host wait for difit review
+# Manual pre-release check: does a real Claude host wait for gavel review
 # feedback without waking the model while nothing happens?
 #
 # It counts model calls (assistant entries with `usage`) in the Claude session
-# transcript, so it measures host behavior rather than difit output. It spends
+# transcript, so it measures host behavior rather than gavel output. It spends
 # real tokens and needs a logged-in `claude`. See README.md.
 #
 # Usage:
-#   run.sh selftest [--host H]                     # no model; the harness and difit wait
+#   run.sh selftest [--host H]                     # no model; the harness and gavel wait
 #   run.sh tui     [--host H] [--model M] [--idle SECONDS] [--end lgtm|absent|exit]
 #   run.sh print   [--host H] [--model M]          # claude -p; see README.md for the expected result
 #   run.sh desktop --session <uuid> --port P [--host H] [--idle SECONDS] [--end lgtm|absent]
 #
 # --end picks how the review ends, since each ending stops the agent's wait:
-# lgtm approves it, absent closes the reviewer's tab (difit wait exits 4), and
-# exit kills the server (difit wait exits 2).
+# lgtm approves it, absent closes the reviewer's tab (gavel wait exits 4), and
+# exit kills the server (gavel wait exits 2).
 set -euo pipefail
 
 PROJECT_ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 # This checkout's build. An array, so `timeout` can run it.
-DIFIT=(node "$PROJECT_ROOT/dist/cli/index.js")
+GAVEL=(node "$PROJECT_ROOT/dist/cli/index.js")
 MODE=${1:?usage: run.sh selftest|tui|print|desktop [options]}
 shift
 case "$MODE" in selftest|tui|print|desktop) ;; *) echo "unknown mode $MODE" >&2; exit 1 ;; esac
@@ -41,10 +41,10 @@ if [ "$MODE" = desktop ] && [ "$END" = exit ]; then
 fi
 
 STAMP=$(date +%Y%m%d-%H%M%S)
-WORK=$HOME/src/worktrees/tmp/difit-wait-e2e-$STAMP
+WORK=$HOME/src/worktrees/tmp/gavel-wait-e2e-$STAMP
 LOG=$WORK.log
 REVIEW=e2e
-TMUX_NAME=difit-wait-e2e-$STAMP
+TMUX_NAME=gavel-wait-e2e-$STAMP
 PIDS=()
 
 log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$LOG"; }
@@ -82,8 +82,8 @@ settle() {
   done
 }
 
-# A waiter started from this checkout's build or from a difit launcher.
-waiter_running() { pgrep -f "(dist/cli/index\.js|difit) wait .*--port[= ]$PORT( |\$)" > /dev/null; }
+# A waiter started from this checkout's build or from a gavel launcher.
+waiter_running() { pgrep -f "(dist/cli/index\.js|gavel) wait .*--port[= ]$PORT( |\$)" > /dev/null; }
 
 # Post a user comment the way the browser does: fetch threads, append, POST.
 user_comment() { # <file> <line> <body> [thread-id]
@@ -114,7 +114,7 @@ approve() {
   local cap summary
   cap=$(api "/api/diff?review=$REVIEW" | jq -c .capture) || return 1
   # The server checks this review's summary version, not any other review's.
-  summary=$("${DIFIT[@]}" comment snapshot --host "$HOST" --port "$PORT" |
+  summary=$("${GAVEL[@]}" comment snapshot --host "$HOST" --port "$PORT" |
     jq -e --arg r "$REVIEW" '[.reviews[] | select(.selection.reviewName == $r) | .summary.version] |
       if length == 1 then .[0] else error("expected one review named \($r)") end') || return 1
   jq -nc --argjson cap "$cap" --argjson sv "$summary" \
@@ -124,7 +124,7 @@ approve() {
 }
 
 progress() { # <message-id>
-  "${DIFIT[@]}" comment snapshot --host "$HOST" --port "$PORT" |
+  "${GAVEL[@]}" comment snapshot --host "$HOST" --port "$PORT" |
     jq -r --arg id "$1" '[.. | objects | select(.id? == $id and has("progress")) | .progress.status] | first // "missing"'
 }
 
@@ -171,12 +171,12 @@ if [ "$MODE" != desktop ]; then
   git -C "$WORK" add notes.txt
   git -C "$WORK" -c user.name=e2e -c user.email=e2e@example.invalid commit -qm init
   printf 'one\ntwo changed\nthree\n' > "$WORK/notes.txt"
-  (cd "$WORK" && "${DIFIT[@]}" --review "$REVIEW" --keep-alive --background --no-open \
+  (cd "$WORK" && "${GAVEL[@]}" --review "$REVIEW" --keep-alive --background --no-open \
     --host "$HOST" --commit-message "docs(notes): change two" --why "Test fixture.") \
     > "$WORK/server.json"
   PORT=$(jq -r 'select(.port) | .port' "$WORK/server.json" | head -1)
-  [ -n "$PORT" ] || fail "difit did not report a port"
-  log "difit review $REVIEW on $HOST:$PORT"
+  [ -n "$PORT" ] || fail "gavel did not report a port"
+  log "gavel review $REVIEW on $HOST:$PORT"
 fi
 [ -n "$PORT" ] || fail "--port is required for desktop mode"
 
@@ -186,31 +186,31 @@ HEARTBEAT=$!
 PIDS+=("$HEARTBEAT")
 
 if [ "$MODE" = selftest ]; then
-  # No model: check the fixture, the posting helpers, and difit wait itself.
+  # No model: check the fixture, the posting helpers, and gavel wait itself.
   sleep 1
   ID=$(user_comment notes.txt 2 "selftest comment") || fail "posting the selftest comment failed"
   [ "$(progress "$ID")" = queued ] || fail "posted comment is not queued as a user message"
-  OUT=$("${DIFIT[@]}" wait --host "$HOST" --port "$PORT") || fail "difit wait exited $?"
+  OUT=$("${GAVEL[@]}" wait --host "$HOST" --port "$PORT") || fail "gavel wait exited $?"
   echo "$OUT" | jq -e --arg id "$ID" '.events[] | select(.messageId == $id)' > /dev/null ||
-    fail "difit wait did not return the posted comment: $OUT"
+    fail "gavel wait did not return the posted comment: $OUT"
   CURSOR=$(echo "$OUT" | jq -r .cursor)
   # A still-queued message is re-delivered by every wait, so receipt it first.
   echo "$OUT" | jq -c --arg id "$ID" '.events[] | select(.messageId == $id) |
     {reviewId, threadId, messageId, cursor, status: "delivered"}' |
-    "${DIFIT[@]}" comment status --host "$HOST" --port "$PORT" > /dev/null
-  ( "${DIFIT[@]}" wait --host "$HOST" --port "$PORT" --after "$CURSOR" > "$WORK/wait2.json"; echo $? > "$WORK/wait2.rc" ) &
+    "${GAVEL[@]}" comment status --host "$HOST" --port "$PORT" > /dev/null
+  ( "${GAVEL[@]}" wait --host "$HOST" --port "$PORT" --after "$CURSOR" > "$WORK/wait2.json"; echo $? > "$WORK/wait2.rc" ) &
   sleep 3
   approve || fail "approving the selftest review failed"
   for _ in $(seq 30); do [ -f "$WORK/wait2.rc" ] && break; sleep 1; done
-  [ "$(cat "$WORK/wait2.rc" 2>/dev/null)" = 0 ] || fail "difit wait did not exit 0 on LGTM"
+  [ "$(cat "$WORK/wait2.rc" 2>/dev/null)" = 0 ] || fail "gavel wait did not exit 0 on LGTM"
   jq -e '.events[] | select(.type == "review.approval" and .approved == true)' "$WORK/wait2.json" > /dev/null ||
     fail "second wait did not report the approval: $(cat "$WORK/wait2.json")"
   # Closing the reviewer's connection must end a wait with exit 4 (--end absent).
   kill "$HEARTBEAT"
   rc=0
-  timeout 90 "${DIFIT[@]}" wait --host "$HOST" --port "$PORT" \
+  timeout 90 "${GAVEL[@]}" wait --host "$HOST" --port "$PORT" \
     --after "$(jq -r .cursor "$WORK/wait2.json")" > /dev/null 2>&1 || rc=$?
-  [ "$rc" = 4 ] || fail "difit wait exited $rc, not 4, after the reviewer disconnected"
+  [ "$rc" = 4 ] || fail "gavel wait exited $rc, not 4, after the reviewer disconnected"
   log "PASS selftest"
   # Stop the server first: the EXIT trap finds its PID in $WORK/server.json.
   cleanup
@@ -219,10 +219,10 @@ if [ "$MODE" = selftest ]; then
 fi
 
 # Name this checkout's skill and build, so the run tests them rather than an installed copy.
-PROMPT="A difit review named $REVIEW is running for this repository at API host $HOST port $PORT. \
-Follow $PROJECT_ROOT/skills/difit/SKILL.md, with \`${DIFIT[*]}\` as its difit command, and \
+PROMPT="A gavel review named $REVIEW is running for this repository at API host $HOST port $PORT. \
+Follow $PROJECT_ROOT/skills/gavel/SKILL.md, with \`${GAVEL[*]}\` as its gavel command, and \
 $PROJECT_ROOT/docs/waiting-for-review.md: wait for my review \
-feedback without waking yourself on a timer, answer each of my comments in its difit thread, \
+feedback without waking yourself on a timer, answer each of my comments in its gavel thread, \
 and acknowledge an LGTM in chat. Do not edit or commit files."
 
 case "$MODE" in
@@ -260,7 +260,7 @@ log "session $SESSION"
 sleep 30
 [ -n "$(transcript)" ] || fail "no transcript for session $SESSION"
 settle 90
-waiter_running || fail "no difit wait is running for port $PORT after setup"
+waiter_running || fail "no gavel wait is running for port $PORT after setup"
 log "setup used $(turns) model calls"
 
 phase idle zero sleep "$IDLE"
@@ -283,6 +283,6 @@ case "$END" in
 esac
 settle 60
 phase after-end zero sleep 600
-if waiter_running; then fail "a difit wait is still running after the review ended"; fi
+if waiter_running; then fail "a gavel wait is still running after the review ended"; fi
 
 log "PASS"

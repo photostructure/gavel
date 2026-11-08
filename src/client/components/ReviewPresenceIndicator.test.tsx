@@ -15,7 +15,7 @@ describe('review listener indicator', () => {
     vi.clearAllMocks();
   });
   it('offers a human-initiated resume prompt when no agent listener is attached', async () => {
-    vi.stubEnv('VITE_DIFIT_API_URL', 'http://10.1.1.24:4966');
+    vi.stubEnv('VITE_GAVEL_API_URL', 'http://10.1.1.24:4966');
     render(
       <ReviewPresenceIndicator
         presence={{ reviewers: { connected: 1, visible: 1 }, listeners: 0 }}
@@ -47,7 +47,7 @@ describe('review listener indicator', () => {
   });
 
   it('preserves HTTPS instead of suggesting an HTTP request to the TLS port', async () => {
-    vi.stubEnv('VITE_DIFIT_API_URL', 'https://review.local');
+    vi.stubEnv('VITE_GAVEL_API_URL', 'https://review.local');
     render(<ReviewPresenceIndicator presence={null} />);
     fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt' }));
     await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalled());

@@ -20,7 +20,7 @@ describe('schema command', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const command = createSchemaCommand();
     expect(command.name()).toBe('schema');
-    await command.parseAsync(['node', 'difit']);
+    await command.parseAsync(['node', 'gavel']);
     const document = readOutput(log);
     expect(document.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
     expect(document.$ref).toBe('#/$defs/ServerEvent');
@@ -39,7 +39,7 @@ describe('schema command', () => {
 
   it('describes message deletion identities and readiness without a revision cursor', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await createSchemaCommand().parseAsync(['node', 'difit']);
+    await createSchemaCommand().parseAsync(['node', 'gavel']);
     const document = readOutput(log);
     const ready = document.$defs.ServerReadyEvent as {
       properties: Record<string, unknown>;
@@ -76,7 +76,7 @@ describe('schema command', () => {
     ['capture-update', 'ReviewCaptureUpdate'],
   ])('selects the %s root while retaining response definitions', async (name, definition) => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await createSchemaCommand().parseAsync(['node', 'difit', name]);
+    await createSchemaCommand().parseAsync(['node', 'gavel', name]);
     const document = readOutput(log);
     expect(document.$ref).toBe(`#/$defs/${definition}`);
     expect(document.$defs[definition]).toBeDefined();
@@ -97,7 +97,7 @@ describe('schema command', () => {
 
   it('describes immutable capture artifacts and guarded updates', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await createSchemaCommand().parseAsync(['node', 'difit', 'capture']);
+    await createSchemaCommand().parseAsync(['node', 'gavel', 'capture']);
     const { $defs } = readOutput(log);
     expect($defs.ReviewCapture).toMatchObject({
       required: [
@@ -165,7 +165,7 @@ describe('schema command', () => {
 
   it('describes the paired displayed-capture binding for both comment request forms', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await createSchemaCommand().parseAsync(['node', 'difit', 'comments']);
+    await createSchemaCommand().parseAsync(['node', 'gavel', 'comments']);
     const document = readOutput(log);
     expect(document.$ref).toBe('#/$defs/CommentsRequest');
     const request = document.$defs.CommentsRequest as { anyOf: unknown[] };
@@ -186,7 +186,7 @@ describe('schema command', () => {
 
   it('keeps capture metadata optional on existing events and required on review.capture', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await createSchemaCommand().parseAsync(['node', 'difit']);
+    await createSchemaCommand().parseAsync(['node', 'gavel']);
     const { $defs } = readOutput(log);
     for (const name of [
       'ServerReadyEvent',
@@ -237,7 +237,7 @@ describe('schema command', () => {
 
   it('documents the capture and proposal guards on approval requests and saved approval', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await createSchemaCommand().parseAsync(['node', 'difit', 'approval']);
+    await createSchemaCommand().parseAsync(['node', 'gavel', 'approval']);
     const { $defs } = readOutput(log);
     const approvalFields = {
       captureVersion: { type: 'integer', minimum: 1 },
@@ -258,7 +258,7 @@ describe('schema command', () => {
   it('declares excerpt fields only on thread forms that preserve them', async () => {
     // Ground truth: node node_modules/vitest/vitest.mjs run src/server/server.test.ts -t 'preserves supported excerpts and position behavior'.
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await createSchemaCommand().parseAsync(['node', 'difit', 'comments']);
+    await createSchemaCommand().parseAsync(['node', 'gavel', 'comments']);
     const document = readOutput(log);
     type ThreadForms = { oneOf: { properties: Record<string, unknown> }[] };
     const canonical = document.$defs.CommentThread as ThreadForms;
@@ -275,7 +275,7 @@ describe('schema command', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const stderr = vi.fn();
     const command = createSchemaCommand().exitOverride().configureOutput({ writeErr: stderr });
-    await expect(command.parseAsync(['node', 'difit', 'unknown'])).rejects.toThrow(
+    await expect(command.parseAsync(['node', 'gavel', 'unknown'])).rejects.toThrow(
       "value 'unknown' is invalid for argument 'name'",
     );
     expect(stderr).toHaveBeenCalledWith(expect.stringContaining('Allowed choices'));
@@ -285,7 +285,7 @@ describe('schema command', () => {
   it('rejects extra arguments instead of ignoring them', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const command = createSchemaCommand().exitOverride().configureOutput({ writeErr: vi.fn() });
-    await expect(command.parseAsync(['node', 'difit', 'reply', 'status'])).rejects.toThrow(
+    await expect(command.parseAsync(['node', 'gavel', 'reply', 'status'])).rejects.toThrow(
       'too many arguments',
     );
     expect(log).not.toHaveBeenCalled();
@@ -294,14 +294,14 @@ describe('schema command', () => {
   it('explains the default root and request/response discovery in help', async () => {
     const output = vi.fn();
     const command = createSchemaCommand().exitOverride().configureOutput({ writeOut: output });
-    await expect(command.parseAsync(['node', 'difit', '--help'])).rejects.toMatchObject({
+    await expect(command.parseAsync(['node', 'gavel', '--help'])).rejects.toMatchObject({
       code: 'commander.helpDisplayed',
     });
     const help = output.mock.calls.map((call) => String(call[0])).join('');
     expect(help).toContain('default/events root validates one JSONL record');
-    expect(help).toContain('difit schema summary');
-    expect(help).toContain('difit schema snapshot');
-    expect(help).toContain('difit schema capture-update');
+    expect(help).toContain('gavel schema summary');
+    expect(help).toContain('gavel schema snapshot');
+    expect(help).toContain('gavel schema capture-update');
     expect(help).toContain('capture validates a saved artifact');
     expect(help).toContain('$defs');
   });

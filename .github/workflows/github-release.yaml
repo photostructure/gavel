@@ -49,7 +49,7 @@ jobs:
           VERSION: ${{ steps.identity.outputs.package_version }}
         run: |
           set -euo pipefail
-          npm view "@photostructure/difit@$VERSION" version repository.url gitHead dist.integrity --json --prefer-online --registry=https://registry.npmjs.org > "$RUNNER_TEMP/npm-package.json"
+          npm view "@photostructure/gavel@$VERSION" version repository.url gitHead dist.integrity --json --prefer-online --registry=https://registry.npmjs.org > "$RUNNER_TEMP/npm-package.json"
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
           import { readFileSync } from 'node:fs';

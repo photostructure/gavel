@@ -1,4 +1,4 @@
-// Auto-viewed patterns live in the server's ~/.difit/config.json, shared by
+// Auto-viewed patterns live in the server's ~/.gavel/config.json, shared by
 // every browser; /api/diff returns them with the files they apply to.
 
 const SAVE_DELAY_MS = 300;

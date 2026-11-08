@@ -37,9 +37,9 @@ export function ReviewPresenceIndicator({ presence }: { presence: ReviewPresence
             const snapshotRequest =
               url.protocol === 'https:'
                 ? `read ${url.origin}${url.pathname} over HTTPS and preserve that server URL for replies`
-                : `run difit comment snapshot --host ${url.hostname} --port ${port}, using the difit launcher prescribed by this checkout's instructions`;
+                : `run gavel comment snapshot --host ${url.hostname} --port ${port}, using the gavel launcher prescribed by this checkout's instructions`;
             void copyTextToClipboard(
-              `Resume this difit review (${window.location.href.split('#')[0]}). From the reviewed repository's Git root, ${snapshotRequest}. Reconcile queued messages and saved pending work, then address the human feedback under the existing authorization. Preserve message revision cursors for receipts and replies. End the turn when caught up; do not poll or repeatedly wait for more feedback.`,
+              `Resume this gavel review (${window.location.href.split('#')[0]}). From the reviewed repository's Git root, ${snapshotRequest}. Reconcile queued messages and saved pending work, then address the human feedback under the existing authorization. Preserve message revision cursors for receipts and replies. End the turn when caught up; do not poll or repeatedly wait for more feedback.`,
             )
               .then(() => {
                 setCopied(true);

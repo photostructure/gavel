@@ -1,22 +1,22 @@
 ---
-name: difit
-description: Open a requested diff in difit for human review, with reading-guide comments and a proposed commit message. Use when the user names difit, requests its viewer, or has a standing difit review instruction. Ordinary code reviews belong in chat.
+name: gavel
+description: Open a requested diff in gavel for human review, with reading-guide comments and a proposed commit message. Use when the user names gavel, requests its viewer, or has a standing gavel review instruction. Ordinary code reviews belong in chat.
 ---
 
-# Difit for Codex
+# Gavel for Codex
 
 Use this Codex workflow without loading the Claude entry point at
-`skills/difit/SKILL.md`. Human review must cause zero idle model turns.
+`skills/gavel/SKILL.md`. Human review must cause zero idle model turns.
 
 ## Human review: hand back and end the turn
 
 Use this workflow in Codex desktop, CLI, IDE, and subagents. A running shell
 process does not establish delivery into an idle Codex chat.
 
-- Serve the review with difit's `--background` option. Share the review URL and
+- Serve the review with gavel's `--background` option. Share the review URL and
   end the turn when the current feedback batch is handled. Leave the server
   running. The user resumes the owning chat with feedback or **Copy resume prompt**.
-- Do not call `difit wait`, long-poll HTTP, sleep, inspect process output repeatedly,
+- Do not call `gavel wait`, long-poll HTTP, sleep, inspect process output repeatedly,
   or write a polling script to keep the model waiting for the user. A tool yield,
   empty result, timeout, cache expiry, or browser presence change is not feedback.
 - Do not create a heartbeat, schedule, goal, or monitor to check for review activity.
@@ -32,7 +32,7 @@ Codex. That controller owns waiting, deduplication, and turn dispatch outside th
 model. Do not invent or test an automatic bridge during an ordinary review.
 Without a configured bridge, use the manual handoff even if a foreground wait
 could keep the current turn open. See the
-[Codex integration guide](https://github.com/photostructure/difit/blob/main/docs/codex-review-integration.md)
+[Codex integration guide](https://github.com/photostructure/gavel/blob/main/docs/codex-review-integration.md)
 only when setting up automatic delivery or diagnosing a host integration.
 
 ## Open the requested patch
@@ -42,19 +42,19 @@ your work, only while the user is at the desk. First run `idle` with the
 launcher step 1 names. If it exits non-zero or prints an `idleMs` of 600000
 (10 minutes) or more, the user is away: do not launch. Finish everything else,
 including tests and second-opinion review, then end the turn with one line
-saying the change is ready for difit review, and launch when the user says to.
+saying the change is ready for gavel review, and launch when the user says to.
 Do not run `idle` again to see whether they came back; their next message tells
 you. Skip the check when the user's latest message asks for the review, since
 they may be reading it on another device.
 
-1. Run from the reviewed repository's Git root. Use its prescribed difit launcher
+1. Run from the reviewed repository's Git root. Use its prescribed gavel launcher
    for every command; in Matthew's workspace this is `/home/mrm/.local/bin/difit`.
    On first use, check that `--help` has `--review`, `--background`, and `--jsonl`.
    Reuse that build. Report missing capabilities; do not switch installs or use npx.
 2. For this session's uncommitted work, use a named review restricted to its paths
    and hunks. When none of this session's work is still uncommitted, don't
    launch: tell the user it is already committed, list each commit's short SHA
-   and subject, and ask whether difit should show them. If they say yes, pass
+   and subject, and ask whether gavel should show them. If they say yes, pass
    the commit's own message as `--commit-message` (for a range, each commit's
    subject on its own line). Keep approvals on while the commits are not yet on
    the branch they will land on (`git merge-base --is-ancestor <sha> <base>`
@@ -71,7 +71,7 @@ they may be reading it on another device.
    `--comment` arguments: where to start, surprising behavior, and verified
    findings. Anchor each point to its line; skip self-explanatory code.
    The viewer's **About** panel names the agent, thread title, and thread ID
-   that launched the review. difit fills in the agent (such as `Codex desktop`,
+   that launched the review. gavel fills in the agent (such as `Codex desktop`,
    from this thread's rollout `originator`) and `$CODEX_THREAD_ID` itself;
    override them with `--agent <host>` and `--agent-session-id <id>` when those
    are wrong. Pass `--agent-session-name <title>` when you know the thread's
@@ -122,7 +122,7 @@ sending it a status, a reply or a summary, and use its summary `version` as
 `<launcher> approval status <sha>` reports a commit's saved approvals even after its
 server stopped. When the snapshot's `store.error` is set, tell the user that review
 changes are not being saved, and why
-([saved reviews](https://github.com/photostructure/difit/blob/main/docs/agent-conversations.md#saved-reviews)).
+([saved reviews](https://github.com/photostructure/gavel/blob/main/docs/agent-conversations.md#saved-reviews)).
 Do not stop or replace another session's reviews.
 
 For overlapping files, use `review capture --output <artifact>` and its printed
@@ -180,6 +180,6 @@ Require `approval.approved: true`; for named reviews also match capture version,
 patch digest, and summary version. Compare the actual commit scope with the
 approved patch and feedback; later shared-tree changes do not acquire permission.
 Then commit without asking again. Approval does not authorize a push.
-See the [approval guide](https://github.com/photostructure/difit/blob/main/docs/approval-modes.md)
+See the [approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md)
 when completing conditional approval. Hand back when the authorized work is done;
 no open review requires another model turn until the user resumes it.

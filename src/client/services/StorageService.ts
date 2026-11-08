@@ -10,8 +10,8 @@ import {
 } from '../../types/diff';
 import { normalizeBaseMode } from '../../utils/diffSelection';
 
-const STORAGE_KEY_PREFIX = 'difit-storage-v1';
-const VIEWED_INDEX_PREFIX = 'difit-viewed-index-v1';
+const STORAGE_KEY_PREFIX = 'gavel-storage-v1';
+const VIEWED_INDEX_PREFIX = 'gavel-viewed-index-v1';
 const DEFAULT_REPO_ID = '__default__';
 const MAX_VIEWED_INDEX_ENTRIES = 5000;
 export const VIEWED_HASH_VERSION = 1;
@@ -613,7 +613,7 @@ export class StorageService {
   }
 
   /**
-   * Get total storage size used by difit
+   * Get total storage size used by gavel
    */
   getStorageSize(): number {
     let totalSize = 0;

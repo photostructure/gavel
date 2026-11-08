@@ -144,9 +144,9 @@ describe('SettingsModal', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^System/ }));
 
-    expect(screen.getByText(/Set DIFIT_EDITOR before starting difit/)).toBeInTheDocument();
+    expect(screen.getByText(/Set GAVEL_EDITOR before starting gavel/)).toBeInTheDocument();
     expect(screen.getByText(/uses EDITOR when it names a preset/)).toBeInTheDocument();
-    expect(screen.getByText(/full URL printed by difit/)).toBeInTheDocument();
+    expect(screen.getByText(/full URL printed by gavel/)).toBeInTheDocument();
     expect(
       screen.getByText(/Pass %file or %file:%line as a separate argument/),
     ).toBeInTheDocument();

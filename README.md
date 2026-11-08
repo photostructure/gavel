@@ -5,13 +5,17 @@
   </picture>
 </p>
 
-# @photostructure/difit
+# @photostructure/gavel
 
-PhotoStructure's fork of [difit](https://github.com/yoshiko-pg/difit), originally by yoshiko-pg.
+gavel shows Git diffs in a local web viewer where you review a coding agent's
+changes, discuss them with the agent in comment threads, and approve or decline
+each proposed commit. It started as PhotoStructure's fork of
+[difit](https://github.com/yoshiko-pg/difit) by yoshiko-pg. If gavel is useful to you,
+please consider [sponsoring yoshiko-pg](https://github.com/sponsors/yoshiko-pg).
 
-## What this fork adds
+## What gavel adds to difit
 
-This fork builds on Yoshiko's diff viewer with a review workflow for coding agents:
+gavel builds on Yoshiko's diff viewer with a review workflow for coding agents:
 
 - **Conversation drawer:** discuss the whole review alongside inline code threads,
   reply in either place, and retain drafts when moving between a discussion and code.
@@ -35,18 +39,13 @@ This fork builds on Yoshiko's diff viewer with a review workflow for coding agen
 The question marker and explicit thread deletion incorporate
 [upstream PR #482](https://github.com/yoshiko-pg/difit/pull/482).
 Reusable UI and conversation changes are being prepared as focused commits for
-upstream; scoped packaging, publishing, and default flags belong to this fork.
+upstream; scoped packaging, publishing, and default flags belong to gavel.
 
 ## Run the PhotoStructure package
 
 ```sh
-npx @photostructure/difit .
+npx @photostructure/gavel .
 ```
-
-Check `npx @photostructure/difit --help` before using the JSONL instructions below.
-If it does not advertise `--jsonl`, that build predates the launch JSONL protocol:
-use `--no-conversation` alone to disable conversations, or use a source build
-that advertises `--jsonl` for the JSONL behavior and flags described here.
 
 Live agent conversations and the verdict buttons are enabled by default.
 Each review starts without a verdict. **Approve as-is**, **Approve after comments**, and
@@ -57,9 +56,9 @@ and `--no-jsonl --no-conversation` to disable conversations. `--lgtm` and `--shi
 The agent must read the launch process output and answer comments; the viewer does not start an agent.
 See [the agent conversation protocol](docs/agent-conversations.md).
 
-Install with `npm install -g @photostructure/difit` to use the `difit` command.
+Install with `npm install -g @photostructure/gavel` to use the `gavel` command.
 Node.js 22.14 or newer is required. On other machines, verify the package version
-with `npx @photostructure/difit --version` before beginning a review.
+with `npx @photostructure/gavel --version` before beginning a review.
 
 The LGTM image was supplied from [this video](https://www.youtube.com/watch?v=3TNpOD6bov8);
 its rights remain with the respective rights holders. Upstream code attribution and
@@ -67,43 +66,39 @@ license are retained below.
 
 ---
 
-<h1 align="center">
-  <img src="public/logo.png" alt="difit" width="260">
-</h1>
-
 <p align="center">
-  <a href="https://www.npmjs.com/package/@photostructure/difit"><img src="https://img.shields.io/npm/v/@photostructure/difit.svg" alt="npm version"></a>
-  <a href="https://github.com/photostructure/difit/actions/workflows/pr.yml"><img src="https://github.com/photostructure/difit/actions/workflows/pr.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/@photostructure/gavel"><img src="https://img.shields.io/npm/v/@photostructure/gavel.svg" alt="npm version"></a>
+  <a href="https://github.com/photostructure/gavel/actions/workflows/pr.yml"><img src="https://github.com/photostructure/gavel/actions/workflows/pr.yml/badge.svg" alt="CI"></a>
 </p>
 
-![difit screenshot](docs/images/screenshot.png)
+![gavel screenshot](docs/images/screenshot.png)
 
-**difit** is a CLI tool that lets you view and review local git diffs with a GitHub-style viewer. In addition to clean visuals, comments can be copied as prompts for AI. The local code review tool for the AI era!
+**gavel** is a CLI tool that lets you view and review local git diffs with a GitHub-style viewer. In addition to clean visuals, comments can be copied as prompts for AI. The local code review tool for the AI era!
 
 ## ⚡ Quick Start
 
 Try it first
 
 ```bash
-npx @photostructure/difit  # View the latest commit diff in WebUI
+npx @photostructure/gavel  # View the latest commit diff in WebUI
 ```
 
 Install and use
 
 ```bash
-npm install -g @photostructure/difit
-difit  # View the latest commit diff in WebUI
+npm install -g @photostructure/gavel
+gavel  # View the latest commit diff in WebUI
 ```
 
 Enable use from AI agents
 
 ```bash
-npx skills add photostructure/difit # Add the Skills to your agent
+npx skills add photostructure/gavel # Add the Skills to your agent
 ```
 
 Installed skills include:
 
-- `difit`: ask the user to review code changes, or review a named diff or PR and show findings in the difit viewer, when the user explicitly asks for difit
+- `gavel`: ask the user to review code changes, or review a named diff or PR and show findings in the gavel viewer, when the user explicitly asks for gavel
 
 For Codex, follow the [Codex skill setup](docs/codex-review-integration.md#install-the-codex-entry-point)
 to use the workflow that ends the turn during human review.
@@ -113,34 +108,34 @@ to use the workflow that ends the turn during human review.
 ### Basic Usage
 
 ```bash
-difit <target>                    # View single commit diff
-difit <target> [compare-with]     # Compare two commits/branches
+gavel <target>                    # View single commit diff
+gavel <target> [compare-with]     # Compare two commits/branches
 ```
 
 ### Single commit review
 
 ```bash
-difit          # HEAD (latest) commit
-difit 6f4a9b7  # Specific commit
-difit feature  # Latest commit on feature branch
+gavel          # HEAD (latest) commit
+gavel 6f4a9b7  # Specific commit
+gavel feature  # Latest commit on feature branch
 ```
 
 ### Compare two commits
 
 ```bash
-difit @ main         # Compare with main branch (@ is alias for HEAD)
-difit feature main   # Compare branches
-difit . origin/main  # Compare working directory with remote main
+gavel @ main         # Compare with main branch (@ is alias for HEAD)
+gavel feature main   # Compare branches
+gavel . origin/main  # Compare working directory with remote main
 ```
 
 ### Special Arguments
 
-difit supports special keywords for common diff scenarios:
+gavel supports special keywords for common diff scenarios:
 
 ```bash
-difit .        # All uncommitted changes (staging area + unstaged)
-difit staged   # Staging area changes
-difit working  # Unstaged changes only
+gavel .        # All uncommitted changes (staging area + unstaged)
+gavel staged   # Staging area changes
+gavel working  # Unstaged changes only
 ```
 
 ### Named reviews of uncommitted changes
@@ -149,15 +144,15 @@ Use one review name per task. Repeat `--pathspec` for native Git filters and
 exclusions; add `--include-untracked` when needed:
 
 ```sh
-difit --review parser-fix --pathspec src --pathspec ':(exclude)src/generated/**' --keep-alive
+gavel --review parser-fix --pathspec src --pathspec ':(exclude)src/generated/**' --keep-alive
 ```
 
 For a subset of changes in the same file, save a capture and use its printed
 file/hunk IDs (replace the placeholder with an ID from that exact artifact):
 
 ```sh
-difit review capture --pathspec src --output /tmp/capture.json
-difit --review parser-subset --capture /tmp/capture.json --select '<hunk-id>' --keep-alive
+gavel review capture --pathspec src --output /tmp/capture.json
+gavel --review parser-subset --capture /tmp/capture.json --select '<hunk-id>' --keep-alive
 ```
 
 Use the actual API port from `server.ready` to add another task or explicitly
@@ -165,12 +160,12 @@ replace a capture. Read `GET /api/reviews/parser-fix` for its current version
 before updating:
 
 ```sh
-difit review create docs-update --port 4966 --pathspec docs
-difit review update parser-fix --port 4966 --expected-version 1 --pathspec src --pathspec ':(exclude)src/generated/**'
+gavel review create docs-update --port 4966 --pathspec docs
+gavel review update parser-fix --port 4966 --expected-version 1 --pathspec src --pathspec ':(exclude)src/generated/**'
 ```
 
 A review asks for approval when it carries a capture or a proposed commit message.
-A message difit copied from a browsed commit is not a proposal, and after a
+A message gavel copied from a browsed commit is not a proposal, and after a
 commit moves HEAD only the newest unnamed review of uncommitted changes counts.
 A different base browsed for uncommitted changes before an agent proposes makes
 a newer review that hides the proposal's tab; that is unsupported. While any review on the server asks for approval, approved or
@@ -185,9 +180,9 @@ Captures read the index and working tree without changing them. Source edits and
 browser refresh leave a named capture fixed. Updating to a changed patch retains
 the conversation and proposal, advances its version, and revokes LGTM; stale
 updates fail. Identical patches preserve the version and approval. Reviews are
-saved under `.git/difit`, so a restarted server that opens the same name and
+saved under `.git/gavel`, so a restarted server that opens the same name and
 patch, or the same commits, restores its comments, proposal and approval, and
-`difit approval status <commit>` reports a commit's saved approvals without a
+`gavel approval status <commit>` reports a commit's saved approvals without a
 server; reviews untouched for 7 days are deleted. Path filters can include other tasks'
 changes; inspect the patch before asking for approval. See the
 [capture and approval protocol](docs/agent-conversations.md#named-captures-for-uncommitted-work).
@@ -195,11 +190,11 @@ changes; inspect the patch before asking for approval. See the
 ### GitHub PR
 
 ```bash
-difit --pr https://github.com/owner/repo/pull/123
+gavel --pr https://github.com/owner/repo/pull/123
 ```
 
 `--pr` mode fetches patches by running `gh pr diff --patch` under the hood.
-It also imports unresolved inline review threads from the PR so they appear as startup comments in difit.
+It also imports unresolved inline review threads from the PR so they appear as startup comments in gavel.
 
 Authentication is handled by GitHub CLI:
 
@@ -215,10 +210,10 @@ For Enterprise Server PRs, authenticate GitHub CLI against your Enterprise host:
 
 ### Initial Comments
 
-You can inject initial review comments when launching difit:
+You can inject initial review comments when launching gavel:
 
 ```bash
-difit --comment '{"type":"thread","filePath":"src/example.ts","position":{"side":"new","line":10},"body":"The background for this change is..."}'
+gavel --comment '{"type":"thread","filePath":"src/example.ts","position":{"side":"new","line":10},"body":"The background for this change is..."}'
 ```
 
 `--comment` is repeatable and accepts either a single JSON object or a JSON array. Supported types:
@@ -226,33 +221,33 @@ difit --comment '{"type":"thread","filePath":"src/example.ts","position":{"side"
 - `thread`: create a new thread at the specified diff position
 - `reply`: add a reply to the latest existing thread at the same diff position
 
-If the same comment already exists, difit skips importing it.
+If the same comment already exists, gavel skips importing it.
 
 ### Stdin
 
-By using a pipe to pass unified diffs via stdin, you can view diffs from any tool with difit.
+By using a pipe to pass unified diffs via stdin, you can view diffs from any tool with gavel.
 
 ```bash
 # View diffs from other tools
-diff -u file1.txt file2.txt | difit
+diff -u file1.txt file2.txt | gavel
 
 # Review saved patches
-cat changes.patch | difit
+cat changes.patch | gavel
 
 # Compare against merge base
-git diff --merge-base main feature | difit
+git diff --merge-base main feature | gavel
 
 # Review an entire existing file as newly added
-git diff -- /dev/null path/to/file | difit
+git diff -- /dev/null path/to/file | gavel
 
 # Explicit stdin mode
-git diff --cached | difit -
+git diff --cached | gavel -
 ```
 
 Stdin mode is selected with intent-first rules:
 
 - `-` explicitly enables stdin mode
-- If positional arguments (`<target>` / `[compare-with]`) or `--pr` are provided, difit treats the command as Git/PR mode and does not auto-read stdin
+- If positional arguments (`<target>` / `[compare-with]`) or `--pr` are provided, gavel treats the command as Git/PR mode and does not auto-read stdin
 - Auto stdin detection applies only when no explicit mode is selected and stdin is a pipe/file/socket
 
 ## ⚙️ CLI Options
@@ -282,37 +277,37 @@ Stdin mode is selected with intent-first rules:
 | `--no-jsonl`                  | false           | Use human-readable foreground output                                                                    |
 | `--background`                | false           | Detach the server and output connection information; no live stdout stream                              |
 | `--context <lines>`           | git default (3) | Limit surrounding context lines per change (`0` shows changes only; not available with `--pr` or stdin) |
-| `--title <title>`             | -               | Custom browser tab title, to tell review sessions apart when several difit instances are open           |
+| `--title <title>`             | -               | Custom browser tab title, to tell review sessions apart when several gavel instances are open           |
 | `--agent <name>`              | detected        | Agent shown under **About**: `$CLAUDE_CODE_ENTRYPOINT`, the Codex rollout `originator`, or `$AI_AGENT`  |
 | `--agent-session-name <name>` | -               | Name of the agent session that launched the review, shown under **About**                               |
 | `--agent-session-id <id>`     | detected        | Agent session ID shown under **About**; `$CLAUDE_CODE_SESSION_ID` or `$CODEX_THREAD_ID`                 |
 
 ### Open in editor
 
-Set the editor before starting difit. The server chooses the executable and
-arguments; the browser sends the selected file, line, and a session credential. `DIFIT_EDITOR`
+Set the editor before starting gavel. The server chooses the executable and
+arguments; the browser sends the selected file, line, and a session credential. `GAVEL_EDITOR`
 accepts `vscode` (default), `cursor`, `zed`, `textmate`, `bbedit`, `emacs`,
-`macvim`, `sublime`, `nova`, `custom`, or `none`. If `DIFIT_EDITOR` is unset,
-difit checks `EDITOR` for one of these preset names. Use `none` to hide the
+`macvim`, `sublime`, `nova`, `custom`, or `none`. If `GAVEL_EDITOR` is unset,
+gavel checks `EDITOR` for one of these preset names. Use `none` to hide the
 button. Open in editor is unavailable for stdin diffs.
 
 ```sh
-DIFIT_EDITOR=cursor difit .
-DIFIT_EDITOR=custom DIFIT_EDITOR_COMMAND=emacsclient \
-  DIFIT_EDITOR_ARGS='--no-wait +%line %file' difit .
+GAVEL_EDITOR=cursor gavel .
+GAVEL_EDITOR=custom GAVEL_EDITOR_COMMAND=emacsclient \
+  GAVEL_EDITOR_ARGS='--no-wait +%line %file' gavel .
 ```
 
-For `custom`, set both `DIFIT_EDITOR_COMMAND` and `DIFIT_EDITOR_ARGS`. The
+For `custom`, set both `GAVEL_EDITOR_COMMAND` and `GAVEL_EDITOR_ARGS`. The
 template must pass `%file` or `%file:%line` as a separate argument; `%line` is replaced with the
 selected line. `%file` becomes the absolute repository file path. Arguments are
-passed directly to the executable without a shell. Restart difit to change the
+passed directly to the executable without a shell. Restart gavel to change the
 editor.
-Use the full URL printed by difit when opening a review manually; its fragment
+Use the full URL printed by gavel when opening a review manually; its fragment
 authorizes editor launches for that server session.
 
 ## 💬 Comment System
 
-difit includes a review comment system that makes it easy to provide feedback to AI coding agents:
+gavel includes a review comment system that makes it easy to provide feedback to AI coding agents:
 
 1. **Add Comments**: Click the comment button on any diff line or drag to select a range
 2. **Edit Comments**: Edit existing comments with the edit button
@@ -343,11 +338,11 @@ the review tabs switch reviews.
 opens **Settings** for font size, font family, theme, syntax theme, color vision,
 approval animations, and auto-viewed patterns. Each browser keeps its own settings in a
 cookie, so a tablet and a desktop can use different font sizes; auto-viewed patterns
-are saved in `~/.difit/config.json` and shared by every browser. Below 1024px wide,
+are saved in `~/.gavel/config.json` and shared by every browser. Below 1024px wide,
 the review picker, **View**, **Settings**, **About**, and **Conversation** show only
 their icons, and the review picker's menu names the comparison. Below 1280px the three
 verdict buttons become one menu that shows the current verdict. Below 768px the header
-also drops the difit logo and shows the unread-reply count on the corner of
+also drops the gavel logo and shows the unread-reply count on the corner of
 **Conversation**. The files-viewed count is in the file tree, not the header. On phones and tablets in either orientation, and
 in windows 500px tall or less, the header, review tabs, and **Change summary** slide out of
 view while the diff scrolls down and return on scroll up or when keyboard focus moves into
@@ -360,7 +355,7 @@ has completion evidence or is confirmed by the reviewer. **Not yet** sends the r
 for revision. After any verdict, a notice under the verdict buttons counts down ten seconds,
 then opens the next review without one, or closes the tab once every review has one;
 **Switch now** or **Close now** skips the wait, and **Cancel** stops it.
-When the browser refuses to close the tab, difit says it can be closed. While a review
+When the browser refuses to close the tab, gavel says it can be closed. While a review
 lacks a verdict, its tab pulses after a verdict elsewhere, and leaving the page asks first.
 See [approval modes](docs/approval-modes.md) for
 agent commands, capture guards, and the meaning of the output fields.
@@ -417,22 +412,22 @@ This section is unnecessary
 
 ## 🤖 Calling from Agents
 
-You can install the following Skills to work with difit from AI agents.
+You can install the following Skills to work with gavel from AI agents.
 
-For Codex, use the [Codex entry point](.codex/skills/difit/SKILL.md) and
+For Codex, use the [Codex entry point](.codex/skills/gavel/SKILL.md) and
 [installation and handoff guide](docs/codex-review-integration.md). It ends the
 turn during human review and resumes on feedback. Keep its installed skill
 target separate from Claude's skill target.
 
 ```sh
-npx skills add photostructure/difit
+npx skills add photostructure/gavel
 ```
 
 Installed skills include:
 
-- `difit`: ask the user to review code changes, or review a named diff or PR and show findings in the difit viewer, when the user explicitly asks for difit
+- `gavel`: ask the user to review code changes, or review a named diff or PR and show findings in the gavel viewer, when the user explicitly asks for gavel
 
-After code edits or automated review, the agent can start the difit server with the appropriate skill.
+After code edits or automated review, the agent can start the gavel server with the appropriate skill.
 
 ## 🎨 Syntax Highlighting Languages
 
@@ -447,7 +442,7 @@ After code edits or automated review, the agent can start the difit server with 
 
 ## 🔍 Auto-collapsed Files
 
-difit automatically identifies and collapses certain files to keep your view clean:
+gavel automatically identifies and collapses certain files to keep your view clean:
 
 - **Deleted files**: Removed files are auto-collapsed since they don't require close review
 - **Generated files**: Auto-generated code is collapsed by default. This includes:
@@ -472,21 +467,21 @@ difit automatically identifies and collapses certain files to keep your view cle
 
 ## Agent conversations
 
-Discover the JSON contract with `difit schema [events|summary|reply|status|snapshot|comments|import|approval]`.
-Use `difit schema capture` for saved artifacts and `difit schema capture-update`
+Discover the JSON contract with `gavel schema [events|summary|reply|status|snapshot|comments|import|approval]`.
+Use `gavel schema capture` for saved artifacts and `gavel schema capture-update`
 for guarded updates. Without a selector, the Draft 2020-12 bundle describes launch events; `$defs` also
-includes agent requests and responses. Use `difit comment <command> --help` for
+includes agent requests and responses. Use `gavel comment <command> --help` for
 usage. The commit message is `commitMessage` and its TLDR is `rationale` in the
 summary payload; comments and replies also use JSON.
 
 Seed editable review intent with
-`difit --review parser-fix --commit-message 'fix: preserve review intent' --why 'Explain why the change is needed.'`.
+`gavel --review parser-fix --commit-message 'fix: preserve review intent' --why 'Explain why the change is needed.'`.
 Each diff selection keeps its own proposed message and rationale for the server's
 lifetime. Saving a change revokes that selection's LGTM approval. Agents can update
-the same fields with `difit comment summary --port <port> < /tmp/difit-summary.json`;
+the same fields with `gavel comment summary --port <port> < /tmp/gavel-summary.json`;
 see the [proposal protocol](docs/agent-conversations.md#proposed-commit-message-and-rationale).
 
-Use `difit <target> <base> --keep-alive` to let an agent answer comments while
+Use `gavel <target> <base> --keep-alive` to let an agent answer comments while
 you continue reviewing. Foreground stdout emits JSON Lines by default; diagnostics
 go to stderr. `--jsonl` is explicit and `--no-jsonl` selects human output while
 retaining control APIs. In human mode, startup diagnostics still go to stderr;
@@ -495,20 +490,20 @@ comment and approval output goes to stdout. To disable conversations, use
 Keep the process handle and read new output between tool steps. `server.ready` identifies
 the actual API port, URL, PID, and review. Send replies and explicit Delivered/Read
 receipts with `comment reply` and `comment status` using that API port.
-`--background` has no live stdout. Use `difit wait --port <port>` to wait silently
+`--background` has no live stdout. Use `gavel wait --port <port>` to wait silently
 for human activity on an existing server. Repeat `--port` to cover several servers
 with one waiter. It has no overall timeout and exits with one nonempty JSON batch;
 empty HTTP rounds and agent activity produce no output. Save each returned
 `port`/`cursor` and supply `--after port=cursor` on the next invocation to cover
 changes between waits. Queued messages are recovered on every attachment without
 being acknowledged. Replay retains 256 events per server process; expired cursors
-require explicit snapshot reconciliation. Use `difit schema wait` for the result
+require explicit snapshot reconciliation. Use `gavel schema wait` for the result
 contract. See [waiting for review](docs/waiting-for-review.md) and the
 [conversation protocol](docs/agent-conversations.md), including conditional LGTM
 approval.
 
 The browser shows whether an agent listener is attached and offers **Copy resume
-prompt** when one is absent. `difit wait` requires presence reporting and exits 4
+prompt** when one is absent. `gavel wait` requires presence reporting and exits 4
 when no reviewer is connected on any selected server, after returning existing
 human work. End the agent turn on that result instead of retrying. For Codex
 desktop, the [integration guide](docs/codex-review-integration.md) describes ending
@@ -517,7 +512,7 @@ turns. It also specifies an external-controller approach for automatic delivery.
 Use an explicit `--host` for a server bound to a LAN interface; see
 [server addresses](docs/server-addresses.md).
 
-`difit idle` prints `{"idleMs": …, "source": …}`: milliseconds since the desktop
+`gavel idle` prints `{"idleMs": …, "source": …}`: milliseconds since the desktop
 user's last keyboard or mouse input, read over D-Bus on Linux (KDE's
 `org.freedesktop.ScreenSaver` on X11, or GNOME's `org.gnome.Mutter.IdleMonitor`), from
 `ioreg` on macOS, and from `GetLastInputInfo` on Windows. It exits 1 when no
@@ -529,25 +524,25 @@ Agents run it before opening a review to tell whether the user is at the desk.
 
 The browser's [Clipboard API](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText)
 requires a secure context. Localhost is treated as trustworthy for local development;
-a remote HTTP address such as `http://10.1.1.24:4966` generally is not. difit tries a
+a remote HTTP address such as `http://10.1.1.24:4966` generally is not. gavel tries a
 legacy copy fallback, but trusted HTTPS is the reliable setup for remote browsers.
 Browser permissions can still prevent copying.
 
-Start the built difit server on the machine containing the repository:
+Start the built gavel server on the machine containing the repository:
 
 ```sh
-difit . --host localhost --port 4966 --no-open --keep-alive
+gavel . --host localhost --port 4966 --no-open --keep-alive
 ```
 
 Use the actual port printed at startup if 4966 is occupied. From a source checkout,
-run `pnpm build`, then use `node dist/cli/index.js` in place of `difit`.
+run `pnpm build`, then use `node dist/cli/index.js` in place of `gavel`.
 Proxy this server, which serves both the UI and `/api`, at the root of one HTTPS
 origin. The development server (`pnpm dev`, usually port 5173) can embed a localhost
 API address for event streams, so it is not the target for these recipes.
 
 The proxy must stream Server-Sent Events (SSE) on `/api/watch` and `/api/heartbeat`
 without buffering or caching. `--keep-alive` prevents a dropped browser connection
-from ending the review. difit has no built-in login: anyone who can reach the
+from ending the review. gavel has no built-in login: anyone who can reach the
 service can access the review and its enabled actions. Use an authenticated proxy
 for private repositories; HTTPS alone does not restrict access.
 
@@ -567,7 +562,7 @@ cloudflared tunnel --url http://localhost:4966
 
 Open the HTTPS URL printed by the command. However, [Quick Tunnels do not support
 SSE](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/), which
-difit uses for live updates. They are unsuitable for the full conversation workflow:
+gavel uses for live updates. They are unsuitable for the full conversation workflow:
 a page loading and Copy working do not establish that replies or approval changes
 will update live. The URL is public unless access restrictions are configured.
 
@@ -587,7 +582,7 @@ before relying on a hosted tunnel for a review. Stop the tunnel when finished.
 
 [local-ip.sh](https://local-ip.sh/) provides DNS names for IP addresses. For example,
 `10-1-1-24.local-ip.sh` resolves to `10.1.1.24`. The reviewing device must be able to
-reach that address; this does not create a tunnel or turn difit's HTTP server into
+reach that address; this does not create a tunnel or turn gavel's HTTP server into
 an HTTPS server.
 
 Run a TLS reverse proxy on the repository machine. For example, with Caddy installed,
@@ -614,7 +609,7 @@ or bypassing a certificate warning, is not a substitute for trusted HTTPS.
 ### Check copying and live conversations
 
 Open the HTTPS page without a certificate warning, click Copy Prompt, and paste
-into a text editor. For conversations, start foreground difit with `--keep-alive`
+into a text editor. For conversations, start foreground gavel with `--keep-alive`
 on the repository machine and retain its JSONL stdout. Submit a comment from the
 remote browser, verify it appears in the launch output, then send a
 [reply](docs/agent-conversations.md) and confirm it appears without refreshing.
