@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CommentThread, DiffChunk, DiffFile, DiffLine, LineNumber } from '../../types/diff';
 
@@ -33,6 +33,10 @@ const thread = (side: 'old' | 'new', line: LineNumber): CommentThread => ({
 });
 
 describe('captured whitespace presentation', () => {
+  // The alignment budgets are wall-clock milliseconds, so a busy machine would change the result.
+  beforeEach(() => vi.spyOn(Date, 'now').mockReturnValue(0));
+  afterEach(() => vi.restoreAllMocks());
+
   it.each(['left', 'right'] as const)(
     'remaps a surviving %s-side cursor by its captured line number',
     (side) => {
@@ -159,7 +163,9 @@ describe('captured whitespace presentation', () => {
     ]);
     const expensive = chunk([
       ...Array.from({ length: 101 }, (_, index) => old(`old${index}`, index + 1)),
+      old(' shared', 102),
       ...Array.from({ length: 101 }, (_, index) => added(`new${index}`, index + 1)),
+      added('shared', 102),
     ]);
     for (const original of [oversized, tooManyLines, expensive]) {
       expect(hideWhitespaceChanges([original], [])[0]).toBe(original);

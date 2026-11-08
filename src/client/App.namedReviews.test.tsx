@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { ConversationSnapshot, ReviewVerdict } from '../types/conversation';
 import type { DiffCommentThread, DiffResponse, ReviewContext } from '../types/diff';
@@ -624,6 +624,9 @@ describe('named captures in the browser', () => {
   });
 
   it('toggles captured whitespace without changing capture identity, approval or viewed records', async () => {
+    // The alignment budgets are wall-clock milliseconds, so a busy machine would change the result.
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now());
+    onTestFinished(() => clock.mockRestore());
     const state = fixture();
     const content = '  const stable = false;  ';
     state.addedLine = content;

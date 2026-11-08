@@ -267,7 +267,10 @@ describe('DiffChunk range comments', () => {
           { type: 'add', content: 'new after', newLineNumber: 12 },
         ],
       };
+      // The alignment budgets are wall-clock milliseconds, so a busy machine would change the rows.
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(0);
       const filtered = hideWhitespaceChanges([original], [])[0]!;
+      clock.mockRestore();
       const onAddComment = vi.fn().mockResolvedValue(undefined);
       const onLineClick = vi.fn();
       const { container } = renderWithProviders(

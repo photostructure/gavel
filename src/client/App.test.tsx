@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest';
 import '@testing-library/jest-dom';
 
 import { mockFetch } from '../../vitest.setup';
@@ -227,6 +227,9 @@ it('opens the detailed comparison picker and changes the diff only after Apply',
 
 it('filters stdin whitespace locally without replacing the canonical patch', async () => {
   vi.clearAllMocks();
+  // The alignment budgets are wall-clock milliseconds, so a busy machine would change the result.
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now());
+  onTestFinished(() => clock.mockRestore());
   mockComments = [];
   const response: DiffResponse = {
     ...mockDiffResponse,
