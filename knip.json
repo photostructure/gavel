@@ -1,3 +1,4 @@
 {
+  "entry": ["vitest.env.stub.ts"],
   "ignoreBinaries": ["go", "pinact"]
 }
