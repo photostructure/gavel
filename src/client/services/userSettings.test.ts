@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import {
-  migrateServerSettings,
   onSettingsSaveError,
   readClientSettings,
   saveClientSettings,
@@ -13,12 +12,6 @@ const settingsCookie = () =>
     .split('; ')
     .find((cookie) => cookie.startsWith('gavel-settings='))
     ?.slice('gavel-settings='.length);
-
-const serverResponse = (body: unknown) =>
-  new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
 
 describe('userSettings service', () => {
   let mockFetch: ReturnType<typeof vi.fn<typeof fetch>>;
@@ -92,72 +85,6 @@ describe('userSettings service', () => {
       saveClientSettings({ sidebarOpen: false });
 
       expect(saveErrors).toEqual([expect.stringMatching(/did not keep/)]);
-    });
-
-    it('still applies settings copied from the server for this visit', async () => {
-      mockFetch.mockResolvedValue(serverResponse({ version: 1, client: { sidebarOpen: false } }));
-
-      await expect(migrateServerSettings()).resolves.toEqual({ sidebarOpen: false });
-      expect(saveErrors).toEqual([expect.stringMatching(/did not keep/)]);
-    });
-  });
-
-  describe('migrateServerSettings', () => {
-    it('copies settings saved on the server into a browser that has none', async () => {
-      mockFetch.mockResolvedValue(
-        serverResponse({ version: 1, client: { diffViewMode: 'unified', sidebarWidth: 280 } }),
-      );
-
-      await expect(migrateServerSettings()).resolves.toEqual({
-        diffViewMode: 'unified',
-        sidebarWidth: 280,
-      });
-      expect(mockFetch).toHaveBeenCalledWith('/api/user-settings');
-      expect(readClientSettings()).toEqual({ diffViewMode: 'unified', sidebarWidth: 280 });
-    });
-
-    it('shares one request between concurrent callers', async () => {
-      mockFetch.mockResolvedValue(serverResponse({ version: 1, client: { sidebarOpen: true } }));
-
-      await Promise.all([migrateServerSettings(), migrateServerSettings()]);
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-    });
-
-    it('keeps changes made in this browser while the server settings load', async () => {
-      mockFetch.mockResolvedValue(
-        serverResponse({ version: 1, client: { diffViewMode: 'unified', sidebarWidth: 280 } }),
-      );
-
-      const migration = migrateServerSettings();
-      saveClientSettings({ diffViewMode: 'split' });
-
-      await expect(migration).resolves.toEqual({ diffViewMode: 'split', sidebarWidth: 280 });
-      expect(readClientSettings()).toEqual({ diffViewMode: 'split', sidebarWidth: 280 });
-    });
-
-    it('skips the server once this browser has its own settings', async () => {
-      saveClientSettings({ sidebarOpen: false });
-      resetClientSettingsForTests({ keepCookie: true });
-
-      await expect(migrateServerSettings()).resolves.toBeNull();
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it('returns null when the server has no settings', async () => {
-      mockFetch.mockResolvedValue(serverResponse({ version: 1, client: {} }));
-
-      await expect(migrateServerSettings()).resolves.toBeNull();
-      expect(readClientSettings()).toEqual({});
-    });
-
-    it('returns null when the server responds with an error', async () => {
-      mockFetch.mockResolvedValue(new Response('nope', { status: 404 }));
-      await expect(migrateServerSettings()).resolves.toBeNull();
-    });
-
-    it('returns null when there is no server (static demo site)', async () => {
-      mockFetch.mockRejectedValue(new TypeError('fetch failed'));
-      await expect(migrateServerSettings()).resolves.toBeNull();
     });
   });
 });

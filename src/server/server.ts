@@ -1725,12 +1725,6 @@ export async function startServer(options: ServerOptions): Promise<{
     }
   });
 
-  // Read-only: browsers copy settings saved here before they moved to a cookie.
-  app.get('/api/user-settings', async (_req, res) => {
-    const config = await readUserConfig();
-    res.json(config);
-  });
-
   app.put('/api/auto-viewed-patterns', async (req, res) => {
     let patterns: string[] | null;
     try {

@@ -50,62 +50,20 @@ describe('user-config', () => {
   describe('readUserConfig', () => {
     it('returns defaults when the file does not exist', async () => {
       const config = await readUserConfig(configPath);
-      expect(config).toEqual({ version: 1, client: {}, autoViewedPatterns: [] });
+      expect(config).toEqual({ autoViewedPatterns: [] });
     });
 
     it('rejects a file that is not valid JSON, naming the file', async () => {
       await fs.writeFile(configPath, 'not json', 'utf-8');
       await expect(readUserConfig(configPath)).rejects.toThrow(configPath);
     });
-
-    it('returns defaults when client is not an object', async () => {
-      await fs.writeFile(configPath, JSON.stringify({ version: 1, client: [1, 2] }), 'utf-8');
-      const config = await readUserConfig(configPath);
-      expect(config).toEqual({ version: 1, client: {}, autoViewedPatterns: [] });
-    });
-
-    it('reads stored client settings', async () => {
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({ version: 1, client: { diffViewMode: 'split' } }),
-        'utf-8',
-      );
-      const config = await readUserConfig(configPath);
-      expect(config.client).toEqual({ diffViewMode: 'split' });
-    });
   });
 
   describe('auto-viewed patterns', () => {
-    it('reads patterns saved inside the old appearance settings', async () => {
+    it('saves patterns without touching the other keys in the file', async () => {
       await fs.writeFile(
         configPath,
-        JSON.stringify({ version: 1, client: { appearance: { autoViewedPatterns: ['*.snap'] } } }),
-        'utf-8',
-      );
-      const config = await readUserConfig(configPath);
-      expect(config.autoViewedPatterns).toEqual(['*.snap']);
-      // Browsers copy `client` into a size-limited cookie; the patterns stay out of it.
-      expect(config.client).toEqual({ appearance: {} });
-    });
-
-    it('prefers patterns saved under their own key', async () => {
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({
-          version: 1,
-          client: { appearance: { autoViewedPatterns: ['*.snap'] } },
-          autoViewedPatterns: [],
-        }),
-        'utf-8',
-      );
-      const config = await readUserConfig(configPath);
-      expect(config.autoViewedPatterns).toEqual([]);
-    });
-
-    it('saves patterns without touching the other settings', async () => {
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({ version: 1, client: { diffViewMode: 'split' } }),
+        JSON.stringify({ version: 1, autoViewedPatterns: ['*.snap'], note: 'added by hand' }),
         'utf-8',
       );
 
@@ -113,8 +71,8 @@ describe('user-config', () => {
 
       expect(JSON.parse(await fs.readFile(configPath, 'utf-8'))).toEqual({
         version: 1,
-        client: { diffViewMode: 'split' },
         autoViewedPatterns: ['vendor/**'],
+        note: 'added by hand',
       });
       expect(await fs.readdir(configDir)).toEqual(['config.json']);
     });

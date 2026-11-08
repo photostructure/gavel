@@ -1,5 +1,4 @@
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
-import { StrictMode } from 'react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom';
@@ -775,33 +774,6 @@ describe('App Component - Diff load errors', () => {
     renderApp();
 
     expect(await screen.findByText('Failed to fetch diff data')).toBeInTheDocument();
-  });
-});
-
-describe('App Component - Settings copied from the server', () => {
-  it('keeps the server sidebar settings when development mode replays mount effects', async () => {
-    mockFetch(mockDiffResponse);
-    const baseFetch = vi.mocked(global.fetch).getMockImplementation()!;
-    vi.mocked(global.fetch).mockImplementation(async (url, init) =>
-      String(url) === '/api/user-settings'
-        ? ({
-            ok: true,
-            json: async () => ({ version: 1, client: { sidebarWidth: 420, sidebarOpen: false } }),
-          } as Response)
-        : baseFetch(url, init),
-    );
-
-    render(
-      <StrictMode>
-        <HotkeysProvider initiallyActiveScopes={['navigation']}>
-          <App />
-        </HotkeysProvider>
-      </StrictMode>,
-    );
-
-    await waitFor(() => {
-      expect(readClientSettings()).toMatchObject({ sidebarWidth: 420, sidebarOpen: false });
-    });
   });
 });
 

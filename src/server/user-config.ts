@@ -1,20 +1,16 @@
 // ~/.gavel/config.json holds the auto-viewed patterns, which apply to files
-// rather than screens and so are shared by every browser. Its `client` object
-// holds UI settings that difit saved before they moved to a per-browser
-// cookie; browsers read it once to copy them.
+// rather than screens and so are shared by every browser.
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
 
 export interface UserConfig {
-  version: 1;
-  client: Record<string, unknown>;
   autoViewedPatterns: string[];
 }
 
 const CONFIG_VERSION = 1 as const;
 
-// Generous ceiling for UI preferences; anything larger is a bug or abuse.
+// Generous ceiling for the user config; anything larger is a bug or abuse.
 export const MAX_USER_CONFIG_BYTES = 64 * 1024;
 
 export function getUserConfigPath(): string {
@@ -60,21 +56,8 @@ async function readConfigFile(path: string): Promise<Record<string, unknown>> {
 
 export async function readUserConfig(path: string = getUserConfigPath()): Promise<UserConfig> {
   const raw = await readConfigFile(path);
-  const client = isPlainObject(raw.client) ? raw.client : {};
-  // Patterns saved before they had their own key sit in the appearance
-  // settings. Browsers copy `client` into a size-limited cookie, so the
-  // patterns are returned only under their own key.
-  const legacyAppearance = isPlainObject(client.appearance) ? client.appearance : undefined;
-  const { autoViewedPatterns: legacyPatterns, ...appearance } = legacyAppearance ?? {};
-  const autoViewedPatterns = isStringArray(raw.autoViewedPatterns)
-    ? raw.autoViewedPatterns
-    : isStringArray(legacyPatterns)
-      ? legacyPatterns
-      : [];
   return {
-    version: CONFIG_VERSION,
-    client: legacyAppearance ? { ...client, appearance } : client,
-    autoViewedPatterns,
+    autoViewedPatterns: isStringArray(raw.autoViewedPatterns) ? raw.autoViewedPatterns : [],
   };
 }
 
@@ -91,7 +74,7 @@ export async function writeAutoViewedPatterns(
 
   const serialized = `${JSON.stringify(next, null, 2)}\n`;
   if (Buffer.byteLength(serialized, 'utf-8') > MAX_USER_CONFIG_BYTES) {
-    throw new Error('User settings exceed the maximum allowed size');
+    throw new Error('The user config exceeds the maximum allowed size');
   }
 
   await fs.mkdir(dirname(path), { recursive: true });

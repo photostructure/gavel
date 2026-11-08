@@ -21,16 +21,7 @@ function readCookieValue(): string | undefined {
     ?.slice(COOKIE_NAME.length + 1);
 }
 
-// Whether this browser had settings when the page loaded; decides whether the
-// one-time copy from the server's old config file runs.
-let hadCookieAtLoad: boolean | undefined;
-
-function noteCookieAtLoad(): void {
-  hadCookieAtLoad ??= readCookieValue() !== undefined;
-}
-
 export function readClientSettings(): Record<string, unknown> {
-  noteCookieAtLoad();
   const value = readCookieValue();
   if (value === undefined) {
     return {};
@@ -81,45 +72,6 @@ export function saveClientSettings(patch: Record<string, unknown>): void {
   writeClientSettings({ ...readClientSettings(), ...patch });
 }
 
-let migration: Promise<Record<string, unknown> | null> | null = null;
-
-// Settings used to be saved in the server's ~/.difit/config.json. A browser
-// without its own settings copies them from there once; settings changed in
-// this browser while the request was in flight win.
-export function migrateServerSettings(): Promise<Record<string, unknown> | null> {
-  noteCookieAtLoad();
-  migration ??= (async () => {
-    if (hadCookieAtLoad) {
-      return null;
-    }
-    let server: unknown;
-    try {
-      const response = await fetch('/api/user-settings');
-      if (!response.ok) {
-        return null;
-      }
-      server = await response.json();
-    } catch {
-      // No API server (static demo site) or the request failed.
-      return null;
-    }
-    if (!isPlainObject(server) || !isPlainObject(server.client)) {
-      return null;
-    }
-    if (Object.keys(server.client).length === 0) {
-      return null;
-    }
-    const merged = { ...server.client, ...readClientSettings() };
-    writeClientSettings(merged);
-    return merged;
-  })();
-  return migration;
-}
-
-export function resetClientSettingsForTests({ keepCookie = false } = {}): void {
-  if (!keepCookie) {
-    document.cookie = `${COOKIE_NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-  }
-  hadCookieAtLoad = undefined;
-  migration = null;
+export function resetClientSettingsForTests(): void {
+  document.cookie = `${COOKIE_NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
 }

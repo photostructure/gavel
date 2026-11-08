@@ -80,7 +80,6 @@ import { useViewedFiles } from './hooks/useViewedFiles';
 import { useViewport } from './hooks/useViewport';
 import { useHideHeaderOnScroll } from './hooks/useHideHeaderOnScroll';
 import {
-  migrateServerSettings,
   onSettingsSaveError,
   readClientSettings,
   saveClientSettings,
@@ -1253,34 +1252,6 @@ function App() {
       setDiffMode('unified');
     }
   }, [diffMode, isMobile]);
-
-  // A browser without its own settings copies them once from the server's old
-  // config file.
-  useEffect(() => {
-    let cancelled = false;
-
-    void migrateServerSettings().then((client) => {
-      if (cancelled || !client) {
-        return;
-      }
-      const migratedDiffViewMode = parseDiffViewMode(client.diffViewMode);
-      if (migratedDiffViewMode) {
-        setDiffMode(migratedDiffViewMode);
-      }
-      const migratedSidebarWidth = parseSidebarWidth(client.sidebarWidth);
-      if (migratedSidebarWidth !== null) {
-        setSidebarWidth(migratedSidebarWidth);
-      }
-      const migratedSidebarOpen = parseSidebarOpen(client.sidebarOpen);
-      if (migratedSidebarOpen !== null) {
-        setIsFileTreeOpen(migratedSidebarOpen);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Save only values that changed, so opening gavel writes no settings cookie,
   // including when development mode runs mount effects twice.

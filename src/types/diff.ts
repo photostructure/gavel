@@ -206,17 +206,6 @@ export interface ViewedHashIndex {
   entries: ViewedHashIndexEntry[];
 }
 
-export interface LegacyDiffContextStorage {
-  version: 1; // Schema version
-  baseCommitish: string;
-  targetCommitish: string;
-  createdAt: string; // ISO 8601 format
-  lastModifiedAt: string; // ISO 8601 format
-
-  comments: LegacyDiffComment[];
-  viewedFiles: ViewedFileRecord[];
-}
-
 // Browser-local undo copies; never included in conversation API requests.
 export interface DeletedComment {
   thread: DiffCommentThread;

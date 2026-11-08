@@ -122,31 +122,6 @@ describe('useAppearanceSettings', () => {
     });
   });
 
-  describe('legacy editor storage', () => {
-    it('discards browser-stored editor commands', () => {
-      setMatchMedia(false);
-      saveClientSettings({
-        appearance: {
-          theme: 'dark',
-          editor: { id: 'custom', command: 'untrusted', argsTemplate: '%file' },
-        },
-      });
-
-      const { result } = renderHook(() => useAppearanceSettings());
-
-      expect(result.current.settings).not.toHaveProperty('editor');
-    });
-
-    it('leaves auto-viewed patterns to the server', () => {
-      setMatchMedia(false);
-      saveClientSettings({ appearance: { theme: 'dark', autoViewedPatterns: ['*.snap'] } });
-
-      const { result } = renderHook(() => useAppearanceSettings());
-
-      expect(result.current.settings).not.toHaveProperty('autoViewedPatterns');
-    });
-  });
-
   describe('settings normalization', () => {
     beforeEach(() => {
       setMatchMedia(false);
@@ -184,40 +159,6 @@ describe('useAppearanceSettings', () => {
         lasers: true,
         disco: true,
         balloons: true,
-      });
-    });
-  });
-
-  describe('settings saved on the server before they moved to a cookie', () => {
-    beforeEach(() => {
-      setMatchMedia(false);
-      resetClientSettingsForTests();
-    });
-
-    it('copies the server settings into this browser on first load', async () => {
-      (global.fetch as any).mockImplementation((url: string) => {
-        if (url.includes('/api/user-settings')) {
-          return Promise.resolve({
-            ok: true,
-            json: async () => ({
-              version: 1,
-              client: { appearance: { theme: 'light', fontSize: 16 } },
-            }),
-          });
-        }
-        return Promise.resolve({ ok: false });
-      });
-
-      const { result } = renderHook(() => useAppearanceSettings());
-
-      await waitFor(() => {
-        expect(result.current.settings.theme).toBe('light');
-        expect(result.current.settings.fontSize).toBe(16);
-      });
-
-      expect(readClientSettings().appearance).toMatchObject({
-        theme: 'light',
-        fontSize: 16,
       });
     });
   });

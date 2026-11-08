@@ -7,7 +7,6 @@ import {
 } from '../components/SettingsModal';
 import {
   APPEARANCE_SETTINGS_KEY,
-  migrateServerSettings,
   readClientSettings,
   saveClientSettings,
 } from '../services/userSettings';
@@ -24,15 +23,7 @@ const normalizeStoredSettings = (raw: unknown): AppearanceSettings | null => {
     return null;
   }
 
-  const parsed = raw as Partial<AppearanceSettings> & {
-    autoViewedPatterns?: unknown;
-    editor?: unknown;
-  };
-  const sanitized = { ...parsed };
-  delete sanitized.editor;
-  // Auto-viewed patterns live on the server. Pre-release builds of the cookie
-  // storage saved them inside the appearance settings, so cookies may hold them.
-  delete sanitized.autoViewedPatterns;
+  const parsed = raw as Partial<AppearanceSettings>;
 
   // Match on the first family, so a saved font survives changes to its fallbacks.
   const firstFamily = (stack: string) => stack.split(',')[0]?.trim();
@@ -44,7 +35,7 @@ const normalizeStoredSettings = (raw: unknown): AppearanceSettings | null => {
 
   return {
     ...DEFAULT_SETTINGS,
-    ...sanitized,
+    ...parsed,
     fontFamily,
     // Animations added since the settings were saved start out on.
     approvalAnimations: { ...DEFAULT_SETTINGS.approvalAnimations, ...parsed.approvalAnimations },
@@ -61,26 +52,6 @@ export function useAppearanceSettings(): UseAppearanceSettingsReturn {
     () =>
       normalizeStoredSettings(readClientSettings()[APPEARANCE_SETTINGS_KEY]) ?? DEFAULT_SETTINGS,
   );
-
-  // A browser without its own settings copies them once from the server's old
-  // config file.
-  useEffect(() => {
-    let cancelled = false;
-
-    void migrateServerSettings().then((client) => {
-      if (cancelled || !client) {
-        return;
-      }
-      const migrated = normalizeStoredSettings(client[APPEARANCE_SETTINGS_KEY]);
-      if (migrated) {
-        setSettings(migrated);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const applyTheme = useCallback(
     (theme: 'light' | 'dark', colorVision: ColorVisionMode = 'normal') => {

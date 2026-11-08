@@ -1741,12 +1741,12 @@ describe('Server Integration Tests', () => {
       expect(data.error).toContain('does-not-exist');
     });
 
-    describe('user settings API', () => {
+    describe('auto-viewed patterns API', () => {
       const originalConfigDir = process.env.GAVEL_CONFIG_DIR;
       let configDir: string;
 
       beforeEach(async () => {
-        configDir = await fs.mkdtemp(join(tmpdir(), 'gavel-user-settings-'));
+        configDir = await fs.mkdtemp(join(tmpdir(), 'gavel-auto-viewed-'));
         process.env.GAVEL_CONFIG_DIR = configDir;
       });
 
@@ -1757,37 +1757,6 @@ describe('Server Integration Tests', () => {
           process.env.GAVEL_CONFIG_DIR = originalConfigDir;
         }
         await fs.rm(configDir, { recursive: true, force: true });
-      });
-
-      it('GET /api/user-settings returns defaults when no config exists', async () => {
-        const response = await fetch(`http://localhost:${port}/api/user-settings`);
-
-        expect(response.ok).toBe(true);
-        const data = (await response.json()) as any;
-        expect(data).toEqual({ version: 1, client: {}, autoViewedPatterns: [] });
-      });
-
-      it('GET /api/user-settings returns settings saved before they moved to a cookie', async () => {
-        await fs.writeFile(
-          join(configDir, 'config.json'),
-          JSON.stringify({ version: 1, client: { diffViewMode: 'split', sidebarWidth: 400 } }),
-          'utf-8',
-        );
-
-        const response = await fetch(`http://localhost:${port}/api/user-settings`);
-        const data = (await response.json()) as any;
-        expect(data.client).toEqual({ diffViewMode: 'split', sidebarWidth: 400 });
-      });
-
-      it('PUT /api/user-settings no longer writes the config file', async () => {
-        const response = await fetch(`http://localhost:${port}/api/user-settings`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ client: { sidebarWidth: 400 } }),
-        });
-
-        expect(response.status).toBe(404);
-        await expect(fs.readdir(configDir)).resolves.toEqual([]);
       });
 
       it('PUT /api/auto-viewed-patterns saves the patterns that /api/diff returns', async () => {

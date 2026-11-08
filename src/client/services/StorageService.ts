@@ -3,7 +3,6 @@ import {
   type DiffCommentThread,
   type ViewedFileRecord,
   type DiffContextStorage,
-  type LegacyDiffContextStorage,
   type LegacyDiffComment,
   type ViewedHashIndex,
   type ViewedHashIndexEntry,
@@ -186,22 +185,9 @@ export class StorageService {
 
       if (!data) return null;
 
-      const parsed = JSON.parse(data) as DiffContextStorage | LegacyDiffContextStorage;
+      const parsed = JSON.parse(data) as DiffContextStorage;
       if (parsed.version === 2 && 'threads' in parsed) {
         return parsed;
-      }
-
-      if (parsed.version === 1 && 'comments' in parsed) {
-        return {
-          version: 2,
-          baseCommitish: parsed.baseCommitish,
-          targetCommitish: parsed.targetCommitish,
-          createdAt: parsed.createdAt,
-          lastModifiedAt: parsed.lastModifiedAt,
-          threads: parsed.comments.map(migrateLegacyComment),
-          viewedFiles: parsed.viewedFiles,
-          appliedCommentImportIds: [],
-        };
       }
 
       console.warn(`Unknown storage version: ${String((parsed as { version?: unknown }).version)}`);
