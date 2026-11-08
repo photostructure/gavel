@@ -7,64 +7,13 @@
 
 # @photostructure/gavel
 
-gavel shows Git diffs in a local web viewer where you review a coding agent's
-changes, discuss them with the agent in comment threads, and approve or decline
-each proposed commit. It started as PhotoStructure's fork of
-[difit](https://github.com/yoshiko-pg/difit) by yoshiko-pg. If gavel is useful to you,
-please consider [sponsoring yoshiko-pg](https://github.com/sponsors/yoshiko-pg).
+**Your agent writes the code. You give the verdict.**
 
-## What gavel adds to difit
-
-gavel builds on Yoshiko's diff viewer with a review workflow for coding agents:
-
-- **Conversation drawer:** discuss the whole review alongside inline code threads,
-  reply in either place, and retain drafts when moving between a discussion and code.
-- **Live agent feedback:** submitted comments reach the agent immediately through
-  JSON events; exact-thread replies appear in the viewer while the review continues.
-- **Comment progress:** see Delivered, Read, Thinking, Replying, Replied, or Noted
-  when the agent reports its activity. This does not wake an idle agent automatically.
-- **Named task captures:** freeze selected uncommitted changes, keep discussions
-  and the proposed commit under one task name, and explicitly update the capture
-  as fixes land. Capture changes revoke as-is approval; conditional approval keeps
-  reviewer confirmations and requires fresh agent evidence for the remaining comments.
-- **Reversible LGTM:** approval stays visible and can be revoked. Conversations
-  and approval actions are enabled by default; approval starts off.
-- **Intent and retained discussions:** choose Comment, Change request, or Question
-  in one radio group, resolve and reopen it without losing the history, or explicitly delete it.
-- **Review information:** open **About** beside **View** for the launching agent
-  and its session's name and ID, the reviewed repository, worktree, server, and
-  launch directory in a right-side panel. The browser title identifies the
-  repository and port.
-
-The question marker and explicit thread deletion incorporate
-[upstream PR #482](https://github.com/yoshiko-pg/difit/pull/482).
-Reusable UI and conversation changes are being prepared as focused commits for
-upstream; scoped packaging, publishing, and default flags belong to gavel.
-
-## Run the PhotoStructure package
-
-```sh
-npx @photostructure/gavel .
-```
-
-Live agent conversations and the verdict buttons are enabled by default.
-Each review starts without a verdict. **Approve as-is**, **Approve after comments**, and
-**Not yet** sit side by side in the header from 1280px wide, and in one menu below that.
-Clicking the chosen button again, or **Clear verdict** in the menu, clears the verdict.
-Use `--no-lgtm` for a read-only review
-and `--no-jsonl --no-conversation` to disable conversations. `--lgtm` and `--ship-it` are aliases.
-The agent must read the launch process output and answer comments; the viewer does not start an agent.
-See [the agent conversation protocol](docs/agent-conversations.md).
-
-Install with `npm install -g @photostructure/gavel` to use the `gavel` command.
-Node.js 22.14 or newer is required. On other machines, verify the package version
-with `npx @photostructure/gavel --version` before beginning a review.
-
-The LGTM image was supplied from [this video](https://www.youtube.com/watch?v=3TNpOD6bov8);
-its rights remain with the respective rights holders. Upstream code attribution and
-license are retained below.
-
----
+gavel is a local Git diff viewer for reviewing your coding agent's changes.
+The agent prepares a summary, proposed commit message, and inline notes that
+explain where to start and what deserves a closer look. Discuss the code in
+threads beside the diff, then approve the change or request revisions. Works
+with Claude Code and Codex.
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@photostructure/gavel"><img src="https://img.shields.io/npm/v/@photostructure/gavel.svg" alt="npm version"></a>
@@ -73,35 +22,92 @@ license are retained below.
 
 ![gavel screenshot](docs/images/screenshot.png)
 
-**gavel** is a CLI tool that lets you view and review local git diffs with a GitHub-style viewer. In addition to clean visuals, comments can be copied as prompts for AI. The local code review tool for the AI era!
-
 ## ⚡ Quick Start
 
-Try it first
+gavel needs Node.js 22.14 or newer. Run it from your Git repository to view the
+latest commit:
 
-```bash
-npx @photostructure/gavel  # View the latest commit diff in WebUI
+```sh
+npx @photostructure/gavel
 ```
 
-Install and use
+Install it to use the `gavel` command:
 
-```bash
+```sh
 npm install -g @photostructure/gavel
-gavel  # View the latest commit diff in WebUI
+gavel
 ```
 
-Enable use from AI agents
+Connect your coding agent:
 
-```bash
-npx skills add photostructure/gavel # Add the Skills to your agent
+```sh
+npx skills add photostructure/gavel
 ```
 
-Installed skills include:
+For Codex, follow the [Codex setup guide](docs/codex-review-integration.md#install-the-codex-entry-point)
+to install its version of the skill. Then tell your agent:
 
-- `gavel`: ask the user to review code changes, or review a named diff or PR and show findings in the gavel viewer, when the user explicitly asks for gavel
+> Open your changes in gavel for my review.
 
-For Codex, follow the [Codex skill setup](docs/codex-review-integration.md#install-the-codex-entry-point)
-to use the workflow that ends the turn during human review.
+To make review part of your usual workflow, add this to your `AGENTS.md` or
+`CLAUDE.md`:
+
+> Request my review through gavel after you change code.
+
+The viewer does not start an agent. The skill tells your existing agent how to
+prepare a review and handle feedback; see [Calling from Agents](#-calling-from-agents)
+for the Claude Code and Codex workflows.
+
+## Review your agent's changes
+
+### Read the summary and reading guide
+
+Expand **Change summary** to see why the agent made the change and the commit
+message it proposes. Both fields are editable.
+
+Before opening the review, the skill tells the agent to comment on its own diff:
+where to start and why tricky or odd-looking lines are written that way. Reply
+to those notes like any other thread.
+
+### Discuss the code where it changes
+
+Mark each line comment as a **Comment**, **Change request**, or **Question** to
+tell the agent whether to take note, revise the code, or explain something. The
+agent replies in the same thread when it handles your feedback. **Read**,
+**Thinking**, and **Replied** show the progress it reports; **Noted** means it
+acknowledged the comment without a reply. Follow up with another message or
+choose **Agreed**, **Still unclear**, or **Disagree**.
+
+Use **Conversation** for questions about the whole change. It shows those
+discussions alongside inline threads, with **All**, **Open**, **Resolved**, and
+**Unread** filters. You can resolve or reopen a thread without losing its history.
+
+### Give a verdict on each proposed commit
+
+- **Approve as-is** gives the agent permission to commit the reviewed change.
+- **Approve after comments** gives it permission to commit once it has addressed
+  your comments.
+- **Not yet** asks it to revise the change and bring it back for review.
+
+The agent still has to run the required checks before committing. Each review
+starts without a verdict, and you can change or clear it until the agent acts on
+it. Click the selected verdict again, or choose **Clear verdict** in the menu.
+
+When the agent proposes several commits, it creates the reviews in commit order.
+Each gets a tab with its own message and verdict, so you can approve some changes
+while asking for revisions to others. [Named reviews](#named-reviews-of-uncommitted-changes)
+keep the captured diff fixed while you review it.
+
+Conversations and verdict buttons are enabled by default. Use `--no-lgtm` to hide
+approval controls, and `--no-jsonl --no-conversation` to disable conversations.
+`--lgtm` and `--ship-it` are aliases.
+
+### Review from your phone
+
+The diff, threads, and verdict menu also work on a phone. gavel has no login of
+its own: before accessing a review from another device, put it behind an
+authenticated HTTPS proxy or tunnel. See [HTTPS and remote browsers](#https-and-remote-browsers)
+for setup instructions.
 
 ## 🚀 Usage
 
@@ -412,22 +418,41 @@ This section is unnecessary
 
 ## 🤖 Calling from Agents
 
-You can install the following Skills to work with gavel from AI agents.
+The `gavel` skill prepares the summary, proposed commit message, and reading-guide
+comments, starts the review, and handles your feedback. Use it when you ask for
+gavel explicitly, or add a standing review instruction as shown in
+[Quick Start](#-quick-start).
 
-For Codex, use the [Codex entry point](.codex/skills/gavel/SKILL.md) and
-[installation and handoff guide](docs/codex-review-integration.md). It ends the
-turn during human review and resumes on feedback. Keep its installed skill
-target separate from Claude's skill target.
+The workflow depends on the agent's host:
 
-```sh
-npx skills add photostructure/gavel
-```
+- **Claude Code** uses `gavel wait` when its host supports background commands
+  without a time limit and resumes the agent when they finish. It reads your
+  feedback and replies while you keep reviewing. One wait command can cover
+  several gavel servers. In other hosts, the skill tells Claude to end its turn
+  and have you resume it through chat.
+- **Codex** ends its turn while you review. After leaving feedback, open
+  **Conversation**, click **Copy resume prompt**, and paste it into the Codex chat. Codex reads a snapshot
+  of the review, handles your feedback, and ends its turn again. A separately
+  configured external controller can deliver feedback automatically. See the
+  [installation and handoff guide](docs/codex-review-integration.md); keep
+  Codex's installed skill target separate from Claude's.
 
-Installed skills include:
+### Stay idle while you review
 
-- `gavel`: ask the user to review code changes, or review a named diff or PR and show findings in the gavel viewer, when the user explicitly asks for gavel
+Repeatedly asking a model to check for feedback uses tokens even when nothing has
+changed. The skills tell the agent to stay idle until there is something to do.
+`gavel wait` has no overall timeout; empty responses and the agent's own activity
+produce no output. With no pending feedback and no reviewer connected to any
+watched server, it exits with code 4 and the agent ends its turn. With the default
+Codex setup, use the chat handoff described above.
 
-After code edits or automated review, the agent can start the gavel server with the appropriate skill.
+Before opening a review you did not explicitly request, the agent runs
+`gavel idle` to check the time since your last keyboard or mouse input. If you
+have been away for at least 10 minutes, or it cannot read your input activity,
+it finishes its other work and leaves a note that the change is ready for review.
+
+See [waiting for review](docs/waiting-for-review.md) for host requirements and
+[Agent conversations](#agent-conversations) for the CLI protocol.
 
 ## 🎨 Syntax Highlighting Languages
 
@@ -663,6 +688,15 @@ pnpm run format
 - Node.js ≥ 22.14.0
 - Git repository with commits to review
 - GitHub CLI (`gh`) for `--pr` mode
+
+## Built on difit
+
+gavel started as PhotoStructure's fork of [difit](https://github.com/yoshiko-pg/difit),
+yoshiko-pg's GitHub-style diff viewer. If gavel is useful to you, please consider
+[sponsoring yoshiko-pg](https://github.com/sponsors/yoshiko-pg).
+
+The question marker and explicit thread deletion incorporate
+[upstream PR #482](https://github.com/yoshiko-pg/difit/pull/482).
 
 ## 📄 License
 
