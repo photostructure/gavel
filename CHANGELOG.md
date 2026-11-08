@@ -2,7 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased (major)]
+## [Unreleased]
+
+## [6.0.0] - 2026-11-08
 
 ### Added in the PhotoStructure fork
 
@@ -1473,6 +1475,7 @@ All notable changes to this project will be documented in this file.
 
 - First stable release 🌱
 
+[6.0.0]: https://github.com/photostructure/gavel/releases/tag/v6.0.0
 [5.1.0]: https://github.com/photostructure/difit/releases/tag/v5.1.0
 [5.0.12]: https://github.com/yoshiko-pg/difit/compare/v5.0.11...v5.0.12
 [5.0.11]: https://github.com/yoshiko-pg/difit/compare/v5.0.10...v5.0.11
