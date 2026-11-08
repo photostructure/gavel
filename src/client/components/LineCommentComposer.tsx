@@ -27,9 +27,9 @@ export const numberOn = (
 const rangeOf = (lineNumber: LineNumber): [number, number] =>
   Array.isArray(lineNumber) ? lineNumber : [lineNumber, lineNumber];
 
-// Whether the form for this target sits under this line: the line with the
-// target's last number on its side. Deleted lines have no new number and added
-// lines no old one, so unified and split view place a form the same way; in
+// Whether the form or thread for this target sits under this line: the line with
+// the target's last number on its side. Deleted lines have no new number and added
+// lines no old one, so unified and split view place a target the same way; in
 // unified view an old-side target written in split view sits under the deleted
 // or unchanged line with that old number.
 export const lineShowsTarget = (line: DiffLine, target: LineTarget) =>

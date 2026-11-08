@@ -5,7 +5,10 @@ section: Diff comments
 
 # Unified view hides old-side threads on unchanged lines
 
-Placeholder. Not started.
+Fixed. `DiffChunk`'s `getThreadsForLine` now places threads with `lineShowsTarget`, the rule forms already use, so a thread sits under the row with its last number on its own side.
+
+- [x] Red, then green: `pnpm vitest run src/client/components/DiffChunk.test.tsx -t "thread placement"`
+- [x] Reviewed with `coding:second-opinion`: LAND on base `d0a944d`. Codex skipped (front-end; the maintainer's standing instruction).
 
 ## Problem
 

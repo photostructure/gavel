@@ -55,6 +55,10 @@ All notable changes to this project will be documented in this file.
 - Rewrite the README introduction and setup around the gavel walkthrough, explaining reading guides, comment intents, per-commit verdicts, and the Claude Code and Codex feedback workflows.
 - Keep the README logo visible on npm's dark theme by outlining it with a white halo.
 
+### Fixed
+
+- Show comments on the old side of an unchanged line in the unified diff, under the row with that old line number. They used to appear only in split view and Conversation.
+
 ## [6.0.0] - 2026-11-08
 
 ### Added in the PhotoStructure fork

@@ -2,7 +2,12 @@ import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-li
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CommentThread, DiffChunk as DiffChunkData } from '../../types/diff';
+import type {
+  CommentThread,
+  DiffChunk as DiffChunkData,
+  DiffSide,
+  LineNumber,
+} from '../../types/diff';
 import { DEFAULT_DIFF_VIEW_MODE } from '../../utils/diffMode';
 import { WordHighlightProvider } from '../contexts/WordHighlightContext';
 import { CommentDraftScope, useCommentDraft } from '../hooks/useCommentDrafts';
@@ -920,5 +925,141 @@ describe('DiffChunk drafts across reviews', () => {
         intent: 'comment',
       }),
     );
+  });
+});
+
+describe('DiffChunk thread placement', () => {
+  // After the added lines the old and new numbers differ, so a thread placed by the
+  // wrong side lands on a different row.
+  const shiftedChunk: DiffChunkData = {
+    header: '@@ -10,4 +10,5 @@',
+    oldStart: 10,
+    oldLines: 4,
+    newStart: 10,
+    newLines: 5,
+    lines: [
+      { type: 'normal', content: 'ten', oldLineNumber: 10, newLineNumber: 10 },
+      { type: 'delete', content: 'eleven', oldLineNumber: 11 },
+      { type: 'add', content: 'eleven, edited', newLineNumber: 11 },
+      { type: 'add', content: 'added', newLineNumber: 12 },
+      { type: 'normal', content: 'twelve', oldLineNumber: 12, newLineNumber: 13 },
+      { type: 'normal', content: 'thirteen', oldLineNumber: 13, newLineNumber: 14 },
+    ],
+  };
+
+  const thread = (body: string, side: DiffSide, line: LineNumber): CommentThread => ({
+    id: body,
+    file: 'src/example.ts',
+    line,
+    side,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    messages: [
+      {
+        id: `${body}-message`,
+        body,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      },
+    ],
+  });
+
+  // The thread bodies drawn under each diff row, in row order.
+  const threadsUnderEachRow = (mode: 'unified' | 'split', threads: CommentThread[]) => {
+    const { container } = renderWithProviders(
+      <DiffChunk
+        chunk={shiftedChunk}
+        chunkIndex={0}
+        threads={threads}
+        mode={mode}
+        onAddComment={vi.fn(asyncNoop)}
+        onGenerateThreadPrompt={() => ''}
+        onToggleThreadResolved={noop}
+        onReplyToThread={asyncNoop}
+        onRemoveMessage={noop}
+        onUpdateMessage={noop}
+        filename="src/example.ts"
+      />,
+    );
+    return [...container.querySelectorAll('[data-diff-line-row="true"]')].map((row) => {
+      const bodies: string[] = [];
+      for (
+        let next = row.nextElementSibling;
+        next && !next.matches('[data-diff-line-row="true"]');
+        next = next.nextElementSibling
+      ) {
+        const text = next.textContent;
+        bodies.push(
+          ...threads
+            .map((candidate) => candidate.messages[0]!.body)
+            .filter((body) => text.includes(body)),
+        );
+      }
+      return bodies;
+    });
+  };
+
+  it('shows an old-side thread on an unchanged line under the row with that old number in unified view', () => {
+    expect(threadsUnderEachRow('unified', [thread('old-twelve', 'old', 12)])).toEqual([
+      [],
+      [],
+      [],
+      [],
+      ['old-twelve'],
+      [],
+    ]);
+  });
+
+  it('shows a multi-line old-side thread under the row with its last old number in unified view', () => {
+    expect(threadsUnderEachRow('unified', [thread('old-range', 'old', [12, 13])])).toEqual([
+      [],
+      [],
+      [],
+      [],
+      [],
+      ['old-range'],
+    ]);
+  });
+
+  it('draws each thread once, under the row with its number on its side, in unified view', () => {
+    expect(
+      threadsUnderEachRow('unified', [
+        thread('old-ten', 'old', 10),
+        thread('new-ten', 'new', 10),
+        thread('old-eleven', 'old', 11),
+        thread('new-eleven', 'new', 11),
+        thread('new-twelve', 'new', 12),
+        thread('old-twelve', 'old', 12),
+        thread('new-thirteen', 'new', 13),
+      ]),
+    ).toEqual([
+      ['old-ten', 'new-ten'],
+      ['old-eleven'],
+      ['new-eleven'],
+      ['new-twelve'],
+      ['old-twelve', 'new-thirteen'],
+      [],
+    ]);
+  });
+
+  it('keeps old-side and new-side threads on their rows in split view', () => {
+    expect(
+      threadsUnderEachRow('split', [
+        thread('old-ten', 'old', 10),
+        thread('new-ten', 'new', 10),
+        thread('old-eleven', 'old', 11),
+        thread('new-eleven', 'new', 11),
+        thread('new-twelve', 'new', 12),
+        thread('old-range', 'old', [12, 13]),
+        thread('old-twelve', 'old', 12),
+        thread('new-thirteen', 'new', 13),
+      ]),
+    ).toEqual([
+      ['old-ten', 'new-ten'],
+      ['old-eleven', 'new-eleven'],
+      ['new-twelve'],
+      ['old-twelve', 'new-thirteen'],
+      ['old-range'],
+    ]);
   });
 });

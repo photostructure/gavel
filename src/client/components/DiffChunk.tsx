@@ -162,15 +162,13 @@ export const DiffChunk = memo(function DiffChunk({
   const composers = useChunkComposers(filename, chunk.lines, commentingLine);
   const codeLines = chunk.snapshotLines ?? chunk.lines;
 
-  const getThreadsForLine = (lineNumber: number, side: DiffSide) => {
+  const getThreadsForLine = (line: DiffLine) => {
     return threads
-      .filter((thread) => {
-        const lineMatches = Array.isArray(thread.line)
-          ? thread.line[1] === lineNumber
-          : thread.line === lineNumber;
-        const sideMatches = !thread.side || thread.side === side;
-        return lineMatches && sideMatches;
-      })
+      .filter(
+        (thread) =>
+          thread.scope !== 'review' &&
+          lineShowsTarget(line, { side: thread.side ?? 'new', lineNumber: thread.line }),
+      )
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   };
 
@@ -306,16 +304,14 @@ export const DiffChunk = memo(function DiffChunk({
         <tbody>
           {chunk.lines.map((line, index) => {
             const lineComposers = composers.filter((anchor) => lineShowsTarget(line, anchor));
+            const lineThreads = getThreadsForLine(line);
 
-            // Determine which line number and side to use for fetching comments
+            // Determine which line number and side a new comment on this row targets
             // Delete lines: use oldLineNumber and 'old' side
             // Add/normal lines: use newLineNumber and 'new' side
             const commentLineNumber =
               line.type === 'delete' ? line.oldLineNumber : line.newLineNumber;
             const commentSide: DiffSide = line.type === 'delete' ? 'old' : 'new';
-            const lineThreads = commentLineNumber
-              ? getThreadsForLine(commentLineNumber, commentSide)
-              : [];
             // Generate ID for all lines to match the format used in useKeyboardNavigation
             const lineId = `file-${fileIndex}-chunk-${chunkIndex}-line-${index}`;
             const isCurrentLine =
