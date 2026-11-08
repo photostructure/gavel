@@ -1199,6 +1199,59 @@ describe('after a verdict', () => {
     vi.restoreAllMocks();
   });
 
+  describe('the open review in the tab bar', () => {
+    const openTabMark = () =>
+      within(screen.getByRole('navigation', { name: 'Reviews on this server' }))
+        .getByRole('button', { current: 'page' })
+        .querySelector('.verdict-mark');
+
+    async function approveOpenReview() {
+      const state = fixture();
+      renderApp();
+      const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+      await waitFor(() => expect(verdictButton('Approve as-is')).toBeEnabled());
+      expect(bar).toHaveTextContent('2 need a verdict');
+      expect(openTabMark()).toHaveClass('lucide-circle');
+      fireEvent.click(verdictButton('Approve as-is'));
+      await waitFor(() => expect(nextStep()).toHaveTextContent('Switching to task-b in 10s'));
+      return { bar, state };
+    }
+
+    it('shows its own verdict', async () => {
+      const { bar } = await approveOpenReview();
+      expect(within(bar).getByRole('button', { name: 'task-a, Approved as-is' })).toBeVisible();
+      expect(openTabMark()).toHaveClass('lucide-check');
+      expect(bar).toHaveTextContent('1 needs a verdict');
+    });
+
+    it('needs a verdict again once the reviewer clears it', async () => {
+      const { bar } = await approveOpenReview();
+      await waitFor(() => expect(verdictButton('Approved as-is')).toBeEnabled());
+      fireEvent.click(verdictButton('Approved as-is'));
+      await waitFor(() => expect(verdictButton('Approve as-is')).toBeVisible());
+      // The server broadcasts this when the approval changes.
+      await act(async () => watch.approvalChanged?.());
+      expect(
+        await within(bar).findByRole('button', { name: 'task-a, Needs a verdict' }),
+      ).toBeVisible();
+      expect(openTabMark()).toHaveClass('lucide-circle');
+      expect(bar).toHaveTextContent('2 need a verdict');
+    });
+
+    it('needs a verdict again once a recapture clears it', async () => {
+      const { bar, state } = await approveOpenReview();
+      // A new capture revokes the approval on the server before it broadcasts the capture.
+      state.verdict = undefined;
+      state.capture = { ...state.capture, version: 2, patchDigest: 'b'.repeat(64) };
+      await act(async () => watch.captureChanged?.('task-a'));
+      expect(
+        await within(bar).findByRole('button', { name: 'task-a, Needs a verdict' }),
+      ).toBeVisible();
+      expect(openTabMark()).toHaveClass('lucide-circle');
+      expect(bar).toHaveTextContent('2 need a verdict');
+    });
+  });
+
   it('counts down and opens the next review without a verdict', async () => {
     fixture();
     renderApp();

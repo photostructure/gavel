@@ -15,4 +15,9 @@ Observed on 2026-11-07 with reviews `gavel-header` and `readme-hero`. The review
 
 `ReviewQueueBar` derives every tab mark and its label from its `reviews` prop (`<ReviewQueueBar reviews={approvalRequests}>` in `App.tsx`); the notice reads its count elsewhere. Not confirmed: the `reviews` list is not refreshed for the open review after its own verdict, while the notice sees that review's current approval.
 
-Fix test-first: a client test that renders two reviews, records a verdict on the open one, and expects its tab mark and the queue label to change, failing before the fix.
+## Outcome
+
+No production change. The bug does not reproduce at HEAD, and the maintainer recalled fixing it. In a real server and headless Chromium, the tab, count and notice agreed in all five scenarios tried. A build without `c95f561` (`_done/2026-11-07-close-countdown-with-review-left.md`) showed this notice text beside a hollow tab when the reviewer clicked the next review's tab during the switch countdown, and the observation above predates that fix. The sequence as written, with the tab still hollow after the second approval, reproduced on neither build.
+
+- [x] Regression tests, which pass on unchanged production code: `pnpm vitest run src/client/App.namedReviews.test.tsx -t "the open review in the tab bar"`. Removing each of the three list refreshes in `App.tsx` fails exactly its matching test.
+- [x] Reviewed with `coding:second-opinion`: LAND on base `f3e74c3`. Codex skipped (front-end; the maintainer's standing instruction).
