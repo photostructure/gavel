@@ -10,7 +10,12 @@ const COUNTDOWN_SECONDS = 10;
 // The length of the verdict-pulse animation in global.css: 4 iterations of 1.6s.
 const PULSE_MS = 6400;
 
-type Phase = { kind: 'switch' | 'close'; deadline: number } | { kind: 'closable' } | null;
+// review: the key of the review that was open when the phase began.
+type Phase =
+  | (({ kind: 'switch' | 'close'; deadline: number } | { kind: 'closable' }) & {
+      review: string | null;
+    })
+  | null;
 
 export type VerdictFollowUpStep =
   | { kind: 'switch'; name: string; seconds: number }
@@ -37,7 +42,14 @@ export function useVerdictFollowUp<
   currentHasVerdict: boolean;
   onSwitch: (selection: DiffSelection) => void;
 }) {
-  const [phase, setPhase] = useState<Phase>(null);
+  const [storedPhase, setPhase] = useState<Phase>(null);
+  const currentKey = current ? getDiffSelectionKey(current) : null;
+  const currentKeyRef = useRef(currentKey);
+  currentKeyRef.current = currentKey;
+  // A phase belongs to the review it began on. Opening another review ends it in the same
+  // render, before any effect sees it; a later effect cannot turn it into a close countdown
+  // over a review that still needs a verdict.
+  const phase = storedPhase?.review === currentKey ? storedPhase : null;
   const [now, setNow] = useState(() => Date.now());
   // Bumped to replay the pulse on the tabs of reviews without a verdict; reported as 0 once the
   // animation has ended, so a tab bar that remounts later does not replay it.
@@ -62,17 +74,16 @@ export function useVerdictFollowUp<
       const time = Date.now();
       setNow(time);
       if (next) pulseNow();
-      setPhase(
-        next
-          ? { kind: 'switch', deadline: time + COUNTDOWN_SECONDS * 1000 }
-          : { kind: 'close', deadline: time + COUNTDOWN_SECONDS * 1000 },
-      );
+      setPhase({
+        kind: next ? 'switch' : 'close',
+        deadline: time + COUNTDOWN_SECONDS * 1000,
+        review: currentKeyRef.current,
+      });
     },
     [pulseNow],
   );
 
   // Opening another review ends the follow-up, including the switch it made itself.
-  const currentKey = current ? getDiffSelectionKey(current) : null;
   const shownKey = useRef(currentKey);
   useEffect(() => {
     if (shownKey.current === currentKey) return;
@@ -109,7 +120,7 @@ export function useVerdictFollowUp<
       onSwitchRef.current(next.selection);
     } else {
       window.close();
-      setPhase({ kind: 'closable' });
+      setPhase({ kind: 'closable', review: currentKeyRef.current });
     }
   }, []);
 

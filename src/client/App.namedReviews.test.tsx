@@ -71,6 +71,8 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     commentVersion: 1,
     approved: false,
     notYet: false,
+    // task-b's verdict; approved and notYet belong to task-a.
+    approvedB: false,
     showReviewB: true,
     showNamedReviews: true,
     addedLine: 'const stable = true;',
@@ -141,6 +143,16 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
         commitMessage: 'fix: preserve review context',
         rationale: 'Keep the same discussion after requested changes.',
       };
+    } else if (url.pathname === '/api/approval' && reviewName === 'task-b') {
+      if (init?.method === 'POST')
+        state.approvedB = (JSON.parse(String(init.body)) as { approved: boolean }).approved;
+      payload = {
+        approved: state.approvedB,
+        ...(state.approvedB ? { requested: true, mode: 'as-is' } : {}),
+        captureVersion: state.capture.version,
+        patchDigest: state.capture.patchDigest,
+        summaryVersion: 2,
+      };
     } else if (url.pathname === '/api/approval' || url.pathname === '/api/approval/not-yet') {
       if (init?.method === 'POST') {
         state.approved = (JSON.parse(String(init.body)) as { approved: boolean }).approved;
@@ -186,7 +198,9 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
               },
               threads: [],
               summary: { commitMessage: '', rationale: '', version: 0 },
-              approval: { approved: false },
+              approval: state.approvedB
+                ? { approved: true, requested: true, mode: 'as-is' as const }
+                : { approved: false },
               capture: { ...state.capture, name: 'task-b' },
             },
           ]
@@ -1177,6 +1191,26 @@ describe('after a verdict', () => {
     await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
     await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
     expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
+  });
+
+  it('ends the countdown when the reviewer opens the next review from its tab', async () => {
+    fixture();
+    const close = vi.spyOn(window, 'close').mockImplementation(() => {});
+    renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    fireEvent.click(await within(bar).findByRole('button', { name: 'task-b, Needs a verdict' }));
+    await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
+    await waitFor(() => expect(verdictButton('Approve as-is')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve as-is'));
+    await waitFor(() => expect(nextStep()).toHaveTextContent('Switching to task-a in 10s'));
+    // The bar remounts on every review switch.
+    const barNow = screen.getByRole('navigation', { name: 'Reviews on this server' });
+    fireEvent.click(within(barNow).getByRole('button', { name: 'task-a, Needs a verdict' }));
+    await waitFor(() => expect(window.location.search).toBe('?review=task-a'));
+    await waitFor(() => expect(verdictButton('Approve as-is')).toBeEnabled());
+    expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
+    await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+    expect(close).not.toHaveBeenCalled();
   });
 
   it('says not yet in one click, then counts down to closing the tab once nothing is left', async () => {
