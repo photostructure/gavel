@@ -18,7 +18,7 @@ import {
 } from '../utils/diffSelection.js';
 
 import { isGeneratedFile } from './generated-file-check.js';
-import { createGitClient } from './git-client.js';
+import { createGitClient, PATCH_HEADER_OPTIONS } from './git-client.js';
 
 export class GitDiffParser {
   private git: SimpleGit;
@@ -149,7 +149,7 @@ export class GitDiffParser {
 
       // Ignore external diff-tools to unify output.
       // https://github.com/yoshiko-pg/difit/issues/19
-      diffArgs.push('--no-ext-diff', '--color=never');
+      diffArgs.push('--no-ext-diff', '--color=never', ...PATCH_HEADER_OPTIONS);
       // A binary file appears in the patch only as "differ" and its blob IDs. Full IDs,
       // not abbreviated ones, tie the digest to that file's exact content.
       const workingTree = isWorkingTreeTarget(targetCommitish);
@@ -195,13 +195,23 @@ export class GitDiffParser {
   private parseUnifiedDiff(diffText: string): DiffFile[] {
     const files: DiffFile[] = [];
     // Git records are LF-delimited; CR and Unicode line separators may be file content.
-    const fileBlocks = diffText.split(/(?<=^|\n)diff --git /).slice(1);
+    const fileBlocks = diffText
+      .split(/(?<=^|\n)(?=diff --(?:git|cc) )/)
+      .filter((block) => block.startsWith('diff --'));
 
     if (fileBlocks.length > 0) {
-      for (const fileBlock of fileBlocks) {
-        const block = `diff --git ${fileBlock}`;
+      for (const block of fileBlocks) {
         const file = this.parseFileBlock(block);
-        if (file) {
+        if (!file) continue;
+        const previous = files.at(-1);
+        // Git writes a type change as a deletion and an addition of one path.
+        if (
+          previous?.path === file.path &&
+          previous.status === 'deleted' &&
+          file.status === 'added'
+        ) {
+          files[files.length - 1] = this.foldTypeChange(previous, file);
+        } else {
           files.push(file);
         }
       }
@@ -217,6 +227,32 @@ export class GitDiffParser {
     }
 
     return files;
+  }
+
+  private foldTypeChange(deleted: DiffFile, added: DiffFile): DiffFile {
+    const [oldSide] = deleted.chunks;
+    const [newSide] = added.chunks;
+    // One hunk spanning both sides, because the viewer's gap arithmetic needs ascending hunks.
+    const chunks =
+      oldSide && newSide
+        ? [
+            {
+              header: `@@ -${oldSide.oldStart},${oldSide.oldLines} +${newSide.newStart},${newSide.newLines} @@`,
+              oldStart: oldSide.oldStart,
+              oldLines: oldSide.oldLines,
+              newStart: newSide.newStart,
+              newLines: newSide.newLines,
+              lines: [...oldSide.lines, ...newSide.lines],
+            },
+          ]
+        : [...deleted.chunks, ...added.chunks];
+    return {
+      ...added,
+      status: 'modified',
+      additions: deleted.additions + added.additions,
+      deletions: deleted.deletions + added.deletions,
+      chunks,
+    };
   }
 
   private splitPlainUnifiedDiff(diffText: string): string[] {
@@ -349,6 +385,7 @@ export class GitDiffParser {
 
   private decodeGitPath(
     rawPath: string | undefined,
+    nonUtf8Paths: Set<string>,
     stripGitPrefix: boolean = true,
   ): string | undefined {
     if (typeof rawPath !== 'string') {
@@ -446,24 +483,40 @@ export class GitDiffParser {
       i += character.length - 1;
     }
 
-    return Buffer.from(bytes).toString('utf8');
+    try {
+      return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+        Uint8Array.from(bytes),
+      );
+    } catch {
+      // Replacement characters would merge distinct names; Git's quoted form keeps them apart.
+      const quoted = `"${withoutPrefix}"`;
+      nonUtf8Paths.add(quoted);
+      return quoted;
+    }
   }
 
   private extractPathFromLine(
     line: string | undefined,
     prefix: string,
+    nonUtf8Paths: Set<string>,
     stripGitPrefix: boolean = true,
   ): string | undefined {
     if (!line?.startsWith(prefix)) {
       return undefined;
     }
 
-    return this.decodeGitPath(line.slice(prefix.length), stripGitPrefix);
+    return this.decodeGitPath(line.slice(prefix.length), nonUtf8Paths, stripGitPrefix);
   }
 
   private parseDiffHeaderPaths(
     headerLine: string,
+    nonUtf8Paths: Set<string>,
   ): { oldPath: string | undefined; newPath: string | undefined } | null {
+    if (headerLine.startsWith('diff --cc ')) {
+      const path = this.extractPathFromLine(headerLine, 'diff --cc ', nonUtf8Paths, false);
+      return { oldPath: path, newPath: path };
+    }
+
     if (!headerLine.startsWith('diff --git ')) {
       return null;
     }
@@ -505,8 +558,8 @@ export class GitDiffParser {
       // also preserves literal " b/" within a filename.
       for (let index = 0; index < raw.length; index++) {
         if (raw[index] !== ' ' || !/^[abciw]\//.test(raw.slice(index + 1))) continue;
-        const oldPath = this.decodeGitPath(raw.slice(0, index));
-        const newPath = this.decodeGitPath(raw.slice(index + 1));
+        const oldPath = this.decodeGitPath(raw.slice(0, index), nonUtf8Paths);
+        const newPath = this.decodeGitPath(raw.slice(index + 1), nonUtf8Paths);
         if (oldPath === newPath) return { oldPath, newPath };
       }
       return null;
@@ -514,8 +567,8 @@ export class GitDiffParser {
 
     const [rawOldPath, rawNewPath] = segments;
     return {
-      oldPath: this.decodeGitPath(rawOldPath),
-      newPath: this.decodeGitPath(rawNewPath),
+      oldPath: this.decodeGitPath(rawOldPath, nonUtf8Paths),
+      newPath: this.decodeGitPath(rawNewPath, nonUtf8Paths),
     };
   }
 
@@ -523,18 +576,20 @@ export class GitDiffParser {
     line: string | undefined,
     prefix: string,
     headerPath: string | undefined,
+    nonUtf8Paths: Set<string>,
   ): string | undefined {
-    const literalPath = this.extractPathFromLine(line, prefix, false);
+    const literalPath = this.extractPathFromLine(line, prefix, nonUtf8Paths, false);
     // Native rename/copy metadata has no diff prefix. Retain compatibility with
     // prefixed metadata only when the diff header confirms that interpretation.
-    const prefixedPath = this.extractPathFromLine(line, prefix);
+    const prefixedPath = this.extractPathFromLine(line, prefix, nonUtf8Paths);
     return prefixedPath === headerPath ? prefixedPath : literalPath;
   }
 
   private parseFileBlock(block: string, format: 'git' | 'plain' | null = 'git'): DiffFile | null {
     const lines = block.split('\n');
     const headerLine = lines[0];
-    const headerPaths = this.parseDiffHeaderPaths(headerLine);
+    const nonUtf8Paths = new Set<string>();
+    const headerPaths = this.parseDiffHeaderPaths(headerLine, nonUtf8Paths);
 
     const minusLine = lines.find((line) => line.startsWith('--- '));
     const plusLine = lines.find((line) => line.startsWith('+++ '));
@@ -546,17 +601,19 @@ export class GitDiffParser {
     );
 
     const stripGitPrefix = format !== 'plain';
-    const plusPath = this.extractPathFromLine(plusLine, '+++ ', stripGitPrefix);
-    const minusPath = this.extractPathFromLine(minusLine, '--- ', stripGitPrefix);
+    const plusPath = this.extractPathFromLine(plusLine, '+++ ', nonUtf8Paths, stripGitPrefix);
+    const minusPath = this.extractPathFromLine(minusLine, '--- ', nonUtf8Paths, stripGitPrefix);
     const renameFromPath = this.extractMetadataPath(
       renameFromLine,
       renameFromLine?.startsWith('copy ') ? 'copy from ' : 'rename from ',
       headerPaths?.oldPath,
+      nonUtf8Paths,
     );
     const renameToPath = this.extractMetadataPath(
       renameToLine,
       renameToLine?.startsWith('copy ') ? 'copy to ' : 'rename to ',
       headerPaths?.newPath,
+      nonUtf8Paths,
     );
     const parsedNewPath = renameToPath ?? plusPath ?? headerPaths?.newPath;
     const parsedOldPath = renameFromPath ?? minusPath ?? headerPaths?.oldPath;
@@ -575,20 +632,23 @@ export class GitDiffParser {
     const newFileMode = lines.find((line) => line.startsWith('new file mode'));
     const deletedFileMode = lines.find((line) => line.startsWith('deleted file mode'));
 
-    // Check for /dev/null which indicates added or deleted files
-    if (newFileMode || minusLine?.includes('/dev/null')) {
+    // decodeGitPath returns undefined only for /dev/null, which marks added or deleted files
+    if (newFileMode || (minusLine !== undefined && minusPath === undefined)) {
       status = 'added';
-    } else if (deletedFileMode || plusLine?.includes('/dev/null')) {
+    } else if (deletedFileMode || (plusLine !== undefined && plusPath === undefined)) {
       status = 'deleted';
     } else if (format !== 'plain' && oldPath !== newPath) {
-      status = 'renamed';
+      status = renameFromLine?.startsWith('copy ') ? 'copied' : 'renamed';
     }
 
     // Common properties for all files
     const baseFile = {
       path,
-      oldPath: status === 'renamed' && oldPath !== newPath ? oldPath : undefined,
+      oldPath: status === 'renamed' || status === 'copied' ? oldPath : undefined,
       status,
+      ...(nonUtf8Paths.has(path) || (oldPath !== undefined && nonUtf8Paths.has(oldPath))
+        ? { hasNonUtf8Path: true }
+        : {}),
     };
 
     // Parse chunks

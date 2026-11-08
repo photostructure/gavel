@@ -627,6 +627,11 @@ export async function startServer(options: ServerOptions): Promise<{
       return { ok: false, error: 'Invalid file path' };
     }
 
+    // Git's quoted form of a non-UTF-8 name names no file, and argv cannot carry the real bytes.
+    if (/^".*\\[0-7]{3}.*"$/s.test(filepath)) {
+      return { ok: false, error: 'Invalid file path' };
+    }
+
     const normalizedFilepath = filepath.replace(/\\/g, '/');
     const hasParentTraversal = normalizedFilepath.split('/').some((segment) => segment === '..');
     if (isAbsolute(filepath) || normalizedFilepath.startsWith('/') || hasParentTraversal) {

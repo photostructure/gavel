@@ -3,11 +3,13 @@ import type { NamedReviewMetadata } from './review.js';
 export interface DiffFile {
   path: string;
   oldPath?: string;
-  status: 'modified' | 'added' | 'deleted' | 'renamed';
+  status: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied';
   additions: number;
   deletions: number;
   chunks: DiffChunk[];
   isGenerated?: boolean;
+  /** `path` or `oldPath` is Git's quoted form of a name that is not valid UTF-8. */
+  hasNonUtf8Path?: boolean;
 }
 
 export interface DiffChunk {

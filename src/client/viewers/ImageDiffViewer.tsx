@@ -21,7 +21,8 @@ export function ImageDiffViewer({
   const mode = diffMode ?? DEFAULT_DIFF_VIEW_MODE;
   const isDeleted = file.status === 'deleted';
   const isAdded = file.status === 'added';
-  const isModified = file.status === 'modified' || file.status === 'renamed';
+  const isModified =
+    file.status === 'modified' || file.status === 'renamed' || file.status === 'copied';
 
   // Determine the actual refs to use
   const baseRef = baseCommitish || 'HEAD~1';

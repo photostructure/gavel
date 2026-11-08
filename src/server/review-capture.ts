@@ -6,13 +6,15 @@ import { promisify } from 'node:util';
 
 import type { CapturedFile, CapturedHunk, ReviewCapture } from '../types/review.js';
 
+import { PATCH_HEADER_OPTIONS, QUOTE_PATH_CONFIG } from './git-client.js';
+
 export const MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
 
 const execFileAsync = promisify(execFile);
 const REPOSITORY_ENVIRONMENT = new Set(['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE']);
 const GIT_OPTIONS = [
   '-c',
-  'core.quotePath=true',
+  QUOTE_PATH_CONFIG,
   '-c',
   'core.fsmonitor=false',
   '-c',
@@ -27,15 +29,13 @@ const DIFF_OPTIONS = [
   '--no-color',
   '--no-ext-diff',
   '--no-textconv',
-  '--submodule=short',
+  ...PATCH_HEADER_OPTIONS,
   '--ignore-submodules=none',
   '--word-diff=none',
   '--output-indicator-new=+',
   '--output-indicator-old=-',
   '--output-indicator-context= ',
   '--no-relative',
-  '--src-prefix=a/',
-  '--dst-prefix=b/',
   '--line-prefix=',
 ];
 

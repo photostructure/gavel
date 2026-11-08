@@ -6,6 +6,7 @@ import {
   FileDiff,
   FilePen,
   FilePlus,
+  Files,
   FileX,
   FoldVertical,
   Square,
@@ -43,6 +44,8 @@ const getFileIcon = (status: DiffFile['status']) => {
       return <FileX size={16} className="text-github-danger" />;
     case 'renamed':
       return <FilePen size={16} className="text-github-warning" />;
+    case 'copied':
+      return <Files size={16} className="text-github-warning" />;
     default:
       return <FileDiff size={16} className="text-github-text-secondary" />;
   }
@@ -130,7 +133,14 @@ export const DiffViewerHeader = ({
           </div>
           {file.oldPath && file.oldPath !== file.path && (
             <div className="mt-0.5 text-xs text-github-text-muted">
-              Renamed from <span className="font-mono break-all">{file.oldPath}</span>
+              {file.status === 'copied' ? 'Copied from' : 'Renamed from'}{' '}
+              <span className="font-mono break-all">{file.oldPath}</span>
+            </div>
+          )}
+          {file.hasNonUtf8Path && (
+            <div className="mt-0.5 text-xs text-github-text-muted">
+              A name in this change is not valid UTF-8, so gavel shows Git&apos;s quoted form and
+              can&apos;t load the file&apos;s contents.
             </div>
           )}
         </div>

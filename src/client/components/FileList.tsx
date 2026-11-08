@@ -7,6 +7,7 @@ import {
   FilePlus,
   FileX,
   FilePen,
+  Files,
   Search,
   MessageSquare,
   FileQuestionMark,
@@ -321,6 +322,8 @@ export const FileList = memo(function FileList({
         return <FileX size={16} className="text-github-danger" />;
       case 'renamed':
         return <FilePen size={16} className="text-github-warning" />;
+      case 'copied':
+        return <Files size={16} className="text-github-warning" />;
       default:
         return <FileDiff size={16} className="text-github-text-secondary" />;
     }

@@ -29,6 +29,26 @@ function getLabel(title: string): HTMLElement {
 }
 
 describe('FileList', () => {
+  it.each([
+    { status: 'renamed', icon: '.lucide-file-pen' },
+    { status: 'copied', icon: '.lucide-files' },
+  ] as const)('marks a $status file with its icon', ({ status, icon }) => {
+    const { container } = render(
+      <FileList
+        files={[{ ...createFile('README.md'), status, oldPath: 'old.md' }]}
+        onScrollToFile={vi.fn()}
+        comments={[]}
+        unreadUpdates={[]}
+        reviewedFiles={new Set()}
+        onToggleReviewed={vi.fn()}
+        onToggleFolderReviewed={vi.fn()}
+        selectedFilePath={null}
+      />,
+    );
+
+    expect(container.querySelector(icon)).toBeInTheDocument();
+  });
+
   it('renders total additions and deletions beside the file count', () => {
     render(
       <FileList

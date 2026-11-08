@@ -52,12 +52,13 @@ function renderViewer(
   chunks: MergedChunk[] = mergedChunks,
   onAddComment: AddComment = vi.fn(async () => {}),
   pendingJump: LineDraftAnchor | null = null,
+  shownFile: DiffFile = file,
 ) {
   return render(
     <WordHighlightProvider>
       <CommentDraftScope value="review-a">
         <DiffViewer
-          file={file}
+          file={shownFile}
           threads={[]}
           diffMode="unified"
           reviewedFiles={new Set()}
@@ -128,6 +129,27 @@ describe('DiffViewer context expansion for line drafts', () => {
       lineNumber: [9, 11],
     });
     expect(expandAllBetweenChunks).toHaveBeenCalledWith(file, 1, 16);
+  });
+
+  it('does not expand a file whose path is not valid UTF-8, whose content cannot be fetched', () => {
+    const { result, unmount } = renderHook(
+      () => useCommentDraft({ kind: 'line', filePath: 'notes.txt', side: 'new', lineNumber: 10 }),
+      {
+        wrapper: ({ children }) => (
+          <CommentDraftScope value="review-a">{children}</CommentDraftScope>
+        ),
+      },
+    );
+    act(() => result.current.setBody('On a hidden line'));
+    unmount();
+
+    const expandAllBetweenChunks = vi.fn<ExpandAllBetweenChunks>(async () => {});
+    renderViewer(expandAllBetweenChunks, mergedChunks, undefined, null, {
+      ...file,
+      hasNonUtf8Path: true,
+    });
+    expect(expandAllBetweenChunks).not.toHaveBeenCalled();
+    expect(screen.getByText('16 lines outside this patch')).toBeInTheDocument();
   });
 
   it('expands nothing while the reviewer types on a revealed context line', () => {

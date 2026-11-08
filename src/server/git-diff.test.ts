@@ -1569,6 +1569,9 @@ index abc123..def456 100644
         '-U5',
         '--no-ext-diff',
         '--color=never',
+        '--submodule=short',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
       ]);
       expect(response).toEqual({
         commit: 'abcdef1...1234567',
@@ -1603,6 +1606,9 @@ index abc123..def456 100644
         '1234567890abcdef1234567890abcdef12345678',
         '--no-ext-diff',
         '--color=never',
+        '--submodule=short',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
       ]);
       expect(response).toEqual({
         commit: 'abcdef1...1234567',
@@ -1641,6 +1647,9 @@ index abc123..def456 100644
           'HEAD',
           '--no-ext-diff',
           '--color=never',
+          '--submodule=short',
+          '--src-prefix=a/',
+          '--dst-prefix=b/',
           '--full-index',
         ]);
         expect(gitDiff).toHaveBeenNthCalledWith(2, [
@@ -1649,6 +1658,9 @@ index abc123..def456 100644
           '-w',
           '--no-ext-diff',
           '--color=never',
+          '--submodule=short',
+          '--src-prefix=a/',
+          '--dst-prefix=b/',
           '--full-index',
         ]);
         // printf patch | sha256sum
@@ -1678,6 +1690,9 @@ index abc123..def456 100644
         'fedcba9876543210fedcba9876543210fedcba98',
         '--no-ext-diff',
         '--color=never',
+        '--submodule=short',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
         '--full-index',
       ]);
       expect(response).toEqual({

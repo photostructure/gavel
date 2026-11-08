@@ -14,7 +14,12 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { GitDiffParser } from './git-diff.js';
-import { capturePatch, captureWorkingTree, selectCapture } from './review-capture.js';
+import {
+  capturePatch,
+  captureWorkingTree,
+  selectCapture,
+  validateCapture,
+} from './review-capture.js';
 
 const setupEnv = Object.fromEntries(
   Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')),
@@ -65,9 +70,33 @@ describe('captured patch rendering', () => {
       expect.objectContaining({
         path: 'new space.txt',
         oldPath: 'old space.txt',
-        status: 'renamed',
+        status: 'copied',
         chunks: [],
       }),
+    ]);
+  });
+
+  it('restores a saved v1 capture with its digest and renders its copy as copied', () => {
+    const patch =
+      'diff --git a/old space.txt b/new space.txt\nsimilarity index 100%\ncopy from old space.txt\ncopy to new space.txt\n';
+    const patchDigest = 'e4ab0e8af1b09b75299d1f798f9bd7abb78daa45bfee1fdef77b2f1e70cfb780';
+    const fileId = `${patchDigest}:f1`;
+    const saved = {
+      schemaVersion: 1,
+      repositoryRoot: '/tmp/saved-capture',
+      repositoryId: 'f9bb8ceae3cfedbd3c59e2601fb0db32267980d542774aa0157c8789db328aa9',
+      baseCommit: 'a'.repeat(40),
+      patch,
+      patchDigest,
+      files: [{ id: fileId, path: 'new space.txt', oldPath: 'old space.txt', hunks: [] }],
+    };
+
+    const restored = validateCapture(saved);
+
+    expect(restored.patchDigest).toBe(patchDigest);
+    expect(restored.files.map((file) => file.id)).toEqual([fileId]);
+    expect(new GitDiffParser().parseStdinDiff(restored.patch).files).toEqual([
+      expect.objectContaining({ path: 'new space.txt', status: 'copied', chunks: [] }),
     ]);
   });
 

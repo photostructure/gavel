@@ -105,6 +105,25 @@ describe('ImageDiffViewer', () => {
       expect(images[0]).toHaveAttribute('src', '/api/blob/old-name.jpg?ref=HEAD~1');
       expect(images[1]).toHaveAttribute('src', '/api/blob/new-name.jpg?ref=HEAD');
     });
+
+    it('renders a copied image with both versions', () => {
+      const copiedFile: DiffFile = {
+        path: 'copy.jpg',
+        oldPath: 'source.jpg',
+        status: 'copied',
+        additions: 0,
+        deletions: 0,
+        chunks: [],
+      };
+
+      renderViewer(copiedFile);
+
+      expect(screen.getByText('Modified Image')).toBeInTheDocument();
+
+      const images = screen.getAllByRole('img');
+      expect(images[0]).toHaveAttribute('src', '/api/blob/source.jpg?ref=HEAD~1');
+      expect(images[1]).toHaveAttribute('src', '/api/blob/copy.jpg?ref=HEAD');
+    });
   });
 
   describe('Image loading with custom refs', () => {

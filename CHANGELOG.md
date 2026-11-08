@@ -60,6 +60,12 @@ All notable changes to this project will be documented in this file.
 
 - Show comments on the old side of an unchanged line in the unified diff, under the row with that old line number. They used to appear only in split view and Conversation.
 - Show the literal frontmatter lines in **Diff Preview** when the frontmatter table can't account for an edit, such as a comment, quoting, or key order change, including when it happens alongside a value change. Those edits used to appear in neither the table nor the preview. A comment on a line the table already shows as changed, such as `title: New # b`, stays hidden.
+- Label a copied file as copied, with **Copied from** and its own icon, instead of presenting it as a rename, in repository comparisons, stdin diffs, and named reviews.
+- Read repository comparisons the same way under any `diff.noPrefix`, `diff.srcPrefix`, `diff.dstPrefix`, `diff.submodule`, or `core.quotePath` setting. These settings used to drop files with spaces in their names and submodule changes, or add the configured prefix to paths.
+- Show a type change, such as a file replaced by a symlink, as one modified file instead of a deleted and an added file with the same path.
+- Keep a file whose path merely contains `/dev/null`, such as `src/dev/null.txt`, as modified. It used to appear as added or deleted.
+- Show files whose names are not valid UTF-8 under Git's quoted form, such as `"caf\351.txt"`, with a note in the file header. Two such names used to collapse into one path. Gavel refuses to load the contents of these files.
+- List a file with content conflicts in an unstaged review, without its conflict hunks. It used to be left out, or shown under a `b/` path when nothing else had changed. A modify/delete conflict is still not listed.
 
 ## [6.0.0] - 2026-11-08
 

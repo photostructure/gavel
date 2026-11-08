@@ -24,6 +24,52 @@ const baseProps = {
 };
 
 describe('DiffViewerHeader', () => {
+  it.each([
+    { status: 'renamed', label: 'Renamed from', icon: '.lucide-file-pen' },
+    { status: 'copied', label: 'Copied from', icon: '.lucide-files' },
+  ] as const)('labels and marks a file $status', ({ status, label, icon }) => {
+    const { container } = render(
+      <DiffViewerHeader {...baseProps} file={{ ...file, status, oldPath: 'src/old.ts' }} />,
+    );
+
+    expect(screen.getByText(label)).toHaveTextContent(`${label} src/old.ts`);
+    expect(container.querySelector(icon)).toBeInTheDocument();
+  });
+
+  it('notes a path that is not valid UTF-8', () => {
+    render(
+      <DiffViewerHeader
+        {...baseProps}
+        file={{ ...file, path: '"caf\\351.txt"', hasNonUtf8Path: true }}
+      />,
+    );
+
+    expect(screen.getByText(/not valid UTF-8/)).toBeInTheDocument();
+  });
+
+  it('words the note to hold when only the old name is not valid UTF-8', () => {
+    render(
+      <DiffViewerHeader
+        {...baseProps}
+        file={{
+          ...file,
+          status: 'renamed',
+          path: 'renamed.txt',
+          oldPath: '"caf\\351.txt"',
+          hasNonUtf8Path: true,
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/A name in this change is not valid UTF-8/)).toBeInTheDocument();
+  });
+
+  it('shows no path note for an ordinary file', () => {
+    render(<DiffViewerHeader {...baseProps} />);
+
+    expect(screen.queryByText(/not valid UTF-8/)).not.toBeInTheDocument();
+  });
+
   it('shows the "Updated" badge when the file changed since last viewed', () => {
     render(<DiffViewerHeader {...baseProps} isChangedSinceViewed />);
 

@@ -53,5 +53,10 @@ export function fileCanExpandHiddenLines(
     !source.contextUnavailable &&
     source.baseCommitish !== 'stdin' &&
     source.targetCommitish !== 'stdin';
-  return hasBlobContent && (getViewerForFile(file).canExpandHiddenLines?.(file) ?? false);
+  // The server refuses a non-UTF-8 path, so an expansion would fill the gap with blank rows.
+  return (
+    hasBlobContent &&
+    !file.hasNonUtf8Path &&
+    (getViewerForFile(file).canExpandHiddenLines?.(file) ?? false)
+  );
 }

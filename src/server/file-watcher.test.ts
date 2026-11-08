@@ -101,6 +101,7 @@ describe('FileWatcherService', () => {
 
       expect(simpleGit).toHaveBeenCalledWith(TEST_REPO_PATH, {
         allowEnvironment: ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'],
+        config: ['core.quotePath=true'],
       });
     });
   });

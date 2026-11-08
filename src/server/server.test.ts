@@ -2369,6 +2369,19 @@ describe('Server Integration Tests', () => {
       expect(response.status).toBe(400);
       expect(data).toHaveProperty('error', 'File path outside repository');
     });
+
+    it('refuses the quoted form of a path that is not valid UTF-8', async () => {
+      const encodedPath = encodeURIComponent('"caf\\351.txt"');
+      const parser = parserInstances.at(-1);
+      parser.getBlobContent.mockClear();
+
+      const response = await fetch(`http://localhost:${port}/api/blob/${encodedPath}?ref=HEAD`);
+      const data = (await response.json()) as any;
+
+      expect(response.status).toBe(400);
+      expect(data).toHaveProperty('error', 'Invalid file path');
+      expect(parser.getBlobContent).not.toHaveBeenCalled();
+    });
   });
 
   describe('approval requests and notifications', () => {
