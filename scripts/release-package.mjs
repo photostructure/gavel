@@ -58,7 +58,7 @@ function verify() {
     assert(
       !path.includes('/../') &&
         !path.includes('\\') &&
-        !/(?:^|\/)(?:site-data|site|node_modules|\.env)(?:\/|$)/u.test(path) &&
+        !/(?:^|\/)(?:node_modules|\.env)(?:\/|$)/u.test(path) &&
         !/\.(?:test|spec)\.[^/]+$/u.test(path),
       `Unexpected package file: ${path}`,
     );

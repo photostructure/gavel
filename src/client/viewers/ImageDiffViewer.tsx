@@ -10,16 +10,7 @@ interface ImageInfo {
   size?: number;
 }
 
-interface StaticBlobWindow {
-  __GAVEL_STATIC_BLOB_URLS__?: Record<string, string>;
-}
-
-const blobKey = (ref: string, path: string): string => `${ref.slice(0, 7)}:${path}`;
-
-const imageBlobUrl = (path: string, ref: string): string => {
-  const staticBlobUrls = (window as Window & StaticBlobWindow).__GAVEL_STATIC_BLOB_URLS__;
-  return staticBlobUrls?.[blobKey(ref, path)] ?? `/api/blob/${path}?ref=${ref}`;
-};
+const imageBlobUrl = (path: string, ref: string): string => `/api/blob/${path}?ref=${ref}`;
 
 export function ImageDiffViewer({
   file,

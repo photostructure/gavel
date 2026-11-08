@@ -54,6 +54,7 @@ All notable changes to this project will be documented in this file.
 ### Removed in the PhotoStructure fork
 
 - Remove the bundled VS Code extension (`packages/vscode`). It was set up to publish under upstream's Marketplace publisher, which this project cannot publish under.
+- Remove the project site and its static live demo (`src/site`, `pnpm dev:site`, `pnpm build:site`, `pnpm export:site-data`, and the Pages workflow). The demo could not show an agent answering comments; [the walkthrough on photostructure.com](https://photostructure.com/coding/gavel/) replaces the site.
 
 ### Fixed in the PhotoStructure fork
 

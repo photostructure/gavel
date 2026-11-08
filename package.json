@@ -28,8 +28,6 @@
   },
   "files": [
     "dist",
-    "!dist/client/site-data",
-    "!dist/site",
     "README.md",
     "LICENSE",
     "docs/agent-conversations.md",
@@ -49,12 +47,9 @@
   },
   "scripts": {
     "dev": "node scripts/dev.js",
-    "dev:site": "pnpm run build:cli && node scripts/export-site-data.js && vite --config vite.config.site.ts --open /",
     "dev:cli": "tsc --project tsconfig.cli.json && NODE_ENV=development node dist/cli/index.js",
     "build": "pnpm run build:cli && vite build",
-    "build:site": "pnpm run build:cli && GITHUB_PAGES=true vite build --config vite.config.site.ts",
     "build:cli": "tsc --project tsconfig.cli.json",
-    "export:site-data": "node scripts/export-site-data.js",
     "start": "pnpm run build && node dist/cli/index.js",
     "check": "oxlint . --type-aware --type-check --deny-warnings --report-unused-disable-directives",
     "check:fix": "oxlint . --type-aware --type-check --deny-warnings --report-unused-disable-directives --fix",
