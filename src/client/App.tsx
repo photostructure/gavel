@@ -308,8 +308,13 @@ function App() {
     ]);
   }, [diffData?.repositoryId, storageCommit, resolvedSelectionKey]);
   // Unsent comment drafts are kept per review. commentsContextKey is null only for a
-  // diff response without a base and target; those share one draft scope.
-  const draftScope = commentsContextKey ?? 'default';
+  // diff response without a base and target; those share one draft scope. Unnamed
+  // stdin patches all have the same selection, so the patch's digest tells them apart.
+  const reviewDraftScope = commentsContextKey ?? 'default';
+  const draftScope =
+    diffData?.stdinDiffDigest === undefined
+      ? reviewDraftScope
+      : `${reviewDraftScope}:${diffData.stdinDiffDigest}`;
   const draftCount = useDraftCount(draftScope);
   const fileOfThread = useCallback(
     (threadId: string) => threads.find((thread) => thread.id === threadId)?.filePath,

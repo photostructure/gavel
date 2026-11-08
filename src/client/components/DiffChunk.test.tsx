@@ -634,7 +634,7 @@ describe('DiffChunk range comments', () => {
 });
 
 describe('DiffChunk comment drafts', () => {
-  afterEach(() => sessionStorage.clear());
+  afterEach(() => localStorage.clear());
 
   const renderChunk = (mode: 'unified' | 'split', onAddComment = vi.fn(asyncNoop)) =>
     renderWithProviders(
@@ -740,7 +740,7 @@ describe('DiffChunk comment drafts', () => {
 });
 
 describe('DiffChunk drafts across reviews', () => {
-  afterEach(() => sessionStorage.clear());
+  afterEach(() => localStorage.clear());
 
   const renderIn = (scope: string) =>
     renderWithProviders(

@@ -5,8 +5,8 @@ section: Review server
 
 # Server-only review state
 
-Not started, apart from deleting the dead `useLocalComments` hook. Follows the
-saved-reviews change (`_done/2026-11-07-saved-reviews-under-git-dir.md`).
+Not started, apart from deleting the dead `useLocalComments` hook and moving
+unsent drafts to `localStorage`. Follows the saved-reviews change (`_done/2026-11-07-saved-reviews-under-git-dir.md`).
 
 ## Decisions (2026-11-07)
 
@@ -20,7 +20,7 @@ Matthew's own decisions:
 - Unsent drafts move from `sessionStorage` to `localStorage`, keyed by repository
   and review, and drafts untouched for 7 days are deleted (A2-20). Two tabs on the
   same review share one draft per comment form; each picks up the other's changes
-  on load or through the browser's `storage` event.
+  on load or through the browser's `storage` event. Done.
 
 Accepted as recommended:
 
@@ -36,7 +36,8 @@ Accepted as recommended:
   applied comment-import IDs.
 - `localStorage` `gavel-viewed-index-v1/<repo>`: viewed-file hash index.
 - `localStorage` agent-reply read marks (`useAgentUpdates`).
-- `sessionStorage` unsent drafts (`useCommentDrafts`).
+- `localStorage` `gavel:comment-drafts:<scope>` unsent drafts (`useCommentDrafts`),
+  deleted after 7 days untouched.
 - Presentation, which stays: `ReviewSummaryPanel` expanded flag (`localStorage`),
   user settings cookie (`userSettings`).
 

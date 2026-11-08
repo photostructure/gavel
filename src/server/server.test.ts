@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { promises as fs, mkdtempSync, rmSync } from 'fs';
 import { connect, createServer } from 'node:net';
 import { hostname, tmpdir } from 'os';
@@ -18,7 +19,7 @@ import { DiffMode } from '../types/watch.js';
 import { LIVE_OTHER_SERVER, type LiveServerMessage } from '../types/live.js';
 import { WebSocket } from 'ws';
 import { FileWatcherService } from './file-watcher.js';
-import type { CommentImport, DiffCommentThread } from '../types/diff.js';
+import type { CommentImport, DiffCommentThread, DiffResponse } from '../types/diff.js';
 import type {
   ConversationStreamEvent,
   ConversationSnapshot,
@@ -2054,6 +2055,30 @@ describe('Server Integration Tests', () => {
         workingDirectory: process.cwd(),
         hostname: hostname(),
       });
+    });
+
+    it('GET /api/diff gives each stdin patch its own digest', async () => {
+      const patches = ['diff --git a/first.js b/first.js', 'diff --git a/second.js b/second.js'];
+      const digests: DiffResponse['stdinDiffDigest'][] = [];
+      for (const stdinDiff of patches) {
+        const stdinServer = await startServer({ stdinDiff, preferredPort: 0 });
+        servers.push(stdinServer.server);
+        const response = await fetch(`http://localhost:${stdinServer.port}/api/diff`);
+        digests.push(((await response.json()) as DiffResponse).stdinDiffDigest);
+      }
+
+      expect(digests).toEqual(
+        patches.map((patch) => createHash('sha256').update(patch).digest('hex')),
+      );
+      expect(digests[0]).not.toBe(digests[1]);
+    });
+
+    it('GET /api/diff has no stdin digest for a Git diff', async () => {
+      const response = await fetch(`http://localhost:${port}/api/diff`);
+      const data = (await response.json()) as DiffResponse;
+
+      expect(response.ok).toBe(true);
+      expect(data).not.toHaveProperty('stdinDiffDigest');
     });
 
     it('GET /api/generated-status/* returns 400 for stdin diff', async () => {

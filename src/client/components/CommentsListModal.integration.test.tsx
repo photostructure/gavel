@@ -8,8 +8,8 @@ import type { CommentThread } from '../../types/diff';
 import type { CommentSubmitOptions } from './CommentForm';
 import { CommentsListModal } from './CommentsListModal';
 
-// Reply and edit forms save unsent text to sessionStorage; start each test without it.
-afterEach(() => sessionStorage.clear());
+// Reply and edit forms save unsent text to localStorage; start each test without it.
+afterEach(() => localStorage.clear());
 
 const time = '2026-10-24T00:00:00Z';
 const threads: CommentThread[] = ['A', 'B', 'C'].map((id) => ({

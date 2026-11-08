@@ -92,7 +92,7 @@ describe('text patch context controls', () => {
 });
 
 describe('drafts on lines no longer in the diff', () => {
-  afterEach(() => sessionStorage.clear());
+  afterEach(() => localStorage.clear());
 
   const shown: MergedChunk = {
     ...first,

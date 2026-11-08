@@ -15,8 +15,8 @@ vi.mock('../utils/clipboard', () => ({
   copyTextToClipboard: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Reply and edit forms save unsent text to sessionStorage; start each test without it.
-afterEach(() => sessionStorage.clear());
+// Reply and edit forms save unsent text to localStorage; start each test without it.
+afterEach(() => localStorage.clear());
 
 const mockThread: CommentThread = {
   id: 'thread-1',
@@ -936,6 +936,75 @@ describe('thread drafts', () => {
       </CommentDraftScope>,
     );
 
+  const replyAnchor = { kind: 'reply', threadId: 'thread-1' } as const;
+  const editAnchor = { kind: 'edit', threadId: 'thread-1', messageId: 'message-1' } as const;
+  const draftsKey = 'gavel:comment-drafts:review-a';
+  const storedDraft = (anchor: typeof replyAnchor | typeof editAnchor, body: string) =>
+    JSON.stringify({
+      [draftKey(anchor)]: { anchor, body, intent: 'comment', updatedAt: Date.now() },
+    });
+  const announceOtherTabChange = () =>
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: draftsKey }));
+    });
+
+  it('opens a closed reply form when another tab starts that reply', async () => {
+    const user = userEvent.setup();
+    renderCard();
+    expect(screen.queryByPlaceholderText('Write a reply...')).not.toBeInTheDocument();
+
+    localStorage.setItem(draftsKey, storedDraft(replyAnchor, 'From the other tab'));
+    announceOtherTabChange();
+
+    const form = screen.getByPlaceholderText('Write a reply...');
+    expect(form).toHaveValue('From the other tab');
+    expect(form).not.toHaveFocus();
+    await user.type(form, ', continued here');
+    expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue(
+      'From the other tab, continued here',
+    );
+  });
+
+  it('closes a restored reply form when another tab sends that reply', () => {
+    localStorage.setItem(draftsKey, storedDraft(replyAnchor, 'Sent from the other tab'));
+    renderCard();
+    expect(screen.getByPlaceholderText('Write a reply...')).toBeInTheDocument();
+
+    localStorage.removeItem(draftsKey);
+    announceOtherTabChange();
+
+    expect(screen.queryByPlaceholderText('Write a reply...')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Write a reply...' })).toBeInTheDocument();
+  });
+
+  it('opens a closed edit form when another tab starts that edit', async () => {
+    const user = userEvent.setup();
+    renderCard();
+    expect(screen.queryByPlaceholderText('Edit your message...')).not.toBeInTheDocument();
+
+    localStorage.setItem(draftsKey, storedDraft(editAnchor, 'Edited in the other tab'));
+    announceOtherTabChange();
+
+    const form = screen.getByPlaceholderText('Edit your message...');
+    expect(form).toHaveValue('Edited in the other tab');
+    expect(form).not.toHaveFocus();
+    await user.type(form, ', continued here');
+    expect(screen.getByPlaceholderText('Edit your message...')).toHaveValue(
+      'Edited in the other tab, continued here',
+    );
+  });
+
+  it('closes a restored edit form when another tab saves that edit', () => {
+    localStorage.setItem(draftsKey, storedDraft(editAnchor, 'Saved from the other tab'));
+    renderCard();
+    expect(screen.getByPlaceholderText('Edit your message...')).toBeInTheDocument();
+
+    localStorage.removeItem(draftsKey);
+    announceOtherTabChange();
+
+    expect(screen.queryByPlaceholderText('Edit your message...')).not.toBeInTheDocument();
+  });
+
   it('reopens a reply draft with its text after the page remounts', async () => {
     const user = userEvent.setup();
     const first = renderCard();
@@ -1097,7 +1166,7 @@ describe('thread drafts across saves, copies, and resolution', () => {
     first.unmount();
     render(<CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>);
     expect(screen.queryByPlaceholderText('Edit your message...')).not.toBeInTheDocument();
-    expect(sessionStorage.length).toBe(0);
+    expect(localStorage.length).toBe(0);
   });
 
   it('keeps focus in the copy of the thread being typed in', async () => {
@@ -1117,6 +1186,62 @@ describe('thread drafts across saves, copies, and resolution', () => {
     // delete the draft the first copy shows.
     expect(
       within(screen.getByTestId('diff')).queryByPlaceholderText('Write a reply...'),
+    ).not.toBeInTheDocument();
+  });
+
+  function otherTabSavesAnotherDraft() {
+    const storageKey = 'gavel:comment-drafts:review-a';
+    const anchor = { kind: 'reply', threadId: 'another-thread' } as const;
+    const drafts = JSON.parse(localStorage.getItem(storageKey)!) as Record<string, unknown>;
+    drafts[draftKey(anchor)] = {
+      anchor,
+      body: 'From the other tab',
+      intent: 'comment',
+      updatedAt: Date.now(),
+    };
+    localStorage.setItem(storageKey, JSON.stringify(drafts));
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: storageKey }));
+    });
+  }
+
+  it('keeps the other copy of a reply closed when another tab changes a different draft', async () => {
+    const user = userEvent.setup();
+    render(
+      <CommentDraftScope value="review-a">
+        <div data-testid="panel">{card(mockThread)}</div>
+        <div data-testid="diff">{card(mockThread)}</div>
+      </CommentDraftScope>,
+    );
+    const panel = within(screen.getByTestId('panel'));
+    await user.click(panel.getByRole('button', { name: 'Write a reply...' }));
+    await user.type(panel.getByPlaceholderText('Write a reply...'), 'Typed here');
+
+    otherTabSavesAnotherDraft();
+
+    expect(panel.getByPlaceholderText('Write a reply...')).toHaveValue('Typed here');
+    expect(
+      within(screen.getByTestId('diff')).queryByPlaceholderText('Write a reply...'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps the other copy of an edit closed when another tab changes a different draft', async () => {
+    const user = userEvent.setup();
+    render(
+      <CommentDraftScope value="review-a">
+        <div data-testid="panel">{card(mockThread)}</div>
+        <div data-testid="diff">{card(mockThread)}</div>
+      </CommentDraftScope>,
+    );
+    const panel = within(screen.getByTestId('panel'));
+    await user.click(panel.getAllByTitle('Edit message')[0]!);
+    await user.type(panel.getByPlaceholderText('Edit your message...'), ' and more');
+
+    otherTabSavesAnotherDraft();
+
+    expect(panel.getByPlaceholderText('Edit your message...')).toHaveValue('Root comment and more');
+    expect(
+      within(screen.getByTestId('diff')).queryByPlaceholderText('Edit your message...'),
     ).not.toBeInTheDocument();
   });
 

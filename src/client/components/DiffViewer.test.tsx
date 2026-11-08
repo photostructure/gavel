@@ -99,7 +99,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.unstubAllGlobals();
-  sessionStorage.clear();
+  localStorage.clear();
 });
 
 describe('DiffViewer context expansion for line drafts', () => {

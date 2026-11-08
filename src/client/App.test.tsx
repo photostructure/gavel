@@ -7,9 +7,11 @@ import { mockFetch } from '../../vitest.setup';
 import type { DiffCommentThread, DiffResponse } from '../types/diff';
 import type { ClientWatchState } from '../types/watch';
 import { DiffMode } from '../types/watch';
+import { createDiffSelection, getDiffSelectionKey } from '../utils/diffSelection';
 
 import App from './App';
 import { MEDIA_QUERIES } from './constants/breakpoints';
+import { draftKey } from './hooks/useCommentDrafts';
 import { useDiffComments } from './hooks/useDiffComments';
 import { useFileWatch } from './hooks/useFileWatch';
 import { MockWebSocket } from './utils/liveConnection.testing';
@@ -273,6 +275,90 @@ it('filters stdin whitespace locally without replacing the canonical patch', asy
   );
   expect(diffRequests()).toHaveLength(requestsBefore);
   expect(vi.mocked(useViewedFiles).mock.lastCall?.[4]).toEqual(response.files);
+});
+
+it('keeps unsent drafts of two different stdin patches apart', async () => {
+  vi.clearAllMocks();
+  mockComments = [];
+  const response: DiffResponse = {
+    ...mockDiffResponse,
+    baseCommitish: 'stdin',
+    targetCommitish: 'stdin',
+    requestedBaseCommitish: 'stdin',
+    requestedTargetCommitish: 'stdin',
+  };
+  const contextKey = JSON.stringify([
+    response.repositoryId ?? 'default',
+    getDiffSelectionKey(createDiffSelection('stdin', 'stdin')),
+    response.commit,
+  ]);
+  const anchor = { kind: 'reply', threadId: 'thread-1' } as const;
+  localStorage.setItem(
+    `gavel:comment-drafts:${contextKey}:digest-a`,
+    JSON.stringify({
+      [draftKey(anchor)]: {
+        anchor,
+        body: 'For patch A',
+        intent: 'comment',
+        updatedAt: Date.now(),
+      },
+    }),
+  );
+  onTestFinished(() => localStorage.clear());
+  const unsentDraftStatus = () =>
+    document.getElementById('conversation-unread-status')?.textContent ?? '';
+
+  mockFetch({ ...response, stdinDiffDigest: 'digest-a' });
+  const patchA = renderApp();
+  await waitFor(() => expect(unsentDraftStatus()).toContain('1 unsent draft'));
+  patchA.unmount();
+
+  mockFetch({ ...response, stdinDiffDigest: 'digest-b' });
+  renderApp();
+  await waitFor(() => expect(unsentDraftStatus()).toContain('No unread agent messages'));
+  expect(unsentDraftStatus()).not.toContain('unsent draft');
+});
+
+it('moves a stdin draft from sessionStorage into the patch digest scope on load', async () => {
+  vi.clearAllMocks();
+  mockComments = [];
+  const digest = 'b'.repeat(64);
+  const response: DiffResponse = {
+    ...mockDiffResponse,
+    baseCommitish: 'stdin',
+    targetCommitish: 'stdin',
+    requestedBaseCommitish: 'stdin',
+    requestedTargetCommitish: 'stdin',
+    stdinDiffDigest: digest,
+  };
+  const contextKey = JSON.stringify([
+    response.repositoryId ?? 'default',
+    getDiffSelectionKey(createDiffSelection('stdin', 'stdin')),
+    response.commit,
+  ]);
+  const anchor = { kind: 'reply', threadId: 'thread-1' } as const;
+  const sourceKey = `gavel:comment-drafts:${contextKey}`;
+  sessionStorage.setItem(
+    sourceKey,
+    JSON.stringify({
+      [draftKey(anchor)]: { anchor, body: 'Typed before the upgrade', intent: 'comment' },
+    }),
+  );
+  onTestFinished(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  mockFetch(response);
+  renderApp();
+
+  await waitFor(() =>
+    expect(document.getElementById('conversation-unread-status')?.textContent).toContain(
+      '1 unsent draft',
+    ),
+  );
+  expect(sessionStorage.getItem(sourceKey)).toBeNull();
+  expect(localStorage.getItem(`${sourceKey}:${digest}`)).toContain('Typed before the upgrade');
 });
 
 describe('App Component - Clear Comments Functionality', () => {

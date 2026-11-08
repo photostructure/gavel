@@ -82,7 +82,7 @@ function renderPanel(overrides: Partial<Parameters<typeof CommentsListModal>[0]>
 
 const draftsSection = () => within(screen.getByRole('region', { name: 'Unsent drafts' }));
 
-afterEach(() => sessionStorage.clear());
+afterEach(() => localStorage.clear());
 
 describe('Conversation unsent drafts', () => {
   it('lists every unsent draft, including ones the diff shows', () => {
@@ -195,7 +195,7 @@ describe('Conversation unsent drafts', () => {
     expect(section.getByText(/a thread that is not loaded/)).toBeInTheDocument();
     fireEvent.click(section.getByRole('button', { name: 'Discard' }));
     expect(screen.queryByRole('region', { name: 'Unsent drafts' })).not.toBeInTheDocument();
-    expect(sessionStorage.length).toBe(0);
+    expect(localStorage.length).toBe(0);
   });
 
   it('sends the code the diff shows now for a draft whose file is in the diff', async () => {
@@ -270,7 +270,7 @@ describe('Conversation unsent drafts', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByPlaceholderText('Edit your message...')).not.toBeInTheDocument();
-    expect(sessionStorage.length).toBe(0);
+    expect(localStorage.length).toBe(0);
   });
 
   // A draft typed in the panel would otherwise add the section above the form being

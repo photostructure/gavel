@@ -349,6 +349,9 @@ export async function startServer(options: ServerOptions): Promise<{
     initialCommentImports.length > 0
       ? createHash('sha256').update(serializeCommentImports(initialCommentImports)).digest('hex')
       : undefined;
+  const stdinDiffDigest = options.stdinDiff
+    ? createHash('sha256').update(options.stdinDiff).digest('hex')
+    : undefined;
   const parser = new GitDiffParser(repositoryPath);
   const reviewContext: ReviewContext = {
     source: options.stdinDiff ? 'stdin' : 'git',
@@ -936,6 +939,7 @@ export async function startServer(options: ServerOptions): Promise<{
       title: options.title,
       commentImports: shouldIncludeCommentImports ? initialCommentImports : undefined,
       commentImportId: shouldIncludeCommentImports ? commentImportId : undefined,
+      stdinDiffDigest: namedReview ? undefined : stdinDiffDigest,
       autoViewedPatterns,
     });
   });

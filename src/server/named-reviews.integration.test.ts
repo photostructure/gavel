@@ -218,11 +218,10 @@ describe('named review HTTP integration', () => {
       repositoryId: initialCapture.repositoryId,
       updated: true,
     });
-    expect(
-      (await get<DiffResponse>('/api/diff?review=from-subdirectory')).files.map(
-        (file) => file.path,
-      ),
-    ).toEqual(['first.txt']);
+    const namedDiff = await get<DiffResponse>('/api/diff?review=from-subdirectory');
+    expect(namedDiff.files.map((file) => file.path)).toEqual(['first.txt']);
+    // A named review's drafts are keyed by its name, not by the server's stdin patch.
+    expect(namedDiff.stdinDiffDigest).toBeUndefined();
   });
 
   it('retains the conversation, proposal and original comment anchor while replacing a capture', async () => {

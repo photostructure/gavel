@@ -43,11 +43,20 @@ const QUICK_REPLIES: readonly { label: string; body: string; intent: CommentInte
   },
 ];
 
-// A reply or edit form is 'restored' when this card mounted with a saved draft for it
-// (after a reload or a review switch); a restored form does not take focus. Only a
-// click in this copy opens a form, so when the same thread shows in the Conversation
-// panel and the diff, a draft typed in one copy does not open the other.
+// A reply or edit form is 'restored' when it shows a saved draft nobody opened here:
+// this card mounted with one (after a reload or a review switch) or another tab
+// started one. A restored form does not take focus, and closes when its draft goes
+// away. Apart from those, only a click in this copy opens a form, so when the same
+// thread shows in the Conversation panel and the diff, a draft typed in one copy does
+// not open the other.
 type DraftFormState = 'closed' | 'restored' | 'opened';
+
+function useDraftForm(draft: Pick<ReturnType<typeof useCommentDraft>, 'draft' | 'fromStorage'>) {
+  const [form, setForm] = useState<DraftFormState>(draft.draft ? 'restored' : 'closed');
+  if (form === 'closed' && draft.fromStorage) setForm('restored');
+  if (form === 'restored' && draft.draft === undefined) setForm('closed');
+  return [form, setForm] as const;
+}
 
 interface ThreadMessageItemProps {
   threadId: string;
@@ -101,7 +110,7 @@ function ThreadMessageItem({
     { kind: 'edit', threadId, messageId: message.id },
     { body: message.body, intent },
   );
-  const [editForm, setEditForm] = useState<DraftFormState>(editDraft.draft ? 'restored' : 'closed');
+  const [editForm, setEditForm] = useDraftForm(editDraft);
   const isEditing = editForm !== 'closed';
   const [isCopied, setIsCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -402,9 +411,7 @@ export function CommentThreadCard({
     }
   };
   const replyDraft = useCommentDraft({ kind: 'reply', threadId: thread.id });
-  const [replyForm, setReplyForm] = useState<DraftFormState>(
-    replyDraft.draft ? 'restored' : 'closed',
-  );
+  const [replyForm, setReplyForm] = useDraftForm(replyDraft);
   const isReplying = replyForm !== 'closed';
   const replyArea = useRef<HTMLDivElement>(null);
   const replyTrigger = useRef<HTMLButtonElement>(null);

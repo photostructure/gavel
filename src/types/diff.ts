@@ -84,6 +84,8 @@ export interface DiffResponse {
   targetCommitMessage?: string;
   /** SHA-256 of the full-index patch, whitespace included, for index and worktree targets. */
   diffDigest?: string;
+  /** SHA-256 of the patch an unnamed stdin review was launched with. */
+  stdinDiffDigest?: string;
   // Patterns saved in ~/.gavel/config.json; /api/diff adds them to each response.
   autoViewedPatterns?: string[];
 }
