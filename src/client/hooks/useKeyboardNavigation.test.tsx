@@ -642,8 +642,8 @@ describe('useKeyboardNavigation', () => {
     });
   });
 
-  describe('Review Toggle (v)', () => {
-    it('should toggle reviewed state with v key', async () => {
+  describe('Review Toggle and Advance (v)', () => {
+    it('should mark current file as viewed and move cursor to next unviewed file', async () => {
       const user = userEvent.setup();
       const onToggleReviewed = vi.fn();
 
@@ -672,13 +672,76 @@ describe('useKeyboardNavigation', () => {
       await user.keyboard('v');
 
       expect(onToggleReviewed).toHaveBeenCalledWith('file1.js');
+      expect(result.current.cursor?.fileIndex).toBe(1);
     });
 
-    it('should toggle reviewed state of hovered file when there is no cursor', async () => {
+    it('should un-mark an already viewed file and keep the cursor on it', async () => {
       const user = userEvent.setup();
       const onToggleReviewed = vi.fn();
 
-      renderHook(
+      const { result } = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: mockFiles,
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed,
+            reviewedFiles: new Set<string>(['file1.js']),
+          }),
+        { wrapper },
+      );
+
+      act(() => {
+        result.current.setCursorPosition({
+          fileIndex: 0,
+          chunkIndex: 0,
+          lineIndex: 0,
+          side: 'left',
+        });
+      });
+
+      await user.keyboard('v');
+
+      expect(onToggleReviewed).toHaveBeenCalledWith('file1.js');
+      expect(result.current.cursor?.fileIndex).toBe(0);
+    });
+
+    it('should keep cursor when all other files are already viewed', async () => {
+      const user = userEvent.setup();
+      const onToggleReviewed = vi.fn();
+
+      const { result } = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: mockFiles,
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed,
+            reviewedFiles: new Set<string>(['file2.js']),
+          }),
+        { wrapper },
+      );
+
+      act(() => {
+        result.current.setCursorPosition({
+          fileIndex: 0,
+          chunkIndex: 0,
+          lineIndex: 0,
+          side: 'left',
+        });
+      });
+
+      await user.keyboard('v');
+
+      expect(onToggleReviewed).toHaveBeenCalledWith('file1.js');
+      expect(result.current.cursor?.fileIndex).toBe(0);
+    });
+
+    it('should mark hovered file as viewed and move cursor to next unviewed file when there is no cursor', async () => {
+      const user = userEvent.setup();
+      const onToggleReviewed = vi.fn();
+
+      const { result } = renderHook(
         () =>
           useKeyboardNavigation({
             files: mockFiles,
@@ -694,6 +757,7 @@ describe('useKeyboardNavigation', () => {
       await user.keyboard('v');
 
       expect(onToggleReviewed).toHaveBeenCalledWith('file2.js');
+      expect(result.current.cursor?.fileIndex).toBe(0);
     });
 
     it('should prefer cursor file over hovered file', async () => {
@@ -749,8 +813,11 @@ describe('useKeyboardNavigation', () => {
     });
   });
 
-  describe('Mark Viewed and Advance (Shift+V)', () => {
-    it('should mark current file as viewed and move cursor to next unviewed file', async () => {
+  // A toggle that fell back to the remembered cursor position could un-mark a
+  // file the user cannot see, so neither key uses it.
+  it.each(['v', '{Shift>}v{/Shift}'])(
+    'should not toggle the remembered file with %s after the cursor is cleared',
+    async (keys) => {
       const user = userEvent.setup();
       const onToggleReviewed = vi.fn();
 
@@ -774,45 +841,21 @@ describe('useKeyboardNavigation', () => {
           side: 'left',
         });
       });
-
-      await user.keyboard('{Shift>}v{/Shift}');
-
-      expect(onToggleReviewed).toHaveBeenCalledWith('file1.js');
-      expect(result.current.cursor?.fileIndex).toBe(1);
-    });
-
-    it('should not mark again when the current file is already viewed', async () => {
-      const user = userEvent.setup();
-      const onToggleReviewed = vi.fn();
-
-      const { result } = renderHook(
-        () =>
-          useKeyboardNavigation({
-            files: mockFiles,
-            comments: [],
-            viewMode: 'unified',
-            onToggleReviewed,
-            reviewedFiles: new Set<string>(['file1.js']),
-          }),
-        { wrapper },
-      );
-
       act(() => {
-        result.current.setCursorPosition({
-          fileIndex: 0,
-          chunkIndex: 0,
-          lineIndex: 0,
-          side: 'left',
-        });
+        result.current.setCursorPosition(null);
       });
 
-      await user.keyboard('{Shift>}v{/Shift}');
+      await user.keyboard(keys);
 
       expect(onToggleReviewed).not.toHaveBeenCalled();
-      expect(result.current.cursor?.fileIndex).toBe(1);
-    });
+    },
+  );
 
-    it('should keep cursor when all other files are already viewed', async () => {
+  describe('Review Toggle in Place (Shift+V)', () => {
+    it.each([
+      ['an unviewed', new Set<string>()],
+      ['a viewed', new Set<string>(['file1.js'])],
+    ])('should toggle %s current file and keep the cursor on it', async (_, reviewedFiles) => {
       const user = userEvent.setup();
       const onToggleReviewed = vi.fn();
 
@@ -823,7 +866,7 @@ describe('useKeyboardNavigation', () => {
             comments: [],
             viewMode: 'unified',
             onToggleReviewed,
-            reviewedFiles: new Set<string>(['file2.js']),
+            reviewedFiles,
           }),
         { wrapper },
       );
@@ -841,6 +884,29 @@ describe('useKeyboardNavigation', () => {
 
       expect(onToggleReviewed).toHaveBeenCalledWith('file1.js');
       expect(result.current.cursor?.fileIndex).toBe(0);
+    });
+
+    it('should toggle hovered file without showing the cursor when there is no cursor', async () => {
+      const user = userEvent.setup();
+      const onToggleReviewed = vi.fn();
+
+      const { result } = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: mockFiles,
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed,
+            reviewedFiles: new Set<string>(),
+            getHoveredFileIndex: () => 1,
+          }),
+        { wrapper },
+      );
+
+      await user.keyboard('{Shift>}v{/Shift}');
+
+      expect(onToggleReviewed).toHaveBeenCalledWith('file2.js');
+      expect(result.current.cursor).toBeNull();
     });
   });
 

@@ -472,50 +472,44 @@ export function useKeyboardNavigation({
     [files, viewMode],
   );
 
-  // File review toggle - targets the cursor file, or the hovered file when
-  // there is no cursor (e.g. after a mouse click cleared it)
+  // File review toggles target the cursor file, or the hovered file when
+  // there is no cursor (e.g. after a mouse click cleared it). They never fall
+  // back to the remembered cursor position: a toggle could then un-mark a file
+  // the user cannot see.
+  const getToggleTarget = useCallback(() => {
+    if (!viewedStateReady) return null;
+    const fileIndex = cursor?.fileIndex ?? getHoveredFileIndex?.() ?? null;
+    if (fileIndex === null) return null;
+    const file = files[fileIndex];
+    return file ? { fileIndex, file } : null;
+  }, [cursor, files, getHoveredFileIndex, viewedStateReady]);
+
+  // v toggles and, when that marks the file viewed, moves to the next
+  // unviewed file; un-marking stays put so the file can be re-read.
   useHotkeys(
     'v',
     () => {
-      if (!viewedStateReady) return;
-      const fileIndex = cursor?.fileIndex ?? getHoveredFileIndex?.() ?? null;
-      if (fileIndex !== null) {
-        const file = files[fileIndex];
-        if (file) {
-          onToggleReviewed(file.path);
-        }
+      const target = getToggleTarget();
+      if (!target) return;
+
+      onToggleReviewed(target.file.path);
+      if (!reviewedFiles.has(target.file.path)) {
+        focusNextUnviewedFile(target.fileIndex);
       }
     },
     hotkeyOptions,
-    [cursor, files, onToggleReviewed, getHoveredFileIndex, viewedStateReady],
+    [getToggleTarget, reviewedFiles, onToggleReviewed, focusNextUnviewedFile],
   );
 
-  // Mark current file as viewed (collapse) and move to the next unviewed file
+  // Shift+V toggles in place
   useHotkeys(
     'shift+v',
     () => {
-      if (!viewedStateReady) return;
-      const fileIndex =
-        cursor?.fileIndex ?? getHoveredFileIndex?.() ?? lastCursorRef.current?.fileIndex ?? null;
-      if (fileIndex === null) return;
-      const file = files[fileIndex];
-      if (!file) return;
-
-      if (!reviewedFiles.has(file.path)) {
-        onToggleReviewed(file.path);
-      }
-      focusNextUnviewedFile(fileIndex);
+      const target = getToggleTarget();
+      if (target) onToggleReviewed(target.file.path);
     },
     hotkeyOptions,
-    [
-      cursor,
-      files,
-      reviewedFiles,
-      onToggleReviewed,
-      getHoveredFileIndex,
-      focusNextUnviewedFile,
-      viewedStateReady,
-    ],
+    [getToggleTarget, onToggleReviewed],
   );
 
   // Refresh

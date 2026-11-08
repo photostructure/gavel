@@ -226,11 +226,14 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
           <section>
             <h3 className="text-sm ui-heading mb-2">Actions</h3>
             <div className="space-y-1">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between gap-4 text-sm">
                 <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
                   v
                 </kbd>
-                <span className="ui-value">Toggle viewed state of current (or hovered) file</span>
+                <span className="ui-value text-right">
+                  Toggle viewed state of current (or hovered) file; after marking it viewed, go to
+                  next unviewed file
+                </span>
               </div>
               <div className="flex justify-between gap-4 text-sm">
                 <div className="flex items-center gap-1">
@@ -243,7 +246,7 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
                   </kbd>
                 </div>
                 <span className="text-github-text-secondary text-right">
-                  Mark file as viewed and go to next unviewed file
+                  Toggle viewed state without moving
                 </span>
               </div>
               <div className="flex justify-between text-sm">
