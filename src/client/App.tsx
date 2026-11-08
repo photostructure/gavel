@@ -79,6 +79,7 @@ import { useReviewPresence } from './hooks/useReviewPresence';
 import { useViewedFiles } from './hooks/useViewedFiles';
 import { useViewport } from './hooks/useViewport';
 import { useHideHeaderOnScroll } from './hooks/useHideHeaderOnScroll';
+import { useTopVisibleFile } from './hooks/useTopVisibleFile';
 import {
   onSettingsSaveError,
   readClientSettings,
@@ -106,6 +107,7 @@ import { buildFileLineIndex, isThreadOutdated } from './utils/outdatedComments';
 import { hideWhitespaceChanges, remapWhitespaceCursor } from './utils/ignoreWhitespace';
 
 const EMPTY_COMMENT_THREADS: CommentThread[] = [];
+const EMPTY_FILES: DiffFile[] = [];
 
 // A line draft's row on its own side; see findSidePosition.
 const findDraftPosition = (anchor: LineDraftAnchor, files: DiffFile[]) =>
@@ -256,6 +258,7 @@ function App() {
   const { settings, updateSettings } = useAppearanceSettings();
   const { isMobile } = useViewport();
   const reviewChrome = useHideHeaderOnScroll();
+  const topVisibleFile = useTopVisibleFile(diffScrollContainerRef, diffData?.files ?? EMPTY_FILES);
 
   // New diff-aware comment system
   const {
@@ -2053,7 +2056,7 @@ function App() {
                   viewedStateReady={viewedStateReady}
                   onToggleReviewed={toggleFileReviewed}
                   onToggleFolderReviewed={toggleFolderReviewed}
-                  selectedFileIndex={cursor?.fileIndex ?? null}
+                  selectedFilePath={topVisibleFile.topFilePath}
                 />
               </div>
               {!isMobile && (
@@ -2095,7 +2098,10 @@ function App() {
           <main
             ref={diffScrollContainerRef}
             className="flex-1 overflow-y-auto"
-            onScroll={reviewChrome.onScroll}
+            onScroll={(event) => {
+              reviewChrome.onScroll(event);
+              topVisibleFile.onScroll(event);
+            }}
           >
             {diffData.files.map((file, fileIndex) => {
               const fileThreads = threadsByFile.get(file.path) ?? EMPTY_COMMENT_THREADS;

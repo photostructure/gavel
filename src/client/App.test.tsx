@@ -384,6 +384,50 @@ describe('App Component - Clear Comments Functionality', () => {
     }
   });
 
+  it('highlights the sidebar row of the file at the top of the scrolled diff', async () => {
+    const file = (path: string) => ({
+      path,
+      status: 'modified' as const,
+      additions: 1,
+      deletions: 1,
+      chunks: [],
+    });
+    mockFetch({ ...mockDiffResponse, files: [file('first.ts'), file('second.ts')] });
+    renderApp();
+    const firstRow = (await screen.findByTitle('first.ts')).closest('[data-file-row]');
+    const secondRow = screen.getByTitle('second.ts').closest('[data-file-row]');
+    const diff = screen.getByRole('main');
+
+    // first.ts spans 0–400 in the diff, second.ts 424–824
+    let scrollTop = 0;
+    const rect = (top: number, height: number) =>
+      ({ top, bottom: top + height, height }) as DOMRect;
+    const spy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        if (this === diff) return rect(0, 600);
+        if (this.dataset.filePath === 'first.ts') return rect(-scrollTop, 400);
+        if (this.dataset.filePath === 'second.ts') return rect(424 - scrollTop, 400);
+        return rect(0, 0);
+      });
+    const scrollTo = async (top: number) => {
+      scrollTop = top;
+      fireEvent.scroll(diff);
+      await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    };
+    try {
+      await scrollTo(10);
+      expect(firstRow).toHaveClass('file-tree-row-selected');
+      expect(secondRow).not.toHaveClass('file-tree-row-selected');
+
+      await scrollTo(500);
+      expect(firstRow).not.toHaveClass('file-tree-row-selected');
+      expect(secondRow).toHaveClass('file-tree-row-selected');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   describe('Copy All Prompt Button', () => {
     it('should generate Copy All Prompt with requested and resolved diff context', async () => {
       mockComments = [

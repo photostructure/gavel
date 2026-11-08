@@ -40,7 +40,7 @@ describe('FileList', () => {
         reviewedFiles={new Set()}
         onToggleReviewed={vi.fn()}
         onToggleFolderReviewed={vi.fn()}
-        selectedFileIndex={null}
+        selectedFilePath={null}
       />,
     );
 
@@ -62,7 +62,7 @@ describe('FileList', () => {
       comments: [],
       onToggleReviewed: vi.fn(),
       onToggleFolderReviewed: vi.fn(),
-      selectedFileIndex: null,
+      selectedFilePath: null,
     };
     const { rerender } = render(
       <FileList {...props} reviewedFiles={new Set(['README.md', 'src/cli/index.ts'])} />,
@@ -104,7 +104,7 @@ describe('FileList', () => {
         reviewedFiles={new Set()}
         onToggleReviewed={vi.fn()}
         onToggleFolderReviewed={onToggleFolderReviewed}
-        selectedFileIndex={null}
+        selectedFilePath={null}
       />,
     );
 
@@ -129,7 +129,7 @@ describe('FileList', () => {
         reviewedFiles={new Set()}
         onToggleReviewed={vi.fn()}
         onToggleFolderReviewed={vi.fn()}
-        selectedFileIndex={null}
+        selectedFilePath={null}
       />,
     );
 
@@ -155,7 +155,7 @@ describe('FileList', () => {
         reviewedFiles={new Set(['src/cli/index.ts', 'src/client/App.tsx'])}
         onToggleReviewed={vi.fn()}
         onToggleFolderReviewed={onToggleFolderReviewed}
-        selectedFileIndex={null}
+        selectedFilePath={null}
       />,
     );
 
@@ -190,7 +190,7 @@ it('makes the comment count a separate action and preserves mobile file selectio
       reviewedFiles={new Set()}
       onToggleReviewed={vi.fn()}
       onToggleFolderReviewed={vi.fn()}
-      selectedFileIndex={null}
+      selectedFilePath={null}
     />,
   );
   fireEvent.click(screen.getByRole('button', { name: 'Jump to first comment in test.ts' }));

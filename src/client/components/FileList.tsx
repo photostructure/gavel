@@ -38,7 +38,7 @@ interface FileListProps {
   viewedStateReady?: boolean;
   onToggleReviewed: (path: string) => void;
   onToggleFolderReviewed: (path: string, reviewed: boolean) => void;
-  selectedFileIndex: number | null;
+  selectedFilePath: string | null;
 }
 
 interface TreeNode {
@@ -175,7 +175,7 @@ export const FileList = memo(function FileList({
   viewedStateReady = true,
   onToggleReviewed,
   onToggleFolderReviewed,
-  selectedFileIndex,
+  selectedFilePath,
 }: FileListProps) {
   const fileTree = useMemo(() => buildFileTree(files), [files]);
   const shouldUseStickyDirectoryHeaders = useMemo(
@@ -203,13 +203,6 @@ export const FileList = memo(function FileList({
     return counts;
   }, [comments]);
 
-  const fileIndexMap = useMemo(() => {
-    const indices = new Map<string, number>();
-    files.forEach((file, index) => {
-      indices.set(file.path, index);
-    });
-    return indices;
-  }, [files]);
   const diffTotals = useMemo(
     () =>
       files.reduce(
@@ -423,15 +416,14 @@ export const FileList = memo(function FileList({
       const file = node.file;
       const commentCount = commentCountMap.get(file.path) ?? 0;
       const isReviewed = reviewedFiles.has(file.path);
-      const fileIndex = fileIndexMap.get(file.path) ?? -1;
-      const isSelected = selectedFileIndex !== null && selectedFileIndex === fileIndex;
+      const isSelected = file.path === selectedFilePath;
 
       return (
         <div
           key={`file:${file.path}`}
           className={`flex items-center gap-2 px-4 py-2 hover:bg-github-bg-tertiary cursor-pointer transition-colors ${
             isReviewed ? 'opacity-70' : ''
-          } ${isSelected ? 'bg-github-bg-tertiary' : ''}`}
+          } ${isSelected ? 'file-tree-row-selected' : ''}`}
           data-file-row="true"
           data-tree-row="true"
           data-depth={depth}

@@ -166,6 +166,14 @@ body,
     border-color 0.3s ease;
 }
 
+/* The file tree row of the file at the top of the diff, in the blue-500 that
+   marks the selected item in the comments list. Unlayered, so it also beats the
+   row's hover background. */
+.file-tree-row-selected {
+  background-color: color-mix(in srgb, var(--color-blue-500) 18%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-blue-500);
+}
+
 /* Keyboard navigation cursor styles for unified mode (tr level) */
 tr.keyboard-cursor td {
   position: relative;
