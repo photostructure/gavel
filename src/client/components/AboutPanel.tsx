@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useHotkeysContext } from 'react-hotkeys-hook';
 
+import { version } from '../../../package.json';
 import type { ReviewContext as ReviewContextData } from '../../types/diff';
 
 import { ReviewContext } from './ReviewContext';
@@ -79,6 +80,28 @@ export function AboutPanel({
             Review information is unavailable from this server.
           </p>
         )}
+        <section aria-label="Gavel" className="mt-4 border-t border-github-border pt-4">
+          <dl className="grid grid-cols-1 gap-y-1 text-xs">
+            <dt className="ui-heading">Gavel build</dt>
+            <dd className="select-text ui-value">
+              {import.meta.env.VITE_GAVEL_RELEASE_BUILD === 'true' ? (
+                `Version ${version}`
+              ) : (
+                <span
+                  className="mt-1 inline-block rounded p-1"
+                  style={{
+                    background:
+                      'repeating-linear-gradient(-45deg, #facc15 0 8px, #171717 8px 16px)',
+                  }}
+                >
+                  <span className="block rounded-sm bg-github-bg-primary px-2 py-1">
+                    Development build (last release {version})
+                  </span>
+                </span>
+              )}
+            </dd>
+          </dl>
+        </section>
       </div>
     </div>
   );

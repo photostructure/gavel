@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **About** now shows the running Gavel version, or says it is a development build inside a yellow-and-black hazard stripe.
 - Green text and icons in the dark theme, such as a file's added-lines count, **Reopen**, and the comment resolve check mark, are brighter so they are easier to read.
 - The **Viewed** button now follows Gavel's theme setting instead of the operating system's color scheme.
 - The countdown notice under the verdict buttons now has buttons the size of the verdict buttons and a bar along its bottom edge that drains as the time runs out.
