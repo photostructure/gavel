@@ -412,6 +412,7 @@ export const DiffChunk = memo(function DiffChunk({
             const selection = commentLineNumber
               ? { side: commentSide, lineNumber: commentLineNumber }
               : null;
+            const dragLineNumber = dragSide === 'old' ? line.oldLineNumber : line.newLineNumber;
 
             return (
               <React.Fragment key={index}>
@@ -422,7 +423,7 @@ export const DiffChunk = memo(function DiffChunk({
                   isCurrentLine={isCurrentLine || false}
                   hoveredLineIndex={hoveredLine}
                   selectedLineStyle={
-                    getDragSelectionStyle(line.newLineNumber || line.oldLineNumber) ||
+                    getDragSelectionStyle(dragLineNumber) ||
                     // The lines of every open comment form, restored drafts included
                     (composers.some((anchor) => lineInTarget(line, anchor))
                       ? 'comment-selected'
@@ -433,11 +434,8 @@ export const DiffChunk = memo(function DiffChunk({
                   }}
                   onMouseLeave={() => setHoveredLine(null)}
                   onMouseMove={() => {
-                    if (isDragging && startLine) {
-                      const lineNumber = line.newLineNumber || line.oldLineNumber;
-                      if (lineNumber) {
-                        setEndLine(lineNumber);
-                      }
+                    if (isDragging && startLine && dragLineNumber) {
+                      setEndLine(dragLineNumber);
                     }
                   }}
                   onCommentButtonMouseDown={(e) => {

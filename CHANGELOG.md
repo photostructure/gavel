@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - A new agent reply briefly pulses the unread count on **Conversation**, the browser tab's title starts with the unread count, and a review tab with unread replies shows a blue dot.
 - The jump-to-unread dot now appears only on collapsed threads, because an expanded thread shows each reply's own read control.
 - Sending a reply to a thread, including **Agreed**, **Still unclear**, or **Disagree**, marks its agent replies read.
+- In the unified view, dragging a comment selection across a row that has no line number on the selection's side no longer pulls the other side's number into the range.
 
 ### Documentation
 
