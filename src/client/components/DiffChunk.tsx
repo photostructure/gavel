@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
 
 import {
   type DiffChunk as DiffChunkType,
@@ -12,7 +12,8 @@ import {
 } from '../../types/diff';
 import { DEFAULT_DIFF_VIEW_MODE } from '../../utils/diffMode';
 import { type CursorPosition } from '../hooks/keyboardNavigation';
-import { draftKey, type LineDraftAnchor } from '../hooks/useCommentDrafts';
+import { draftKey } from '../hooks/useCommentDrafts';
+import { useLineRangeDrag } from '../hooks/useLineRangeDrag';
 import {
   computeWordLevelDiff,
   shouldComputeWordDiff,
@@ -27,6 +28,7 @@ import {
   isComposerFor,
   lineInTarget,
   lineShowsTarget,
+  numberOn,
   shownCodeFor,
   useChunkComposers,
 } from './LineCommentComposer';
@@ -102,18 +104,16 @@ export const DiffChunk = memo(function DiffChunk({
   filename,
   onOpenInEditor,
 }: DiffChunkProps) {
-  const [startLine, setStartLine] = useState<number | null>(null);
-  const [endLine, setEndLine] = useState<number | null>(null);
-  const [dragSide, setDragSide] = useState<DiffSide | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [commentingLine, setCommentingLine] = useState<{
-    side: DiffSide;
-    lineNumber: LineNumber;
-  } | null>(null);
-  const [selectionAnchor, setSelectionAnchor] = useState<{
-    side: DiffSide;
-    lineNumber: number;
-  } | null>(null);
+  const {
+    dragRange,
+    extendDrag,
+    commentingLine,
+    setCommentingLine,
+    closeComposer,
+    setSelectionAnchor,
+    openShiftClickComment,
+    handleCommentButtonMouseDown,
+  } = useLineRangeDrag();
   const [hoveredLine, setHoveredLine] = useState<number | null>(null);
 
   // Handle comment trigger from keyboard navigation
@@ -129,58 +129,7 @@ export const DiffChunk = memo(function DiffChunk({
         }
       }
     }
-  }, [commentTrigger, chunk.lines, onCommentTriggerHandled]);
-
-  const handleAddComment = useCallback(
-    (side: DiffSide, lineNumber: LineNumber) => {
-      if (commentingLine?.side === side && commentingLine?.lineNumber === lineNumber) {
-        setCommentingLine(null);
-      } else {
-        setCommentingLine({ side, lineNumber });
-      }
-    },
-    [commentingLine],
-  );
-
-  const getCommentLineFromAnchor = (selection: LineSelection): LineNumber => {
-    if (!selectionAnchor || selectionAnchor.side !== selection.side) {
-      return selection.lineNumber;
-    }
-
-    const min = Math.min(selectionAnchor.lineNumber, selection.lineNumber);
-    const max = Math.max(selectionAnchor.lineNumber, selection.lineNumber);
-    return min === max ? selection.lineNumber : [min, max];
-  };
-
-  const openShiftClickComment = (selection: LineSelection) => {
-    handleAddComment(selection.side, getCommentLineFromAnchor(selection));
-    setSelectionAnchor(selection);
-  };
-
-  const startCommentDrag = (selection: LineSelection) => {
-    setSelectionAnchor(selection);
-    setStartLine(selection.lineNumber);
-    setEndLine(selection.lineNumber);
-    setDragSide(selection.side);
-    setIsDragging(true);
-  };
-
-  const handleCommentButtonMouseDown = ({
-    isShiftClick,
-    selection,
-  }: {
-    isShiftClick: boolean;
-    selection: LineSelection | null;
-  }) => {
-    if (!selection) return;
-
-    if (isShiftClick) {
-      openShiftClickComment(selection);
-      return;
-    }
-
-    startCommentDrag(selection);
-  };
+  }, [commentTrigger, chunk.lines, onCommentTriggerHandled, setCommentingLine]);
 
   const handleRowClick = ({
     isShiftClick,
@@ -207,45 +156,8 @@ export const DiffChunk = memo(function DiffChunk({
     onLineClick?.(fileIndex, chunkIndex, lineIndex, navigationSide);
   };
 
-  // Global mouse up handler for drag selection: commit the selection wherever
-  // the mouse is released, not only on the comment button itself
-  useEffect(() => {
-    if (!isDragging) {
-      return undefined;
-    }
-
-    const handleGlobalMouseUp = () => {
-      // Defer so the click event fired after mouseup doesn't immediately
-      // close the newly opened (still empty) comment form
-      setTimeout(() => {
-        if (startLine && dragSide) {
-          const actualEndLine = endLine ?? startLine;
-          if (startLine === actualEndLine) {
-            handleAddComment(dragSide, startLine);
-          } else {
-            const min = Math.min(startLine, actualEndLine);
-            const max = Math.max(startLine, actualEndLine);
-            handleAddComment(dragSide, [min, max]);
-          }
-        }
-        setIsDragging(false);
-        setStartLine(null);
-        setEndLine(null);
-        setDragSide(null);
-      }, 0);
-    };
-
-    document.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => {
-      document.removeEventListener('mouseup', handleGlobalMouseUp);
-    };
-  }, [isDragging, startLine, endLine, dragSide, handleAddComment]);
-
   const composers = useChunkComposers(filename, chunk.lines, commentingLine);
   const codeLines = chunk.snapshotLines ?? chunk.lines;
-  const closeComposer = useCallback((anchor: LineDraftAnchor) => {
-    setCommentingLine((current) => (isComposerFor(anchor, current) ? null : current));
-  }, []);
 
   const getThreadsForLine = (lineNumber: number, side: DiffSide) => {
     return threads
@@ -275,30 +187,26 @@ export const DiffChunk = memo(function DiffChunk({
     }
   };
 
-  const getDragSelectionStyle = (lineNumber: number | undefined): string => {
-    if (!lineNumber) {
+  const getDragSelectionStyle = (line: DiffLine): string => {
+    if (!dragRange) {
       return '';
     }
 
-    // Show selection during drag
-    if (isDragging && startLine && endLine) {
-      const min = Math.min(startLine, endLine);
-      const max = Math.max(startLine, endLine);
-      if (lineNumber >= min && lineNumber <= max) {
-        let classes = 'drag-selected';
-        // Add top border for first line
-        if (lineNumber === min) {
-          classes += ' drag-selected-first';
-        }
-        // Add bottom border for last line
-        if (lineNumber === max) {
-          classes += ' drag-selected-last';
-        }
-        return classes;
-      }
+    const lineNumber = numberOn(line, dragRange.side);
+    if (!lineNumber || lineNumber < dragRange.min || lineNumber > dragRange.max) {
+      return '';
     }
 
-    return '';
+    let classes = 'drag-selected';
+    // Add top border for first line
+    if (lineNumber === dragRange.min) {
+      classes += ' drag-selected-first';
+    }
+    // Add bottom border for last line
+    if (lineNumber === dragRange.max) {
+      classes += ' drag-selected-last';
+    }
+    return classes;
   };
 
   // Compute word-level diff for unified mode
@@ -412,7 +320,6 @@ export const DiffChunk = memo(function DiffChunk({
             const selection = commentLineNumber
               ? { side: commentSide, lineNumber: commentLineNumber }
               : null;
-            const dragLineNumber = dragSide === 'old' ? line.oldLineNumber : line.newLineNumber;
 
             return (
               <React.Fragment key={index}>
@@ -423,7 +330,7 @@ export const DiffChunk = memo(function DiffChunk({
                   isCurrentLine={isCurrentLine || false}
                   hoveredLineIndex={hoveredLine}
                   selectedLineStyle={
-                    getDragSelectionStyle(dragLineNumber) ||
+                    getDragSelectionStyle(line) ||
                     // The lines of every open comment form, restored drafts included
                     (composers.some((anchor) => lineInTarget(line, anchor))
                       ? 'comment-selected'
@@ -433,21 +340,8 @@ export const DiffChunk = memo(function DiffChunk({
                     setHoveredLine(index);
                   }}
                   onMouseLeave={() => setHoveredLine(null)}
-                  onMouseMove={() => {
-                    if (isDragging && startLine && dragLineNumber) {
-                      setEndLine(dragLineNumber);
-                    }
-                  }}
-                  onCommentButtonMouseDown={(e) => {
-                    e.stopPropagation();
-                    if (e.shiftKey) {
-                      e.preventDefault();
-                    }
-                    handleCommentButtonMouseDown({
-                      isShiftClick: e.shiftKey,
-                      selection,
-                    });
-                  }}
+                  onMouseMove={() => extendDrag(line)}
+                  onCommentButtonMouseDown={(e) => handleCommentButtonMouseDown(e, selection)}
                   onOpenInEditor={
                     onOpenInEditor &&
                     line.type !== 'delete' &&

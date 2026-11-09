@@ -11,7 +11,7 @@ import {
 import { CommentForm, type CommentSubmitOptions } from './CommentForm';
 import type { AppearanceSettings } from './SettingsModal';
 
-interface LineTarget {
+export interface LineTarget {
   side: DiffSide;
   lineNumber: LineNumber;
 }
@@ -19,8 +19,10 @@ interface LineTarget {
 export const lastLineOf = (lineNumber: LineNumber) =>
   Array.isArray(lineNumber) ? lineNumber[1] : lineNumber;
 
-const numberOn = (line: DiffLine, side: DiffSide) =>
-  side === 'old' ? line.oldLineNumber : line.newLineNumber;
+export const numberOn = (
+  line: Pick<DiffLine, 'oldLineNumber' | 'newLineNumber'>,
+  side: DiffSide,
+) => (side === 'old' ? line.oldLineNumber : line.newLineNumber);
 
 const rangeOf = (lineNumber: LineNumber): [number, number] =>
   Array.isArray(lineNumber) ? lineNumber : [lineNumber, lineNumber];

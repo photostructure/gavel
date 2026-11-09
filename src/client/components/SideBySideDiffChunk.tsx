@@ -10,7 +10,8 @@ import {
   type LineSelection,
 } from '../../types/diff';
 import { type CursorPosition } from '../hooks/keyboardNavigation';
-import { draftKey, type LineDraftAnchor } from '../hooks/useCommentDrafts';
+import { draftKey } from '../hooks/useCommentDrafts';
+import { useLineRangeDrag } from '../hooks/useLineRangeDrag';
 import {
   computeWordLevelDiff,
   shouldComputeWordDiff,
@@ -183,14 +184,17 @@ export function SideBySideDiffChunk({
   onOpenInEditor,
 }: SideBySideDiffChunkProps) {
   const { getOldTokens, getNewTokens } = useFileLevelTokensLookup();
-  const [startLine, setStartLine] = useState<LineSelection | null>(null);
-  const [endLine, setEndLine] = useState<LineSelection | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [commentingLine, setCommentingLine] = useState<{
-    side: DiffSide;
-    lineNumber: LineNumber;
-  } | null>(null);
-  const [selectionAnchor, setSelectionAnchor] = useState<LineSelection | null>(null);
+  const {
+    isDragging,
+    dragRange,
+    extendDrag,
+    commentingLine,
+    setCommentingLine,
+    closeComposer,
+    setSelectionAnchor,
+    openShiftClickComment,
+    handleCommentButtonMouseDown,
+  } = useLineRangeDrag();
   const [hoveredLine, setHoveredLine] = useState<LineSelection | null>(null);
 
   // Handle comment trigger from keyboard navigation
@@ -205,57 +209,7 @@ export function SideBySideDiffChunk({
         }
       }
     }
-  }, [commentTrigger, chunk.lines, onCommentTriggerHandled]);
-
-  const handleAddComment = useCallback(
-    (side: DiffSide, lineNumber: LineNumber) => {
-      if (commentingLine?.side === side && commentingLine?.lineNumber === lineNumber) {
-        setCommentingLine(null);
-      } else {
-        setCommentingLine({ side, lineNumber });
-      }
-    },
-    [commentingLine],
-  );
-
-  const getCommentLineFromAnchor = (selection: LineSelection): LineNumber => {
-    if (!selectionAnchor || selectionAnchor.side !== selection.side) {
-      return selection.lineNumber;
-    }
-
-    const min = Math.min(selectionAnchor.lineNumber, selection.lineNumber);
-    const max = Math.max(selectionAnchor.lineNumber, selection.lineNumber);
-    return min === max ? selection.lineNumber : [min, max];
-  };
-
-  const openShiftClickComment = (selection: LineSelection) => {
-    handleAddComment(selection.side, getCommentLineFromAnchor(selection));
-    setSelectionAnchor(selection);
-  };
-
-  const startCommentDrag = (selection: LineSelection) => {
-    setSelectionAnchor(selection);
-    setStartLine(selection);
-    setEndLine(selection);
-    setIsDragging(true);
-  };
-
-  const handleCommentButtonMouseDown = ({
-    isShiftClick,
-    selection,
-  }: {
-    isShiftClick: boolean;
-    selection: LineSelection | null;
-  }) => {
-    if (!selection) return;
-
-    if (isShiftClick) {
-      openShiftClickComment(selection);
-      return;
-    }
-
-    startCommentDrag(selection);
-  };
+  }, [commentTrigger, chunk.lines, onCommentTriggerHandled, setCommentingLine]);
 
   const handleRowClick = ({
     isShiftClick,
@@ -280,45 +234,8 @@ export function SideBySideDiffChunk({
     onLineClick?.(fileIndex, chunkIndex, clickedLine.lineIndex, clickedLine.navigationSide);
   };
 
-  // Global mouse up handler for drag selection: commit the selection wherever
-  // the mouse is released, not only on the comment button itself
-  useEffect(() => {
-    if (!isDragging) {
-      return undefined;
-    }
-
-    const handleGlobalMouseUp = () => {
-      // Defer so the click event fired after mouseup doesn't immediately
-      // close the newly opened (still empty) comment form
-      setTimeout(() => {
-        if (startLine) {
-          const actualEndLine =
-            endLine && endLine.side === startLine.side ? endLine.lineNumber : startLine.lineNumber;
-          if (startLine.lineNumber === actualEndLine) {
-            handleAddComment(startLine.side, startLine.lineNumber);
-          } else {
-            const min = Math.min(startLine.lineNumber, actualEndLine);
-            const max = Math.max(startLine.lineNumber, actualEndLine);
-            handleAddComment(startLine.side, [min, max]);
-          }
-        }
-        setIsDragging(false);
-        setStartLine(null);
-        setEndLine(null);
-      }, 0);
-    };
-
-    document.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => {
-      document.removeEventListener('mouseup', handleGlobalMouseUp);
-    };
-  }, [isDragging, startLine, endLine, handleAddComment]);
-
   const composers = useChunkComposers(filename, chunk.lines, commentingLine);
   const codeLines = chunk.snapshotLines ?? chunk.lines;
-  const closeComposer = useCallback((anchor: LineDraftAnchor) => {
-    setCommentingLine((current) => (isComposerFor(anchor, current) ? null : current));
-  }, []);
 
   const getProcomputedTokens = useCallback(
     (getTokens: typeof getOldTokens, lineNumber: number | null | undefined) => {
@@ -365,9 +282,8 @@ export function SideBySideDiffChunk({
     }
 
     // Show selection during drag
-    if (isDragging && startLine && endLine && startLine.side === side && endLine.side === side) {
-      const min = Math.min(startLine.lineNumber, endLine.lineNumber);
-      const max = Math.max(startLine.lineNumber, endLine.lineNumber);
+    if (dragRange?.side === side) {
+      const { min, max } = dragRange;
       if (lineNumber >= min && lineNumber <= max) {
         let classes =
           'after:bg-blue-100 after:absolute after:inset-0 after:opacity-30 after:border-l-4 after:border-blue-500 after:pointer-events-none';
@@ -619,20 +535,7 @@ export function SideBySideDiffChunk({
                       }
                     }
 
-                    // Handle dragging
-                    if (isDragging && startLine) {
-                      if (startLine.side === 'old' && sideLine.oldLineNumber) {
-                        setEndLine({
-                          side: 'old',
-                          lineNumber: sideLine.oldLineNumber,
-                        });
-                      } else if (startLine.side === 'new' && sideLine.newLineNumber) {
-                        setEndLine({
-                          side: 'new',
-                          lineNumber: sideLine.newLineNumber,
-                        });
-                      }
-                    }
+                    extendDrag(sideLine);
                   }}
                   onMouseLeave={() => setHoveredLine(null)}
                 >
@@ -657,16 +560,7 @@ export function SideBySideDiffChunk({
                               />
                             )}
                           <CommentButton
-                            onMouseDown={(e) => {
-                              e.stopPropagation();
-                              if (e.shiftKey) {
-                                e.preventDefault();
-                              }
-                              handleCommentButtonMouseDown({
-                                isShiftClick: e.shiftKey,
-                                selection: oldSelection,
-                              });
-                            }}
+                            onMouseDown={(e) => handleCommentButtonMouseDown(e, oldSelection)}
                           />
                         </>
                       )}
@@ -717,16 +611,7 @@ export function SideBySideDiffChunk({
                             />
                           )}
                           <CommentButton
-                            onMouseDown={(e) => {
-                              e.stopPropagation();
-                              if (e.shiftKey) {
-                                e.preventDefault();
-                              }
-                              handleCommentButtonMouseDown({
-                                isShiftClick: e.shiftKey,
-                                selection: newSelection,
-                              });
-                            }}
+                            onMouseDown={(e) => handleCommentButtonMouseDown(e, newSelection)}
                           />
                         </>
                       )}

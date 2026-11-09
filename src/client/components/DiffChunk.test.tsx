@@ -179,6 +179,66 @@ describe('DiffChunk range comments', () => {
     },
   );
 
+  it.each([
+    ['new', 2, 3, 0, [1, 2], [30, 32], 'before\nadded\nafter'],
+    ['old', 0, 1, 1, [2], [21, 22], 'removed\nafter'],
+  ] as const)(
+    'drags a %s-side range in split view',
+    async (side, numberColumn, codeColumn, startRow, movedRows, line, code) => {
+      const chunk: DiffChunkData = {
+        header: '@@ -20,3 +30,3 @@',
+        oldStart: 20,
+        oldLines: 3,
+        newStart: 30,
+        newLines: 3,
+        lines: [
+          { type: 'normal', content: 'before', oldLineNumber: 20, newLineNumber: 30 },
+          { type: 'delete', content: 'removed', oldLineNumber: 21 },
+          { type: 'add', content: 'added', newLineNumber: 31 },
+          { type: 'normal', content: 'after', oldLineNumber: 22, newLineNumber: 32 },
+        ],
+      };
+      const onAddComment = vi.fn().mockResolvedValue(undefined);
+      const { container } = renderWithProviders(
+        <DiffChunk
+          chunk={chunk}
+          chunkIndex={0}
+          threads={[]}
+          mode="split"
+          onAddComment={onAddComment}
+          onGenerateThreadPrompt={() => ''}
+          onToggleThreadResolved={noop}
+          onReplyToThread={asyncNoop}
+          onRemoveMessage={noop}
+          onUpdateMessage={noop}
+          filename="file.ts"
+        />,
+      );
+      const rows = [...container.querySelectorAll('[data-diff-line-row="true"]')];
+
+      fireEvent.mouseMove(rows[startRow]!.children[numberColumn]!);
+      fireEvent.mouseDown(container.querySelector('[data-comment-button="true"]')!);
+      for (const row of movedRows) {
+        fireEvent.mouseMove(rows[row]!.children[codeColumn]!);
+      }
+      expect(
+        rows.flatMap((row, index) =>
+          row.children[codeColumn]!.className.includes('after:border-blue-500') ? [index] : [],
+        ),
+      ).toEqual([startRow, ...movedRows]);
+
+      fireEvent.mouseUp(document);
+      fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'Dragged' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+      await waitFor(() =>
+        expect(onAddComment).toHaveBeenCalledWith(line, 'Dragged', code, side, {
+          isQuestion: false,
+          intent: 'comment',
+        }),
+      );
+    },
+  );
+
   it('opens a unified range comment with shift-click', async () => {
     const onAddComment = vi.fn().mockResolvedValue(undefined);
     const { container } = renderWithProviders(
