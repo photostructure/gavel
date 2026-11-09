@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **Conversation** now covers every review on the server. The unread badge, now blue, counts agent replies from all of them, and **Unread** lists them grouped under each review's name. With two or more reviews, an **All reviews** pill lists every thread, and **Mark this review read** and **Mark all reviews read** replace **Mark all read**. A thread from another review shows read controls only; clicking it opens that review with the thread focused, where you can reply. The **All** pill is now **This review**. Read marks are now saved per repository rather than per review, so replies you already read show as unread once more.
+- A new agent reply briefly pulses the unread count on **Conversation**, the browser tab's title starts with the unread count, and a review tab with unread replies shows a blue dot.
+- The jump-to-unread dot now appears only on collapsed threads, because an expanded thread shows each reply's own read control.
+- Sending a reply to a thread, including **Agreed**, **Still unclear**, or **Disagree**, marks its agent replies read.
 
 ### Documentation
 

@@ -56,6 +56,7 @@ import { ReviewPresenceIndicator } from './components/ReviewPresenceIndicator';
 import { DraftBadge } from './components/DraftBadge';
 import { UnreadBadge } from './components/UnreadBadge';
 import { useAgentUpdates } from './hooks/useAgentUpdates';
+import { useNewReplyPulse } from './hooks/useNewReplyPulse';
 import { RevisionDetailModal } from './components/RevisionDetailModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ViewMenu } from './components/ViewMenu';
@@ -212,6 +213,7 @@ function App() {
   const [recentReviews, setRecentReviews] = useState<RecentReview[]>([]);
   const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>([]);
   const [reviewConversations, setReviewConversations] = useState<OtherReviewConversation[]>([]);
+  const [hasLoadedReviews, setHasLoadedReviews] = useState(false);
   const recentReviewsRequestRef = useRef(0);
   const loadRecentReviewsRef = useRef<(() => Promise<void>) | null>(null);
   const [selectedRevision, setSelectedRevision] = useState<ReviewSelection>(
@@ -861,9 +863,23 @@ function App() {
   // Scoped to the repository because thread IDs are unique, and any review's threads can be
   // marked read from Conversation while another review is open.
   const readMarkScope = diffData ? (diffData.repositoryId ?? 'default') : null;
-  const { updates: agentUpdates, setRead: setAgentMessageRead } = useAgentUpdates(
-    unreadCandidateThreads,
-    readMarkScope,
+  const {
+    updates: agentUpdates,
+    allUpdates: allAgentUpdates,
+    setRead: setAgentMessageRead,
+  } = useAgentUpdates(unreadCandidateThreads, readMarkScope);
+  const replyPulse = useNewReplyPulse(
+    allAgentUpdates,
+    agentUpdates,
+    hasBootstrappedComments && hasLoadedReviews,
+  );
+  const unreadReviews = new Set(
+    agentUpdates.flatMap(
+      (update) =>
+        otherReviews.find((review) => review.threads.includes(update.thread))?.key ??
+        resolvedSelectionKey ??
+        [],
+    ),
   );
   const showAuthorBadges = useMemo(
     () => hasMultipleCommentAuthors(normalizedThreads.flatMap((thread) => thread.messages)),
@@ -1173,7 +1189,6 @@ function App() {
         }
         setDiffData(data);
         setDiffDataVersion((prev) => prev + 1);
-        if (data.title) document.title = data.title;
         const requestedBase = data.requestedBaseCommitish ?? data.baseCommitish;
         const requestedTarget = data.requestedTargetCommitish ?? data.targetCommitish;
         if (requestedBase && requestedTarget && !preserveLocation) {
@@ -1400,6 +1415,7 @@ function App() {
             };
           }),
       );
+      setHasLoadedReviews(true);
       // The picker is gone while an agent asks for approval; so is a dialog it opened.
       if (requests.length > 0) setIsRevisionModalOpen(false);
     } catch (historyError) {
@@ -1609,14 +1625,20 @@ function App() {
 
   const reviewPresence = useReviewPresence();
   const reviewContext = diffData?.reviewContext;
+  const pageTitle =
+    diffData?.title ??
+    (reviewContext
+      ? `${reviewContext.repositoryName || 'Imported diff'} — gavel (${window.location.host})`
+      : undefined);
+  const unreadCount = agentUpdates.length;
   useEffect(() => {
-    if (!reviewContext || diffData?.title) return;
+    if (!pageTitle) return;
     const previous = document.title;
-    document.title = `${reviewContext.repositoryName || 'Imported diff'} — gavel (${window.location.host})`;
+    document.title = unreadCount > 0 ? `(${unreadCount}) ${pageTitle}` : pageTitle;
     return () => {
       document.title = previous;
     };
-  }, [reviewContext, diffData?.title]);
+  }, [pageTitle, unreadCount]);
   const agentReadContext = useMemo(
     () => ({
       enabled: hasBootstrappedComments && !captureReloading,
@@ -1971,7 +1993,7 @@ function App() {
                   aria-atomic="true"
                   className="inline-flex gap-1 tabular-nums max-md:absolute max-md:-top-1.5 max-md:-right-1"
                 >
-                  <UnreadBadge count={agentUpdates.length} />
+                  <UnreadBadge count={agentUpdates.length} pulse={replyPulse} />
                   <DraftBadge count={draftCount} />
                   <span className="sr-only">
                     {agentUpdates.length
@@ -2023,6 +2045,7 @@ function App() {
               current={resolvedSelection}
               approvals={Boolean(diffData.shipIt)}
               pulse={verdictFollowUp.pulse}
+              unreadReviews={unreadReviews}
               onSelect={openReviewFromTab}
             />
             <ReviewSummaryPanel

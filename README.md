@@ -377,10 +377,11 @@ Inside the panel, use the **This review**, **Open**, **Resolved**, and **Unread*
 pills, plus **All reviews** when the server has more than one review. **Unread** and
 **All reviews** group threads under each review's name. A thread from another review
 offers only read controls; click it to open that review with the thread focused.
-Blue dots identify threads with unread agent replies, including resolved and
-outdated threads; select a dot to jump to the first unread message.
+A collapsed thread with unread agent replies, such as a resolved one, shows a blue dot;
+select it to expand the thread and jump to the first unread message.
 Click an agent reply to mark only that reply read, or use the dot at the start of
 its action buttons: a filled dot marks it read, a hollow ring marks it unread.
+Sending a reply to a thread, including **Agreed**, marks its agent replies read.
 **Mark all read** marks every agent message in the review, including threads hidden by
 the current filter; with several reviews, it splits into **Mark this review read** and
 **Mark all reviews read**. Opening, scrolling, jumping to a

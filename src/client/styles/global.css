@@ -53,6 +53,40 @@
   }
 }
 
+/* A new agent reply; useNewReplyPulse's UNREAD_PULSE_MS is 3 iterations of 1.2s. Two
+   identical animations, so switching between them restarts it. */
+@keyframes unread-pulse-0 {
+  50% {
+    background-color: white;
+    color: rgb(37 99 235);
+    box-shadow: 0 0 0 6px rgb(37 99 235 / 45%);
+    transform: scale(1.35);
+  }
+}
+@keyframes unread-pulse-1 {
+  50% {
+    background-color: white;
+    color: rgb(37 99 235);
+    box-shadow: 0 0 0 6px rgb(37 99 235 / 45%);
+    transform: scale(1.35);
+  }
+}
+.unread-pulse-0 {
+  animation: unread-pulse-0 1.2s ease-in-out 3;
+}
+.unread-pulse-1 {
+  animation: unread-pulse-1 1.2s ease-in-out 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .unread-pulse-0,
+  .unread-pulse-1 {
+    animation: none;
+    background-color: white;
+    color: rgb(37 99 235);
+    box-shadow: 0 0 0 6px rgb(37 99 235 / 45%);
+  }
+}
+
 @media (pointer: coarse) {
   .review-toolbar button,
   .review-menu button,

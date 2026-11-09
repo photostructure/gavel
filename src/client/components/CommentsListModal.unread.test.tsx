@@ -40,6 +40,11 @@ function updates(threads: CommentThread[]): AgentUpdate[] {
       })),
   );
 }
+const readStateFor = (item: CommentThread, setRead: () => void) => ({
+  enabled: true,
+  unreadKeys: new Set(updates([item]).map((update) => update.key)),
+  setRead,
+});
 const props = {
   isOpen: true,
   onClose: vi.fn(),
@@ -74,11 +79,11 @@ describe('unread conversations', () => {
       { wrapper },
     );
     fireEvent.click(screen.getByRole('radio', { name: 'Unread' }));
-    expect(
-      screen.getByRole('button', {
-        name: 'Jump to 2 unread agent messages in review conversation',
-      }),
-    ).toBeVisible();
+    const jumpToA = { name: 'Jump to 2 unread agent messages in review conversation' };
+    // An expanded thread relies on its replies' own read controls.
+    expect(screen.queryByRole('button', jumpToA)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse thread' }));
+    expect(screen.getByRole('button', jumpToA)).toBeVisible();
     expect(
       screen.getByRole('button', { name: 'Jump to 1 unread agent message in file-b.ts:1' }),
     ).toBeVisible();
@@ -140,6 +145,7 @@ describe('unread conversations', () => {
     act(() => visible.forEach((show) => show()));
     fireEvent.scroll(screen.getByRole('dialog', { name: 'Conversation' }));
     fireEvent.click(screen.getByRole('radio', { name: 'Unread' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse thread' }));
     fireEvent.click(
       screen.getByRole('button', {
         name: 'Jump to 2 unread agent messages in review conversation',
@@ -152,6 +158,29 @@ describe('unread conversations', () => {
     rerender(<View isOpen={false} />);
     expect(setRead).not.toHaveBeenCalled();
     expect(onMarkAllRead).not.toHaveBeenCalled();
+  });
+
+  it('marks a thread read when the reviewer sends a quick reply or a typed reply', async () => {
+    const a = thread('a');
+    const setRead = vi.fn();
+    const readState = readStateFor(a, setRead);
+    render(
+      <AgentUpdatesContext.Provider value={readState}>
+        <CommentsListModal {...props} comments={[a]} unreadUpdates={updates([a])} />
+      </AgentUpdatesContext.Provider>,
+      { wrapper },
+    );
+    const revision = agentMessageRevision(a.messages[1]!);
+    fireEvent.click(screen.getByRole('button', { name: '👍 Agreed' }));
+    await waitFor(() => expect(setRead).toHaveBeenCalledWith('a', 'a-reply-0', revision, true));
+
+    setRead.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Write a reply...' }));
+    fireEvent.change(screen.getByPlaceholderText('Write a reply...'), {
+      target: { value: 'Thanks' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(setRead).toHaveBeenCalledWith('a', 'a-reply-0', revision, true));
   });
 
   it('requires an explicit click for Mark all read and disables it when nothing is unread', () => {
@@ -191,6 +220,7 @@ describe('unread conversations', () => {
       />,
       { wrapper },
     );
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse thread' }));
     fireEvent.click(
       screen.getByRole('button', { name: 'Jump to 1 unread agent message in review conversation' }),
     );

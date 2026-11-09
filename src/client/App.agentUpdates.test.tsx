@@ -112,6 +112,7 @@ describe('navigating unseen agent replies', () => {
         return Promise.resolve(
           Response.json({
             commit: 'fixture',
+            title: 'Fixture review',
             repositoryId: 'repo',
             baseCommitish: 'HEAD',
             targetCommitish: '.',
@@ -273,6 +274,49 @@ describe('navigating unseen agent replies', () => {
     await expectUnread(2);
     fireEvent.click(screen.getByRole('button', { name: 'Mark all reviews read' }));
     await expectUnread(0);
+  });
+
+  it('shows the unread count in the page title and pulses the badge for a new reply only', async () => {
+    otherThreads = [
+      {
+        id: 'elsewhere',
+        scope: 'review',
+        createdAt: time,
+        updatedAt: time,
+        messages: messages('elsewhere-answer', 'Agent answer in another review'),
+      },
+    ];
+    mount();
+    await expectUnread(3);
+    await waitFor(() => expect(document.title).toBe('(3) Fixture review'));
+    const conversation = screen.getByRole('button', { name: 'Conversation' });
+    expect(conversation.querySelector('[class*="unread-pulse"]')).toBeNull();
+    expect(
+      within(screen.getByRole('navigation', { name: 'Reviews on this server' })).getByRole(
+        'button',
+        { name: /other/ },
+      ),
+    ).toHaveTextContent('unread replies');
+
+    otherThreads[0]!.messages.push({
+      id: 'elsewhere-followup',
+      origin: 'agent',
+      body: 'A later answer in another review',
+      createdAt: time,
+      updatedAt: time,
+    });
+    await act(() => callbacks.comments!());
+    await expectUnread(4);
+    expect(document.title).toBe('(4) Fixture review');
+    await waitFor(() =>
+      expect(conversation.querySelector('[class*="unread-pulse-"]')).not.toBeNull(),
+    );
+    expect(conversation.className).not.toMatch(/unread-pulse/);
+
+    fireEvent.click(conversation);
+    fireEvent.click(screen.getByRole('button', { name: 'Mark all reviews read' }));
+    await expectUnread(0);
+    expect(document.title).toBe('Fixture review');
   });
 
   it('updates the pending approval label when an approval-change notification arrives', async () => {
@@ -450,6 +494,10 @@ describe('navigating unseen agent replies', () => {
     expect(filter).toBeChecked();
     expect(screen.getByText('Agent answer about the hidden file')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Reopen' })).toBeVisible();
+    const generalCard = screen
+      .getByText('Agent answer about the whole review')
+      .closest<HTMLElement>('[data-comment-thread-id]')!;
+    fireEvent.click(within(generalCard).getByRole('button', { name: 'Collapse thread' }));
     fireEvent.click(
       within(panel).getByRole('button', {
         name: 'Jump to 1 unread agent message in review conversation',
@@ -514,13 +562,20 @@ describe('navigating unseen agent replies', () => {
     await expectUnread(1);
     expect(screen.getByText('Another corrected answer')).toBeVisible();
 
-    // Jumping to an edited reply again also works while its thread stays expanded.
+    // An edited reply can be jumped to again once its thread is collapsed.
     threads = structuredClone(threads);
     threads[1]!.messages[1]!.body = 'The final corrected answer';
     await act(async () => {
       await callbacks.comments?.();
     });
     await expectUnread(1);
+    fireEvent.click(
+      within(
+        screen
+          .getByText('The final corrected answer')
+          .closest<HTMLElement>('[data-comment-thread-id]')!,
+      ).getByRole('button', { name: 'Collapse thread' }),
+    );
     const unreadButton = screen.getByRole('button', {
       name: 'Jump to 1 unread agent message in not-in-diff.ts:999',
     });

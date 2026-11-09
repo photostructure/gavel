@@ -102,5 +102,5 @@ export function useAgentUpdates(threads: CommentThread[], scope: string | null) 
     scope !== null && state.scope === scope
       ? allUpdates.filter((update) => state.seen[update.key] !== update.revision)
       : [];
-  return { updates, setRead };
+  return { updates, allUpdates, setRead };
 }

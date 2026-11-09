@@ -374,6 +374,16 @@ export function CommentThreadCard({
   useEffect(() => {
     if (restoredDraft && !thread.deleted) setIsCollapsed(false);
   }, [restoredDraft, thread.deleted]);
+  const readState = useContext(AgentUpdatesContext);
+  // Answering a thread means its agent replies have been read.
+  const markAgentRepliesRead = () => {
+    if (!readState?.enabled) return;
+    for (const message of thread.messages) {
+      if (message.origin === 'agent' && !thread.deletedMessageIds?.includes(message.id)) {
+        readState.setRead(thread.id, message.id, agentMessageRevision(message), true);
+      }
+    }
+  };
   const replyDraft = useCommentDraft({ kind: 'reply', threadId: thread.id });
   const [replyForm, setReplyForm] = useState<DraftFormState>(
     replyDraft.draft ? 'restored' : 'closed',
@@ -483,7 +493,8 @@ export function CommentThreadCard({
         </button>
         {(thread.deleted || thread.resolution?.resolved || !isCollapsed || unreadCount > 0) && (
           <div className="flex shrink-0 items-center gap-2">
-            {unreadCount > 0 && onReadUnread && (
+            {/* An expanded thread shows each reply's own read control. */}
+            {isCollapsed && unreadCount > 0 && onReadUnread && (
               <button
                 type="button"
                 onClick={(event) => {
@@ -623,6 +634,7 @@ export function CommentThreadCard({
                     onIntentChange={replyDraft.setIntent}
                     onSubmit={async (body, options) => {
                       await onReplyToThread(thread.id, body, options.intent);
+                      markAgentRepliesRead();
                       replyDraft.clear();
                       setReplyForm('closed');
                     }}
@@ -660,9 +672,11 @@ export function CommentThreadCard({
                           type="button"
                           title={`Send "${body}" as a ${intent}`}
                           onClick={() => {
-                            onReplyToThread(thread.id, body, intent).catch((error: unknown) => {
-                              console.error('Failed to send quick reply:', error);
-                            });
+                            onReplyToThread(thread.id, body, intent)
+                              .then(markAgentRepliesRead)
+                              .catch((error: unknown) => {
+                                console.error('Failed to send quick reply:', error);
+                              });
                           }}
                           className="whitespace-nowrap rounded-full border border-github-border bg-github-bg-secondary px-3 py-1 text-xs text-github-text-primary transition-colors hover:border-github-text-secondary hover:bg-github-bg-primary"
                         >

@@ -61,11 +61,23 @@ function ApprovalMark({ approval }: { approval: ReviewApproval }) {
   );
 }
 
+const UNREAD_LABEL = 'unread replies';
+const EMPTY_UNREAD: ReadonlySet<string> = new Set();
+
+function UnreadDot() {
+  return (
+    <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500">
+      <span className="sr-only">, {UNREAD_LABEL}</span>
+    </span>
+  );
+}
+
 export function ReviewQueueBar({
   reviews,
   current,
   approvals,
   pulse = 0,
+  unreadReviews = EMPTY_UNREAD,
   onSelect,
 }: {
   // In the order the server created them, which agents use for commit order.
@@ -75,13 +87,19 @@ export function ReviewQueueBar({
   approvals: boolean;
   // Each increase replays a pulse on the tabs of reviews without a verdict.
   pulse?: number;
+  // getDiffSelectionKey of each review with an unread agent reply.
+  unreadReviews?: ReadonlySet<string>;
   onSelect: (selection: DiffSelection) => void;
 }) {
+  const hasUnread = (review: ApprovalRequest) =>
+    unreadReviews.has(getDiffSelectionKey(review.selection));
   // Two identically animated classes: switching between them restarts the animation.
   const pulseClass = (review: ApprovalRequest) =>
     approvals && pulse > 0 && !isDone(review) ? ` verdict-pulse-${pulse % 2}` : '';
   const measureRef = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(false);
+  // Every dot is the same width, so their number is enough to know when to measure again.
+  const unreadTabs = reviews.filter(hasUnread).length;
 
   // The tabs collapse into one menu when a hidden one-row copy of them is wider than the
   // bar, so a long stack never pushes the diff down by several rows.
@@ -93,7 +111,7 @@ export function ReviewQueueBar({
     const observer = new ResizeObserver(update);
     observer.observe(measure);
     return () => observer.disconnect();
-  }, [reviews, approvals]);
+  }, [reviews, approvals, unreadTabs]);
 
   const open = reviews.find((review) => diffSelectionsEqual(review.selection, current));
   // While a review asks for approval the revision picker is gone, so the bar is the only way
@@ -134,6 +152,7 @@ export function ReviewQueueBar({
           >
             {approvals && <ApprovalMark approval={review.approval} />}
             <code className="font-semibold">{review.name}</code>
+            {hasUnread(review) && <UnreadDot />}
           </span>
         ))}
       </div>
@@ -147,6 +166,7 @@ export function ReviewQueueBar({
               <span className="sr-only">All reviews, open: </span>
               {approvals && open && <ApprovalMark approval={open.approval} />}
               <code className="truncate">{open?.name ?? 'Choose a review'}</code>
+              {reviews.some(hasUnread) && <UnreadDot />}
               <ChevronDown size={12} aria-hidden="true" className="shrink-0" />
             </>
           }
@@ -169,7 +189,10 @@ export function ReviewQueueBar({
                       </span>
                     )}
                     <span className="min-w-0">
-                      <code className="block break-all font-semibold">{review.name}</code>
+                      <span className="flex items-center gap-1.5">
+                        <code className="block break-all font-semibold">{review.name}</code>
+                        {hasUnread(review) && <UnreadDot />}
+                      </span>
                       {review.title && (
                         <span className="block truncate text-github-text-secondary">
                           {review.title}
@@ -195,18 +218,26 @@ export function ReviewQueueBar({
           {reviews.map((review) => {
             const isOpen = review === open;
             const state = approvals ? approvalLabel(review.approval) : undefined;
+            const unread = hasUnread(review);
             return (
               <li key={getDiffSelectionKey(review.selection)} className="shrink-0">
                 <button
                   type="button"
                   aria-current={isOpen ? 'page' : undefined}
-                  aria-label={state ? `${review.name}, ${state}` : undefined}
-                  title={[review.title, state].filter(Boolean).join('\n')}
+                  aria-label={
+                    state
+                      ? [review.name, state, unread && UNREAD_LABEL].filter(Boolean).join(', ')
+                      : undefined
+                  }
+                  title={[review.title, state, unread && 'Unread replies']
+                    .filter(Boolean)
+                    .join('\n')}
                   onClick={() => onSelect(review.selection)}
                   className={`${tabClasses} ${isOpen ? openTabClasses(review.approval, approvals) : 'border-transparent text-github-text-secondary hover:bg-github-bg-secondary hover:text-github-text-primary'}${pulseClass(review)}`}
                 >
                   {state && <ApprovalMark approval={review.approval} />}
                   <code>{review.name}</code>
+                  {unread && <UnreadDot />}
                 </button>
               </li>
             );

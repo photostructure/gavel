@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ReviewApproval } from '../../types/conversation';
-import { createDiffSelection } from '../../utils/diffSelection';
+import { createDiffSelection, getDiffSelectionKey } from '../../utils/diffSelection';
 
 import { ReviewQueueBar, type ApprovalRequest } from './ReviewQueueBar';
 
@@ -46,6 +46,22 @@ describe('review queue bar', () => {
     expect(bar()).toHaveTextContent(/^1 of 1 need a verdict/);
     fireEvent.click(within(bar()).getByRole('button', { name: 'parser, Needs a verdict' }));
     expect(onSelect).toHaveBeenCalledWith(reviews[0]!.selection);
+  });
+
+  it('marks only the tabs of reviews with unread replies', () => {
+    render(
+      <ReviewQueueBar
+        reviews={reviews}
+        current={reviews[0]!.selection}
+        approvals
+        unreadReviews={new Set([getDiffSelectionKey(reviews[2]!.selection)])}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(
+      within(bar()).getByRole('button', { name: 'docs, Needs a verdict, unread replies' }),
+    ).toBeVisible();
+    expect(within(bar()).getByRole('button', { name: 'tests, Needs a verdict' })).toBeVisible();
   });
 
   it('names every review in creation order, marks the open one, and opens the one clicked', () => {
@@ -249,6 +265,31 @@ describe('review queue bar', () => {
       });
     });
     afterEach(() => vi.restoreAllMocks());
+
+    it('measures again when unread dots change the width of the tabs', () => {
+      vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (
+        this: Element,
+      ) {
+        return this.hasAttribute('data-tab-measure')
+          ? 295 + 14 * this.querySelectorAll('.bg-blue-500').length
+          : 0;
+      });
+      const view = (unreadReviews: ReadonlySet<string>) => (
+        <ReviewQueueBar
+          reviews={reviews}
+          current={reviews[0]!.selection}
+          approvals
+          unreadReviews={unreadReviews}
+          onSelect={vi.fn()}
+        />
+      );
+      const { rerender } = render(view(new Set()));
+      expect(within(bar()).getByRole('list')).toBeVisible();
+      rerender(view(new Set(reviews.map((review) => getDiffSelectionKey(review.selection)))));
+      expect(within(bar()).getByRole('button', { name: /^All reviews, open/ })).toBeVisible();
+      rerender(view(new Set()));
+      expect(within(bar()).getByRole('list')).toBeVisible();
+    });
 
     it('shows the open review with a menu of every review instead of the tabs', () => {
       const onSelect = vi.fn();
