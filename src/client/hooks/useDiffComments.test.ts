@@ -392,7 +392,11 @@ describe('useDiffComments', () => {
       expect(comment).toBeDefined();
       const prompt = result.current.generatePrompt(comment!.id);
 
-      expect(prompt).toBe('src/client/components/CommentForm.tsx:L42\nコメント内容');
+      expect(prompt).toBe(`<review-thread location="src/client/components/CommentForm.tsx:L42">
+<comment>
+コメント内容
+</comment>
+</review-thread>`);
     });
 
     it('should format multi-line comment correctly', () => {
@@ -411,7 +415,11 @@ describe('useDiffComments', () => {
       expect(comment).toBeDefined();
       const prompt = result.current.generatePrompt(comment!.id);
 
-      expect(prompt).toBe('src/client/components/CommentForm.tsx:L36-L39\n複数行');
+      expect(prompt).toBe(`<review-thread location="src/client/components/CommentForm.tsx:L36-L39">
+<comment>
+複数行
+</comment>
+</review-thread>`);
     });
 
     it('should return empty string for non-existent comment', () => {
@@ -464,13 +472,18 @@ describe('useDiffComments', () => {
       expect(result.current.comments[0]?.position.line).toEqual({ start: 36, end: 39 });
       expect(result.current.comments[1]?.position.line).toBe(42);
 
-      const expected = `diff main...feature-branch (abc1234...def5678)
-=====
-src/client/components/CommentForm.tsx:L36-L39
+      const expected = `<review-threads diff="main...feature-branch (abc1234...def5678)">
+<review-thread location="src/client/components/CommentForm.tsx:L36-L39">
+<comment>
 複数行
-=====
-src/client/components/CommentForm.tsx:L42
-コメント内容`;
+</comment>
+</review-thread>
+<review-thread location="src/client/components/CommentForm.tsx:L42">
+<comment>
+コメント内容
+</comment>
+</review-thread>
+</review-threads>`;
 
       expect(prompt).toBe(expected);
     });
@@ -503,11 +516,18 @@ src/client/components/CommentForm.tsx:L42
       expect(result.current.comments[0]?.filePath).toBe('src/client/App.tsx');
       expect(result.current.comments[1]?.filePath).toBe('src/server/server.ts');
 
-      const expected = `src/client/App.tsx:L10
+      const expected = `<review-threads>
+<review-thread location="src/client/App.tsx:L10">
+<comment>
 App comment
-=====
-src/server/server.ts:L20-L25
-Server comment`;
+</comment>
+</review-thread>
+<review-thread location="src/server/server.ts:L20-L25">
+<comment>
+Server comment
+</comment>
+</review-thread>
+</review-threads>`;
 
       expect(prompt).toBe(expected);
     });

@@ -4,11 +4,16 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationSnapshot } from '../types/conversation';
-import type { DiffCommentThread, DiffResponse } from '../types/diff';
+import type { DiffCommentThread, DiffResponse, ReviewContext } from '../types/diff';
 import type { NamedReviewMetadata } from '../types/review';
 
 import App from './App';
 import { storageService } from './services/StorageService';
+import { copyTextToClipboard } from './utils/clipboard';
+
+vi.mock('./utils/clipboard', () => ({
+  copyTextToClipboard: vi.fn().mockResolvedValue(undefined),
+}));
 
 const watch = vi.hoisted(() => ({
   approvalChanged: undefined as (() => Promise<void>) | undefined,
@@ -78,6 +83,7 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     addedLine: 'const stable = true;',
     hideFiles: false,
     otherReviews: [] as ConversationSnapshot['reviews'],
+    reviewContext: undefined as ReviewContext | undefined,
   };
   vi.mocked(fetch).mockImplementation(async (input, init) => {
     const url = new URL(String(input), window.location.origin);
@@ -116,6 +122,7 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
           },
         ],
         shipIt: true,
+        reviewContext: state.reviewContext,
       } satisfies DiffResponse;
       payload = state.hideFiles ? { ...diff, files: [] } : diff;
     } else if (url.pathname === '/api/revisions') {
@@ -937,6 +944,76 @@ describe('named captures in the browser', () => {
       ),
     ).toBeVisible();
     expect(window.location.search).toBe('?review=task-a');
+  });
+
+  async function copyFromConversation(button: string | RegExp = 'Copy Prompt') {
+    fireEvent.click(await screen.findByRole('button', { name: 'Conversation' }));
+    const conversation = screen.getByRole('dialog', { name: 'Conversation' });
+    await within(conversation).findByText('Original capture discussion');
+    vi.mocked(copyTextToClipboard).mockClear();
+    fireEvent.click(await within(conversation).findByRole('button', { name: button }));
+    await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalledTimes(1));
+    return vi.mocked(copyTextToClipboard).mock.calls[0]?.[0];
+  }
+
+  it('names the open review tab in Copy Prompt when the server has several reviews', async () => {
+    fixture([originalThread]);
+    renderApp();
+    await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    expect(await copyFromConversation()).toBe(
+      '<review-thread tab="task-a" location="file.md:L2">\n<comment>\nOriginal capture discussion\n</comment>\n</review-thread>',
+    );
+  });
+
+  it.each([
+    [
+      'the repository directory',
+      { source: 'git', repositoryPath: '/src/one', workingDirectory: '/src/one/sub' },
+      '/src/one',
+    ],
+    [
+      'the launch directory for a piped diff',
+      { source: 'stdin', workingDirectory: '/tmp/x' },
+      '/tmp/x',
+    ],
+  ] as const)('names %s and the agent session in Copy Prompt', async (_case, context, repo) => {
+    const state = fixture([originalThread]);
+    state.reviewContext = { ...context, hostname: 'host', agentSessionId: 'session-1' };
+    renderApp();
+    await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    expect(await copyFromConversation()).toBe(
+      `<review-thread tab="task-a" repo="${repo}" session="session-1" location="file.md:L2">\n<ask-if>Not your diff? Ask before continuing</ask-if>\n<comment>\nOriginal capture discussion\n</comment>\n</review-thread>`,
+    );
+  });
+
+  it('gives the repository and agent session in Copy All Prompt', async () => {
+    const state = fixture([originalThread]);
+    state.reviewContext = {
+      source: 'git',
+      repositoryPath: '/src/one',
+      workingDirectory: '/src/one',
+      hostname: 'host',
+      agentSessionId: 'session-1',
+    };
+    renderApp();
+    await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    expect(await copyFromConversation(/Copy All Prompt/)).toMatch(
+      /^<review-threads repo="\/src\/one" session="session-1"[^>]*>\n<ask-if>/,
+    );
+  });
+
+  it('leaves the tab name out of Copy Prompt when the server has one review', async () => {
+    const state = fixture([originalThread]);
+    renderApp();
+    const tabs = { name: 'Reviews on this server' };
+    await screen.findByRole('navigation', tabs);
+    state.showReviewB = false;
+    await act(async () => watch.captureChanged?.('task-b'));
+    // The tab row disappears only once the review list holds this one review.
+    await waitFor(() => expect(screen.queryByRole('navigation', tabs)).not.toBeInTheDocument());
+    expect(await copyFromConversation()).toBe(
+      '<review-thread location="file.md:L2">\n<comment>\nOriginal capture discussion\n</comment>\n</review-thread>',
+    );
   });
 
   it('adds a tab when another named review is created', async () => {

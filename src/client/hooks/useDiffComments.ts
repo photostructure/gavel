@@ -12,6 +12,7 @@ import {
 } from '../../types/diff';
 import {
   type CommentPromptDiffContext,
+  type CommentThreadPromptContext,
   formatCommentThreadPrompt,
   formatAllCommentThreadsPrompt,
 } from '../../utils/commentFormatting';
@@ -69,7 +70,7 @@ interface UseDiffCommentsReturn {
   clearAllComments: (options?: { resetAppliedCommentImportIds?: boolean }) => void;
   applyCommentImports: (imports: CommentImport[], importId: string) => string[];
   generatePrompt: (commentId: string) => string;
-  generateThreadPrompt: (threadId: string) => string;
+  generateThreadPrompt: (threadId: string, context?: CommentThreadPromptContext) => string;
   generateAllCommentsPrompt: (context?: CommentPromptDiffContext) => string;
 }
 
@@ -705,11 +706,11 @@ export function useDiffComments(
   );
 
   const generateThreadPrompt = useCallback(
-    (threadId: string): string => {
+    (threadId: string, context?: CommentThreadPromptContext): string => {
       const thread = threads.find((item) => item.id === threadId);
       if (!thread) return '';
 
-      return formatCommentThreadPrompt(normalizeThread(thread));
+      return formatCommentThreadPrompt(normalizeThread(thread), context);
     },
     [threads],
   );

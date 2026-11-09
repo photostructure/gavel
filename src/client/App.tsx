@@ -1111,9 +1111,24 @@ function App() {
     setCommentTrigger(null);
   }, [setCommentTrigger]);
 
+  // Only several reviews need telling apart in a copied prompt.
+  const promptReviewTabName =
+    approvalRequests.length > 1
+      ? approvalRequests.find((review) => diffSelectionsEqual(review.selection, resolvedSelection))
+          ?.name
+      : undefined;
+  // A piped diff has no repository path; gavel's launch directory is the closest match.
+  const promptOrigin = useMemo(
+    () => ({
+      repo: diffData?.reviewContext?.repositoryPath ?? diffData?.reviewContext?.workingDirectory,
+      session: diffData?.reviewContext?.agentSessionId,
+    }),
+    [diffData?.reviewContext],
+  );
   const handleGenerateThreadPrompt = useCallback(
-    (thread: CommentThread) => generateThreadPrompt(thread.id),
-    [generateThreadPrompt],
+    (thread: CommentThread) =>
+      generateThreadPrompt(thread.id, { ...promptOrigin, reviewTabName: promptReviewTabName }),
+    [generateThreadPrompt, promptOrigin, promptReviewTabName],
   );
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -1683,6 +1698,7 @@ function App() {
   const handleCopyAllComments = async () => {
     try {
       const prompt = generateAllCommentsPrompt({
+        ...promptOrigin,
         requestedBaseCommitish: diffData?.requestedBaseCommitish,
         requestedTargetCommitish: diffData?.requestedTargetCommitish,
         baseMode: normalizeBaseMode(diffData?.requestedBaseMode),

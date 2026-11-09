@@ -242,7 +242,7 @@ describe('Server Integration Tests', () => {
         const outputResponse = await fetch(`http://localhost:${result.port}/api/comments-output`);
         const output = await outputResponse.text();
 
-        expect(output).toContain('<unknown file>:L10');
+        expect(output).toContain('location="&lt;unknown file&gt;:L10"');
         expect(output).toContain('Comment without file');
       } finally {
         if (result.server) {
@@ -323,10 +323,12 @@ describe('Server Integration Tests', () => {
         expect(final.threads.find((thread) => thread.id === 'general')).toEqual(replied);
         const output = await fetch(`http://localhost:${result.port}/api/comments-output`);
         const text = await output.text();
-        expect(text).toContain("Review conversation\n[QUESTION — answer, don't change code]");
+        expect(text).toContain(
+          `location="Review conversation">\n[QUESTION — answer, don't change code]`,
+        );
         expect(text).toContain('General reply');
         expect(text).toContain('src/a.ts');
-        expect(text).not.toContain('<unknown file>');
+        expect(text).not.toContain('unknown file');
       } finally {
         if (result.server)
           await new Promise<void>((resolve) => result.server!.close(() => resolve()));
@@ -362,7 +364,7 @@ describe('Server Integration Tests', () => {
         });
         const output = await fetch(`http://localhost:${result.port}/api/comments-output`);
         expect(await output.text()).toContain(
-          "src/a.ts:L3\n[QUESTION — answer, don't change code]",
+          `location="src/a.ts:L3">\n[QUESTION — answer, don't change code]`,
         );
       } finally {
         if (result.server)
@@ -1490,7 +1492,7 @@ describe('Server Integration Tests', () => {
       expect(output).toContain('Comments from review session');
       expect(output).toContain('test.js:L10 (old)');
       expect(output).toContain('First comment');
-      expect(output).toContain('test.js:L20\nSecond comment');
+      expect(output).toContain('location="test.js:L20">\n<comment>\nSecond comment');
       expect(output).toContain('Second comment');
       expect(output).toContain('Total comments: 2');
     });

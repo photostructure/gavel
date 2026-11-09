@@ -1,4 +1,4 @@
-import type { BaseMode, Comment, CommentThread, DiffSide } from '../types/diff';
+import type { BaseMode, Comment, CommentIntent, CommentThread, DiffSide } from '../types/diff';
 
 import { hasSuggestionBlock, parseSuggestionBlocks } from './suggestionUtils.js';
 
@@ -6,7 +6,16 @@ function getLineInfo(line: number | number[]): string {
   return typeof line === 'number' ? `L${line}` : `L${line[0]}-L${line[1]}`;
 }
 
-export interface CommentPromptDiffContext {
+export interface CommentPromptOrigin {
+  repo?: string;
+  session?: string;
+}
+
+export interface CommentThreadPromptContext extends CommentPromptOrigin {
+  reviewTabName?: string;
+}
+
+export interface CommentPromptDiffContext extends CommentPromptOrigin {
   requestedBaseCommitish?: string;
   requestedTargetCommitish?: string;
   baseMode?: BaseMode;
@@ -25,7 +34,7 @@ function isNonRangeCommitish(commitish: string): boolean {
   );
 }
 
-function formatDiffContextHeader(context: CommentPromptDiffContext): string | null {
+function formatDiffContextRange(context: CommentPromptDiffContext): string | undefined {
   const { requestedBaseCommitish, requestedTargetCommitish } = context;
   if (
     !requestedBaseCommitish ||
@@ -33,7 +42,7 @@ function formatDiffContextHeader(context: CommentPromptDiffContext): string | nu
     isNonRangeCommitish(requestedBaseCommitish) ||
     isNonRangeCommitish(requestedTargetCommitish)
   ) {
-    return null;
+    return undefined;
   }
 
   const separator = context.baseMode === 'merge-base' ? '...' : '..';
@@ -47,7 +56,7 @@ function formatDiffContextHeader(context: CommentPromptDiffContext): string | nu
       ? ` (${resolvedBaseCommitish}${separator}${resolvedTargetCommitish})`
       : '';
 
-  return `diff ${requestedRange}${resolvedRange}`;
+  return `${requestedRange}${resolvedRange}`;
 }
 
 function formatCommentContent(body: string, codeContent?: string): string {
@@ -131,46 +140,85 @@ export function formatAllCommentsPrompt(comments: Comment[]): string {
 
 const QUESTION_PROMPT_MARKER = "[QUESTION — answer, don't change code]";
 
-export function formatCommentThreadPrompt(thread: CommentThread): string {
-  const sections: string[] = [
-    thread.scope === 'review'
-      ? 'Review conversation'
-      : formatCommentLocation(thread.file, thread.line, thread.side),
-  ];
-  const rootIntent = thread.messages[0]?.intent;
-  if (rootIntent === 'question' || (rootIntent === undefined && thread.isQuestion)) {
-    sections.push(QUESTION_PROMPT_MARKER);
-  }
+const WRONG_WINDOW_PROMPT_MARKER = '<ask-if>Not your diff? Ask before continuing</ask-if>';
 
-  if (thread.resolution?.resolved) sections.push('Status: resolved');
-  thread.messages.forEach((message, index) => {
-    if (index > 0) {
-      const authorLabel = message.author?.trim() || 'Unknown';
-      sections.push(`Reply ${index} (${authorLabel})`);
-    }
-    if (message.intent && message.intent !== 'comment')
-      sections.push(`Intent: ${message.intent === 'question' ? 'Question' : 'Change request'}`);
-    sections.push(formatCommentContent(message.body, thread.codeContent));
+function formatWrongWindowCheck({ repo, session }: CommentPromptOrigin): string[] {
+  return repo === undefined && session === undefined ? [] : [WRONG_WINDOW_PROMPT_MARKER];
+}
+
+const INTENT_ATTRIBUTES: Record<CommentIntent, string | undefined> = {
+  comment: undefined,
+  question: 'question',
+  change: 'change-request',
+};
+
+function escapeXmlAttribute(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
+function formatOpenTag(name: string, attributes: Record<string, string | undefined>): string {
+  const rendered = Object.entries(attributes).flatMap(([key, value]) =>
+    value === undefined ? [] : [` ${key}="${escapeXmlAttribute(value)}"`],
+  );
+  return `<${name}${rendered.join('')}>`;
+}
+
+// Tags mark the structure for the agent reading the prompt. Bodies stay unescaped because
+// `&lt;T&gt;` in pasted code is harder to read, so the result is XML-style text, not valid XML.
+export function formatCommentThreadPrompt(
+  thread: CommentThread,
+  context: CommentThreadPromptContext = {},
+): string {
+  const rootIntent = thread.messages[0]?.intent;
+  const isQuestion = rootIntent === 'question' || (rootIntent === undefined && thread.isQuestion);
+  const messages = thread.messages.map((message, index) => {
+    const name = index === 0 ? 'comment' : 'reply';
+    const open = formatOpenTag(name, {
+      number: index === 0 ? undefined : String(index),
+      author: index === 0 ? undefined : message.author?.trim() || 'Unknown',
+      intent: message.intent && INTENT_ATTRIBUTES[message.intent],
+    });
+    return `${open}\n${formatCommentContent(message.body, thread.codeContent)}\n</${name}>`;
   });
 
-  return sections.filter(Boolean).join('\n');
+  return [
+    formatOpenTag('review-thread', {
+      tab: context.reviewTabName,
+      repo: context.repo,
+      session: context.session,
+      location:
+        thread.scope === 'review'
+          ? 'Review conversation'
+          : formatCommentLocation(thread.file, thread.line, thread.side),
+      status: thread.resolution?.resolved ? 'resolved' : undefined,
+    }),
+    ...formatWrongWindowCheck(context),
+    ...(isQuestion ? [QUESTION_PROMPT_MARKER] : []),
+    ...messages,
+    '</review-thread>',
+  ].join('\n');
 }
 
 export function formatAllCommentThreadsPrompt(
   threads: CommentThread[],
-  context?: CommentPromptDiffContext,
+  context: CommentPromptDiffContext = {},
 ): string {
   if (threads.length === 0) return '';
 
-  const sections = threads.map((thread) => formatCommentThreadPrompt(thread));
-  if (context) {
-    const header = formatDiffContextHeader(context);
-    if (header) {
-      sections.unshift(header);
-    }
-  }
-
-  return sections.join('\n=====\n');
+  return [
+    formatOpenTag('review-threads', {
+      repo: context.repo,
+      session: context.session,
+      diff: formatDiffContextRange(context),
+    }),
+    ...formatWrongWindowCheck(context),
+    ...threads.map((thread) => formatCommentThreadPrompt(thread)),
+    '</review-threads>',
+  ].join('\n');
 }
 
 export function formatCommentsOutput(input: Comment[] | CommentThread[]): string {

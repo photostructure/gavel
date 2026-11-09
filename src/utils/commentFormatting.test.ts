@@ -140,15 +140,21 @@ const newCode = 42;
         resolvedTargetCommitish: '1234567',
       });
 
-      expect(result).toBe(`diff main...feature/docs-update (abcdef1...1234567)
-=====
-docs/SUMMARY.md:L85 (old)
+      expect(result).toBe(`<review-threads diff="main...feature/docs-update (abcdef1...1234567)">
+<review-thread location="docs/SUMMARY.md:L85 (old)">
+<comment>
 Explain why this was removed.
-=====
-docs/SUMMARY.md:L242-L244
+</comment>
+</review-thread>
+<review-thread location="docs/SUMMARY.md:L242-L244">
+<comment>
 Should this remain grouped?
-Reply 1 (Reviewer)
-Related entries are below.`);
+</comment>
+<reply number="1" author="Reviewer">
+Related entries are below.
+</reply>
+</review-thread>
+</review-threads>`);
     });
 
     it('should use a direct range and omit identical resolved refs', () => {
@@ -160,12 +166,16 @@ Related entries are below.`);
         resolvedTargetCommitish: '1234567',
       });
 
-      expect(result).toBe(`diff abcdef1..1234567
-=====
-docs/SUMMARY.md:L242-L244
+      expect(result).toBe(`<review-threads diff="abcdef1..1234567">
+<review-thread location="docs/SUMMARY.md:L242-L244">
+<comment>
 Should this remain grouped?
-Reply 1 (Reviewer)
-Related entries are below.`);
+</comment>
+<reply number="1" author="Reviewer">
+Related entries are below.
+</reply>
+</review-thread>
+</review-threads>`);
     });
 
     it.each(['working', 'staged', '.', 'stdin'])(
@@ -178,8 +188,13 @@ Related entries are below.`);
           resolvedBaseCommitish: 'abcdef1',
         });
 
-        expect(result).toBe(`docs/SUMMARY.md:L85 (old)
-Explain why this was removed.`);
+        expect(result).toBe(`<review-threads>
+<review-thread location="docs/SUMMARY.md:L85 (old)">
+<comment>
+Explain why this was removed.
+</comment>
+</review-thread>
+</review-threads>`);
       },
     );
 
@@ -191,7 +206,7 @@ Explain why this was removed.`);
         resolvedBaseCommitish: 'abcdef1',
       });
 
-      expect(result).toContain('diff main...feature/docs-update\n=====');
+      expect(result).toContain('<review-threads diff="main...feature/docs-update">');
       expect(result).not.toContain('abcdef1');
     });
 
@@ -202,20 +217,92 @@ Explain why this was removed.`);
         resolvedTargetCommitish: '1234567',
       });
 
-      expect(result).toBe(`docs/SUMMARY.md:L85 (old)
-Explain why this was removed.`);
+      expect(result).toBe(`<review-threads>
+<review-thread location="docs/SUMMARY.md:L85 (old)">
+<comment>
+Explain why this was removed.
+</comment>
+</review-thread>
+</review-threads>`);
     });
 
     it('should keep individual thread prompts free of the diff header', () => {
       const result = formatCommentThreadPrompt(threads[0]!);
-      expect(result).toBe('docs/SUMMARY.md:L85 (old)\nExplain why this was removed.');
+      expect(result).toBe(`<review-thread location="docs/SUMMARY.md:L85 (old)">
+<comment>
+Explain why this was removed.
+</comment>
+</review-thread>`);
+    });
+
+    it('should name the review tab on the thread', () => {
+      const result = formatCommentThreadPrompt(threads[0]!, { reviewTabName: 'task-a' });
+      expect(result).toBe(`<review-thread tab="task-a" location="docs/SUMMARY.md:L85 (old)">
+<comment>
+Explain why this was removed.
+</comment>
+</review-thread>`);
+    });
+
+    it('should give the repo, session, and wrong-window check on a thread', () => {
+      const result = formatCommentThreadPrompt(
+        { ...threads[0]!, isQuestion: true },
+        { reviewTabName: 'task-a', repo: '/src/one', session: 'session-1' },
+      );
+      expect(result)
+        .toBe(`<review-thread tab="task-a" repo="/src/one" session="session-1" location="docs/SUMMARY.md:L85 (old)">
+<ask-if>Not your diff? Ask before continuing</ask-if>
+[QUESTION — answer, don't change code]
+<comment>
+Explain why this was removed.
+</comment>
+</review-thread>`);
+    });
+
+    it('should give the repo, session, and check once when copying all threads', () => {
+      const result = formatAllCommentThreadsPrompt(threads, {
+        repo: '/src/one',
+        session: 'session-1',
+      });
+      expect(
+        result.startsWith(`<review-threads repo="/src/one" session="session-1">
+<ask-if>Not your diff? Ask before continuing</ask-if>
+<review-thread location=`),
+      ).toBe(true);
+      expect(result.split('repo=')).toHaveLength(2);
+      expect(result.split('<ask-if>')).toHaveLength(2);
+    });
+
+    it('should escape attribute values but leave comment bodies readable', () => {
+      const body = 'Use Array<string> & keep "quotes"';
+      const message = { id: 'root', body, createdAt: timestamp, updatedAt: timestamp };
+      const result = formatCommentThreadPrompt({
+        id: 'escaped-thread',
+        file: 'src/a&b.ts',
+        line: 85,
+        side: 'old',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        messages: [message, { ...message, id: 'reply', author: 'A "B" <c>' }],
+      });
+      expect(result).toBe(`<review-thread location="src/a&amp;b.ts:L85 (old)">
+<comment>
+${body}
+</comment>
+<reply number="1" author="A &quot;B&quot; &lt;c&gt;">
+${body}
+</reply>
+</review-thread>`);
     });
 
     it('should mark question threads so the agent answers instead of editing', () => {
       const result = formatCommentThreadPrompt({ ...threads[0]!, isQuestion: true });
-      expect(result).toBe(
-        "docs/SUMMARY.md:L85 (old)\n[QUESTION — answer, don't change code]\nExplain why this was removed.",
-      );
+      expect(result).toBe(`<review-thread location="docs/SUMMARY.md:L85 (old)">
+[QUESTION — answer, don't change code]
+<comment>
+Explain why this was removed.
+</comment>
+</review-thread>`);
     });
   });
 
@@ -317,7 +404,9 @@ Explain why this was removed.`);
       ];
       const result = formatCommentsOutput(comments);
       expect(result).toContain('📝 Comments from review session:');
-      expect(result).toContain('src/App.tsx:L10\nFix this issue');
+      expect(result).toContain(
+        '<review-thread location="src/App.tsx:L10">\n<comment>\nFix this issue\n</comment>',
+      );
       expect(result).toContain('Total comments: 1');
       expect(result).toContain('='.repeat(50));
     });
@@ -349,10 +438,10 @@ Explain why this was removed.`);
       const result = formatCommentsOutput(comments);
 
       expect(result).toContain('📝 Comments from review session:');
-      expect(result).toContain('src/App.tsx:L10\nFirst issue');
-      expect(result).toContain('=====');
-      expect(result).toContain('src/utils/helper.ts:L20-L30\nSecond issue');
-      expect(result).toContain('src/components/Button.tsx:L42\nThird issue');
+      expect(result).toContain('location="src/App.tsx:L10">\n<comment>\nFirst issue');
+      expect(result).toContain('</review-thread>\n<review-thread location="src/utils/helper.ts');
+      expect(result).toContain('location="src/utils/helper.ts:L20-L30">\n<comment>\nSecond issue');
+      expect(result).toContain('location="src/components/Button.tsx:L42">\n<comment>\nThird issue');
       expect(result).toContain('Total comments: 3');
     });
 
@@ -377,7 +466,7 @@ Explain why this was removed.`);
   });
 });
 
-it('keeps each reply intent below its header in a resolved general conversation', () => {
+it('puts each reply intent on its tag in a resolved general conversation', () => {
   const time = '2026-10-24T00:00:00Z';
   expect(
     formatCommentThreadPrompt({
@@ -406,9 +495,17 @@ it('keeps each reply intent below its header in a resolved general conversation'
         },
       ],
     }),
-  ).toBe(
-    'Review conversation\nStatus: resolved\nRoot comment\nReply 1 (User)\nIntent: Question\nWhy?\nReply 2 (User)\nIntent: Change request\nPlease change this.',
-  );
+  ).toBe(`<review-thread location="Review conversation" status="resolved">
+<comment>
+Root comment
+</comment>
+<reply number="1" author="User" intent="question">
+Why?
+</reply>
+<reply number="2" author="User" intent="change-request">
+Please change this.
+</reply>
+</review-thread>`);
 });
 
 it.each(['comment', 'change', 'question'] as const)(
