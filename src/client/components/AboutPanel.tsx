@@ -1,18 +1,21 @@
-import { X } from 'lucide-react';
+import { Keyboard, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useHotkeysContext } from 'react-hotkeys-hook';
 
 import { version } from '../../../package.json';
 import type { ReviewContext as ReviewContextData } from '../../types/diff';
 
+import { GitHubIcon } from './GitHubIcon';
 import { ReviewContext } from './ReviewContext';
 
 export function AboutPanel({
   context,
   onClose,
+  onShowShortcuts,
 }: {
   context?: ReviewContextData;
   onClose: () => void;
+  onShowShortcuts: () => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const { enableScope, disableScope } = useHotkeysContext();
@@ -101,6 +104,27 @@ export function AboutPanel({
               )}
             </dd>
           </dl>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={onShowShortcuts}
+              className="flex items-center gap-1.5 text-github-text-secondary transition-colors hover:text-github-text-primary"
+              title="Keyboard shortcuts (Shift+?)"
+            >
+              <Keyboard size={16} />
+              <span className="text-sm">Shortcuts</span>
+            </button>
+            <a
+              href="https://github.com/photostructure/gavel"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-github-text-secondary transition-colors hover:text-github-text-primary"
+              title="View on GitHub"
+            >
+              <span className="text-sm">Star on GitHub</span>
+              <GitHubIcon style={{ height: '18px', width: '18px' }} />
+            </a>
+          </div>
         </section>
       </div>
     </div>

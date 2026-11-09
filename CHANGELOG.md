@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Shortcuts** and **Star on GitHub** moved from the bottom of the file list to **About**, where they are also available on mobile.
+- **Keyboard Shortcuts** now takes keyboard focus when it opens and returns it when it closes.
 - **About** now shows the running Gavel version, or says it is a development build inside a yellow-and-black hazard stripe.
 - Green text and icons in the dark theme, such as a file's added-lines count, **Reopen**, and the comment resolve check mark, are brighter so they are easier to read.
 - The **Viewed** button now follows Gavel's theme setting instead of the operating system's color scheme.
