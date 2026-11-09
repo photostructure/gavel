@@ -19,6 +19,8 @@ const DARK_THEME_VALUES = {
   '--color-github-text-secondary': '#8b949e',
   '--color-github-text-muted': '#6e7681',
   '--color-github-accent': '#238636',
+  // Green text needs more contrast than the accent fill, which carries white text.
+  '--color-github-accent-text': '#3fb950',
   '--color-github-danger': '#da3633',
   '--color-github-warning': '#d29922',
   '--color-diff-addition-bg': '#0d4429',
@@ -49,6 +51,7 @@ const LIGHT_THEME_VALUES = {
   '--color-github-text-secondary': '#656d76',
   '--color-github-text-muted': '#8c959f',
   '--color-github-accent': '#1f883d',
+  '--color-github-accent-text': '#1f883d',
   '--color-github-danger': '#cf222e',
   '--color-github-warning': '#bf8700',
   '--color-diff-addition-bg': '#d1f4cd',
@@ -146,6 +149,7 @@ export function getResolvedTheme(
 // Uses blue for additions and orange for deletions instead of green/red
 const DEUTERANOPIA_DARK_OVERRIDES: Record<string, string> = {
   '--color-github-accent': '#58a6ff',
+  '--color-github-accent-text': '#58a6ff',
   '--color-github-danger': '#d29922',
   '--color-diff-addition-bg': '#0c2d6b',
   '--color-diff-addition-border': '#388bfd',
@@ -155,6 +159,7 @@ const DEUTERANOPIA_DARK_OVERRIDES: Record<string, string> = {
 
 const DEUTERANOPIA_LIGHT_OVERRIDES: Record<string, string> = {
   '--color-github-accent': '#0969da',
+  '--color-github-accent-text': '#0969da',
   '--color-github-danger': '#bf8700',
   '--color-diff-addition-bg': '#ddf4ff',
   '--color-diff-addition-border': '#0969da',

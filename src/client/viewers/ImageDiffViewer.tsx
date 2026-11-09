@@ -123,7 +123,7 @@ export function ImageDiffViewer({
       <div className="bg-github-bg-primary p-4">
         <div className="text-center">
           <div className="mb-2">
-            <span className="text-github-accent font-semibold">Added Image</span>
+            <span className="text-github-accent-text font-semibold">Added Image</span>
           </div>
           <div className="inline-block border border-github-border rounded-md p-4 bg-github-bg-secondary">
             <div className="ui-heading mb-2" style={{ fontSize: '14px' }}>

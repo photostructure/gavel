@@ -28,7 +28,7 @@ const getLinePrefix = (type: DiffLine['type']) => {
 const getPrefixClass = (type: DiffLine['type']) => {
   switch (type) {
     case 'add':
-      return 'text-github-accent bg-diff-addition-bg';
+      return 'text-github-accent-text bg-diff-addition-bg';
     case 'delete':
       return 'text-github-danger bg-diff-deletion-bg';
     default:

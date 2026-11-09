@@ -258,7 +258,7 @@ function ThreadMessageItem({
                   onResolveOrDelete();
                 }}
                 className={`rounded border border-github-border bg-github-bg-tertiary p-1.5 transition-all hover:bg-github-bg-primary ${
-                  isRootMessage ? 'text-green-700 hover:text-green-800' : 'text-github-danger'
+                  isRootMessage ? 'text-github-accent-text' : 'text-github-danger'
                 }`}
                 title={actionLabel}
                 aria-label={actionLabel}
@@ -524,7 +524,7 @@ export function CommentThreadCard({
               thread.resolution?.resolved && (
                 <button
                   type="button"
-                  className="text-xs text-github-accent"
+                  className="text-xs text-github-accent-text"
                   onClick={(event) => {
                     event.stopPropagation();
                     onToggleThreadResolved(thread.id);

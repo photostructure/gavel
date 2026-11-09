@@ -37,7 +37,7 @@ interface DiffViewerHeaderProps {
 const getFileIcon = (status: DiffFile['status']) => {
   switch (status) {
     case 'added':
-      return <FilePlus size={16} className="text-github-accent" />;
+      return <FilePlus size={16} className="text-github-accent-text" />;
     case 'deleted':
       return <FileX size={16} className="text-github-danger" />;
     case 'renamed':
@@ -96,7 +96,7 @@ export const DiffViewerHeader = ({
             <button
               className={`shrink-0 bg-transparent border-none cursor-pointer px-1.5 py-1 rounded text-sm transition-all hover:bg-github-bg-tertiary ${
                 isCopied
-                  ? 'text-github-accent'
+                  ? 'text-github-accent-text'
                   : 'text-github-text-secondary hover:text-github-text-primary'
               }`}
               onClick={() => {
@@ -145,7 +145,7 @@ export const DiffViewerHeader = ({
           </button>
         )}
         <div className="flex items-center gap-2 text-xs">
-          <span className="font-medium px-1 py-0.5 rounded text-github-accent bg-green-100/10">
+          <span className="font-medium px-1 py-0.5 rounded text-github-accent-text bg-green-100/10">
             +{file.additions}
           </span>
           <span className="font-medium px-1 py-0.5 rounded text-github-danger bg-red-100/10">

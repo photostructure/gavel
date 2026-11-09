@@ -11,7 +11,7 @@ export function ReviewPresenceIndicator({ presence }: { presence: ReviewPresence
   return (
     <div className="flex items-center gap-2 text-xs" aria-label="Review presence">
       <span
-        className={listening ? 'text-github-accent' : 'text-github-text-secondary'}
+        className={listening ? 'text-github-accent-text' : 'text-github-text-secondary'}
         title={
           presence
             ? `${presence.reviewers.connected} connected review tabs; ${presence.reviewers.visible} visible. A listener connection does not mean a comment has been read.`

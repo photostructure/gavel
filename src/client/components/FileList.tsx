@@ -257,7 +257,7 @@ export const FileList = memo(function FileList({
   const getFileIcon = (status: DiffFile['status']) => {
     switch (status) {
       case 'added':
-        return <FilePlus size={16} className="text-github-accent" />;
+        return <FilePlus size={16} className="text-github-accent-text" />;
       case 'deleted':
         return <FileX size={16} className="text-github-danger" />;
       case 'renamed':
@@ -481,7 +481,7 @@ export const FileList = memo(function FileList({
               title="Total additions and deletions"
               aria-label={`${diffTotals.additions} additions and ${diffTotals.deletions} deletions`}
             >
-              <span className="text-github-accent">+{diffTotals.additions}</span>
+              <span className="text-github-accent-text">+{diffTotals.additions}</span>
               <span className="text-github-danger">-{diffTotals.deletions}</span>
             </span>
             <button

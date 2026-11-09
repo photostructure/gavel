@@ -354,7 +354,7 @@ export function SettingsModal({
                       <button
                         type="button"
                         onClick={() => setAllApprovalAnimations(true)}
-                        className="text-github-accent hover:underline"
+                        className="text-github-accent-text hover:underline"
                       >
                         Enable all
                       </button>
@@ -362,7 +362,7 @@ export function SettingsModal({
                       <button
                         type="button"
                         onClick={() => setAllApprovalAnimations(false)}
-                        className="text-github-accent hover:underline"
+                        className="text-github-accent-text hover:underline"
                       >
                         Disable all
                       </button>

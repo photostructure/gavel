@@ -579,7 +579,7 @@ const getCodeLinePrefix = (type: PreviewLineType) => {
 const getCodeLinePrefixClass = (type: PreviewLineType) => {
   switch (type) {
     case 'add':
-      return 'text-github-accent';
+      return 'text-github-accent-text';
     case 'delete':
       return 'text-github-danger';
     default:
