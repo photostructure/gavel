@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Documentation
 
+- Remove the PR Checks badge from the README because it does not report the status of the current `main` branch or published package.
 - Rewrite the README introduction and setup around the gavel walkthrough, explaining reading guides, comment intents, per-commit verdicts, and the Claude Code and Codex feedback workflows.
 - Keep the README logo visible on npm's dark theme by outlining it with a white halo.
 

@@ -17,7 +17,6 @@ with Claude Code and Codex.
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@photostructure/gavel"><img src="https://img.shields.io/npm/v/@photostructure/gavel.svg" alt="npm version"></a>
-  <a href="https://github.com/photostructure/gavel/actions/workflows/pr.yml"><img src="https://github.com/photostructure/gavel/actions/workflows/pr.yml/badge.svg" alt="CI"></a>
 </p>
 
 ![gavel screenshot](docs/images/screenshot.png)
