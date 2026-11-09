@@ -1466,7 +1466,7 @@ export async function startServer(options: ServerOptions): Promise<{
     // Without a file watcher the cached diff is stale; drop it so a reload shows the change.
     invalidateCache();
     humanLog(
-      `${approval.notYet ? 'Not yet cleared' : 'LGTM revoked'} because the diff changed: ${selection.targetCommitish}`,
+      `${approval.notYet ? 'Not yet cleared' : 'Approval revoked'} because the diff changed: ${selection.targetCommitish}`,
     );
     fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
   }
@@ -1979,7 +1979,7 @@ export async function startServer(options: ServerOptions): Promise<{
         previous?.notYet !== approval.notYet
       ) {
         humanLog(
-          `LGTM ${
+          `Verdict: ${
             approval.notYet
               ? 'not yet'
               : approval.requested && approval.mode === 'after-comments'
@@ -1987,7 +1987,7 @@ export async function startServer(options: ServerOptions): Promise<{
                 : approval.approved
                   ? 'approved as-is'
                   : 'revoked'
-          }: ${selection.targetCommitish}`,
+          } (${selection.targetCommitish})`,
         );
         fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
       }

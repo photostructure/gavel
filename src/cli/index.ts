@@ -146,7 +146,7 @@ program
   .option('--pr <url>', 'GitHub PR URL to review (e.g., https://github.com/owner/repo/pull/123)')
   .option('--clean', 'start with a clean slate by clearing all existing comments')
   .option('--lgtm, --ship-it', 'show approval actions: as-is or after comments are addressed', true)
-  .option('--no-lgtm, --no-ship-it', 'hide the LGTM approval actions')
+  .option('--no-lgtm, --no-ship-it', 'hide approval actions')
   .option(
     '--conversation',
     'enable conversation APIs (replies, progress, snapshots); required by --jsonl',

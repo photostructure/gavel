@@ -26,7 +26,7 @@ $PROJECT_ROOT/scripts/host-wait-e2e/run.sh desktop --session <uuid> --port <port
 The fixture is a scratch repository under `~/src/worktrees/tmp/`, a named
 review served with `--no-open`, and a `curl` connection to `/api/heartbeat`
 that holds reviewer presence the way an open browser tab does. Comments,
-replies and LGTM are posted through the same HTTP endpoints the browser uses.
+replies and approvals are posted through the same HTTP endpoints the browser uses.
 
 Phases and expected model calls:
 

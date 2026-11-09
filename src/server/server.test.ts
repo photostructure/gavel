@@ -2434,7 +2434,7 @@ describe('Server Integration Tests', () => {
           expect(output).not.toContain('Press Ctrl+C');
           if (jsonl) expect(log).not.toHaveBeenCalled();
           else {
-            expect(output).toContain('LGTM approved as-is: abc1234');
+            expect(output).toContain('Verdict: approved as-is (abc1234)');
             if (!keepAlive) expect(output).toContain('Human comment transcript');
           }
           if (keepAlive) expect(process.exit).not.toHaveBeenCalled();

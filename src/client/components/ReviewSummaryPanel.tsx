@@ -95,7 +95,7 @@ export function ReviewSummaryPanel({ summary, committed = false }: Props) {
               </button>
             )}
             {!summary.dirty && summary.ready && <span>Saved for this review</span>}
-            {summary.dirty && <span>Saving changes clears LGTM approval.</span>}
+            {summary.dirty && <span>Saving changes clears approval.</span>}
             {!summary.ready && !summary.error && <span>Loading…</span>}
             {summary.conflict && !summary.error && (
               <span role="status">A newer summary is available. Your draft is still here.</span>
