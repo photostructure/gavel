@@ -68,13 +68,13 @@ Check these before merging work that touches approval, the header, or review tab
   comment; three separate buttons from 1280px (at 1024px the header needs about
   1198px for them, measured in the browser pane), one menu below; idle buttons
   are neutral, because a red-tinted idle Not yet "looks like I've already pushed
-  not yet"; hover tints only the border (green, amber for after comments, red),
+  not yet"; hover tints only the border (green, yellow for after comments, red),
   because tinted text was too faint in dark mode; clicking the pressed button
   clears the verdict; the countdown notice sits under the verdict buttons, "where
   I'm looking"; auto-close, accepting that Back no longer moves between reviews;
   a 10 s countdown (it was 3 s to switch, 5 s to close) and a 1.6 s pulse beat
   (it was 0.8 s), both lengthened at their request; a chosen button is filled in
-  its verdict's color (green, amber, red) and Not yet stays red; **Switch now** /
+  its verdict's color (green, yellow, red) and Not yet stays red; **Switch now** /
   **Close now** beside **Cancel** skip the wait; the notice and its default button
   are blue, because green beside the verdict buttons reads as approval.
 - The countdown notice renders through `FloatingPortal` because the header group
