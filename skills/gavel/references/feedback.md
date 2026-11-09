@@ -7,7 +7,7 @@ or the final pre-commit check requires another. Repeated recovery without new
 state ends the turn. Use this filter even when a resume prompt names a raw snapshot:
 
 ```sh
-set -o pipefail; <gavel-command> comment snapshot --host <host> --port <api-port> | jq -c '{cursor, connected: .presence.reviewers.connected, storeError: (.store.error // null), reviews: [.reviews[] as $r | {id: $r.id, selection: $r.selection, capture: ($r.capture | if . then {version, patchDigest} else null end), approval: ($r.approval | {approved, mode, requested, baselineCapture, notYet: (.notYet // false), cursor, open: [.conditions[]? | select(.addressed | not) | {threadId, messageId, cursor, intent}]}), commitMessage: $r.summary.commitMessage, fromCommit: ($r.summary.fromCommit // false), summaryVersion: $r.summary.version, pending: [$r.threads[] as $t | $t.messages[] | select(.progress and (.progress.status | IN("replied","noted") | not)) | {threadId: $t.id, messageId: .id, cursor: .progress.cursor, confirmed: (($t.resolution.resolved // false) and $t.resolution.updatedAt >= .updatedAt), filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}]}]}'
+set -o pipefail; <gavel-command> comment snapshot --host <host> --port <api-port> | jq -c '{cursor, connected: .presence.reviewers.connected, storeError: (.store.error // null), reviews: [.reviews[] as $r | {id: $r.id, selection: $r.selection, capture: ($r.capture | if . then {version, patchDigest} else null end), approval: ($r.approval | {approved, mode, requested, notYet: (.notYet // false), cursor}), commitMessage: $r.summary.commitMessage, fromCommit: ($r.summary.fromCommit // false), summaryVersion: $r.summary.version, pending: [$r.threads[] as $t | $t.messages[] | select(.progress and (.progress.status | IN("replied","noted") | not)) | {threadId: $t.id, messageId: .id, cursor: .progress.cursor, confirmed: (($t.resolution.resolved // false) and $t.resolution.updatedAt >= .updatedAt), filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}], comments: [if $r.approval.mode == "after-comments" then ($r.threads[] as $t | select(($t.resolution.resolved // false) | not) | $t.messages[] | select((.origin // "user") == "user") | {threadId: $t.id, messageId: .id, filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}) else empty end]}]}'
 ```
 
 The top-level `cursor` is a stream checkpoint for `wait --after`; each pending
@@ -15,8 +15,9 @@ message's `cursor` is its exact revision for receipts and replies. Do not swap
 them or use a progress event's stream cursor as a message revision.
 
 - `storeError`: tell the user why review changes are not being saved.
-- `approval`: inspect every review before reporting missing approval. Preserve
-  `baselineCapture` for comparison with the final conditional-approval patch.
+- `approval`: inspect every review before reporting missing approval.
+- `comments`: with Approve after comments, every unresolved comment in gavel,
+  including ones already replied to. Act on all of them.
 - `confirmed: true`: the reviewer resolved the thread after its latest edit.
   Mark the pending message Noted; do not redo confirmed work. A later edit makes
   it unconfirmed and requires normal handling.
@@ -37,8 +38,8 @@ composing JSON. Write JSON with a file-writing tool, then send it on stdin:
 Status requires `reviewId`, `threadId`, `messageId`, the message revision `cursor`,
 and `status`: `delivered`, `read`, `thinking`, `replying`, or `noted`.
 Reply requires `reviewId`, `threadId`, `inReplyTo` (the message ID), `cursor`, and
-`body`. Replies mark Replied. Neither action resolves a thread or certifies a
-conditional approval. Summary and approval events need no comment receipt.
+`body`. Replies mark Replied. Neither action resolves a thread.
+Summary and approval events need no comment receipt.
 
 When a message continues an earlier exchange, read only that thread:
 

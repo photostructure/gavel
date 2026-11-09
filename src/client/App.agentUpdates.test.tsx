@@ -319,32 +319,15 @@ describe('navigating unseen agent replies', () => {
     expect(document.title).toBe('Fixture review');
   });
 
-  it('keeps the approval label as comments are addressed, and clears it with the approval', async () => {
+  it('clears the approval label when an approval-change notification arrives', async () => {
     approvalState = {
-      approved: false,
+      approved: true,
       requested: true,
       mode: 'after-comments',
       conditionalSupported: true,
-      conditions: threads.map((thread) => ({
-        threadId: thread.id,
-        messageId: thread.messages[0]?.id ?? '',
-        cursor: 'stream:1',
-        intent: 'change',
-      })),
     };
     mount();
     expect(await screen.findByRole('button', { name: 'Approved after comments' })).toBeVisible();
-    const condition = approvalState.conditions?.[0];
-    if (!condition) throw new Error('Missing condition');
-    condition.addressed = {
-      outcome: 'confirmed-by-reviewer',
-      evidence: 'Resolved by reviewer',
-      updatedAt: time,
-    };
-    await act(async () => {
-      await callbacks.approval?.();
-    });
-    expect(screen.getByRole('button', { name: 'Approved after comments' })).toBeVisible();
     approvalState = { approved: false, conditionalSupported: true };
     await act(async () => {
       await callbacks.approval?.();

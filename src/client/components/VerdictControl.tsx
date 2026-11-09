@@ -76,7 +76,7 @@ export function VerdictControl({
     if (event.detail <= 1) onRevoke();
   };
   const afterCommentsTitle = conditionalSupported
-    ? 'Approve once every included comment has explicit completion evidence'
+    ? 'The agent addresses all your comments, then commits'
     : 'Unavailable on this review server';
   return (
     <div ref={containerRef} className="flex items-stretch">
@@ -152,11 +152,6 @@ export function VerdictControl({
           }
         >
           <div className="mb-2 text-xs ui-label">{current ?? 'Choose a verdict'}</div>
-          {afterComments && (
-            <p className="ui-value mb-2 text-xs">
-              Resolving a thread confirms its included comments for this approval.
-            </p>
-          )}
           <button
             type="button"
             disabled={busy || disabled || approveDisabled}
@@ -179,7 +174,7 @@ export function VerdictControl({
             Approve after comments are addressed
             <span className="block text-xs text-github-text-secondary">
               {conditionalSupported
-                ? 'Every included comment needs explicit completion evidence before committing.'
+                ? 'The agent addresses all your comments, then commits.'
                 : 'Unavailable on this review server.'}
             </span>
           </button>

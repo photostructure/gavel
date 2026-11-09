@@ -54,6 +54,29 @@ describe('review approval', () => {
     });
   });
 
+  // A reviewer's unsaved draft keeps showing the older capture and summary; only they end this verdict.
+  it('keeps showing an approval after comments on an older capture or summary', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            approved: true,
+            requested: true,
+            mode: 'after-comments',
+            captureVersion: 2,
+            patchDigest: 'new',
+            summaryVersion: 2,
+          }),
+        ),
+      ),
+    );
+    const { result } = renderHook(() =>
+      useReviewApproval('/api/approval?review=a', { version: 1, patchDigest: 'old' }, 1),
+    );
+    await waitFor(() => expect(result.current.requested).toBe(true));
+  });
+
   it('restores server approval and preserves it when revocation fails', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(true));
     vi.stubGlobal('fetch', fetchMock);

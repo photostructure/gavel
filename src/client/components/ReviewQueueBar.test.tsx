@@ -88,19 +88,9 @@ describe('review queue bar', () => {
     const listed = [
       request('parser', asIs),
       request('tests', {
-        approved: false,
+        approved: true,
         requested: true,
         mode: 'after-comments',
-        conditions: [
-          { threadId: 't', messageId: 'm', cursor: 'c', intent: 'question' },
-          {
-            threadId: 't2',
-            messageId: 'm2',
-            cursor: 'c2',
-            intent: 'question',
-            addressed: { outcome: 'fixed', evidence: 'done', updatedAt: '2026-11-05T00:00:00Z' },
-          },
-        ],
       }),
       request('docs'),
     ];
@@ -149,7 +139,7 @@ describe('review queue bar', () => {
   // The same hue as the chosen verdict button: green as-is, yellow after comments, red not yet.
   it('colors each tab mark, and the open tab, like its verdict button', () => {
     const afterComments: ReviewApproval = {
-      approved: false,
+      approved: true,
       requested: true,
       mode: 'after-comments',
     };
@@ -213,12 +203,11 @@ describe('review queue bar', () => {
 
   it('counts the reviews that still need a verdict', () => {
     const pending: ReviewApproval = {
-      approved: false,
+      approved: true,
       requested: true,
       mode: 'after-comments',
-      conditions: [{ threadId: 't', messageId: 'm', cursor: 'c', intent: 'question' }],
     };
-    // An approval after comments with open conditions is the reviewer done.
+    // An approval after comments is the reviewer done.
     const queue = [request('parser', asIs), request('tests', pending), request('docs')];
     const { rerender } = render(
       <ReviewQueueBar reviews={queue} current={queue[0]!.selection} approvals onSelect={vi.fn()} />,

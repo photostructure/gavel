@@ -241,8 +241,8 @@ gavel . --commit-message 'fix: preserve review intent' --why 'Keep the proposed 
 The browser can edit and save these fields for each diff selection, including
 with `--no-jsonl --no-conversation`. They are saved with the review
 ([saved reviews](#saved-reviews)), except for an unnamed stdin patch or under
-`--no-conversation`, where they disappear when the server restarts. Saving a changed proposal revokes any existing approval for that
-selection. Editing these fields never executes Git or creates a commit.
+`--no-conversation`, where they disappear when the server restarts. Saving a changed proposal revokes an Approve as-is and clears Not yet for that
+selection; it leaves Approve after comments in place. Editing these fields never executes Git or creates a commit.
 
 A commit that moves HEAD gives a `staged` or `.` diff a new base commit, and so
 a new review. That review starts with the previous review's summary unless its
@@ -377,9 +377,9 @@ is `POST /api/conversation/status` and accepts the same JSON as the CLI.
 ## Commit approval
 
 **Approve as-is** permits committing the reviewed scope. **Approve after comments**
-permits committing after the recorded feedback has completion evidence. **Not yet**
+tells the agent to act on all the current comments and then commit. **Not yet**
 requests revision and another verdict. See [approval modes](approval-modes.md)
-for conditions and invalidation rules. A verdict may be changed or cleared before
+for invalidation rules. A verdict may be changed or cleared before
 the agent acts on it. Browser closure still stops a server unless it runs with
 `--keep-alive`.
 
@@ -446,9 +446,10 @@ An unnamed stdin patch, and a server started with `--no-conversation`, save
 nothing.
 
 A restored review keeps its approval until the usual rules revoke it: a changed
-capture, summary, or `staged`/`.` diff. A relaunch that passes the same
+capture, summary, or `staged`/`.` diff revokes an Approve as-is, and only the
+reviewer ends Approve after comments. A relaunch that passes the same
 `--commit-message` and `--why` keeps the restored proposal and its approval; a
-different one replaces the proposal and revokes approval. Repeated `--comment`
+different one replaces the proposal and revokes an Approve as-is. Repeated `--comment`
 imports are not duplicated. A restored review gets a new review ID and a new
 event stream, so run `comment snapshot` before sending status, replies, or a
 `comment summary`, whose `baseVersion` is the restored summary's `version`.

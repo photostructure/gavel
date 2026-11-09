@@ -189,7 +189,7 @@ can only land together, such as a signature change and its callers, they are one
 commit across several reviews: give each the same `--commit-message`, commit
 once every part is approved, and commit exactly the union of their captures. If
 the user edits the message on one part, commit with that edit and don't copy it
-to the others, because a changed summary revokes approval.
+to the others, because a changed summary revokes Approve as-is.
 
 To split a commit, branch, or PR that already exists (fetch a PR's head first),
 give each part its own patch. For a branch or PR, `<base>` below is
@@ -235,24 +235,20 @@ only for an operation not covered here, rather than loading every guide on resum
 
 ## Approval and completion
 
-Read and honor the saved summary before committing. For conditional approval,
-`requested: true` records permission to address included feedback;
-`approved: false` still blocks the commit. Reply to each included question/fix,
-run checks and independent Codex/Claude review,
-recapture the final named patch, then certify each exact condition with
-`comment address`. Change requests require `fixed`, questions `answered`, and
-ordinary comments may use `acknowledged` when no action is needed.
-
-Skip conditions already `confirmed-by-reviewer`. Reconcile still-Queued messages
-in those resolved threads and report Noted without restarting their closed work.
-Recapture clears agent attestations but preserves reviewer confirmations. New or
-edited feedback, deletion, reopening, and summary changes revoke permission.
+Read and honor the saved summary before committing. For Approve after comments
+(`mode: "after-comments"`), read every human message (`origin` is `user` or
+absent) in threads without `resolution.resolved: true`, including ones already
+Replied or Noted, plus any feedback in this session or outside gavel. Act on all
+of them, run checks and independent Codex/Claude review, and commit. If a request
+cannot be done or its meaning is unclear, explain the problem and do not commit.
+Nothing tracks which comments are done, and the verdict stays until the user
+clears it.
 
 Button approval is commit approval. Immediately before committing, read a fresh snapshot.
-Require `approval.approved: true`; for named reviews also match capture version,
+Require `approval.approved: true`; for named reviews approved as-is, also match capture version,
 patch digest, and summary version. Compare the actual commit scope with the
 approved patch and feedback; later shared-tree changes do not acquire permission.
 Then commit without asking again. Approval does not authorize a push.
 See the [approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md)
-when completing conditional approval. Hand back when the authorized work is done;
+for each verdict's rules. Hand back when the authorized work is done;
 no open review requires another model turn until the user resumes it.

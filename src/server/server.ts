@@ -1331,7 +1331,6 @@ export async function startServer(options: ServerOptions): Promise<{
           timestamp: new Date().toISOString(),
         }),
       presence,
-      () => fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() }),
       async () => {
         for (const review of conversation.snapshot().reviews)
           await revokeApprovalIfDiffChanged(review.selection);
@@ -1447,7 +1446,7 @@ export async function startServer(options: ServerOptions): Promise<{
   }
 
   // An as-is approval covers the index or worktree diff the reviewer saw. After-comments
-  // approval with conditions permits the agent's changes, so the diff may move under it.
+  // approval permits the agent's changes, so the diff may move under it.
   function revokeIfDiffChanged(selection: DiffSelection, diffDigest: string | undefined): void {
     const approval =
       conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
@@ -1455,7 +1454,7 @@ export async function startServer(options: ServerOptions): Promise<{
       !(approval?.approved || approval?.notYet) ||
       approval.diffDigest === undefined ||
       approval.diffDigest === diffDigest ||
-      (approval.mode === 'after-comments' && approval.conditions?.length)
+      approval.mode === 'after-comments'
     )
       return;
     const revoked = conversation?.setApproval(selection, false, 'agent') ?? {
@@ -1558,7 +1557,10 @@ export async function startServer(options: ServerOptions): Promise<{
           fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
         const approval =
           conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
-        if (approval?.approved || approval?.requested || approval?.notYet) {
+        if (
+          (approval?.approved || approval?.requested || approval?.notYet) &&
+          approval.mode !== 'after-comments'
+        ) {
           const revoked = conversation?.setApproval(selection, false, origin) ?? {
             approved: false,
             updatedAt: new Date().toISOString(),
@@ -1983,7 +1985,7 @@ export async function startServer(options: ServerOptions): Promise<{
             approval.notYet
               ? 'not yet'
               : approval.requested && approval.mode === 'after-comments'
-                ? `approved after comments are addressed (${approval.conditions?.filter((condition) => !condition.addressed).length ?? 0} pending; commit ${approval.approved ? 'ready' : 'blocked'})`
+                ? 'approved after comments'
                 : approval.approved
                   ? 'approved as-is'
                   : 'revoked'

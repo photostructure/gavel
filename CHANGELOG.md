@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Approve after comments** is now one recorded verdict: the agent acts on all the current comments and commits, and `approved` is true as soon as you choose it. Only you can clear it; new comments, recaptures, and message edits leave it in place. `gavel comment address`, `gavel schema address`, and the approval's `conditions` and `baselineCapture` fields are gone.
 - **Approve after comments** is now yellow with a comment-bubble icon instead of orange with a check mark, and it no longer counts pending comments or changes on its own.
 - Replace the obsolete “LGTM” label with approval and verdict terminology in the documentation, summary panel, CLI help, and human-readable server output; keep the CLI aliases compatible.
 - File headers and comment thread headers now share one disclosure behavior: clicking anywhere on the row expands or collapses it, whether or not the file is marked **Viewed**, with a tooltip and pointer cursor across the row and no hover highlight. The buttons in the row keep their own actions, and dragging to select text leaves it as it is. Alt+click on a file row applies to every file, like the chevron.

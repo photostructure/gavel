@@ -3,8 +3,8 @@ import type { DiffSelection } from '../../types/diff';
 import { diffSelectionsEqual } from '../../utils/diffSelection';
 
 /**
- * The reviewer has given this review a verdict: approved, approved after comments (which stays
- * approved: false until the agent addresses them), or not yet.
+ * The reviewer has given this review a verdict: approved as-is, approved after comments, or not
+ * yet.
  */
 export const hasVerdict = (approval: ReviewApproval) =>
   approval.requested === true || approval.notYet === true;

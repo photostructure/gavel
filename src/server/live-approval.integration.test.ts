@@ -254,8 +254,7 @@ describe('approval of a staged review', () => {
       `/api/approval/conditional?${new URLSearchParams({ base: diff.baseCommitish!, target: 'staged' })}`,
       { approved: true, mode: 'after-comments', diffDigest: diff.diffDigest },
     );
-    expect(requested).toMatchObject({ approved: false, requested: true });
-    expect(requested.conditions).toHaveLength(1);
+    expect(requested).toMatchObject({ approved: true, requested: true });
     await call(
       `/api/comments?${new URLSearchParams({ base: diff.baseCommitish!, target: 'staged' })}`,
       {
@@ -269,15 +268,15 @@ describe('approval of a staged review', () => {
     expect(await approvalOf(diff)).toMatchObject({ approved: true });
   });
 
-  it('revokes an approval after comments with no comments when the diff changes', async () => {
+  it('keeps an approval after comments with no comments when the diff changes', async () => {
     const diff = await startDiff();
     const approved = await call<ReviewApproval>(
       `/api/approval/conditional?${new URLSearchParams({ base: diff.baseCommitish!, target: 'staged' })}`,
       { approved: true, mode: 'after-comments', diffDigest: diff.diffDigest },
     );
-    expect(approved).toMatchObject({ approved: true, conditions: [] });
+    expect(approved).toMatchObject({ approved: true, requested: true });
     writeFileSync(join(root, 'b.txt'), 'two changed\n');
     git('add', 'b.txt');
-    expect(await approvalOf(diff)).toMatchObject({ approved: false });
+    expect(await approvalOf(diff)).toMatchObject({ approved: true });
   });
 });

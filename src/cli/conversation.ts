@@ -119,39 +119,6 @@ export function addConversationCommands(comment: Command): void {
     });
 
   comment
-    .command('address')
-    .description(
-      'Certify one conditional approval comment as fixed, answered, or acknowledged with evidence; accepts JSON via stdin',
-    )
-    .argument(
-      '[json]',
-      'JSON with reviewId, approvalCursor, threadId, messageId, cursor, outcome, and evidence',
-    )
-    .requiredOption('--port <port>', 'port of a conversation server', (value: string) =>
-      integerInRange(value, 1, 65535),
-    )
-    .action(async (json: string | undefined, options: { port: number; host: string }) => {
-      try {
-        if (json === undefined && detectStdinSource() === 'tty')
-          throw new Error('Provide address JSON as an argument or via stdin');
-        const body: unknown = JSON.parse(json ?? (await readStdin()));
-        const response = await fetch(
-          serverUrl(options.host, options.port, '/api/conversation/address'),
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(30000),
-          },
-        );
-        await checkResponse(response);
-        console.log(JSON.stringify(await response.json()));
-      } catch (error) {
-        reportError(error, options.port, options.host);
-      }
-    });
-
-  comment
     .command('reply')
     .description('Reply to an exact review/thread/message using event IDs; accepts JSON via stdin')
     .argument('[json]', 'JSON with reviewId, threadId, inReplyTo, body, and optional cursor/author')

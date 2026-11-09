@@ -85,7 +85,7 @@ each rationale with its place (“Task 9, part A of 3”) and refer to other par
 tab name. Make separate commits when parts build and pass tests independently.
 Otherwise use one commit across reviews, the same proposed message on each, and
 commit exactly their captured union after every part is approved. Honor a user's
-message edit without copying it to other parts: summary edits revoke approval.
+message edit without copying it to other parts: summary edits revoke Approve as-is.
 
 ## Prepare and launch
 
@@ -187,7 +187,7 @@ patch, repeat the native `--pathspec` and `--include-untracked` options, or use
 Without a patch source or filters, update captures the whole uncommitted tree;
 it does not reuse the original options. Reconcile HTTP 409 before retrying. An identical patch preserves version and
 approval; a changed patch advances the version and invalidates as-is approval.
-Do not recapture while idle. Conditional approval follows the rules below.
+Do not recapture while idle.
 
 Reopening the same named patch or commits restores saved conversations, proposals,
 and approval, but review IDs and event cursors change. Snapshot before sending
@@ -220,7 +220,7 @@ sentences explaining the problem and solution. For others' work, identify inferr
 intent. For added reviews, send `comment summary` JSON on stdin:
 `{reviewId,commitMessage,rationale,baseVersion}`. Read `summary.version` from a
 snapshot for `baseVersion`; do not assume 0 because saved proposals may exist.
-Changed summaries revoke approval. Honor the user's saved message when committing.
+Changed summaries revoke Approve as-is. Honor the user's saved message when committing.
 
 ## Handle feedback
 
@@ -261,28 +261,25 @@ URL and resumption instructions. Do not reread an unchanged snapshot.
 
 Read a fresh snapshot before acting: the user can clear or switch a verdict.
 
-| Verdict                                                             | Action                                                                 |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Approve as-is: `approved: true`                                     | Verify final scope and commit prerequisites below.                     |
-| Approve after comments: `requested: true`, `mode: "after-comments"` | Address only the recorded feedback; commit only once `approved: true`. |
-| Not yet: `notYet: true`, `approved: false`                          | Revise and update the capture or proposal, then await a new verdict.   |
-| No verdict                                                          | Await the user.                                                        |
+| Verdict                                                            | Action                                                               |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Approve as-is: `approved: true`, `mode: "as-is"`                   | Verify final scope and commit prerequisites below.                   |
+| Approve after comments: `approved: true`, `mode: "after-comments"` | Act on all current comments, then commit.                            |
+| Not yet: `notYet: true`, `approved: false`                         | Revise and update the capture or proposal, then await a new verdict. |
+| No verdict                                                         | Await the user.                                                      |
 
-For conditional approval, read the [approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md)
-and `schema address`. Preserve the baseline and exact condition revisions. Skip
-reviewer-confirmed conditions; mark their pending messages Noted without redoing
-the work. Replies and Noted alone do not satisfy conditions. Finish fixes, checks,
-independent review, and final capture before using `comment address` to certify
-`fixed`, `answered`, or
-ordinary-comment `acknowledged` with the current approval and comment cursors.
-Recapture clears agent evidence but preserves reviewer confirmations. New or
-edited feedback, deletion, reopened threads, or summary edits revoke permission.
-Keep baseline-to-final changes within the authorized feedback.
+For Approve after comments, read every entry in the filtered snapshot's
+`comments`, plus any feedback in this session or outside gavel, and act on all
+of them, including any added before the final snapshot. If a request cannot be
+done or its meaning is unclear, explain the problem and do not commit. Nothing
+tracks which comments are done, and the verdict stays until the user clears it.
+See the
+[approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md).
 
-Approve as-is or fully addressed conditional approval on a review you opened is
+Approve as-is or Approve after comments on a review you opened is
 commit approval. After comments, required checks, and independent Codex/Claude
 LAND on final code, read a fresh full snapshot immediately before committing.
-Require `approval.approved: true`; for named captures also match:
+Require `approval.approved: true`; for named captures approved as-is, also match:
 
 - `approval.captureVersion` to `capture.version`;
 - `approval.patchDigest` to `capture.patchDigest`;

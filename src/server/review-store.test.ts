@@ -90,6 +90,24 @@ describe('ReviewStore', () => {
       utimesSync(join(directory, subdirectory, name), seconds, seconds);
   }
 
+  // Written by a version that held this verdict at approved: false until comments were certified.
+  it('upgrades an approval after comments saved by an older version', () => {
+    const legacy = {
+      ...review(),
+      approval: {
+        approved: false,
+        requested: true,
+        mode: 'after-comments',
+        conditions: [],
+        baselineCapture: { version: 1, patchDigest: 'a'.repeat(64) },
+      },
+    } as SavedReview;
+    expect(store.save('key', legacy, server.owner)).toBe('saved');
+    const upgraded = { approved: true, requested: true, mode: 'after-comments' };
+    expect(store.load('key')?.approval).toEqual(upgraded);
+    expect(store.list().map((saved) => saved.approval)).toEqual([upgraded]);
+  });
+
   it('reads back a saved review and leaves no temporary file', () => {
     expect(store.save('key', review(), server.owner)).toBe('saved');
     expect(store.load('key')).toEqual(review());

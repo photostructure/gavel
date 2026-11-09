@@ -2230,7 +2230,7 @@ describe('Server Integration Tests', () => {
     });
   });
 
-  describe('conditional approval notifications', () => {
+  describe('approval requests and notifications', () => {
     it.each([
       {
         conversation: true,
@@ -2275,7 +2275,48 @@ describe('Server Integration Tests', () => {
       },
     );
 
-    it('notifies the browser when edited human feedback revokes pending approval', async () => {
+    it('keeps an approval after comments when the proposed message is edited', async () => {
+      const result = await startServer({
+        preferredPort: 0,
+        keepAlive: true,
+        conversation: true,
+        shipIt: true,
+        jsonl: false,
+      });
+      servers.push(result.server);
+      const post = (path: string, body: unknown) =>
+        fetch(`${result.url}${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      try {
+        const summary = (await (await fetch(`${result.url}/api/review-summary`)).json()) as {
+          version: number;
+        };
+        await post('/api/approval/conditional', {
+          approved: true,
+          mode: 'after-comments',
+          summaryVersion: summary.version,
+        });
+        const edited = await post('/api/review-summary', {
+          commitMessage: 'fix: a better message',
+          rationale: '',
+          baseVersion: summary.version,
+        });
+        expect(edited.status).toBe(200);
+        expect(await (await fetch(`${result.url}/api/approval`)).json()).toMatchObject({
+          approved: true,
+          requested: true,
+          mode: 'after-comments',
+          summaryVersion: summary.version + 1,
+        });
+      } finally {
+        await result.shutdown('closed');
+      }
+    });
+
+    it('notifies the browser when edited human feedback revokes an as-is approval', async () => {
       const broadcast = vi.spyOn(FileWatcherService.prototype, 'broadcast');
       const result = await startServer({
         preferredPort: 0,
@@ -2292,7 +2333,7 @@ describe('Server Integration Tests', () => {
         });
       const now = new Date().toISOString();
       const discussion: DiffCommentThread = {
-        id: 'conditional',
+        id: 'discussion',
         scope: 'review',
         createdAt: now,
         updatedAt: now,
@@ -2312,17 +2353,13 @@ describe('Server Integration Tests', () => {
         const summary = (await (await fetch(`${result.url}/api/review-summary`)).json()) as {
           version: number;
         };
-        const response = await post('/api/approval/conditional', {
+        const response = await post('/api/approval', {
           approved: true,
-          mode: 'after-comments',
+          mode: 'as-is',
           summaryVersion: summary.version,
         });
         expect(response.status).toBe(200);
-        expect(await response.json()).toMatchObject({
-          requested: true,
-          approved: false,
-          conditions: [expect.any(Object)],
-        });
+        expect(await response.json()).toMatchObject({ requested: true, approved: true });
         broadcast.mockClear();
         const edited = structuredClone(discussion);
         const message = edited.messages[0];

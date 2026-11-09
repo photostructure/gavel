@@ -554,7 +554,7 @@ Agent protocol:
   gavel comment status --help   Explicit delivery and progress receipts
   gavel comment snapshot --host <host> --port <port>  Recover current review state
   Address examples: docs/server-addresses.md
-  Approval modes and completion: docs/approval-modes.md (schema approval, schema address)
+  Approval modes: docs/approval-modes.md (schema approval)
 
 Summary JSON: {"reviewId":"...","commitMessage":"fix: ...","rationale":"Short TLDR","baseVersion":0}
 Comment JSON events include type, reviewId, threadId, messageId, cursor, and body.

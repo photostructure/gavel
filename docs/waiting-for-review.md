@@ -122,5 +122,5 @@ server without the event endpoint or presence reporting causes exit code 1.
 Preserve its review state before
 arranging a replacement; do not stop existing reviews merely to try this command.
 
-Explicit delivery receipts, capture/version checks and conditional approval
-authorization from [the conversation protocol](agent-conversations.md) still apply.
+Explicit delivery receipts, capture/version checks and verdict rules
+from [the conversation protocol](agent-conversations.md) still apply.

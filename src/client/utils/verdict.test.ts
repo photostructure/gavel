@@ -12,11 +12,9 @@ const review = (name: string, approval: ReviewApproval = { approved: false }) =>
 const approved: ReviewApproval = { approved: true, requested: true, mode: 'as-is' };
 
 describe('hasVerdict', () => {
-  it('counts approval, pending approval after comments, and not yet as verdicts', () => {
+  it('counts approval, approval after comments, and not yet as verdicts', () => {
     expect(hasVerdict(approved)).toBe(true);
-    expect(
-      hasVerdict({ approved: false, requested: true, mode: 'after-comments', conditions: [] }),
-    ).toBe(true);
+    expect(hasVerdict({ approved: true, requested: true, mode: 'after-comments' })).toBe(true);
     expect(hasVerdict({ approved: false, notYet: true })).toBe(true);
     expect(hasVerdict({ approved: false })).toBe(false);
   });

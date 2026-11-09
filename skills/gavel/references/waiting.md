@@ -37,8 +37,7 @@ Handle completion according to its exit code:
 | 4                          | No review is attended. End the turn; never automatically retry.                                                                                                                                                                                                                                                                                                                                               |
 
 Drop a port only when none of its reviews awaits the user. Approval of one review
-does not finish other reviews; conditional approval with open conditions is still
-pending. Presence changes alone request no work. If a host kills the waiter at
+does not finish other reviews. Presence changes alone request no work. If a host kills the waiter at
 its deadline, do not re-arm it with a longer timeout.
 
 On terminal failure, explain that the user's next chat message resumes the work.

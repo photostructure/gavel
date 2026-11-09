@@ -112,8 +112,10 @@ export function useReviewApproval(
   );
 
   const current = state?.key === key ? state.approval : null;
+  // An approval after comments follows the agent's revisions, so it applies to any capture.
   const matchesCapture =
     captureVersion === undefined ||
+    current?.mode === 'after-comments' ||
     (current?.captureVersion === captureVersion &&
       current.patchDigest === patchDigest &&
       (displayedSummaryVersion === undefined ||

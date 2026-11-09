@@ -16,7 +16,7 @@ gavel --review parser-fix --pathspec src --pathspec ':(exclude)src/generated/**'
 
 For capture selection, updates, and saved reviews, see the
 [conversation protocol](agent-conversations.md#named-captures-for-uncommitted-work).
-For verdicts and approval conditions, see [approval modes](approval-modes.md).
+For verdicts, see [approval modes](approval-modes.md).
 
 ## GitHub pull requests
 

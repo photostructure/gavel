@@ -32,25 +32,11 @@ export interface ConversationEvent {
 
 export type ApprovalMode = 'as-is' | 'after-comments';
 
-export interface ApprovalCondition {
-  threadId: string;
-  messageId: string;
-  cursor: string;
-  intent: CommentIntent;
-  addressed?: {
-    outcome: 'fixed' | 'answered' | 'acknowledged' | 'confirmed-by-reviewer';
-    evidence: string;
-    updatedAt: string;
-  };
-}
-
 export interface ReviewApproval {
   conditionalSupported?: boolean;
   mode?: ApprovalMode;
-  /** Conditional permission is recorded, but approved stays false until every condition is addressed. */
+  /** The reviewer chose an approval verdict. */
   requested?: boolean;
-  conditions?: ApprovalCondition[];
-  baselineCapture?: Pick<NamedReviewMetadata, 'version' | 'patchDigest'>;
   captureVersion?: number;
   patchDigest?: string;
   /** The approved index or worktree diff; a different current diff revokes an as-is approval. */
