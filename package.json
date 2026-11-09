@@ -30,6 +30,7 @@
     "dist",
     "README.md",
     "LICENSE",
+    "docs/cli.md",
     "docs/agent-conversations.md",
     "docs/server-addresses.md",
     "docs/waiting-for-review.md",
