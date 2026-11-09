@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The gavel skills now tell agents to pass a short `--title` on every launch, so open servers can be told apart in the browser, and `--help` describes the option that way.
 - **Approve after comments** is now one recorded verdict: the agent acts on all the current comments and commits, and `approved` is true as soon as you choose it. Only you can clear it; new comments, recaptures, and message edits leave it in place. `gavel comment address`, `gavel schema address`, and the approval's `conditions` and `baselineCapture` fields are gone.
 - **Approve after comments** is now yellow with a comment-bubble icon instead of orange with a check mark, and it no longer counts pending comments or changes on its own.
 - Replace the obsolete “LGTM” label with approval and verdict terminology in the documentation, summary panel, CLI help, and human-readable server output; keep the CLI aliases compatible.

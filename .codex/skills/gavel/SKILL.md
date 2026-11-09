@@ -79,7 +79,9 @@ they may be reading it on another device.
    title, since Codex does not export it; never invent a title. They are set per
    server at launch; `review create` on a reused server keeps the launching
    chat's values.
-4. Launch once with `--background --keep-alive`. Read the finite
+4. Launch once with `--background --keep-alive --title '<short description>'`.
+   Pass `--title` on every launch. Keep it short: browsers only show the first
+   10-20 characters. Read the finite
    `server.background` record: `port`, `pid`, and `url`. Its `url` is the reviewing
    link. Open it in the requested browser when browser tools are available.
    Record the reviewed repository, API host/port, review name/ID, capture identity,
