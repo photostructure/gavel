@@ -29,14 +29,14 @@ function readSeenMessages(prefix: string | null): Record<string, string> {
   return seen;
 }
 
-export function useAgentUpdates(threads: CommentThread[], scope: string | null, ready: boolean) {
+export function useAgentUpdates(threads: CommentThread[], scope: string | null) {
   const storagePrefix = scope === null ? null : `gavel-agent-updates-v1:${JSON.stringify(scope)}:`;
   const [state, setState] = useState<{ scope: string | null; seen: Record<string, string> }>({
     scope: null,
     seen: {},
   });
-  const activeScope = useRef({ scope, loadedScope: state.scope, ready });
-  activeScope.current = { scope, loadedScope: state.scope, ready };
+  const activeScope = useRef({ scope, loadedScope: state.scope });
+  activeScope.current = { scope, loadedScope: state.scope };
   useEffect(() => {
     const load = () => setState({ scope, seen: readSeenMessages(storagePrefix) });
     load();
@@ -74,8 +74,6 @@ export function useAgentUpdates(threads: CommentThread[], scope: string | null, 
     (threadId: string, messageId: string, revision: string, read: boolean) => {
       const key = JSON.stringify([threadId, messageId]);
       if (
-        !ready ||
-        !activeScope.current.ready ||
         !storagePrefix ||
         activeScope.current.scope !== scope ||
         activeScope.current.loadedScope !== scope ||
@@ -98,10 +96,10 @@ export function useAgentUpdates(threads: CommentThread[], scope: string | null, 
         return { scope, seen };
       });
     },
-    [ready, scope, storagePrefix],
+    [scope, storagePrefix],
   );
   const updates =
-    ready && scope !== null && state.scope === scope
+    scope !== null && state.scope === scope
       ? allUpdates.filter((update) => state.seen[update.key] !== update.revision)
       : [];
   return { updates, setRead };

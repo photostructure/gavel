@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { useHotkeys, useHotkeysContext } from 'react-hotkeys-hook';
 
-import type { CommentIntent, CommentThread } from '../../types/diff';
+import type { CommentIntent, CommentThread, DiffSelection } from '../../types/diff';
 import { hasActiveTextSelection } from '../utils/domUtils';
 import { useDraftAnchors } from '../hooks/useCommentDrafts';
 import type { AgentUpdate } from '../hooks/useAgentUpdates';
@@ -21,11 +21,28 @@ import { CommentThreadCard } from './CommentThreadCard';
 import type { AppearanceSettings } from './SettingsModal';
 import { UnsentDrafts } from './UnsentDrafts';
 
+/** Another review on this server, whose threads the panel can list but not change. */
+export interface OtherReviewConversation {
+  key: string;
+  name: string;
+  selection: DiffSelection;
+  threads: CommentThread[];
+  showAuthorBadges: boolean;
+}
+
 interface CommentsListModalProps {
   headerActions?: ReactNode;
+  // Across every review on the server, not only the open one.
   unreadUpdates?: AgentUpdate[];
   readScope?: string | null;
   onMarkAllRead?: () => void;
+  onMarkAllReviewsRead?: () => void;
+  otherReviews?: OtherReviewConversation[];
+  currentReviewName?: string;
+  onOpenOtherReviewThread?: (review: OtherReviewConversation, threadId: string) => void;
+  // Opens this thread's card once the open review's threads include it.
+  focusThreadId?: string | null;
+  onThreadFocused?: () => void;
   isOpen: boolean;
   onClose: () => void;
   onAddGeneralComment?: (body: string, options: CommentSubmitOptions) => Promise<void>;
@@ -54,12 +71,33 @@ interface CommentsListModalProps {
 }
 
 const EMPTY_UPDATES: AgentUpdate[] = [];
+const EMPTY_REVIEWS: OtherReviewConversation[] = [];
+
+function compareThreadsByPosition(a: CommentThread, b: CommentThread): number {
+  const fileCompare = (a.file ?? '').localeCompare(b.file ?? '');
+  if (fileCompare !== 0) return fileCompare;
+
+  const aLine = Array.isArray(a.line) ? a.line[0] : a.line;
+  const bLine = Array.isArray(b.line) ? b.line[0] : b.line;
+  if (aLine !== bLine) return (aLine ?? 0) - (bLine ?? 0);
+
+  return a.createdAt.localeCompare(b.createdAt);
+}
+
+const MARK_READ_BUTTON_CLASSES =
+  'inline-flex h-8 items-center justify-center rounded border border-github-border px-2 text-xs text-github-text-primary hover:bg-github-bg-tertiary disabled:cursor-not-allowed disabled:opacity-50';
 
 export function CommentsListModal({
   headerActions,
   unreadUpdates = EMPTY_UPDATES,
   readScope = null,
   onMarkAllRead,
+  onMarkAllReviewsRead,
+  otherReviews = EMPTY_REVIEWS,
+  currentReviewName,
+  onOpenOtherReviewThread,
+  focusThreadId = null,
+  onThreadFocused,
   isOpen,
   onClose,
   onAddGeneralComment,
@@ -78,7 +116,12 @@ export function CommentsListModal({
   syntaxTheme,
 }: CommentsListModalProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [filter, setFilter] = useState<'all' | 'open' | 'resolved' | 'unread'>('all');
+  const [selectedFilter, setFilter] = useState<
+    'current' | 'open' | 'resolved' | 'unread' | 'all-reviews'
+  >('current');
+  // The All reviews pill goes away with the last other review, even while selected.
+  const filter =
+    selectedFilter === 'all-reviews' && otherReviews.length === 0 ? 'current' : selectedFilter;
   const filterName = useId();
   const [focus, setFocus] = useState<{
     scope: string | null;
@@ -116,24 +159,41 @@ export function CommentsListModal({
     setFocus((previous) => (!isOpen || previous?.scope !== readScope ? null : previous));
   }, [isOpen, readScope]);
 
-  const sortedThreads = comments
-    .filter((thread) =>
-      filter === 'unread'
-        ? !thread.deleted && unreadByThread.has(thread.id)
-        : thread.deleted ||
-          filter === 'all' ||
-          Boolean(thread.resolution?.resolved) === (filter === 'resolved'),
-    )
-    .sort((a, b) => {
-      const fileCompare = (a.file ?? '').localeCompare(b.file ?? '');
-      if (fileCompare !== 0) return fileCompare;
-
-      const aLine = Array.isArray(a.line) ? a.line[0] : a.line;
-      const bLine = Array.isArray(b.line) ? b.line[0] : b.line;
-      if (aLine !== bLine) return (aLine ?? 0) - (bLine ?? 0);
-
-      return a.createdAt.localeCompare(b.createdAt);
-    });
+  const otherReviewByThread = useMemo(
+    () =>
+      new Map(
+        otherReviews.flatMap((review) =>
+          review.threads.map((thread) => [thread.id, review] as const),
+        ),
+      ),
+    [otherReviews],
+  );
+  const listsEveryReview = filter === 'unread' || filter === 'all-reviews';
+  const threadGroups = [
+    { review: null, threads: comments },
+    ...(listsEveryReview
+      ? otherReviews.map((review) => ({ review, threads: review.threads }))
+      : []),
+  ]
+    .map((group) => ({
+      ...group,
+      threads: group.threads
+        .filter((thread) =>
+          filter === 'unread'
+            ? !thread.deleted && unreadByThread.has(thread.id)
+            : thread.deleted ||
+              filter === 'current' ||
+              filter === 'all-reviews' ||
+              Boolean(thread.resolution?.resolved) === (filter === 'resolved'),
+        )
+        .sort(compareThreadsByPosition),
+    }))
+    .filter((group) => group.threads.length > 0);
+  const sortedThreads = threadGroups.flatMap((group) => group.threads);
+  const showReviewHeadings = listsEveryReview && otherReviews.length > 0;
+  const currentUnreadCount = unreadUpdates.filter(
+    (update) => !otherReviewByThread.has(update.thread.id),
+  ).length;
 
   const focusedThreadIndex = sortedThreads.findIndex(
     (thread) => thread.id === focusedMessage?.threadId,
@@ -168,43 +228,57 @@ export function CommentsListModal({
 
   const handleThreadClick = useCallback(
     (thread: CommentThread) => {
+      const otherReview = otherReviewByThread.get(thread.id);
+      if (otherReview) {
+        onOpenOtherReviewThread?.(otherReview, thread.id);
+        return;
+      }
       if (thread.scope === 'review') return;
       onNavigate(thread);
       onClose();
     },
-    [onClose, onNavigate],
+    [onClose, onNavigate, onOpenOtherReviewThread, otherReviewByThread],
   );
 
   // A reply or edit draft opens its thread's card here, which holds the draft's form.
   // The diff may not draw the thread at all (a later capture dropped its hunk), so the
-  // panel never sends it there. The filter switches to All so the card is listed.
-  const handleDraftThreadClick = (thread: CommentThread, messageId?: string) => {
-    const focusId = messageId ?? thread.messages[0]?.id;
-    if (focusId === undefined) return;
-    setFilter('all');
-    setFocus((previous) => ({
-      scope: readScope,
-      threadId: thread.id,
-      messageId: focusId,
-      request: (previous?.request ?? 0) + 1,
-    }));
-  };
-
-  const handleRemoveThread = useCallback(
-    (threadId: string) => {
-      onRemoveThread?.(threadId);
-      if (selectedIndex >= sortedThreads.length - 1 && selectedIndex > 0) {
-        setSelectedIndex(selectedIndex - 1);
-      }
+  // panel never sends it there. The filter switches to This review so the card is listed.
+  const openThreadCard = useCallback(
+    (thread: CommentThread, messageId?: string) => {
+      const focusId = messageId ?? thread.messages[0]?.id;
+      if (focusId === undefined) return;
+      setFilter('current');
+      setFocus((previous) => ({
+        scope: readScope,
+        threadId: thread.id,
+        messageId: focusId,
+        request: (previous?.request ?? 0) + 1,
+      }));
     },
-    [onRemoveThread, selectedIndex, sortedThreads.length],
+    [readScope],
   );
+
+  useEffect(() => {
+    if (!isOpen || focusThreadId === null) return;
+    const thread = comments.find((item) => item.id === focusThreadId);
+    if (!thread) return;
+    const unreadIds = new Set(unreadByThread.get(thread.id)?.map((update) => update.message.id));
+    openThreadCard(thread, thread.messages.find((message) => unreadIds.has(message.id))?.id);
+    onThreadFocused?.();
+  }, [isOpen, focusThreadId, comments, unreadByThread, openThreadCard, onThreadFocused]);
+
+  const handleRemoveThread = (threadId: string) => {
+    onRemoveThread?.(threadId);
+    if (selectedIndex >= sortedThreads.length - 1 && selectedIndex > 0) {
+      setSelectedIndex(selectedIndex - 1);
+    }
+  };
 
   const handleToggleResolution = useCallback(
     (thread: CommentThread) => {
-      if (!thread.deleted) onToggleThreadResolved(thread.id);
+      if (!thread.deleted && !otherReviewByThread.has(thread.id)) onToggleThreadResolved(thread.id);
     },
-    [onToggleThreadResolved],
+    [onToggleThreadResolved, otherReviewByThread],
   );
 
   useEffect(() => {
@@ -339,11 +413,22 @@ export function CommentsListModal({
                 <button
                   type="button"
                   onClick={onMarkAllRead}
-                  disabled={unreadUpdates.length === 0}
+                  disabled={currentUnreadCount === 0}
                   title="Mark every agent reply in this review as read, including hidden threads"
-                  className="inline-flex h-8 items-center justify-center rounded border border-github-border px-2 text-xs text-github-text-primary hover:bg-github-bg-tertiary disabled:cursor-not-allowed disabled:opacity-50"
+                  className={MARK_READ_BUTTON_CLASSES}
                 >
-                  Mark all read
+                  {otherReviews.length > 0 ? 'Mark this review read' : 'Mark all read'}
+                </button>
+              )}
+              {onMarkAllReviewsRead && otherReviews.length > 0 && (
+                <button
+                  type="button"
+                  onClick={onMarkAllReviewsRead}
+                  disabled={unreadUpdates.length === 0}
+                  title="Mark every agent reply in every review as read, including hidden threads"
+                  className={MARK_READ_BUTTON_CLASSES}
+                >
+                  Mark all reviews read
                 </button>
               )}
             </div>
@@ -353,10 +438,11 @@ export function CommentsListModal({
             <div className="flex flex-wrap gap-2">
               {(
                 [
-                  ['all', 'All'],
+                  ['current', 'This review'],
                   ['open', 'Open'],
                   ['resolved', 'Resolved'],
                   ['unread', 'Unread'],
+                  ...(otherReviews.length > 0 ? ([['all-reviews', 'All reviews']] as const) : []),
                 ] as const
               ).map(([value, label]) => (
                 <label key={value} className="cursor-pointer">
@@ -387,6 +473,8 @@ export function CommentsListModal({
           <p className="mt-3 text-xs text-github-text-secondary">
             Blue dots mark unread replies. Click a reply or its filled dot to mark it read; click a
             hollow dot to mark it unread.
+            {otherReviews.length > 0 &&
+              ' On a thread from another review, use the dot; clicking the thread opens that review.'}
           </p>
           <div className="mt-2 text-xs text-github-text-secondary">
             <span className="font-mono">j/k</span> or <span className="font-mono">↑/↓</span> to
@@ -403,7 +491,7 @@ export function CommentsListModal({
                 {...unsentDrafts}
                 threads={comments}
                 syntaxTheme={syntaxTheme}
-                onNavigateToThread={handleDraftThreadClick}
+                onNavigateToThread={openThreadCard}
                 onClosePanel={onClose}
               />
             )}
@@ -451,62 +539,88 @@ export function CommentsListModal({
               </p>
             ) : (
               <>
-                <div className="space-y-2">
-                  {sortedThreads.map((thread, index) => (
-                    <div
-                      key={thread.id}
-                      ref={(el) => {
-                        commentRefs.current[index] = el;
-                      }}
-                      className={selectedIndex === index ? 'rounded ring-2 ring-blue-500' : ''}
-                    >
-                      <CommentThreadCard
-                        onEscapeKeepingDraft={onClose}
-                        unreadCount={unreadByThread.get(thread.id)?.length ?? 0}
-                        onReadUnread={() => {
-                          const unreadIds = new Set(
-                            unreadByThread.get(thread.id)?.map((update) => update.message.id),
+                <div className="space-y-4">
+                  {threadGroups.map((group, groupIndex) => {
+                    const firstIndex = threadGroups
+                      .slice(0, groupIndex)
+                      .reduce((count, earlier) => count + earlier.threads.length, 0);
+                    return (
+                      <section key={group.review?.key ?? 'current'} className="space-y-2">
+                        {showReviewHeadings && (
+                          <h3 className="text-xs ui-heading">
+                            <code>{group.review?.name ?? currentReviewName ?? 'This review'}</code>
+                          </h3>
+                        )}
+                        {group.threads.map((thread, threadIndex) => {
+                          const index = firstIndex + threadIndex;
+                          return (
+                            <div
+                              key={thread.id}
+                              ref={(el) => {
+                                commentRefs.current[index] = el;
+                              }}
+                              className={
+                                selectedIndex === index ? 'rounded ring-2 ring-blue-500' : ''
+                              }
+                            >
+                              <CommentThreadCard
+                                readOnly={group.review !== null}
+                                onEscapeKeepingDraft={onClose}
+                                unreadCount={unreadByThread.get(thread.id)?.length ?? 0}
+                                onReadUnread={() => {
+                                  const unreadIds = new Set(
+                                    unreadByThread
+                                      .get(thread.id)
+                                      ?.map((update) => update.message.id),
+                                  );
+                                  const message = thread.messages.find((item) =>
+                                    unreadIds.has(item.id),
+                                  );
+                                  if (!message) return;
+                                  setFocus((previous) => ({
+                                    scope: readScope,
+                                    threadId: thread.id,
+                                    messageId: message.id,
+                                    request: (previous?.request ?? 0) + 1,
+                                  }));
+                                }}
+                                focusedMessageId={
+                                  focusedMessage?.threadId === thread.id
+                                    ? focusedMessage.messageId
+                                    : undefined
+                                }
+                                focusRequest={
+                                  focusedMessage?.threadId === thread.id
+                                    ? focusedMessage.request
+                                    : undefined
+                                }
+                                thread={thread}
+                                showAuthorBadges={
+                                  group.review?.showAuthorBadges ?? showAuthorBadges
+                                }
+                                onGeneratePrompt={onGenerateThreadPrompt}
+                                onRemoveThread={onRemoveThread ? handleRemoveThread : undefined}
+                                onRestoreComment={onRestoreComment}
+                                onToggleThreadResolved={onToggleThreadResolved}
+                                onReplyToThread={onReplyToThread}
+                                onRemoveMessage={onRemoveMessage}
+                                onUpdateMessage={onUpdateMessage}
+                                syntaxTheme={syntaxTheme}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Selecting text inside a card fires a click as well; do not
+                                  // treat it as a request to navigate and close the modal.
+                                  if (hasActiveTextSelection()) return;
+                                  setSelectedIndex(index);
+                                  handleThreadClick(thread);
+                                }}
+                              />
+                            </div>
                           );
-                          const message = thread.messages.find((item) => unreadIds.has(item.id));
-                          if (!message) return;
-                          setFocus((previous) => ({
-                            scope: readScope,
-                            threadId: thread.id,
-                            messageId: message.id,
-                            request: (previous?.request ?? 0) + 1,
-                          }));
-                        }}
-                        focusedMessageId={
-                          focusedMessage?.threadId === thread.id
-                            ? focusedMessage.messageId
-                            : undefined
-                        }
-                        focusRequest={
-                          focusedMessage?.threadId === thread.id
-                            ? focusedMessage.request
-                            : undefined
-                        }
-                        thread={thread}
-                        showAuthorBadges={showAuthorBadges}
-                        onGeneratePrompt={onGenerateThreadPrompt}
-                        onRemoveThread={onRemoveThread ? handleRemoveThread : undefined}
-                        onRestoreComment={onRestoreComment}
-                        onToggleThreadResolved={onToggleThreadResolved}
-                        onReplyToThread={onReplyToThread}
-                        onRemoveMessage={onRemoveMessage}
-                        onUpdateMessage={onUpdateMessage}
-                        syntaxTheme={syntaxTheme}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Selecting text inside a card fires a click as well; do not
-                          // treat it as a request to navigate and close the modal.
-                          if (hasActiveTextSelection()) return;
-                          setSelectedIndex(index);
-                          handleThreadClick(thread);
-                        }}
-                      />
-                    </div>
-                  ))}
+                        })}
+                      </section>
+                    );
+                  })}
                 </div>
                 <div className="mt-4 border-t border-github-border pt-4 text-center text-xs text-github-text-secondary">
                   {selectedIndex + 1} of {sortedThreads.length} threads

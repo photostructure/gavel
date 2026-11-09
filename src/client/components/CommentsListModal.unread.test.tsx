@@ -148,7 +148,7 @@ describe('unread conversations', () => {
     await waitFor(() =>
       expect(screen.getByText('Reply a 0').closest('[data-comment-message-id]')).toHaveFocus(),
     );
-    fireEvent.click(screen.getByRole('radio', { name: 'All' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'This review' }));
     rerender(<View isOpen={false} />);
     expect(setRead).not.toHaveBeenCalled();
     expect(onMarkAllRead).not.toHaveBeenCalled();
@@ -221,7 +221,7 @@ describe('unread conversations', () => {
     rerender(view(true));
     const panel = screen.getByRole('dialog', { name: 'Conversation' });
     const close = within(panel).getByRole('button', { name: 'Close conversation' });
-    const filter = within(panel).getByRole('radio', { name: 'All' });
+    const filter = within(panel).getByRole('radio', { name: 'This review' });
     expect(panel).toHaveFocus();
     fireEvent.keyDown(panel, { key: 'Tab', shiftKey: true });
     expect(filter).toHaveFocus();

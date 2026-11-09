@@ -78,8 +78,8 @@ acknowledged the comment without a reply. Follow up with another message or
 choose **Agreed**, **Still unclear**, or **Disagree**.
 
 Use **Conversation** for questions about the whole change. It shows those
-discussions alongside inline threads, with **All**, **Open**, **Resolved**, and
-**Unread** filters. You can resolve or reopen a thread without losing its history.
+discussions alongside inline threads, with **This review**, **Open**, **Resolved**,
+and **Unread** filters, plus **All reviews** when the server has more than one review. You can resolve or reopen a thread without losing its history.
 
 ### Give a verdict on each proposed commit
 
@@ -371,17 +371,22 @@ Open **Conversation** in the header to see the review's discussions in a side pa
 
 ![The Conversation panel showing a review-wide comment and an inline question, each answered by the agent](docs/images/conversation.png)
 
-The **Conversation** button shows a badge counting unread agent messages.
-Inside the panel, use the **All**, **Open**, **Resolved**, and **Unread** filter pills.
+The **Conversation** button shows a badge counting unread agent messages across
+every review on the server.
+Inside the panel, use the **This review**, **Open**, **Resolved**, and **Unread** filter
+pills, plus **All reviews** when the server has more than one review. **Unread** and
+**All reviews** group threads under each review's name. A thread from another review
+offers only read controls; click it to open that review with the thread focused.
 Blue dots identify threads with unread agent replies, including resolved and
 outdated threads; select a dot to jump to the first unread message.
 Click an agent reply to mark only that reply read, or use the dot at the start of
 its action buttons: a filled dot marks it read, a hollow ring marks it unread.
-**Mark all read** marks every agent message in the review,
-including threads hidden by the current filter. Opening, scrolling, jumping to a
+**Mark all read** marks every agent message in the review, including threads hidden by
+the current filter; with several reviews, it splits into **Mark this review read** and
+**Mark all reviews read**. Opening, scrolling, jumping to a
 reply, and closing the panel never mark replies read. The same explicit controls
 appear on inline agent replies.
-Read state is saved in this browser for each review and message revision;
+Read state is saved in this browser for each repository and message revision;
 edited replies become unread again. This is separate from agent delivery
 receipts and thread resolution.
 

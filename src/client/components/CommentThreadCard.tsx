@@ -46,6 +46,7 @@ type DraftFormState = 'closed' | 'restored' | 'opened';
 
 interface ThreadMessageItemProps {
   threadId: string;
+  readOnly: boolean;
   highlighted?: boolean;
   focusRequest?: number;
   message: DiffCommentMessage;
@@ -64,6 +65,7 @@ interface ThreadMessageItemProps {
 
 function ThreadMessageItem({
   threadId,
+  readOnly,
   highlighted = false,
   focusRequest,
   message,
@@ -148,6 +150,7 @@ function ThreadMessageItem({
       onClick={(event) => {
         const target = event.target;
         if (
+          !readOnly &&
           message.origin === 'agent' &&
           readState?.enabled &&
           !isEditing &&
@@ -226,7 +229,7 @@ function ThreadMessageItem({
                 />
               </button>
             )}
-            {!isRootMessage && (
+            {!readOnly && !isRootMessage && (
               <button
                 type="button"
                 onClick={handleCopy}
@@ -237,7 +240,7 @@ function ThreadMessageItem({
                 {isCopied ? <Check size={12} /> : <Copy size={12} />}
               </button>
             )}
-            {(isUserAuthoredMessage || isRootMessage) && (
+            {!readOnly && (isUserAuthoredMessage || isRootMessage) && (
               <button
                 type="button"
                 onClick={handleStartEdit}
@@ -247,7 +250,7 @@ function ThreadMessageItem({
                 <Edit2 size={12} />
               </button>
             )}
-            {(isRootMessage || isUserAuthoredMessage) && (
+            {!readOnly && (isRootMessage || isUserAuthoredMessage) && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -307,6 +310,8 @@ interface CommentThreadCardProps {
   focusRequest?: number;
   unreadCount?: number;
   onReadUnread?: () => void;
+  // A thread from another review: read/unread controls and a click-through only.
+  readOnly?: boolean;
   thread: CommentThread;
   showAuthorBadges?: boolean;
   onGeneratePrompt: (thread: CommentThread) => string;
@@ -335,6 +340,7 @@ export function CommentThreadCard({
   focusRequest,
   unreadCount = 0,
   onReadUnread,
+  readOnly = false,
   thread,
   showAuthorBadges = false,
   onGeneratePrompt,
@@ -503,6 +509,7 @@ export function CommentThreadCard({
                 Undelete
               </button>
             ) : (
+              !readOnly &&
               thread.resolution?.resolved && (
                 <button
                   type="button"
@@ -516,7 +523,7 @@ export function CommentThreadCard({
                 </button>
               )
             )}
-            {!isCollapsed && (
+            {!readOnly && !isCollapsed && (
               <button
                 type="button"
                 onClick={handleCopyThread}
@@ -543,6 +550,7 @@ export function CommentThreadCard({
           <>
             <ThreadMessageItem
               threadId={thread.id}
+              readOnly={readOnly}
               onEscapeKeepingDraft={onEscapeKeepingDraft}
               highlighted={focusedMessageId === rootMessage.id}
               focusRequest={focusedMessageId === rootMessage.id ? focusRequest : undefined}
@@ -560,7 +568,7 @@ export function CommentThreadCard({
               }
               onResolveOrDelete={() => onToggleThreadResolved(thread.id)}
               actionLabel={thread.resolution?.resolved ? 'Reopen thread' : 'Resolve thread'}
-              onDelete={onRemoveThread ? () => onRemoveThread(thread.id) : undefined}
+              onDelete={!readOnly && onRemoveThread ? () => onRemoveThread(thread.id) : undefined}
             />
 
             {thread.messages.slice(1).map((message) => (
@@ -582,6 +590,7 @@ export function CommentThreadCard({
                 ) : (
                   <ThreadMessageItem
                     threadId={thread.id}
+                    readOnly={readOnly}
                     onEscapeKeepingDraft={onEscapeKeepingDraft}
                     highlighted={focusedMessageId === message.id}
                     focusRequest={focusedMessageId === message.id ? focusRequest : undefined}
@@ -600,72 +609,78 @@ export function CommentThreadCard({
               </div>
             ))}
 
-            <div
-              ref={replyArea}
-              className="ml-4 border-l border-github-border pl-3"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {isReplying ? (
-                <CommentForm
-                  value={replyDraft.body}
-                  onChange={replyDraft.setBody}
-                  intentValue={replyDraft.intent}
-                  onIntentChange={replyDraft.setIntent}
-                  onSubmit={async (body, options) => {
-                    await onReplyToThread(thread.id, body, options.intent);
-                    replyDraft.clear();
-                    setReplyForm('closed');
-                  }}
-                  onCancel={(draft) => {
-                    if (draft.trim()) {
-                      onEscapeKeepingDraft?.();
-                      return;
-                    }
-                    // Escape returns focus to the reply field; an outside click keeps its target.
-                    returnFocusToReplyTrigger.current =
-                      replyArea.current?.contains(document.activeElement) ?? false;
-                    replyDraft.clear();
-                    setReplyForm('closed');
-                  }}
-                  selectedCode={thread.codeContent}
-                  syntaxTheme={syntaxTheme}
-                  filename={thread.file}
-                  embedded={true}
-                  title="Reply to thread"
-                  submitLabel="Send"
-                  placeholder="Write a reply..."
-                  autoFocus={replyForm === 'opened'}
-                  draftKey={replyDraft.key}
-                />
-              ) : (
-                <div role="group" aria-label="Reply" className="flex flex-wrap items-center gap-2">
-                  {agentRepliedLast &&
-                    QUICK_REPLIES.map(({ label, body, intent }) => (
-                      <button
-                        key={label}
-                        type="button"
-                        title={`Send "${body}" as a ${intent}`}
-                        onClick={() => {
-                          onReplyToThread(thread.id, body, intent).catch((error: unknown) => {
-                            console.error('Failed to send quick reply:', error);
-                          });
-                        }}
-                        className="whitespace-nowrap rounded-full border border-github-border bg-github-bg-secondary px-3 py-1 text-xs text-github-text-primary transition-colors hover:border-github-text-secondary hover:bg-github-bg-primary"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  <button
-                    ref={replyTrigger}
-                    type="button"
-                    onClick={() => setReplyForm('opened')}
-                    className="min-w-40 flex-1 cursor-text rounded border border-github-border bg-github-bg-secondary px-3 py-1.5 text-left text-sm text-github-text-muted transition-colors hover:border-github-text-secondary"
+            {!readOnly && (
+              <div
+                ref={replyArea}
+                className="ml-4 border-l border-github-border pl-3"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {isReplying ? (
+                  <CommentForm
+                    value={replyDraft.body}
+                    onChange={replyDraft.setBody}
+                    intentValue={replyDraft.intent}
+                    onIntentChange={replyDraft.setIntent}
+                    onSubmit={async (body, options) => {
+                      await onReplyToThread(thread.id, body, options.intent);
+                      replyDraft.clear();
+                      setReplyForm('closed');
+                    }}
+                    onCancel={(draft) => {
+                      if (draft.trim()) {
+                        onEscapeKeepingDraft?.();
+                        return;
+                      }
+                      // Escape returns focus to the reply field; an outside click keeps its target.
+                      returnFocusToReplyTrigger.current =
+                        replyArea.current?.contains(document.activeElement) ?? false;
+                      replyDraft.clear();
+                      setReplyForm('closed');
+                    }}
+                    selectedCode={thread.codeContent}
+                    syntaxTheme={syntaxTheme}
+                    filename={thread.file}
+                    embedded={true}
+                    title="Reply to thread"
+                    submitLabel="Send"
+                    placeholder="Write a reply..."
+                    autoFocus={replyForm === 'opened'}
+                    draftKey={replyDraft.key}
+                  />
+                ) : (
+                  <div
+                    role="group"
+                    aria-label="Reply"
+                    className="flex flex-wrap items-center gap-2"
                   >
-                    Write a reply...
-                  </button>
-                </div>
-              )}
-            </div>
+                    {agentRepliedLast &&
+                      QUICK_REPLIES.map(({ label, body, intent }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          title={`Send "${body}" as a ${intent}`}
+                          onClick={() => {
+                            onReplyToThread(thread.id, body, intent).catch((error: unknown) => {
+                              console.error('Failed to send quick reply:', error);
+                            });
+                          }}
+                          className="whitespace-nowrap rounded-full border border-github-border bg-github-bg-secondary px-3 py-1 text-xs text-github-text-primary transition-colors hover:border-github-text-secondary hover:bg-github-bg-primary"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    <button
+                      ref={replyTrigger}
+                      type="button"
+                      onClick={() => setReplyForm('opened')}
+                      className="min-w-40 flex-1 cursor-text rounded border border-github-border bg-github-bg-secondary px-3 py-1.5 text-left text-sm text-github-text-muted transition-colors hover:border-github-text-secondary"
+                    >
+                      Write a reply...
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>

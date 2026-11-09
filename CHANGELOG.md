@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Conversation** now covers every review on the server. The unread badge, now blue, counts agent replies from all of them, and **Unread** lists them grouped under each review's name. With two or more reviews, an **All reviews** pill lists every thread, and **Mark this review read** and **Mark all reviews read** replace **Mark all read**. A thread from another review shows read controls only; clicking it opens that review with the thread focused, where you can reply. The **All** pill is now **This review**. Read marks are now saved per repository rather than per review, so replies you already read show as unread once more.
+
 ### Documentation
 
 - Remove the PR Checks badge from the README because it does not report the status of the current `main` branch or published package.

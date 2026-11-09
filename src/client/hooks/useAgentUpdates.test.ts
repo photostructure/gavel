@@ -32,7 +32,7 @@ describe('unseen agent updates', () => {
   beforeEach(() => localStorage.clear());
 
   it('keeps replies unseen until explicitly marked read and retains seen revisions across reloads', async () => {
-    const first = renderHook(() => useAgentUpdates([thread], 'repo/review', true));
+    const first = renderHook(() => useAgentUpdates([thread], 'repo/review'));
     await waitFor(() => expect(first.result.current.updates).toHaveLength(1));
     const update = first.result.current.updates[0]!;
     act(() =>
@@ -40,15 +40,14 @@ describe('unseen agent updates', () => {
     );
     expect(first.result.current.updates).toHaveLength(0);
     first.unmount();
-    const reloaded = renderHook(() => useAgentUpdates([thread], 'repo/review', true));
+    const reloaded = renderHook(() => useAgentUpdates([thread], 'repo/review'));
     await waitFor(() => expect(reloaded.result.current.updates).toHaveLength(0));
   });
 
   it('treats edited agent content as unseen even if its timestamp did not change', async () => {
-    const { result, rerender } = renderHook(
-      ({ threads }) => useAgentUpdates(threads, 'review', true),
-      { initialProps: { threads: [thread] } },
-    );
+    const { result, rerender } = renderHook(({ threads }) => useAgentUpdates(threads, 'review'), {
+      initialProps: { threads: [thread] },
+    });
     await waitFor(() => expect(result.current.updates).toHaveLength(1));
     const update = result.current.updates[0]!;
     act(() => result.current.setRead(thread.id, update.message.id, update.revision, true));
@@ -61,7 +60,7 @@ describe('unseen agent updates', () => {
   });
 
   it('keeps review scopes separate and ignores a stale control from another review', async () => {
-    const { result, rerender } = renderHook(({ scope }) => useAgentUpdates([thread], scope, true), {
+    const { result, rerender } = renderHook(({ scope }) => useAgentUpdates([thread], scope), {
       initialProps: { scope: 'first' },
     });
     await waitFor(() => expect(result.current.updates).toHaveLength(1));
@@ -79,7 +78,7 @@ describe('unseen agent updates', () => {
   it('excludes deleted content and keeps identical message IDs in distinct threads separate', async () => {
     const other = { ...thread, id: 'other' };
     const removed = { ...thread, id: 'deleted', deleted: true };
-    const { result } = renderHook(() => useAgentUpdates([thread, other, removed], 'review', true));
+    const { result } = renderHook(() => useAgentUpdates([thread, other, removed], 'review'));
     await waitFor(() => expect(result.current.updates).toHaveLength(2));
     const first = result.current.updates[0]!;
     act(() => result.current.setRead(first.thread.id, first.message.id, first.revision, true));
@@ -88,8 +87,8 @@ describe('unseen agent updates', () => {
 
   it('retains messages seen in different tabs without overwriting another tab', async () => {
     const threads = [thread, { ...thread, id: 'other' }];
-    const first = renderHook(() => useAgentUpdates(threads, 'shared-review', true));
-    const second = renderHook(() => useAgentUpdates(threads, 'shared-review', true));
+    const first = renderHook(() => useAgentUpdates(threads, 'shared-review'));
+    const second = renderHook(() => useAgentUpdates(threads, 'shared-review'));
     const firstUpdate = first.result.current.updates[0]!;
     const secondUpdate = second.result.current.updates[1]!;
     act(() =>
@@ -103,14 +102,14 @@ describe('unseen agent updates', () => {
     expect(second.result.current.updates).toHaveLength(0);
     first.unmount();
     second.unmount();
-    const reloaded = renderHook(() => useAgentUpdates(threads, 'shared-review', true));
+    const reloaded = renderHook(() => useAgentUpdates(threads, 'shared-review'));
     await waitFor(() => expect(reloaded.result.current.updates).toHaveLength(0));
   });
 
   it('marks only the requested reply unread and persists the reversal across tabs and reloads', async () => {
     const threads = [thread, { ...thread, id: 'other' }];
-    const first = renderHook(() => useAgentUpdates(threads, 'review', true));
-    const second = renderHook(() => useAgentUpdates(threads, 'review', true));
+    const first = renderHook(() => useAgentUpdates(threads, 'review'));
+    const second = renderHook(() => useAgentUpdates(threads, 'review'));
     const target = first.result.current.updates.find((update) => update.thread.id === 'other')!;
     for (const update of first.result.current.updates) {
       act(() =>
@@ -123,7 +122,7 @@ describe('unseen agent updates', () => {
     act(() => window.dispatchEvent(new StorageEvent('storage', { key: null })));
     expect(second.result.current.updates.map((update) => update.thread.id)).toEqual(['other']);
     first.unmount();
-    const reloaded = renderHook(() => useAgentUpdates(threads, 'review', true));
+    const reloaded = renderHook(() => useAgentUpdates(threads, 'review'));
     await waitFor(() =>
       expect(reloaded.result.current.updates.map((update) => update.thread.id)).toEqual(['other']),
     );

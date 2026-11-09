@@ -1,7 +1,7 @@
 import { Pencil } from 'lucide-react';
 
 // Counts unsent comment drafts on the Conversation button. It uses a pencil and the
-// comment form's yellow, so it reads apart from UnreadBadge's green reply count.
+// comment form's yellow, so it reads apart from UnreadBadge's blue reply count.
 export function DraftBadge({ count }: { count: number }) {
   if (count === 0) return null;
   return (

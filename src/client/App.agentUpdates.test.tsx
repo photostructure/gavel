@@ -43,12 +43,14 @@ const messages = (id: string, body: string) => [
 
 describe('navigating unseen agent replies', () => {
   let threads: DiffCommentThread[];
+  let otherThreads: DiffCommentThread[];
   let inline: boolean;
   let approvalState: ReviewApproval | null;
   afterEach(() => vi.unstubAllGlobals());
   beforeEach(() => {
     inline = false;
     approvalState = null;
+    otherThreads = [];
     localStorage.clear();
     window.history.replaceState(null, '', '/?base=HEAD&target=.');
     vi.stubGlobal(
@@ -85,6 +87,27 @@ describe('navigating unseen agent replies', () => {
     ];
     vi.mocked(fetch).mockImplementation((input) => {
       const url = new URL(String(input), window.location.origin);
+      if (url.pathname === '/api/diff' && url.searchParams.get('review') === 'other')
+        return Promise.resolve(
+          Response.json({
+            commit: 'Review: other',
+            repositoryId: 'repo',
+            capture: {
+              name: 'other',
+              version: 1,
+              patchDigest: 'other-digest',
+              repositoryId: 'repo',
+              baseCommit: 'other-base',
+            },
+            baseCommitish: 'other-base',
+            targetCommitish: '.',
+            requestedBaseCommitish: 'other-base',
+            requestedTargetCommitish: '.',
+            files: [],
+          }),
+        );
+      if (url.pathname === '/api/comments-json' && url.searchParams.get('review') === 'other')
+        return Promise.resolve(Response.json({ version: 1, threads: otherThreads }));
       if (url.pathname === '/api/diff')
         return Promise.resolve(
           Response.json({
@@ -124,7 +147,34 @@ describe('navigating unseen agent replies', () => {
       if (url.pathname === '/api/comments')
         return Promise.resolve(Response.json({ success: true, version: 1, threads }));
       if (url.pathname === '/api/conversation/snapshot')
-        return Promise.resolve(Response.json({ cursor: 'stream:0', reviews: [] }));
+        return Promise.resolve(
+          Response.json({
+            cursor: 'stream:0',
+            reviews: otherThreads.length
+              ? [
+                  {
+                    id: 'open',
+                    selection: { baseCommitish: 'HEAD', targetCommitish: '.' },
+                    threads,
+                    approval: { approved: false },
+                    summary: { commitMessage: '', rationale: '', version: 0 },
+                  },
+                  {
+                    id: 'other',
+                    selection: {
+                      baseCommitish: 'other-base',
+                      targetCommitish: '.',
+                      reviewName: 'other',
+                    },
+                    threads: otherThreads,
+                    approval: { approved: false },
+                    summary: { commitMessage: '', rationale: '', version: 0 },
+                    capture: { name: 'other' },
+                  },
+                ]
+              : [],
+          }),
+        );
       if (url.pathname === '/api/review-summary')
         return Promise.resolve(Response.json({ commitMessage: '', rationale: '', version: 0 }));
       if (url.pathname === '/api/approval' && approvalState)
@@ -148,6 +198,82 @@ describe('navigating unseen agent replies', () => {
           : 'No unread agent messages',
       ),
     );
+
+  it('counts replies from every review and opens another review at its unread thread', async () => {
+    otherThreads = [
+      {
+        id: 'elsewhere',
+        scope: 'review',
+        createdAt: time,
+        updatedAt: time,
+        messages: messages('elsewhere-answer', 'Agent answer in another review'),
+      },
+    ];
+    mount();
+    await expectUnread(3);
+
+    otherThreads[0]!.messages.push({
+      id: 'elsewhere-followup',
+      origin: 'agent',
+      body: 'A later answer in another review',
+      createdAt: time,
+      updatedAt: time,
+    });
+    await act(() => callbacks.comments!());
+    await expectUnread(4);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Unread' }));
+    expect(screen.getByRole('heading', { name: 'other' })).toBeVisible();
+    const first = screen
+      .getByText('Agent answer in another review')
+      .closest<HTMLElement>('[data-comment-message-id]')!;
+    fireEvent.click(within(first).getByRole('button', { name: 'Mark reply as read' }));
+    await expectUnread(3);
+
+    fireEvent.click(first.closest('[data-comment-thread-id]')!);
+    await waitFor(() =>
+      expect(
+        vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('review=other')),
+      ).toBe(true),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute(
+        'data-comment-message-id',
+        'elsewhere-followup',
+      ),
+    );
+    expect(screen.getByRole('radio', { name: 'This review' })).toBeChecked();
+    expect(screen.getByText('Write a reply...')).toBeVisible();
+
+    // Returning to a review shows its cached threads before its unread state is ready.
+    fireEvent.click(screen.getByRole('radio', { name: 'Unread' }));
+    fireEvent.click(
+      screen
+        .getByText('Agent answer about the whole review')
+        .closest<HTMLElement>('[data-comment-thread-id]')!,
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute('data-comment-message-id', 'general-answer'),
+    );
+    fireEvent.click(screen.getByRole('radio', { name: 'Unread' }));
+    fireEvent.click(
+      screen
+        .getByText('A later answer in another review')
+        .closest<HTMLElement>('[data-comment-thread-id]')!,
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute(
+        'data-comment-message-id',
+        'elsewhere-followup',
+      ),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark this review read' }));
+    await expectUnread(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Mark all reviews read' }));
+    await expectUnread(0);
+  });
 
   it('updates the pending approval label when an approval-change notification arrives', async () => {
     approvalState = {

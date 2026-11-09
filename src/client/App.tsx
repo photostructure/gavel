@@ -37,7 +37,7 @@ import {
 import { includeDeletedComments } from './utils/commentDeletion';
 import type { CommentSubmitOptions } from './components/CommentForm';
 import { CommentsDropdown } from './components/CommentsDropdown';
-import { CommentsListModal } from './components/CommentsListModal';
+import { CommentsListModal, type OtherReviewConversation } from './components/CommentsListModal';
 import {
   DiffQuickMenu,
   formatReviewSelection,
@@ -194,6 +194,8 @@ function App() {
   const [isFileTreeOpen, setIsFileTreeOpen] = useState(getInitialFileTreeOpen);
   const [isDragging, setIsDragging] = useState(false);
   const [isCommentsListOpen, setIsCommentsListOpen] = useState(false);
+  // Conversation unmounts while a review loads, so the thread to open afterwards waits here.
+  const [threadToFocus, setThreadToFocus] = useState<string | null>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const closeAbout = useCallback(() => setIsAboutOpen(false), []);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
@@ -209,6 +211,7 @@ function App() {
   const [revisionOptions, setRevisionOptions] = useState<RevisionsResponse | null>(null);
   const [recentReviews, setRecentReviews] = useState<RecentReview[]>([]);
   const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>([]);
+  const [reviewConversations, setReviewConversations] = useState<OtherReviewConversation[]>([]);
   const recentReviewsRequestRef = useRef(0);
   const loadRecentReviewsRef = useRef<(() => Promise<void>) | null>(null);
   const [selectedRevision, setSelectedRevision] = useState<ReviewSelection>(
@@ -841,10 +844,26 @@ function App() {
       })),
     [threads, deletedComments, fileLineIndexByPath, diffData?.capture],
   );
+  const otherReviews = useMemo(
+    () =>
+      reviewConversations.filter(
+        (review) => !diffSelectionsEqual(review.selection, resolvedSelection),
+      ),
+    [reviewConversations, resolvedSelection],
+  );
+  const unreadCandidateThreads = useMemo(
+    () => [
+      ...(hasBootstrappedComments ? normalizedThreads : []),
+      ...otherReviews.flatMap((review) => review.threads),
+    ],
+    [hasBootstrappedComments, normalizedThreads, otherReviews],
+  );
+  // Scoped to the repository because thread IDs are unique, and any review's threads can be
+  // marked read from Conversation while another review is open.
+  const readMarkScope = diffData ? (diffData.repositoryId ?? 'default') : null;
   const { updates: agentUpdates, setRead: setAgentMessageRead } = useAgentUpdates(
-    normalizedThreads,
-    commentsContextKey,
-    hasBootstrappedComments,
+    unreadCandidateThreads,
+    readMarkScope,
   );
   const showAuthorBadges = useMemo(
     () => hasMultipleCommentAuthors(normalizedThreads.flatMap((thread) => thread.messages)),
@@ -924,6 +943,9 @@ function App() {
   }, [refreshApproval, refreshSummary]);
   const commentsRefreshRequestRef = useRef(0);
   const handleCommentsChanged = useCallback(async () => {
+    // The event doesn't say which review changed, so re-read them all. Without this, a new
+    // reply on another review wouldn't reach the badge until some other event refreshed the list.
+    void loadRecentReviewsRef.current?.();
     const request = ++commentsRefreshRequestRef.current;
     try {
       const serverThreads = await fetchServerThreads(
@@ -1348,21 +1370,36 @@ function App() {
           )
           .map(({ review }) => [review.selection.targetCommitish, review.id]),
       );
-      const requests = reviews
-        .filter(
-          (entry) =>
-            entry.review.capture ||
-            (proposals.includes(entry) &&
-              (!isWorkingTreeTarget(entry.review.selection.targetCommitish) ||
-                newestWorkingTree.get(entry.review.selection.targetCommitish) === entry.review.id)),
-        )
-        .map(({ review, selection, title }) => ({
-          selection,
-          name: formatReviewSelection(selection),
-          title,
-          approval: review.approval,
-        }));
+      const tabbedReviews = reviews.filter(
+        (entry) =>
+          entry.review.capture ||
+          (proposals.includes(entry) &&
+            (!isWorkingTreeTarget(entry.review.selection.targetCommitish) ||
+              newestWorkingTree.get(entry.review.selection.targetCommitish) === entry.review.id)),
+      );
+      const requests = tabbedReviews.map(({ review, selection, title }) => ({
+        selection,
+        name: formatReviewSelection(selection),
+        title,
+        approval: review.approval,
+      }));
       setApprovalRequests(requests);
+      setReviewConversations(
+        reviews
+          .filter((entry) => entry.review.threads.length > 0 || tabbedReviews.includes(entry))
+          .map(({ review, selection }) => {
+            const conversationThreads = review.threads.map(toCommentThread);
+            return {
+              key: getDiffSelectionKey(selection),
+              name: formatReviewSelection(selection),
+              selection,
+              threads: conversationThreads,
+              showAuthorBadges: hasMultipleCommentAuthors(
+                conversationThreads.flatMap((thread) => thread.messages),
+              ),
+            };
+          }),
+      );
       // The picker is gone while an agent asks for approval; so is a dialog it opened.
       if (requests.length > 0) setIsRevisionModalOpen(false);
     } catch (historyError) {
@@ -1414,6 +1451,14 @@ function App() {
       void handleRevisionChange({ ...selection, retained: true }, 'replace'),
     [handleRevisionChange],
   );
+  const openOtherReviewThread = useCallback(
+    (review: OtherReviewConversation, threadId: string) => {
+      setThreadToFocus(threadId);
+      openReviewFromTab(review.selection);
+    },
+    [openReviewFromTab],
+  );
+  const clearThreadToFocus = useCallback(() => setThreadToFocus(null), []);
   const verdictFollowUp = useVerdictFollowUp({
     reviews: approvalRequests,
     current: resolvedSelection,
@@ -1580,11 +1625,18 @@ function App() {
     }),
     [hasBootstrappedComments, captureReloading, agentUpdates, setAgentMessageRead],
   );
-  const markAllAgentRepliesRead = useCallback(() => {
+  const markAllReviewsRepliesRead = useCallback(() => {
     for (const update of agentUpdates) {
       setAgentMessageRead(update.thread.id, update.message.id, update.revision, true);
     }
   }, [agentUpdates, setAgentMessageRead]);
+  const markThisReviewRepliesRead = useCallback(() => {
+    for (const update of agentUpdates) {
+      if (normalizedThreads.includes(update.thread)) {
+        setAgentMessageRead(update.thread.id, update.message.id, update.revision, true);
+      }
+    }
+  }, [agentUpdates, normalizedThreads, setAgentMessageRead]);
 
   const handleAddComment = useCallback(
     (
@@ -2215,6 +2267,7 @@ function App() {
           }}
           onClose={() => {
             setIsCommentsListOpen(false);
+            setThreadToFocus(null);
           }}
           headerActions={
             <>
@@ -2231,7 +2284,16 @@ function App() {
           }
           unreadUpdates={agentUpdates}
           readScope={commentsContextKey}
-          onMarkAllRead={markAllAgentRepliesRead}
+          onMarkAllRead={markThisReviewRepliesRead}
+          onMarkAllReviewsRead={markAllReviewsRepliesRead}
+          otherReviews={otherReviews}
+          currentReviewName={
+            resolvedSelection ? formatReviewSelection(resolvedSelection) : undefined
+          }
+          onOpenOtherReviewThread={openOtherReviewThread}
+          // Cached threads show first; waiting for the server's lets it pick the first unread reply.
+          focusThreadId={hasBootstrappedComments ? threadToFocus : null}
+          onThreadFocused={clearThreadToFocus}
           onNavigate={handleNavigateToComment}
           comments={displayThreads}
           onAddGeneralComment={(body, options) => {
