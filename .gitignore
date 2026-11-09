@@ -51,3 +51,6 @@ performance-results/
 # OpenSpec
 openspec/
 .claude/commands/openspec/
+
+# Agent worktrees; oxlint loads each one's nested config unless git ignores it
+.claude/worktrees/
