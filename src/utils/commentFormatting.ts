@@ -6,7 +6,7 @@ function getLineInfo(line: number | number[]): string {
   return typeof line === 'number' ? `L${line}` : `L${line[0]}-L${line[1]}`;
 }
 
-export interface CommentPromptOrigin {
+interface CommentPromptOrigin {
   repo?: string;
   session?: string;
 }
