@@ -47,8 +47,8 @@ Do not run `idle` again to see whether they came back; their next message tells
 you. Skip the check when the user's latest message asks for the review, since
 they may be reading it on another device.
 
-1. Run from the reviewed repository's Git root. Use its prescribed gavel launcher
-   for every command.
+1. Run from the reviewed repository's Git root. Use the user's or repository's
+   prescribed gavel launcher for every command.
    On first use, check that `--help` has `--review`, `--background`, and `--jsonl`.
    Reuse that build. Report missing capabilities; do not switch installs or use npx.
 2. For this session's uncommitted work, use a named review restricted to its paths
@@ -65,7 +65,8 @@ they may be reading it on another device.
    commits fall between yours, name them and ask whether to show the whole
    range or each of your commits on its own.
    For a user-named branch, range, or PR, review that target for defects before
-   showing it; use `--no-lgtm` unless the user requested approval.
+   showing it. Seek approval by default; use `--no-lgtm` when the user explicitly
+   requests read-only review or every target commit has already landed.
 3. Include a proposed Conventional Commit message with `--commit-message` and a
    short explanation with `--why`. Add reading-guide comments with repeatable
    `--comment` arguments: where to start, surprising behavior, and verified
@@ -129,8 +130,80 @@ For overlapping files, use `review capture --output <artifact>` and its printed
 file/hunk IDs with `--capture` and `--select`. Pathspecs alone can include another
 session's changes. Check the capture's actual scope. To recapture after fixes,
 read the named review's current version and use `review update --expected-version`.
+Pass `-` for a supplied patch; repeat native `--pathspec` and `--include-untracked`
+options, or use `--capture` with selectors. Update does not reuse the original filters.
 Source edits and browser reloads do not update a frozen capture. HTTP 409 requires
 reconciliation before retrying. Do not recapture as an idle activity.
+
+## Split large changes
+
+Keep each review focused on one coherent change. Aim for about 300 weighted
+changed lines, without a fixed file-count ceiling. This is a planning heuristic,
+not a validated cutoff. Split independent concerns into reviews on one server, shown as tabs. Honor a grouping the user specified, including a request to see the
+whole diff in one review. Count additions and deletions in the reviewed patch
+with `git apply --numstat < <patch>`. For native tracked changes use
+`git diff --numstat HEAD -- <paths>`; for commits use `<base> <target>` instead
+of `HEAD`. Add the lines in scoped untracked text files; Git diff omits them.
+Count only included paths/hunks, not unrelated shared-tree changes. Apply these weights:
+
+- Test code counts 0.2 per line.
+- Config files count 0.5 per line.
+- Complicated SQL, concurrency, and native code count 1.5 per line.
+- Lockfiles and generated or vendored files count 0.
+- Everything else counts 1 per line.
+
+Consider raw added/deleted lines too; discounts must not hide the reading burden.
+Zero weight covers reproducible mechanical output, not AI-written code or prose.
+The [Cisco study](https://static0.smartbear.co/support/media/resources/cc/book/code-review-cisco-case-study.pdf)
+favors a few hundred inspected lines; [Google's guidance](https://google.github.io/eng-practices/review/developer/small-cls.html)
+prioritizes a self-contained change and warns against splitting too finely.
+
+A mechanical sweep that one command reproduces (a formatter run, a lint autofix,
+a rename) gets its own review whatever its size, with the command in its why.
+A range of commits is one review, so show an oversized range as a stack and
+split any commit that is still too large.
+
+Split by purpose, never by counting off files or walking a directory:
+
+- Give each review one purpose that explains every file in it. If you can't
+  state that purpose in one sentence without "and", split it. Never make a
+  catch-all review such as "misc" or "cleanup"; a file that fits nowhere gets
+  its own review.
+- Keep each test, doc, and plan with the change it covers, and keep refactors
+  apart from behavior changes.
+- Keep a file whole unless a modified file alone exceeds the budget; then split
+  its hunks, with `--select` for uncommitted work or a separate patch per part
+  for committed work. A new, deleted, renamed, binary, or mode-changed file
+  cannot be split, so one over the budget gets its own review.
+- Create the reviews in dependency order, lowest layer first.
+
+When one task is still too large, divide it into parts that each make sense
+alone, and name them so the tabs read in order: `task-9a-schema`,
+`task-9b-server`. Start each part's rationale with its place ("Task 9, part A of
+3") and say what the other parts hold. Summaries and reading-guide comments can
+point at another review by its tab name ("the callers move in
+`task-9b-server`"), so the reader knows where the rest of a change went.
+
+Make each part its own commit when it builds and passes tests alone. When parts
+can only land together, such as a signature change and its callers, they are one
+commit across several reviews: give each the same `--commit-message`, commit
+once every part is approved, and commit exactly the union of their captures. If
+the user edits the message on one part, commit with that edit and don't copy it
+to the others, because a changed summary revokes approval.
+
+To split a commit, branch, or PR that already exists (fetch a PR's head first),
+give each part its own patch. For a branch or PR, `<base>` below is
+`git merge-base <landing-branch> <target>`, which keeps the landing branch's
+newer commits out of the parts and the size count; list both names of a renamed
+file. A `--background` launch can't read stdin, so launch unnamed on `HEAD` with
+`--background --keep-alive` and no `--comment`, `--commit-message`, or `--why`,
+pipe `git diff --full-index <base> <target> -- <paths>` for each part into
+`<launcher> review create <name> - --host <host> --port <port>`, give each part
+its own comments and proposal with `comment add --review <name>` and
+`comment summary`, and set the `review` query parameter of the
+`server.background` `url` to the first part's name. Landing it takes an approval on every part. `approval status <sha>`
+matches only a review of the commit's whole patch, so read each part's
+`approval` from the snapshot.
 
 ## Handle one feedback batch
 

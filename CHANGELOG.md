@@ -25,6 +25,7 @@ All notable changes to this project will be documented in this file.
 
 ### Documentation
 
+- Condense the shared gavel and Claude development skills, with focused references for feedback snapshots and waiting. Seek review approval by default, put the zero-idle-turn requirement first, and use about 300 weighted changed lines as a review-size guide without a fixed file-count ceiling, with tabs and summaries that refer to each other.
 - Require feature changes to update the affected README, documentation, and agent skills in the same change.
 - Replace outdated architecture and testing inventories with current contributor guides; trim repeated workflow and UI details from integration docs while retaining protocol and recovery requirements.
 - Shorten the README to setup, the review workflow, and common commands; move CLI examples and remote-browser setup into focused guides and remove UI minutiae.
