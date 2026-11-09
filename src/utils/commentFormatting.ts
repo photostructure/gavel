@@ -112,32 +112,6 @@ function normalizeLegacyComment(comment: Comment): CommentThread {
   };
 }
 
-export function formatCommentPrompt(
-  file: string,
-  line: number | number[],
-  body: string,
-  codeContent?: string,
-  side?: DiffSide,
-): string {
-  return `${formatCommentLocation(file, line, side)}\n${formatCommentContent(body, codeContent)}`;
-}
-
-export function formatAllCommentsPrompt(comments: Comment[]): string {
-  if (comments.length === 0) return '';
-
-  const prompts = comments.map((comment) =>
-    formatCommentPrompt(
-      comment.file,
-      comment.line,
-      comment.body,
-      comment.codeContent,
-      comment.side,
-    ),
-  );
-
-  return prompts.join('\n=====\n');
-}
-
 const QUESTION_PROMPT_MARKER = "[QUESTION — answer, don't change code]";
 
 const WRONG_WINDOW_PROMPT_MARKER = '<ask-if>Not your diff? Ask before continuing</ask-if>';

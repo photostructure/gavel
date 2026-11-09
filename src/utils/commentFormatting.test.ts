@@ -3,90 +3,12 @@ import { describe, it, expect } from 'vitest';
 import type { Comment, CommentThread } from '../types/diff';
 
 import {
-  formatCommentPrompt,
   formatCommentThreadPrompt,
-  formatAllCommentsPrompt,
   formatAllCommentThreadsPrompt,
   formatCommentsOutput,
 } from './commentFormatting';
 
 describe('commentFormatting', () => {
-  describe('formatCommentPrompt', () => {
-    it('should format single line number correctly', () => {
-      const result = formatCommentPrompt('src/components/Button.tsx', 42, 'Fix accessibility');
-      expect(result).toBe('src/components/Button.tsx:L42\nFix accessibility');
-    });
-
-    it('should format line range correctly', () => {
-      const result = formatCommentPrompt(
-        'src/utils/validation.ts',
-        [100, 120],
-        'Extract validation logic',
-      );
-      expect(result).toBe('src/utils/validation.ts:L100-L120\nExtract validation logic');
-    });
-
-    it('should handle multi-line comment body', () => {
-      const body = 'This is a comment\nwith multiple lines\nof text';
-      const result = formatCommentPrompt('src/index.ts', 10, body);
-      expect(result).toBe('src/index.ts:L10\nThis is a comment\nwith multiple lines\nof text');
-    });
-
-    it('should handle file paths with special characters', () => {
-      const result = formatCommentPrompt('src/components/@shared/Button.tsx', 15, 'Update styles');
-      expect(result).toBe('src/components/@shared/Button.tsx:L15\nUpdate styles');
-    });
-
-    it('should handle empty string file path', () => {
-      const result = formatCommentPrompt('', 10, 'Comment body');
-      expect(result).toBe('<unknown file>:L10\nComment body');
-    });
-
-    it('should mark only the old diff side', () => {
-      const result = formatCommentPrompt('src/removed.ts', 10, 'Why?', undefined, 'old');
-      expect(result).toBe('src/removed.ts:L10 (old)\nWhy?');
-      expect(formatCommentPrompt('src/added.ts', 11, 'New line', undefined, 'new')).toBe(
-        'src/added.ts:L11\nNew line',
-      );
-      expect(formatCommentPrompt('src/legacy.ts', 12, 'Legacy comment')).toBe(
-        'src/legacy.ts:L12\nLegacy comment',
-      );
-    });
-
-    it('should format suggestion block with ORIGINAL/SUGGESTED structure', () => {
-      const body = `\`\`\`suggestion
-const newCode = 42;
-\`\`\``;
-      const result = formatCommentPrompt('src/file.ts', 10, body, 'const oldCode = 1;');
-      expect(result).toContain('src/file.ts:L10');
-      expect(result).toContain('ORIGINAL:');
-      expect(result).toContain('const oldCode = 1;');
-      expect(result).toContain('SUGGESTED:');
-      expect(result).toContain('const newCode = 42;');
-    });
-
-    it('should format suggestion block with context text', () => {
-      const body = `Please refactor this:\n\`\`\`suggestion
-const better = true;
-\`\`\``;
-      const result = formatCommentPrompt('src/file.ts', 10, body, 'const old = false;');
-      expect(result).toContain('Please refactor this:');
-      expect(result).toContain('ORIGINAL:');
-      expect(result).toContain('SUGGESTED:');
-    });
-
-    it('should format suggestion block without codeContent', () => {
-      const body = `\`\`\`suggestion
-const newCode = 42;
-\`\`\``;
-      const result = formatCommentPrompt('src/file.ts', 10, body);
-      expect(result).toContain('src/file.ts:L10');
-      expect(result).not.toContain('ORIGINAL:');
-      expect(result).toContain('SUGGESTED:');
-      expect(result).toContain('const newCode = 42;');
-    });
-  });
-
   describe('formatAllCommentThreadsPrompt', () => {
     const timestamp = '2024-01-01T00:00:00Z';
     const threads: CommentThread[] = [
@@ -304,79 +226,56 @@ Explain why this was removed.
 </comment>
 </review-thread>`);
     });
-  });
 
-  describe('formatAllCommentsPrompt', () => {
-    it('should return empty string for empty comments array', () => {
-      const result = formatAllCommentsPrompt([]);
-      expect(result).toBe('');
-    });
+    describe('suggestion blocks', () => {
+      const suggestionThread = {
+        id: 'suggestion-thread',
+        file: 'src/file.ts',
+        line: 10,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        messages: [
+          {
+            id: 'suggestion-message',
+            body: 'Please refactor this:\n```suggestion\nconst better = true;\n```',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+      };
 
-    it('should format single comment without separator', () => {
-      const comments: Comment[] = [
-        {
-          id: '1',
-          file: 'src/App.tsx',
-          line: 10,
-          body: 'Single comment',
-          timestamp: '2024-01-01T00:00:00Z',
-        },
-      ];
-      const result = formatAllCommentsPrompt(comments);
-      expect(result).toBe('src/App.tsx:L10\nSingle comment');
-    });
+      it('should keep the surrounding text and show the original code', () => {
+        const result = formatCommentThreadPrompt({
+          ...suggestionThread,
+          codeContent: 'const old = false;',
+        });
+        expect(result).toBe(`<review-thread location="src/file.ts:L10">
+<comment>
+Please refactor this:
+ORIGINAL:
+\`\`\`
+const old = false;
+\`\`\`
+SUGGESTED:
+\`\`\`
+const better = true;
+\`\`\`
+</comment>
+</review-thread>`);
+      });
 
-    it('should format multiple comments with separator', () => {
-      const comments: Comment[] = [
-        {
-          id: '1',
-          file: 'src/App.tsx',
-          line: 10,
-          body: 'First comment',
-          timestamp: '2024-01-01T00:00:00Z',
-        },
-        {
-          id: '2',
-          file: 'src/utils/helper.ts',
-          line: [20, 25],
-          body: 'Second comment',
-          timestamp: '2024-01-01T00:01:00Z',
-        },
-      ];
-      const result = formatAllCommentsPrompt(comments);
-      expect(result).toBe(
-        'src/App.tsx:L10\nFirst comment\n=====\nsrc/utils/helper.ts:L20-L25\nSecond comment',
-      );
-    });
-
-    it('should preserve comment order', () => {
-      const comments: Comment[] = [
-        {
-          id: '3',
-          file: 'third.ts',
-          line: 30,
-          body: 'Third',
-          timestamp: '2024-01-01T00:02:00Z',
-        },
-        {
-          id: '1',
-          file: 'first.ts',
-          line: 10,
-          body: 'First',
-          timestamp: '2024-01-01T00:00:00Z',
-        },
-        {
-          id: '2',
-          file: 'second.ts',
-          line: 20,
-          body: 'Second',
-          timestamp: '2024-01-01T00:01:00Z',
-        },
-      ];
-      const result = formatAllCommentsPrompt(comments);
-      expect(result).toBe(
-        'third.ts:L30\nThird\n=====\nfirst.ts:L10\nFirst\n=====\nsecond.ts:L20\nSecond',
-      );
+      it('should leave out ORIGINAL without a code snapshot', () => {
+        const result = formatCommentThreadPrompt(suggestionThread);
+        expect(result).toBe(`<review-thread location="src/file.ts:L10">
+<comment>
+Please refactor this:
+SUGGESTED:
+\`\`\`
+const better = true;
+\`\`\`
+</comment>
+</review-thread>`);
+      });
     });
   });
 
