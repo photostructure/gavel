@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - The jump-to-unread dot now appears only on collapsed threads, because an expanded thread shows each reply's own read control.
 - Sending a reply to a thread, including **Agreed**, **Still unclear**, or **Disagree**, marks its agent replies read.
 - In the unified view, dragging a comment selection across a row that has no line number on the selection's side no longer pulls the other side's number into the range.
+- Dragging on line numbers now selects a range and opens a comment form for it, as dragging the comment button does. The form's title names the lines, and pointing at a saved comment tints the lines it covers.
 
 ### Documentation
 

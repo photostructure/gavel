@@ -9,6 +9,7 @@ interface LineDrag {
   side: DiffSide;
   startLine: number;
   endLine: number;
+  fromLineNumber: boolean;
 }
 
 // How a diff chunk picks the lines of a comment: dragging, Shift-clicking from the
@@ -48,12 +49,13 @@ export function useLineRangeDrag() {
     setSelectionAnchor(selection);
   };
 
-  const startDrag = (selection: LineSelection) => {
+  const startDrag = (selection: LineSelection, fromLineNumber: boolean) => {
     setSelectionAnchor(selection);
     setDrag({
       side: selection.side,
       startLine: selection.lineNumber,
       endLine: selection.lineNumber,
+      fromLineNumber,
     });
   };
 
@@ -69,7 +71,15 @@ export function useLineRangeDrag() {
       return;
     }
 
-    startDrag(selection);
+    startDrag(selection, false);
+  };
+
+  const handleLineNumberMouseDown = (e: MouseEvent, selection: LineSelection | null) => {
+    // The row's click handles Shift, and needs the earlier anchor left in place. A
+    // right press, or Ctrl on macOS, opens the context menu, which can swallow mouseup.
+    if (selection && e.button === 0 && !e.ctrlKey && !e.shiftKey) {
+      startDrag(selection, true);
+    }
   };
 
   // A row with no number on the drag's side does not move the end of the range.
@@ -96,7 +106,11 @@ export function useLineRangeDrag() {
       setTimeout(() => {
         const min = Math.min(drag.startLine, drag.endLine);
         const max = Math.max(drag.startLine, drag.endLine);
-        toggleComposer(drag.side, min === max ? min : [min, max]);
+        // A line number pressed and released in place is a click, which moves the
+        // cursor; the comment button opens a form even without a drag.
+        if (min !== max || !drag.fromLineNumber) {
+          toggleComposer(drag.side, min === max ? min : [min, max]);
+        }
         setDrag(null);
       }, 0);
     };
@@ -108,7 +122,8 @@ export function useLineRangeDrag() {
   }, [drag, toggleComposer]);
 
   return {
-    isDragging: drag !== null,
+    // A press on a line number is not a drag until it reaches another line.
+    isDragging: drag !== null && (!drag.fromLineNumber || drag.startLine !== drag.endLine),
     dragRange: drag && {
       side: drag.side,
       min: Math.min(drag.startLine, drag.endLine),
@@ -121,5 +136,6 @@ export function useLineRangeDrag() {
     setSelectionAnchor,
     openShiftClickComment,
     handleCommentButtonMouseDown,
+    handleLineNumberMouseDown,
   };
 }

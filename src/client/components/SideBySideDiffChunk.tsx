@@ -30,6 +30,7 @@ import {
   shownCodeFor,
   targetCovers,
   useChunkComposers,
+  useHoveredThread,
 } from './LineCommentComposer';
 import { OpenInEditorButton } from './OpenInEditorButton';
 import type { AppearanceSettings } from './SettingsModal';
@@ -194,7 +195,9 @@ export function SideBySideDiffChunk({
     setSelectionAnchor,
     openShiftClickComment,
     handleCommentButtonMouseDown,
+    handleLineNumberMouseDown,
   } = useLineRangeDrag();
+  const { hoveredThreadTarget, threadHoverProps } = useHoveredThread(threads);
   const [hoveredLine, setHoveredLine] = useState<LineSelection | null>(null);
 
   // Handle comment trigger from keyboard navigation
@@ -299,8 +302,9 @@ export function SideBySideDiffChunk({
       }
     }
 
-    // Show the lines of every open comment form, restored drafts included
-    if (composers.some((anchor) => targetCovers(anchor, side, lineNumber))) {
+    // Show the lines of every open comment form, restored drafts included, and of
+    // the saved thread under the pointer
+    if ([...composers, ...hoveredThreadTarget].some((t) => targetCovers(t, side, lineNumber))) {
       return 'after:bg-diff-selected-bg after:absolute after:inset-0 after:border-l-5 after:border-l-diff-selected-border after:pointer-events-none';
     }
 
@@ -542,6 +546,7 @@ export function SideBySideDiffChunk({
                   {/* Old side */}
                   <td
                     id={oldLineNavId}
+                    onMouseDown={(e) => handleLineNumberMouseDown(e, oldSelection)}
                     className={`w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative overflow-visible ${highlightOldCell ? cellHighlightClass : ''}`}
                   >
                     <span>{sideLine.oldLineNumber || ''}</span>
@@ -595,6 +600,7 @@ export function SideBySideDiffChunk({
                   {/* New side */}
                   <td
                     id={newLineNavId}
+                    onMouseDown={(e) => handleLineNumberMouseDown(e, newSelection)}
                     className={`w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative overflow-visible ${highlightNewCell ? cellHighlightClass : ''}`}
                   >
                     <span>{sideLine.newLineNumber || ''}</span>
@@ -672,7 +678,7 @@ export function SideBySideDiffChunk({
                             }`}
                           >
                             <div className={`${layout === 'full' ? 'w-full' : 'w-1/2'}`}>
-                              <div className="m-2 mx-3">
+                              <div className="m-2 mx-3" {...threadHoverProps(thread.id)}>
                                 <CommentThreadCard
                                   thread={thread}
                                   showAuthorBadges={showAuthorBadges}

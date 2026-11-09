@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
-import type { DiffLine, DiffSide, LineNumber } from '../../types/diff';
+import type { CommentThread, DiffLine, DiffSide, LineNumber } from '../../types/diff';
 import {
   draftKey,
   useCommentDraft,
@@ -112,6 +112,21 @@ export function useChunkComposers(
   }, [saved, filePath, lines, opened]);
 }
 
+// The lines of the saved thread under the pointer, as a list of zero or one targets
+// to spread among a chunk's highlighted ones. Keyed by id so a thread deleted while
+// the pointer is over it, which fires no mouseleave, stops being highlighted.
+export function useHoveredThread(threads: readonly CommentThread[]) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const hovered = threads.find((thread) => thread.id === hoveredId);
+  const hoveredThreadTarget: LineTarget[] =
+    hovered?.line === undefined ? [] : [{ side: hovered.side ?? 'new', lineNumber: hovered.line }];
+  const threadHoverProps = (id: string) => ({
+    onMouseEnter: () => setHoveredId(id),
+    onMouseLeave: () => setHoveredId(null),
+  });
+  return { hoveredThreadTarget, threadHoverProps };
+}
+
 export const isComposerFor = (anchor: LineDraftAnchor, target: LineTarget | null) =>
   target !== null &&
   anchor.side === target.side &&
@@ -171,7 +186,10 @@ export function LineCommentComposer({
       selectedCode={code}
       syntaxTheme={syntaxTheme}
       filename={anchor.filePath}
-      title={title}
+      title={
+        title ??
+        (Array.isArray(anchor.lineNumber) ? `Comment on ${describeLines(anchor)}` : undefined)
+      }
       autoFocus={autoFocus}
       draftKey={draft.key}
     />

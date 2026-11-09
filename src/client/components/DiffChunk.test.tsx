@@ -2,7 +2,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-li
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { DiffChunk as DiffChunkData } from '../../types/diff';
+import type { CommentThread, DiffChunk as DiffChunkData } from '../../types/diff';
 import { DEFAULT_DIFF_VIEW_MODE } from '../../utils/diffMode';
 import { WordHighlightProvider } from '../contexts/WordHighlightContext';
 import { CommentDraftScope, useCommentDraft } from '../hooks/useCommentDrafts';
@@ -42,6 +42,201 @@ const noop = () => {};
 const asyncNoop = async () => {};
 const renderWithProviders = (ui: ReactNode) =>
   render(<WordHighlightProvider>{ui}</WordHighlightProvider>);
+
+describe('DiffChunk line-number selection', () => {
+  const chunk: DiffChunkData = {
+    header: '@@ -20,3 +30,3 @@',
+    oldStart: 20,
+    oldLines: 3,
+    newStart: 30,
+    newLines: 3,
+    lines: [
+      { type: 'normal', content: 'before', oldLineNumber: 20, newLineNumber: 30 },
+      { type: 'delete', content: 'removed', oldLineNumber: 21 },
+      { type: 'add', content: 'added', newLineNumber: 31 },
+      { type: 'normal', content: 'after', oldLineNumber: 22, newLineNumber: 32 },
+    ],
+  };
+  const timestamp = '2026-11-09T00:00:00.000Z';
+  const rangeThread: CommentThread = {
+    id: 'range-thread',
+    file: 'file.ts',
+    line: [30, 32],
+    side: 'new',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    messages: [{ id: 'message', body: 'Saved', createdAt: timestamp, updatedAt: timestamp }],
+  };
+  const renderChunk = (mode: 'unified' | 'split', threads: CommentThread[] = []) => {
+    const onAddComment = vi.fn().mockResolvedValue(undefined);
+    const onLineClick = vi.fn();
+    const props = {
+      chunk,
+      chunkIndex: 0,
+      threads,
+      mode,
+      onAddComment,
+      onLineClick,
+      onGenerateThreadPrompt: () => '',
+      onToggleThreadResolved: noop,
+      onReplyToThread: asyncNoop,
+      onRemoveMessage: noop,
+      onUpdateMessage: noop,
+      filename: 'file.ts',
+    };
+    const view = renderWithProviders(<DiffChunk {...props} />);
+    const rows = [...view.container.querySelectorAll('[data-diff-line-row="true"]')];
+    return { ...view, rows, onAddComment, onLineClick };
+  };
+  const sendDraft = async () => {
+    fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'Dragged' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  };
+  const options = { isQuestion: false, intent: 'comment' };
+
+  // Unified rows are [old number, new number, code]; split rows are
+  // [old number, old code, new number, new code].
+  it.each([
+    ['unified', 'the old-number column', 0, 0, 3, [30, 32], 'before\nadded\nafter', 'new'],
+    ['unified', 'the new-number column', 1, 0, 3, [30, 32], 'before\nadded\nafter', 'new'],
+    ['split', 'the new-number column', 2, 0, 2, [30, 32], 'before\nadded\nafter', 'new'],
+    ['split', 'the old-number column', 0, 1, 2, [21, 22], 'removed\nafter', 'old'],
+  ] as const)(
+    'opens a %s range comment on release of a drag on %s',
+    async (mode, _column, column, startRow, endRow, line, code, side) => {
+      const { rows, onAddComment } = renderChunk(mode);
+
+      fireEvent.mouseDown(rows[startRow]!.children[column]!);
+      fireEvent.mouseMove(rows[endRow]!.children[column]!);
+      fireEvent.mouseUp(document);
+
+      await sendDraft();
+      await waitFor(() =>
+        expect(onAddComment).toHaveBeenCalledWith(line, 'Dragged', code, side, options),
+      );
+    },
+  );
+
+  it.each([
+    ['unified', 1, 'right'],
+    ['split', 2, 'right'],
+  ] as const)(
+    'keeps a %s press on a line number as a click',
+    async (mode, column, navigationSide) => {
+      const { rows, onLineClick } = renderChunk(mode);
+      const cell = rows[0]!.children[column]!;
+
+      fireEvent.mouseDown(cell);
+      fireEvent.mouseUp(document);
+      fireEvent.click(cell);
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(screen.queryByRole('textbox')).toBeNull();
+      expect(onLineClick).toHaveBeenCalledWith(0, 0, 0, navigationSide);
+    },
+  );
+
+  it.each([
+    ['unified', 'right press', 1, 3, { button: 2 }],
+    ['split', 'right press', 2, 2, { button: 2 }],
+    ['unified', 'Ctrl press', 1, 3, { ctrlKey: true }],
+  ] as const)('ignores a %s %s on a line number', async (mode, _press, column, endRow, press) => {
+    const { rows, container } = renderChunk(mode);
+
+    fireEvent.mouseDown(rows[0]!.children[column]!, press);
+    fireEvent.mouseMove(rows[endRow]!.children[column]!);
+    expect(
+      container.querySelector('tr.drag-selected, [class*="after:border-blue-500"]'),
+    ).toBeNull();
+    fireEvent.mouseUp(document);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it.each([
+    ['unified', 1],
+    ['split', 2],
+  ] as const)('extends a %s range by Shift-clicking a line number', async (mode, column) => {
+    const { rows, onAddComment } = renderChunk(mode);
+    const first = rows[0]!.children[column]!;
+    const last = rows[mode === 'split' ? 2 : 3]!.children[column]!;
+
+    fireEvent.mouseDown(first);
+    fireEvent.mouseUp(document);
+    fireEvent.click(first);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    fireEvent.mouseDown(last, { shiftKey: true });
+    fireEvent.mouseUp(document, { shiftKey: true });
+    fireEvent.click(last, { shiftKey: true });
+
+    await sendDraft();
+    await waitFor(() =>
+      expect(onAddComment).toHaveBeenCalledWith(
+        [30, 32],
+        'Dragged',
+        'before\nadded\nafter',
+        'new',
+        options,
+      ),
+    );
+  });
+
+  it.each(['unified', 'split'] as const)('names the range on a %s comment form', async (mode) => {
+    const { rows } = renderChunk(mode);
+    const column = mode === 'split' ? 2 : 1;
+
+    fireEvent.mouseDown(rows[0]!.children[column]!);
+    fireEvent.mouseMove(rows[mode === 'split' ? 2 : 3]!.children[column]!);
+    fireEvent.mouseUp(document);
+
+    expect(await screen.findByText('Comment on lines 30–32')).toBeTruthy();
+  });
+
+  it('keeps the default title on a single-line comment form', async () => {
+    const { rows, container } = renderChunk('unified');
+
+    fireEvent.mouseEnter(rows[0]!);
+    fireEvent.mouseDown(container.querySelector('[data-comment-button="true"]')!);
+    fireEvent.mouseUp(document);
+
+    expect(await screen.findByText('Add a comment')).toBeTruthy();
+  });
+
+  it('tints the rows a saved range covers while the pointer is over its thread', () => {
+    const { rows, container } = renderChunk('unified', [rangeThread]);
+    const tinted = () =>
+      rows.flatMap((row, index) => (row.classList.contains('comment-selected') ? [index] : []));
+    const card = container.querySelector('#comment-thread-range-thread')!.parentElement!;
+
+    expect(tinted()).toEqual([]);
+    fireEvent.mouseEnter(card);
+    expect(tinted()).toEqual([0, 2, 3]);
+    fireEvent.mouseLeave(card);
+    expect(tinted()).toEqual([]);
+  });
+
+  it('tints only the saved range side in split view', () => {
+    const { rows, container } = renderChunk('split', [rangeThread]);
+    const tinted = (column: number) =>
+      rows.flatMap((row, index) =>
+        row.children[column]!.className.includes('after:bg-diff-selected-bg') ? [index] : [],
+      );
+    const card = container.querySelector('#comment-thread-range-thread')!.parentElement!;
+
+    fireEvent.mouseEnter(card);
+    expect(tinted(3)).toEqual([0, 1, 2]);
+    expect(tinted(1)).toEqual([]);
+    fireEvent.mouseLeave(card);
+    expect(tinted(3)).toEqual([]);
+  });
+});
 
 describe('DiffChunk range comments', () => {
   it.each([

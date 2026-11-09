@@ -31,6 +31,7 @@ import {
   numberOn,
   shownCodeFor,
   useChunkComposers,
+  useHoveredThread,
 } from './LineCommentComposer';
 import type { AppearanceSettings } from './SettingsModal';
 import { SideBySideDiffChunk } from './SideBySideDiffChunk';
@@ -113,7 +114,9 @@ export const DiffChunk = memo(function DiffChunk({
     setSelectionAnchor,
     openShiftClickComment,
     handleCommentButtonMouseDown,
+    handleLineNumberMouseDown,
   } = useLineRangeDrag();
+  const { hoveredThreadTarget, threadHoverProps } = useHoveredThread(threads);
   const [hoveredLine, setHoveredLine] = useState<number | null>(null);
 
   // Handle comment trigger from keyboard navigation
@@ -331,8 +334,11 @@ export const DiffChunk = memo(function DiffChunk({
                   hoveredLineIndex={hoveredLine}
                   selectedLineStyle={
                     getDragSelectionStyle(line) ||
-                    // The lines of every open comment form, restored drafts included
-                    (composers.some((anchor) => lineInTarget(line, anchor))
+                    // The lines of every open comment form, restored drafts included,
+                    // and of the saved thread under the pointer
+                    ([...composers, ...hoveredThreadTarget].some((target) =>
+                      lineInTarget(line, target),
+                    )
                       ? 'comment-selected'
                       : '')
                   }
@@ -342,6 +348,7 @@ export const DiffChunk = memo(function DiffChunk({
                   onMouseLeave={() => setHoveredLine(null)}
                   onMouseMove={() => extendDrag(line)}
                   onCommentButtonMouseDown={(e) => handleCommentButtonMouseDown(e, selection)}
+                  onLineNumberMouseDown={(e) => handleLineNumberMouseDown(e, selection)}
                   onOpenInEditor={
                     onOpenInEditor &&
                     line.type !== 'delete' &&
@@ -385,7 +392,10 @@ export const DiffChunk = memo(function DiffChunk({
                                 : 'justify-center'
                           }`}
                         >
-                          <div className={`${layout === 'full' ? 'w-full' : 'w-1/2'} m-2 mx-4`}>
+                          <div
+                            className={`${layout === 'full' ? 'w-full' : 'w-1/2'} m-2 mx-4`}
+                            {...threadHoverProps(thread.id)}
+                          >
                             <CommentThreadCard
                               thread={thread}
                               showAuthorBadges={showAuthorBadges}

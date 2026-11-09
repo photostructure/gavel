@@ -19,6 +19,7 @@ interface DiffLineRowProps {
   onMouseLeave: () => void;
   onMouseMove: () => void;
   onCommentButtonMouseDown: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  onLineNumberMouseDown: (e: React.MouseEvent<HTMLTableCellElement>) => void;
   onOpenInEditor?: () => void;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
   onClick?: (e: React.MouseEvent<HTMLTableRowElement>) => void;
@@ -53,6 +54,7 @@ export const DiffLineRow: React.FC<DiffLineRowProps> = React.memo(
     onMouseLeave,
     onMouseMove,
     onCommentButtonMouseDown,
+    onLineNumberMouseDown,
     onOpenInEditor,
     syntaxTheme,
     onClick,
@@ -74,10 +76,16 @@ export const DiffLineRow: React.FC<DiffLineRowProps> = React.memo(
         onMouseMove={onMouseMove}
         onClick={onClick}
       >
-        <td className="w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative">
+        <td
+          className="w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative"
+          onMouseDown={onLineNumberMouseDown}
+        >
           {line.oldLineNumber || ''}
         </td>
-        <td className="w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative overflow-visible">
+        <td
+          className="w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative overflow-visible"
+          onMouseDown={onLineNumberMouseDown}
+        >
           <span>{line.newLineNumber || ''}</span>
           {showLineActions && (
             <>
