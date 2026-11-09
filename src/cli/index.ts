@@ -179,10 +179,7 @@ program
     '--merge-base',
     'resolve the base revision with git merge-base before diffing (Git revision mode only)',
   )
-  .option(
-    '--title <description>',
-    'short description of this review session, shown as the browser tab title',
-  )
+  .option('--title <title>', 'custom browser tab title for this review session')
   .option(
     '--agent <name>',
     'agent host that launched this review (default: from $CLAUDE_CODE_ENTRYPOINT, the originator in the Codex thread rollout, or $AI_AGENT)',

@@ -14,6 +14,9 @@ import {
 } from '@floating-ui/react';
 import { useState, type ReactNode } from 'react';
 
+export const headerButtonClasses =
+  'inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 text-sm text-github-text-primary hover:bg-github-bg-tertiary';
+
 export function HeaderMenu({
   label,
   title,
@@ -60,10 +63,7 @@ export function HeaderMenu({
         ref={refs.setReference}
         title={title}
         type="button"
-        className={
-          className ||
-          'inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 text-sm text-github-text-primary hover:bg-github-bg-tertiary'
-        }
+        className={className || headerButtonClasses}
         {...getReferenceProps()}
       >
         {label}

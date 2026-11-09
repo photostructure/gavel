@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReviewApproval } from '../../types/conversation';
 import { createDiffSelection, getDiffSelectionKey } from '../../utils/diffSelection';
 
+import { headerButtonClasses } from './HeaderMenu';
 import { ReviewQueueBar, type ApprovalRequest } from './ReviewQueueBar';
 
 const request = (
@@ -19,6 +20,7 @@ const asIs: ReviewApproval = { approved: true, requested: true, mode: 'as-is' };
 const reviews = [request('parser'), request('tests'), request('docs')];
 
 const bar = () => screen.getByRole('navigation', { name: 'Reviews on this server' });
+const allReviews = (name: string) => within(bar()).getByRole('button', { name });
 
 describe('review queue bar', () => {
   it('stays hidden while the only review is the open one', () => {
@@ -43,7 +45,6 @@ describe('review queue bar', () => {
         onSelect={onSelect}
       />,
     );
-    expect(bar()).toHaveTextContent(/^1 of 1 need a verdict/);
     fireEvent.click(within(bar()).getByRole('button', { name: 'parser, Needs a verdict' }));
     expect(onSelect).toHaveBeenCalledWith(reviews[0]!.selection);
   });
@@ -74,7 +75,7 @@ describe('review queue bar', () => {
         onSelect={onSelect}
       />,
     );
-    const buttons = within(bar()).getAllByRole('button');
+    const buttons = within(within(bar()).getByRole('list')).getAllByRole('button');
     expect(buttons.map((button) => button.textContent)).toEqual(['parser', 'tests', 'docs']);
     expect(buttons[1]).toHaveAttribute('aria-current', 'page');
     expect(buttons[0]).not.toHaveAttribute('aria-current');
@@ -196,29 +197,44 @@ describe('review queue bar', () => {
     render(
       <ReviewQueueBar reviews={queue} current={queue[0]!.selection} approvals onSelect={vi.fn()} />,
     );
-    expect(bar()).toHaveTextContent(/^1 of 3 need a verdict/);
+    expect(allReviews('All reviews 1 approved, 1 not yet, 1 needs a verdict')).toBeVisible();
     const tests = screen.getByRole('button', { name: 'tests, Not yet' });
     expect(tests.querySelector('[data-verdict="not-yet"]')).not.toBeNull();
+    expect(bar().querySelector('[data-verdict-segment].bg-github-danger')).not.toBeNull();
   });
 
-  it('counts the reviews that still need a verdict', () => {
+  it('draws a bar segment for each verdict some review has, sized by its count', () => {
     const pending: ReviewApproval = {
       approved: true,
       requested: true,
       mode: 'after-comments',
     };
-    // An approval after comments is the reviewer done.
     const queue = [request('parser', asIs), request('tests', pending), request('docs')];
+    const segments = () =>
+      Array.from(
+        within(bar())
+          .getByRole('button', { name: /^All reviews/ })
+          .querySelectorAll<HTMLElement>('[data-verdict-segment]'),
+      );
     const { rerender } = render(
       <ReviewQueueBar reviews={queue} current={queue[0]!.selection} approvals onSelect={vi.fn()} />,
     );
-    expect(bar()).toHaveTextContent(/^1 of 3 need a verdict/);
+    const summary = 'All reviews 1 approved, 1 approved after comments, 1 needs a verdict';
+    expect(allReviews(summary)).toHaveAttribute(
+      'title',
+      '1 approved, 1 approved after comments, 1 needs a verdict',
+    );
+    expect(segments().map((segment) => segment.style.flexGrow)).toEqual(['1', '1', '1']);
+    expect(segments()[0]).toHaveClass('bg-github-accent');
+    expect(segments()[1]).toHaveClass('bg-verdict-after-comments');
+    expect(segments()[2]).toHaveClass('bg-github-text-muted');
 
     const done = [request('parser', asIs), request('tests', asIs)];
     rerender(
       <ReviewQueueBar reviews={done} current={done[0]!.selection} approvals onSelect={vi.fn()} />,
     );
-    expect(bar()).toHaveTextContent(/^All 2 have a verdict/);
+    expect(allReviews('All reviews 2 approved')).toBeVisible();
+    expect(segments().map((segment) => segment.style.flexGrow)).toEqual(['2']);
 
     rerender(
       <ReviewQueueBar
@@ -228,10 +244,11 @@ describe('review queue bar', () => {
         onSelect={vi.fn()}
       />,
     );
-    expect(bar()).toHaveTextContent(/^3 reviews/);
+    expect(allReviews('All reviews')).toBeVisible();
+    expect(segments()).toEqual([]);
   });
 
-  it('wraps the names onto more rows instead of hiding any', () => {
+  it('starts the bar with the tabs, now the count is on the button', () => {
     render(
       <ReviewQueueBar
         reviews={reviews}
@@ -240,101 +257,11 @@ describe('review queue bar', () => {
         onSelect={vi.fn()}
       />,
     );
-    // The count and the names wrap as one flow, so on a phone the names share the count's row.
-    expect(bar()).toHaveClass('flex-wrap');
-    const list = within(bar()).getByRole('list');
-    expect(list).toHaveClass('contents');
-    expect(list).not.toHaveClass('overflow-x-auto');
+    expect(bar().firstElementChild).toBe(within(bar()).getByRole('list'));
   });
 
-  describe('when the tabs need more than one row', () => {
-    // happy-dom does no layout, so stand in for the browser's measurement of the hidden
-    // one-row copy of the tabs: 500px of tabs in a 300px bar.
-    beforeEach(() => {
-      vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (
-        this: Element,
-      ) {
-        return this.hasAttribute('data-tab-measure') ? 500 : 0;
-      });
-      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
-        this: Element,
-      ) {
-        return this.hasAttribute('data-tab-measure') ? 300 : 0;
-      });
-    });
-    afterEach(() => vi.restoreAllMocks());
-
-    it('measures again when unread dots change the width of the tabs', () => {
-      vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (
-        this: Element,
-      ) {
-        return this.hasAttribute('data-tab-measure')
-          ? 295 + 14 * this.querySelectorAll('.bg-blue-500').length
-          : 0;
-      });
-      const view = (unreadReviews: ReadonlySet<string>) => (
-        <ReviewQueueBar
-          reviews={reviews}
-          current={reviews[0]!.selection}
-          approvals
-          unreadReviews={unreadReviews}
-          onSelect={vi.fn()}
-        />
-      );
-      const { rerender } = render(view(new Set()));
-      expect(within(bar()).getByRole('list')).toBeVisible();
-      rerender(view(new Set(reviews.map((review) => getDiffSelectionKey(review.selection)))));
-      expect(within(bar()).getByRole('button', { name: /^All reviews, open/ })).toBeVisible();
-      rerender(view(new Set()));
-      expect(within(bar()).getByRole('list')).toBeVisible();
-    });
-
-    it('shows the open review with a menu of every review instead of the tabs', () => {
-      const onSelect = vi.fn();
-      const listed = [request('parser', asIs), request('tests'), request('docs')];
-      render(
-        <ReviewQueueBar
-          reviews={listed}
-          current={listed[1]!.selection}
-          approvals
-          onSelect={onSelect}
-        />,
-      );
-      expect(bar()).toHaveTextContent(/^2 of 3 need a verdict/);
-      expect(within(bar()).queryByRole('list')).not.toBeInTheDocument();
-
-      fireEvent.click(within(bar()).getByRole('button', { name: 'All reviews, open: tests' }));
-      const items = screen.getAllByRole('listitem');
-      expect(items).toHaveLength(3);
-      expect(items[0]).toHaveTextContent('parser');
-      expect(items[0]).toHaveTextContent('fix: parser');
-      expect(items[0]).toHaveTextContent('Approved as-is');
-      expect(within(items[1]!).getByRole('button')).toHaveAttribute('aria-current', 'page');
-      expect(items[2]).toHaveTextContent('Needs a verdict');
-
-      fireEvent.click(within(items[2]!).getByRole('button'));
-      expect(onSelect).toHaveBeenCalledWith(listed[2]!.selection);
-    });
-
-    it('asks for a choice when the open diff is none of the reviews', () => {
-      render(
-        <ReviewQueueBar
-          reviews={reviews}
-          current={createDiffSelection('HEAD^', 'HEAD')}
-          approvals
-          onSelect={vi.fn()}
-        />,
-      );
-      expect(
-        within(bar()).getByRole('button', { name: 'All reviews, open: Choose a review' }),
-      ).toBeVisible();
-    });
-  });
-
-  it('keeps the measured count on one line so it cannot absorb the tabs overflow', () => {
-    // In Chrome at 1100px with 8 reviews, a shrinkable count wrapped to two lines in the
-    // one-row copy, so scrollWidth matched clientWidth while the real tabs wrapped.
-    const { container } = render(
+  it('keeps every tab on one row that scrolls sideways', () => {
+    render(
       <ReviewQueueBar
         reviews={reviews}
         current={reviews[0]!.selection}
@@ -342,10 +269,123 @@ describe('review queue bar', () => {
         onSelect={vi.fn()}
       />,
     );
-    const measure = container.querySelector('[data-tab-measure]');
-    for (const child of Array.from(measure?.children ?? [])) {
-      expect(child).toHaveClass('shrink-0', 'whitespace-nowrap');
-    }
+    expect(bar()).not.toHaveClass('flex-wrap');
+    expect(within(bar()).getByRole('list')).toHaveClass('overflow-x-auto');
+  });
+
+  it('always offers a menu listing every review', () => {
+    const onSelect = vi.fn();
+    const listed = [request('parser', asIs), request('tests'), request('docs')];
+    render(
+      <ReviewQueueBar
+        reviews={listed}
+        current={listed[1]!.selection}
+        approvals
+        onSelect={onSelect}
+      />,
+    );
+    fireEvent.click(within(bar()).getByRole('button', { name: /^All reviews/ }));
+    const items = within(screen.getByRole('dialog')).getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveTextContent('parser');
+    expect(items[0]).toHaveTextContent('fix: parser');
+    expect(items[0]).toHaveTextContent('Approved as-is');
+    expect(within(items[1]!).getByRole('button')).toHaveAttribute('aria-current', 'page');
+    expect(items[2]).toHaveTextContent('Needs a verdict');
+
+    fireEvent.click(within(items[2]!).getByRole('button'));
+    expect(onSelect).toHaveBeenCalledWith(listed[2]!.selection);
+  });
+
+  it('draws All reviews as a button rather than a tab, with no unread mark', () => {
+    render(
+      <ReviewQueueBar
+        reviews={reviews}
+        current={reviews[0]!.selection}
+        approvals
+        unreadReviews={new Set([getDiffSelectionKey(reviews[2]!.selection)])}
+        onSelect={vi.fn()}
+      />,
+    );
+    const button = allReviews('All reviews 3 need a verdict');
+    expect(button).toHaveClass(...headerButtonClasses.split(' '));
+    expect(button).not.toHaveClass('rounded-t-md');
+    expect(button).toHaveClass('relative', 'overflow-hidden');
+  });
+
+  describe('scrolling the tab row', () => {
+    const queue = ['a', 'b', 'c', 'd', 'e'].map((name) => request(name));
+    const renderAt = (index: number) => (
+      <ReviewQueueBar
+        reviews={queue}
+        current={queue[index]!.selection}
+        approvals
+        onSelect={vi.fn()}
+      />
+    );
+    const tabRow = () => within(bar()).getByRole('list');
+
+    // happy-dom does no layout, so stand in for five 100px tabs in a 250px row.
+    beforeEach(() => {
+      vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        return Array.from(this.parentElement?.children ?? []).indexOf(this) * 100;
+      });
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100);
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(250);
+    });
+    afterEach(() => vi.restoreAllMocks());
+
+    it('puts the review before an out-of-view open tab at the left edge', () => {
+      render(renderAt(3));
+      expect(tabRow().scrollLeft).toBe(200);
+    });
+
+    it('puts the open tab at the left edge when the review before it would not fit', () => {
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(150);
+      render(renderAt(3));
+      expect(tabRow().scrollLeft).toBe(300);
+    });
+
+    describe('from a scrolled position', () => {
+      const scrollRowTo = (left: number) => {
+        tabRow().scrollLeft = left;
+        fireEvent.scroll(tabRow());
+      };
+      // The row's position outlives the bar, so return it to the start for the next test.
+      afterEach(() => scrollRowTo(0));
+
+      it('scrolls back to the start for the first review', () => {
+        const { rerender } = render(renderAt(3));
+        scrollRowTo(200);
+        rerender(renderAt(0));
+        expect(tabRow().scrollLeft).toBe(0);
+      });
+
+      it('leaves the row where it is when the open tab is already in view', () => {
+        const { rerender } = render(renderAt(0));
+        scrollRowTo(37);
+        rerender(renderAt(1));
+        expect(tabRow().scrollLeft).toBe(37);
+      });
+
+      // The app replaces the page with a loading message between reviews, unmounting the bar.
+      it('keeps its position when the bar remounts for the next review', () => {
+        const { unmount } = render(renderAt(0));
+        scrollRowTo(150);
+        unmount();
+
+        render(renderAt(2));
+        expect(tabRow().scrollLeft).toBe(150);
+      });
+    });
+
+    it('scrolls sideways with the mouse wheel', () => {
+      render(renderAt(0));
+      fireEvent.wheel(tabRow(), { deltaY: 120 });
+      expect(tabRow().scrollLeft).toBe(120);
+    });
   });
 
   it('marks no review as open when the open diff is none of them', () => {

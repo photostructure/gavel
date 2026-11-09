@@ -154,6 +154,8 @@ const DEUTERANOPIA_DARK_OVERRIDES: Record<string, string> = {
   '--color-github-accent': '#58a6ff',
   '--color-github-accent-text': '#58a6ff',
   '--color-github-danger': '#d29922',
+  // Violet, because yellow is too close to this mode's orange Not yet.
+  '--color-verdict-after-comments': '#a371f7',
   '--color-diff-addition-bg': '#0c2d6b',
   '--color-diff-addition-border': '#388bfd',
   '--color-diff-deletion-bg': '#5a3600',
@@ -164,6 +166,7 @@ const DEUTERANOPIA_LIGHT_OVERRIDES: Record<string, string> = {
   '--color-github-accent': '#0969da',
   '--color-github-accent-text': '#0969da',
   '--color-github-danger': '#bf8700',
+  '--color-verdict-after-comments': '#8250df',
   '--color-diff-addition-bg': '#ddf4ff',
   '--color-diff-addition-border': '#0969da',
   '--color-diff-deletion-bg': '#fff8c5',

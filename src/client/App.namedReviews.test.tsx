@@ -1105,7 +1105,7 @@ describe('named captures in the browser', () => {
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
     expect(
-      within(bar)
+      within(within(bar).getByRole('list'))
         .getAllByRole('button')
         .map((tab) => tab.textContent),
     ).toEqual(['task-a', 'task-b']);
@@ -1167,7 +1167,7 @@ describe('named captures in the browser', () => {
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
     expect(
-      within(bar)
+      within(within(bar).getByRole('list'))
         .getAllByRole('button')
         .map((tab) => tab.textContent),
     ).toEqual(['task-a', 'task-b', 'def456^...def456', 'new-head...Uncommitted Changes']);
@@ -1177,7 +1177,8 @@ describe('named captures in the browser', () => {
     const state = fixture();
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
-    expect(within(bar).getAllByRole('button')).toHaveLength(2);
+    const tabs = () => within(within(bar).getByRole('list')).getAllByRole('button');
+    expect(tabs()).toHaveLength(2);
 
     // A commit creates a review on the server without any approval, summary, or capture event.
     state.otherReviews = [
@@ -1190,7 +1191,7 @@ describe('named captures in the browser', () => {
       },
     ];
     await act(async () => watch.reload?.());
-    await waitFor(() => expect(within(bar).getAllByRole('button')).toHaveLength(3));
+    await waitFor(() => expect(tabs()).toHaveLength(3));
   });
 
   it('keeps the change summary open across reviews and page loads once opened', async () => {
@@ -1220,13 +1221,13 @@ describe('named captures in the browser', () => {
     const state = fixture();
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
-    expect(bar).toHaveTextContent(/^2 of 2 need a verdict/);
+    expect(bar).toHaveTextContent('2 need a verdict');
     state.approved = true;
     await act(async () => watch.approvalChanged?.());
     expect(
       await within(bar).findByRole('button', { name: 'task-a, Approved as-is' }),
     ).toBeVisible();
-    expect(bar).toHaveTextContent(/^1 of 2 need a verdict/);
+    expect(bar).toHaveTextContent('1 needs a verdict');
   });
 });
 
@@ -1314,7 +1315,7 @@ describe('after a verdict', () => {
     const state = fixture();
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
-    await waitFor(() => expect(bar).toHaveTextContent(/^2 of 2 need a verdict/));
+    await waitFor(() => expect(bar).toHaveTextContent('2 need a verdict'));
     const leave = new Event('beforeunload', { cancelable: true });
     act(() => void window.dispatchEvent(leave));
     expect(leave.defaultPrevented).toBe(true);

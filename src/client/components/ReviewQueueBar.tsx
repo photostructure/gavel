@@ -1,12 +1,12 @@
 import { Check, ChevronDown, Circle, MessageSquareMore, X } from 'lucide-react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 
 import type { ReviewApproval } from '../../types/conversation';
 import type { DiffSelection } from '../../types/diff';
 import { diffSelectionsEqual, getDiffSelectionKey } from '../../utils/diffSelection';
 import { hasVerdict } from '../utils/verdict';
 
-import { HeaderMenu } from './HeaderMenu';
+import { HeaderMenu, headerButtonClasses } from './HeaderMenu';
 import { describeApproval } from './VerdictControl';
 
 /** A review on this server that proposes a commit for approval. */
@@ -22,11 +22,14 @@ const approvalLabel = ({ requested = false, mode, notYet }: ReviewApproval) =>
 
 const isDone = (review: ApprovalRequest) => hasVerdict(review.approval);
 
-const tabClasses = '-mb-px inline-flex items-center gap-1 rounded-t-md border px-3 py-1.5';
+// The inset focus outline keeps the tab row's overflow from clipping it.
+const tabClasses =
+  'inline-flex items-center gap-1 rounded-t-md border px-3 py-1.5 focus-visible:-outline-offset-2';
 const isApprovedAfterComments = ({ requested, mode }: ReviewApproval) =>
   requested && mode === 'after-comments';
 
-// Each verdict's color, the same hue as its chosen button in VerdictControl.
+// Each verdict's color, the same hue as its chosen button in VerdictControl, except that in
+// deuteranopia mode after-comments is violet here while its chosen button stays yellow.
 const verdictColor = (approval: ReviewApproval) =>
   approval.notYet
     ? { text: 'text-github-danger', topBorder: 'border-t-github-danger' }
@@ -38,10 +41,35 @@ const verdictColor = (approval: ReviewApproval) =>
           { text: 'text-github-text-muted', topBorder: 'border-t-github-text-secondary' };
 
 // The open tab overlaps the bar's bottom border and shares the Change summary row's
-// background, so it reads as attached to the review below it. Its top border, in its
-// verdict's color, marks it when it sits on an upper row of wrapped tabs.
+// background, so it reads as attached to the review below it. Its top border takes its
+// verdict's color.
 const openTabClasses = (approval: ReviewApproval | undefined, approvals: boolean) =>
   `border-github-border border-t-2 ${approvals && approval ? verdictColor(approval).topBorder : 'border-t-github-accent'} border-b-github-bg-secondary bg-github-bg-secondary font-semibold text-github-text-primary`;
+
+// The same precedence as ApprovalMark, so each bar segment matches its reviews' tab marks.
+const verdictKind = (approval: ReviewApproval) =>
+  approval.notYet
+    ? 'not-yet'
+    : isApprovedAfterComments(approval)
+      ? 'after-comments'
+      : approval.requested
+        ? 'approved'
+        : 'needs-verdict';
+
+const VERDICT_SEGMENTS = [
+  ['approved', 'bg-github-accent', (count: number) => `${count} approved`],
+  [
+    'after-comments',
+    'bg-verdict-after-comments',
+    (count: number) => `${count} approved after comments`,
+  ],
+  ['not-yet', 'bg-github-danger', (count: number) => `${count} not yet`],
+  [
+    'needs-verdict',
+    'bg-github-text-muted',
+    (count: number) => `${count} ${count === 1 ? 'needs' : 'need'} a verdict`,
+  ],
+] as const;
 
 function ApprovalMark({ approval }: { approval: ReviewApproval }) {
   const { text } = verdictColor(approval);
@@ -72,6 +100,10 @@ function UnreadDot() {
   );
 }
 
+// App replaces the page with a loading message between reviews, which unmounts the bar, so
+// the tab row's position is kept outside it.
+let tabRowScrollLeft = 0;
+
 export function ReviewQueueBar({
   reviews,
   current,
@@ -96,154 +128,149 @@ export function ReviewQueueBar({
   // Two identically animated classes: switching between them restarts the animation.
   const pulseClass = (review: ApprovalRequest) =>
     approvals && pulse > 0 && !isDone(review) ? ` verdict-pulse-${pulse % 2}` : '';
-  const measureRef = useRef<HTMLDivElement>(null);
-  const [collapsed, setCollapsed] = useState(false);
-  // Every dot is the same width, so their number is enough to know when to measure again.
-  const unreadTabs = reviews.filter(hasUnread).length;
-
-  // The tabs collapse into one menu when a hidden one-row copy of them is wider than the
-  // bar, so a long stack never pushes the diff down by several rows.
-  useLayoutEffect(() => {
-    const measure = measureRef.current;
-    if (!measure) return;
-    const update = () => setCollapsed(measure.scrollWidth > measure.clientWidth);
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(measure);
-    return () => observer.disconnect();
-  }, [reviews, approvals, unreadTabs]);
-
+  const tabRowRef = useRef<HTMLUListElement>(null);
   const open = reviews.find((review) => diffSelectionsEqual(review.selection, current));
+  const openIndex = open ? reviews.indexOf(open) : -1;
+
+  // As in a browser's tab strip, an open tab already in view stays put, so a click never moves
+  // the tab under the pointer. One out of view scrolls in with the review before it at the
+  // left edge, if both fit, and the later reviews filling the row to its right.
+  useLayoutEffect(() => {
+    const row = tabRowRef.current;
+    if (!row || openIndex < 0) return;
+    row.scrollLeft = tabRowScrollLeft;
+    const tabAt = (index: number) => row.children[index] as HTMLElement;
+    const tab = tabAt(openIndex);
+    const inView =
+      tab.offsetLeft >= row.scrollLeft &&
+      tab.offsetLeft + tab.offsetWidth <= row.scrollLeft + row.clientWidth;
+    if (inView) return;
+    const prior = tabAt(Math.max(openIndex - 1, 0));
+    const bothFit = tab.offsetLeft + tab.offsetWidth - prior.offsetLeft <= row.clientWidth;
+    row.scrollLeft = (bothFit ? prior : tab).offsetLeft;
+  }, [openIndex]);
+
   // While a review asks for approval the revision picker is gone, so the bar is the only way
   // to reach a review that isn't open.
   if (reviews.length === 0 || (reviews.length === 1 && open)) return null;
 
-  const waiting = reviews.filter((review) => !isDone(review)).length;
-  const count = !approvals
-    ? `${reviews.length} reviews`
-    : waiting === 0
-      ? `All ${reviews.length} have a verdict`
-      : `${waiting} of ${reviews.length} need a verdict`;
-  const countLabel = (
-    // The same box as a tab (padding, transparent border, -mb-px), so its text lines up with
-    // the tab titles in the bar's bottom-aligned row.
-    <span className="-mb-px mr-2 inline-flex shrink-0 items-center whitespace-nowrap border border-transparent py-1.5 text-github-text-secondary">
-      {count}
-    </span>
-  );
+  const segments = approvals
+    ? VERDICT_SEGMENTS.flatMap(([kind, color, describe]) => {
+        const count = reviews.filter((review) => verdictKind(review.approval) === kind).length;
+        return count > 0 ? [{ kind, color, count, summary: describe(count) }] : [];
+      })
+    : [];
+  const verdictSummary = segments.map(({ summary }) => summary).join(', ');
 
   return (
     <nav
       aria-label="Reviews on this server"
-      className="review-toolbar relative flex shrink-0 flex-wrap items-end gap-x-0.5 gap-y-1 border-b border-github-border bg-github-bg-tertiary px-3 pt-1.5 text-xs text-github-text-primary"
+      className="review-toolbar relative flex shrink-0 items-end gap-x-0.5 border-b border-github-border bg-github-bg-tertiary px-3 pt-1.5 text-xs text-github-text-primary"
     >
-      <div
-        ref={measureRef}
-        data-tab-measure
-        aria-hidden="true"
-        inert
-        className="pointer-events-none invisible absolute inset-x-0 top-0 flex flex-nowrap items-end gap-x-0.5 overflow-hidden px-3 pt-1.5"
+      {/* The explicit role keeps the list semantics that Safari drops with list-style: none.
+          Vertical wheel movement reaches the row because no ancestor scrolls vertically.
+          `relative` makes each tab's offsetLeft measure from this row. */}
+      <ul
+        ref={tabRowRef}
+        role="list"
+        onScroll={(event) => {
+          tabRowScrollLeft = event.currentTarget.scrollLeft;
+        }}
+        onWheel={(event) => {
+          event.currentTarget.scrollLeft += event.deltaY;
+        }}
+        className="relative -mb-px flex min-w-0 flex-1 items-end gap-x-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none]"
       >
-        {countLabel}
-        {reviews.map((review) => (
-          <span
-            key={getDiffSelectionKey(review.selection)}
-            className={`${tabClasses} shrink-0 whitespace-nowrap`}
-          >
-            {approvals && <ApprovalMark approval={review.approval} />}
-            <code className="font-semibold">{review.name}</code>
-            {hasUnread(review) && <UnreadDot />}
-          </span>
-        ))}
-      </div>
-      {countLabel}
-      {collapsed ? (
-        <HeaderMenu
-          // The menu hides the other tabs, so it pulses for any review without a verdict.
-          className={`${tabClasses} min-w-0 ${openTabClasses(open?.approval, approvals)}${reviews.map(pulseClass).find(Boolean) ?? ''}`}
-          label={
-            <>
-              <span className="sr-only">All reviews, open: </span>
-              {approvals && open && <ApprovalMark approval={open.approval} />}
-              <code className="truncate">{open?.name ?? 'Choose a review'}</code>
-              {reviews.some(hasUnread) && <UnreadDot />}
-              <ChevronDown size={12} aria-hidden="true" className="shrink-0" />
-            </>
-          }
-        >
-          <ol className="-m-3 divide-y divide-github-border">
-            {reviews.map((review) => {
-              const isOpen = review === open;
-              return (
-                <li key={getDiffSelectionKey(review.selection)}>
-                  <button
-                    type="button"
-                    data-close-menu
-                    aria-current={isOpen ? 'page' : undefined}
-                    onClick={() => onSelect(review.selection)}
-                    className={`flex w-full items-start gap-2 px-3 py-2 text-left text-xs hover:bg-github-bg-tertiary ${isOpen ? 'border-l-4 border-l-github-accent bg-github-bg-tertiary pl-2' : ''}`}
-                  >
-                    {approvals && (
-                      <span className="pt-0.5">
-                        <ApprovalMark approval={review.approval} />
-                      </span>
-                    )}
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-1.5">
-                        <code className="block break-all font-semibold">{review.name}</code>
-                        {hasUnread(review) && <UnreadDot />}
-                      </span>
-                      {review.title && (
-                        <span className="block truncate text-github-text-secondary">
-                          {review.title}
-                        </span>
-                      )}
-                      {approvals && (
-                        <span className="block text-github-text-muted">
-                          {approvalLabel(review.approval)}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        </HeaderMenu>
-      ) : (
-        // Wrap rather than scroll until the menu takes over. display: contents lets the
-        // tabs share rows with the count; the explicit role keeps the list semantics that
-        // Safari drops from display: contents.
-        <ul role="list" className="contents">
+        {reviews.map((review) => {
+          const isOpen = review === open;
+          const state = approvals ? approvalLabel(review.approval) : undefined;
+          const unread = hasUnread(review);
+          return (
+            <li key={getDiffSelectionKey(review.selection)} className="shrink-0">
+              <button
+                type="button"
+                aria-current={isOpen ? 'page' : undefined}
+                aria-label={
+                  state
+                    ? [review.name, state, unread && UNREAD_LABEL].filter(Boolean).join(', ')
+                    : undefined
+                }
+                title={[review.title, state, unread && 'Unread replies'].filter(Boolean).join('\n')}
+                onClick={() => onSelect(review.selection)}
+                className={`${tabClasses} ${isOpen ? openTabClasses(review.approval, approvals) : 'border-transparent text-github-text-secondary hover:bg-github-bg-secondary hover:text-github-text-primary'}${pulseClass(review)}`}
+              >
+                {state && <ApprovalMark approval={review.approval} />}
+                <code>{review.name}</code>
+                {unread && <UnreadDot />}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <HeaderMenu
+        title={verdictSummary}
+        // Tabs can be scrolled out of view, so this pulses for any review without a verdict.
+        // Filled with the header's background, so it matches the header's buttons on this bar.
+        className={`relative mb-1 ml-2 overflow-hidden whitespace-nowrap bg-github-bg-secondary ${headerButtonClasses}${reviews.map(pulseClass).find(Boolean) ?? ''}`}
+        label={
+          <>
+            <span className="max-sm:sr-only">All reviews</span>
+            {verdictSummary && <span className="sr-only">{verdictSummary}</span>}
+            <ChevronDown size={12} aria-hidden="true" className="shrink-0" />
+            {segments.length > 0 && (
+              <span aria-hidden="true" className="absolute inset-x-0 bottom-0 flex h-[3px]">
+                {segments.map(({ kind, color, count }) => (
+                  <span
+                    key={kind}
+                    data-verdict-segment
+                    className={color}
+                    style={{ flexGrow: count }}
+                  />
+                ))}
+              </span>
+            )}
+          </>
+        }
+      >
+        <ol className="-m-3 divide-y divide-github-border">
           {reviews.map((review) => {
             const isOpen = review === open;
-            const state = approvals ? approvalLabel(review.approval) : undefined;
-            const unread = hasUnread(review);
             return (
-              <li key={getDiffSelectionKey(review.selection)} className="shrink-0">
+              <li key={getDiffSelectionKey(review.selection)}>
                 <button
                   type="button"
+                  data-close-menu
                   aria-current={isOpen ? 'page' : undefined}
-                  aria-label={
-                    state
-                      ? [review.name, state, unread && UNREAD_LABEL].filter(Boolean).join(', ')
-                      : undefined
-                  }
-                  title={[review.title, state, unread && 'Unread replies']
-                    .filter(Boolean)
-                    .join('\n')}
                   onClick={() => onSelect(review.selection)}
-                  className={`${tabClasses} ${isOpen ? openTabClasses(review.approval, approvals) : 'border-transparent text-github-text-secondary hover:bg-github-bg-secondary hover:text-github-text-primary'}${pulseClass(review)}`}
+                  className={`flex w-full items-start gap-2 px-3 py-2 text-left text-xs hover:bg-github-bg-tertiary ${isOpen ? 'border-l-4 border-l-github-accent bg-github-bg-tertiary pl-2' : ''}`}
                 >
-                  {state && <ApprovalMark approval={review.approval} />}
-                  <code>{review.name}</code>
-                  {unread && <UnreadDot />}
+                  {approvals && (
+                    <span className="pt-0.5">
+                      <ApprovalMark approval={review.approval} />
+                    </span>
+                  )}
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5">
+                      <code className="block break-all font-semibold">{review.name}</code>
+                      {hasUnread(review) && <UnreadDot />}
+                    </span>
+                    {review.title && (
+                      <span className="block truncate text-github-text-secondary">
+                        {review.title}
+                      </span>
+                    )}
+                    {approvals && (
+                      <span className="block text-github-text-muted">
+                        {approvalLabel(review.approval)}
+                      </span>
+                    )}
+                  </span>
                 </button>
               </li>
             );
           })}
-        </ul>
-      )}
+        </ol>
+      </HeaderMenu>
     </nav>
   );
 }
