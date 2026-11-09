@@ -18,6 +18,10 @@ For capture selection, updates, and saved reviews, see the
 [conversation protocol](agent-conversations.md#named-captures-for-uncommitted-work).
 For verdicts, see [approval modes](approval-modes.md).
 
+To tell servers apart in the browser, pass a short `--title`, such as
+`--title 'parser recovery'`. Browsers only show the first 10-20 characters. The title
+belongs to the server, so every review tab on that server shares it.
+
 ## GitHub pull requests
 
 ```bash

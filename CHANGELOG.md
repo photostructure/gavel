@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The gavel skills now tell agents to pass a short `--title` on every launch, so open servers can be told apart in the browser, and `--help` describes the option that way.
 - **Approve after comments** is now one recorded verdict: the agent acts on all the current comments and commits, and `approved` is true as soon as you choose it. Only you can clear it; new comments, recaptures, and message edits leave it in place. `gavel comment address`, `gavel schema address`, and the approval's `conditions` and `baselineCapture` fields are gone.
 - **Approve after comments** is now yellow with a comment-bubble icon instead of orange with a check mark, and it no longer counts pending comments or changes on its own.
 - The review tabs no longer collapse into a menu when they don't fit. They keep their full size on one row that scrolls sideways with the mouse wheel, a trackpad, or a swipe, and an **All reviews** button at the end of the row always lists every review. A stacked bar along the button's bottom edge shows how many reviews have each verdict, in each verdict's color, with the counts in its tooltip, in place of the "2 of 3 need a verdict" text. With the deuteranopia color-vision setting, **Approve after comments** marks are violet so they differ from **Not yet**. Opening a review whose tab is out of view scrolls it in with the review before it at the left edge; clicking a visible tab leaves the row where it is.

@@ -105,8 +105,11 @@ Skip this check when the latest user message explicitly asks for the review.
 For uncommitted work:
 
 ```sh
-<gavel-command> --review <task-name> --keep-alive
+<gavel-command> --review <task-name> --title '<short description>' --keep-alive
 ```
+
+Pass `--title` on every launch. Keep it short: browsers only show the first 10-20
+characters.
 
 Names contain 1–80 ASCII letters, digits, dots, underscores, or hyphens and start
 with a letter or digit. Repeat `--pathspec <git-pathspec>` for native Git filters
