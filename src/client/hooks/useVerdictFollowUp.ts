@@ -6,7 +6,7 @@ import { getDiffSelectionKey } from '../../utils/diffSelection';
 import { nextReviewNeedingVerdict } from '../utils/verdict';
 
 // Long enough to read the notice and reach Cancel, before switching reviews or closing the tab.
-const COUNTDOWN_SECONDS = 10;
+export const COUNTDOWN_SECONDS = 10;
 // The length of the verdict-pulse animation in global.css: 4 iterations of 1.6s.
 const PULSE_MS = 6400;
 
@@ -18,8 +18,9 @@ type Phase =
   | null;
 
 export type VerdictFollowUpStep =
-  | { kind: 'switch'; name: string; seconds: number }
-  | { kind: 'close'; reviews: number; seconds: number }
+  // deadline: when the countdown ends; a new countdown has a new one.
+  | { kind: 'switch'; name: string; seconds: number; deadline: number }
+  | { kind: 'close'; reviews: number; seconds: number; deadline: number }
   // The browser ignored close(): it closes only tabs a script opened or with one history entry.
   | { kind: 'closable'; reviews: number };
 
@@ -149,21 +150,17 @@ export function useVerdictFollowUp<
   }, [phase, runNextStep]);
 
   const count = Math.max(reviews.length, 1);
+  const remaining = (deadline: number) => ({
+    deadline,
+    seconds: Math.max(0, Math.ceil((deadline - now) / 1000)),
+  });
   const step: VerdictFollowUpStep | null = !phase
     ? null
     : phase.kind === 'closable'
       ? { kind: 'closable', reviews: count }
       : phase.kind === 'switch' && target
-        ? {
-            kind: 'switch',
-            name: target.name,
-            seconds: Math.max(0, Math.ceil((phase.deadline - now) / 1000)),
-          }
-        : {
-            kind: 'close',
-            reviews: count,
-            seconds: Math.max(0, Math.ceil((phase.deadline - now) / 1000)),
-          };
+        ? { kind: 'switch', name: target.name, ...remaining(phase.deadline) }
+        : { kind: 'close', reviews: count, ...remaining(phase.deadline) };
 
   return {
     step,

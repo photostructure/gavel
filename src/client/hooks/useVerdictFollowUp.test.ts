@@ -54,19 +54,32 @@ describe('verdict follow-up', () => {
     const queue = [review('a'), review('b', approved), review('c')];
     const { result } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
-    expect(result.current.step).toEqual({ kind: 'switch', name: 'c', seconds: 10 });
+    expect(result.current.step).toMatchObject({ kind: 'switch', name: 'c', seconds: 10 });
     act(() => void vi.advanceTimersByTime(1000));
-    expect(result.current.step).toEqual({ kind: 'switch', name: 'c', seconds: 9 });
+    expect(result.current.step).toMatchObject({ kind: 'switch', name: 'c', seconds: 9 });
     act(() => void vi.advanceTimersByTime(9000));
     expect(onSwitch).toHaveBeenCalledExactlyOnceWith(queue[2]!.selection);
     expect(result.current.step).toBeNull();
+  });
+
+  // The notice restarts its time-remaining bar when this changes.
+  it('keeps a deadline through the ticks of a countdown and moves it for a new one', () => {
+    const queue = [review('a'), review('b')];
+    const { result } = render({ reviews: queue, current: queue[0]!.selection });
+    const started = Date.now();
+    act(() => result.current.start());
+    expect(result.current.step).toMatchObject({ deadline: started + 10_000 });
+    act(() => void vi.advanceTimersByTime(2000));
+    expect(result.current.step).toMatchObject({ deadline: started + 10_000 });
+    act(() => result.current.start());
+    expect(result.current.step).toMatchObject({ deadline: started + 12_000, seconds: 10 });
   });
 
   it('counts down 10 seconds when every other review has a verdict, then closes the tab', () => {
     const queue = [review('a'), review('b', approved)];
     const { result } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
-    expect(result.current.step).toEqual({ kind: 'close', reviews: 2, seconds: 10 });
+    expect(result.current.step).toMatchObject({ kind: 'close', reviews: 2, seconds: 10 });
     act(() => void vi.advanceTimersByTime(10_000));
     expect(close).toHaveBeenCalledOnce();
     // The browser ignores close() for a tab a script did not open and that has history.
@@ -113,7 +126,7 @@ describe('verdict follow-up', () => {
     expect(result.current.step?.kind).toBe('close');
     const grown = [...queue, review('b')];
     rerender({ reviews: grown, current: queue[0]!.selection });
-    expect(result.current.step).toEqual({ kind: 'switch', name: 'b', seconds: 10 });
+    expect(result.current.step).toMatchObject({ kind: 'switch', name: 'b', seconds: 10 });
     expect(result.current.pulse).toBeGreaterThan(0);
     act(() => void vi.advanceTimersByTime(10_000));
     expect(onSwitch).toHaveBeenCalledExactlyOnceWith(grown[1]!.selection);
@@ -127,7 +140,7 @@ describe('verdict follow-up', () => {
     act(() => void vi.advanceTimersByTime(10_000));
     expect(result.current.step?.kind).toBe('closable');
     rerender({ reviews: [...queue, review('b')], current: queue[0]!.selection });
-    expect(result.current.step).toEqual({ kind: 'switch', name: 'b', seconds: 10 });
+    expect(result.current.step).toMatchObject({ kind: 'switch', name: 'b', seconds: 10 });
     expect(result.current.pulse).toBeGreaterThan(0);
   });
 
@@ -148,7 +161,7 @@ describe('verdict follow-up', () => {
     const before = renders;
     // One act per 250ms, so React cannot batch several ticks into one render.
     for (let step = 0; step < 8; step++) act(() => void vi.advanceTimersByTime(250));
-    expect(result.current.step).toEqual({ kind: 'switch', name: 'b', seconds: 8 });
+    expect(result.current.step).toMatchObject({ kind: 'switch', name: 'b', seconds: 8 });
     expect(renders - before).toBeLessThanOrEqual(2);
   });
 
@@ -157,7 +170,7 @@ describe('verdict follow-up', () => {
     const { result, rerender } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
     rerender({ reviews: [queue[0]!, review('b', approved)], current: queue[0]!.selection });
-    expect(result.current.step).toEqual({ kind: 'close', reviews: 2, seconds: 10 });
+    expect(result.current.step).toMatchObject({ kind: 'close', reviews: 2, seconds: 10 });
   });
 
   it('stops when the open review loses its verdict, so the tab never closes over it', () => {

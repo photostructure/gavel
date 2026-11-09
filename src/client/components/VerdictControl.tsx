@@ -20,7 +20,8 @@ export const describeApproval = (
       : 'Approved as-is'
     : undefined;
 
-const buttonClasses =
+// The verdict follow-up notice sizes its buttons with these too.
+export const verdictButtonClasses =
   'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-60';
 const idleClasses = 'border-github-border bg-github-bg-tertiary text-github-text-primary';
 // Idle buttons look alike, so none reads as already chosen; hover shows which way each goes.
@@ -98,7 +99,7 @@ export function VerdictControl({
           aria-busy={busy}
           title={asIs ? clearTitle : 'Approve the reviewed patch as-is'}
           onClick={(event) => (asIs ? clear(event) : onApprove('as-is'))}
-          className={`${buttonClasses} ${asIs ? approvedClasses : approveIdleClasses}`}
+          className={`${verdictButtonClasses} ${asIs ? approvedClasses : approveIdleClasses}`}
         >
           <Check size={14} aria-hidden="true" />
           {asIs ? approval : 'Approve as-is'}
@@ -112,7 +113,7 @@ export function VerdictControl({
           aria-busy={busy}
           title={afterComments ? clearTitle : afterCommentsTitle}
           onClick={(event) => (afterComments ? clear(event) : onApprove('after-comments'))}
-          className={`${buttonClasses} ${afterComments ? afterCommentsClasses : afterCommentsIdleClasses}`}
+          className={`${verdictButtonClasses} ${afterComments ? afterCommentsClasses : afterCommentsIdleClasses}`}
         >
           <Check size={14} aria-hidden="true" />
           {afterComments ? approval : 'Approve after comments'}
@@ -124,7 +125,7 @@ export function VerdictControl({
           aria-busy={busy}
           title={notYet ? clearTitle : 'Not ready: the agent revises it and asks again'}
           onClick={(event) => (notYet ? clear(event) : onNotYet())}
-          className={`${buttonClasses} ${notYet ? notYetClasses : notYetIdleClasses}`}
+          className={`${verdictButtonClasses} ${notYet ? notYetClasses : notYetIdleClasses}`}
         >
           <X size={14} aria-hidden="true" />
           Not yet

@@ -30,7 +30,7 @@ describe('verdict follow-up notice', () => {
     render(
       <VerdictFollowUpNotice
         anchor={anchor()}
-        step={{ kind: 'switch', name: 'task-b', seconds: 2 }}
+        step={{ kind: 'switch', name: 'task-b', seconds: 2, deadline: 1000 }}
         onCancel={onCancel}
         onProceed={onProceed}
       />,
@@ -52,7 +52,7 @@ describe('verdict follow-up notice', () => {
     render(
       <VerdictFollowUpNotice
         anchor={anchor()}
-        step={{ kind: 'close', reviews: 1, seconds: 9 }}
+        step={{ kind: 'close', reviews: 1, seconds: 9, deadline: 1000 }}
         onCancel={vi.fn()}
         onProceed={onProceed}
       />,
@@ -66,7 +66,7 @@ describe('verdict follow-up notice', () => {
     render(
       <VerdictFollowUpNotice
         anchor={anchor()}
-        step={{ kind: 'switch', name: 'task-b', seconds: 9 }}
+        step={{ kind: 'switch', name: 'task-b', seconds: 9, deadline: 1000 }}
         onCancel={vi.fn()}
         onProceed={vi.fn()}
       />,
@@ -75,6 +75,53 @@ describe('verdict follow-up notice', () => {
     expect(now).toHaveClass('bg-blue-600', 'text-white');
     expect(status()).toHaveClass('border-blue-600');
     for (const element of [now, status()]) expect(element.className).not.toMatch(/github-accent/);
+  });
+
+  it('sizes its buttons like the verdict buttons above it', () => {
+    render(
+      <VerdictFollowUpNotice
+        anchor={anchor()}
+        step={{ kind: 'switch', name: 'task-b', seconds: 9, deadline: 1000 }}
+        onCancel={vi.fn()}
+        onProceed={vi.fn()}
+      />,
+    );
+    for (const name of ['Switch now', 'Cancel']) {
+      expect(screen.getByRole('button', { name })).toHaveClass('px-3', 'py-1.5', 'text-sm');
+    }
+  });
+
+  it('drains a bar over the countdown and restarts it for a new countdown', () => {
+    const element = anchor();
+    const notice = (seconds: number, deadline: number) => (
+      <VerdictFollowUpNotice
+        anchor={element}
+        step={{ kind: 'switch', name: 'task-b', seconds, deadline }}
+        onCancel={vi.fn()}
+        onProceed={vi.fn()}
+      />
+    );
+    const bar = () => status().querySelector<HTMLElement>('.verdict-countdown-bar');
+    const { rerender } = render(notice(10, 1000));
+    const first = bar();
+    expect(first?.style.animationDuration).toBe('10s');
+    // A tick must not restart the animation.
+    rerender(notice(9, 1000));
+    expect(bar()).toBe(first);
+    rerender(notice(10, 2000));
+    expect(bar()).not.toBe(first);
+  });
+
+  it('shows no time-remaining bar once nothing is counting down', () => {
+    render(
+      <VerdictFollowUpNotice
+        anchor={anchor()}
+        step={{ kind: 'closable', reviews: 1 }}
+        onCancel={vi.fn()}
+        onProceed={vi.fn()}
+      />,
+    );
+    expect(status().querySelector('.verdict-countdown-bar')).toBeNull();
   });
 
   // The header group clips overflow, so the notice floats above the page from a portal,
@@ -88,7 +135,7 @@ describe('verdict follow-up notice', () => {
     render(
       <VerdictFollowUpNotice
         anchor={verdicts}
-        step={{ kind: 'close', reviews: 1, seconds: 5 }}
+        step={{ kind: 'close', reviews: 1, seconds: 5, deadline: 1000 }}
         onCancel={vi.fn()}
         onProceed={vi.fn()}
       />,
@@ -108,7 +155,7 @@ describe('verdict follow-up notice', () => {
         <button type="button">Not yet</button>
         <VerdictFollowUpNotice
           anchor={verdicts}
-          step={{ kind: 'switch', name: 'task-b', seconds: 3 }}
+          step={{ kind: 'switch', name: 'task-b', seconds: 3, deadline: 1000 }}
           onCancel={vi.fn()}
           onProceed={vi.fn()}
         />
@@ -127,7 +174,7 @@ describe('verdict follow-up notice', () => {
     const { rerender } = render(
       <VerdictFollowUpNotice
         anchor={element}
-        step={{ kind: 'close', reviews: 3, seconds: 5 }}
+        step={{ kind: 'close', reviews: 3, seconds: 5, deadline: 1000 }}
         onCancel={vi.fn()}
         onProceed={vi.fn()}
       />,
@@ -136,7 +183,7 @@ describe('verdict follow-up notice', () => {
     rerender(
       <VerdictFollowUpNotice
         anchor={element}
-        step={{ kind: 'close', reviews: 1, seconds: 4 }}
+        step={{ kind: 'close', reviews: 1, seconds: 4, deadline: 1000 }}
         onCancel={vi.fn()}
         onProceed={vi.fn()}
       />,

@@ -87,6 +87,23 @@
   }
 }
 
+/* The time left in the verdict follow-up countdown; the notice sets its duration. */
+@keyframes verdict-countdown {
+  to {
+    transform: scaleX(0);
+  }
+}
+.verdict-countdown-bar {
+  animation: verdict-countdown linear forwards;
+  transform-origin: left;
+}
+/* The notice's text still counts the seconds. */
+@media (prefers-reduced-motion: reduce) {
+  .verdict-countdown-bar {
+    display: none;
+  }
+}
+
 @media (pointer: coarse) {
   .review-toolbar button,
   .review-menu button,
