@@ -1389,16 +1389,20 @@ describe('App Component - Initial file collapsing', () => {
         .closest('[data-file-path]')!;
       // Start collapsed, then select through the real sidebar while hydration is pending.
       fireEvent.click(
-        selectedSection.querySelector('button[title="Collapse file (Alt+Click to collapse all)"]')!,
+        selectedSection.querySelector(
+          'button[aria-label="Collapse file (Alt+Click to collapse all)"]',
+        )!,
       );
       fireEvent.click(screen.getByTitle('selected.ts').closest('[data-file-row]')!);
       expect(
-        selectedSection.querySelector('button[title="Collapse file (Alt+Click to collapse all)"]'),
+        selectedSection.querySelector(
+          'button[aria-label="Collapse file (Alt+Click to collapse all)"]',
+        ),
       ).toBeInTheDocument();
       if (collapseAfterSelection) {
         fireEvent.click(
           selectedSection.querySelector(
-            'button[title="Collapse file (Alt+Click to collapse all)"]',
+            'button[aria-label="Collapse file (Alt+Click to collapse all)"]',
           )!,
         );
       }
@@ -1415,11 +1419,11 @@ describe('App Component - Initial file collapsing', () => {
 
       await waitFor(() => {
         expect(
-          otherSection.querySelector('button[title="Expand file (Alt+Click to expand all)"]'),
+          otherSection.querySelector('button[aria-label="Expand file (Alt+Click to expand all)"]'),
         ).toBeInTheDocument();
         expect(
           selectedSection.querySelector(
-            `button[title="${collapseAfterSelection ? 'Expand file (Alt+Click to expand all)' : 'Collapse file (Alt+Click to collapse all)'}"]`,
+            `button[aria-label="${collapseAfterSelection ? 'Expand file (Alt+Click to expand all)' : 'Collapse file (Alt+Click to collapse all)'}"]`,
           ),
         ).toBeInTheDocument();
       });

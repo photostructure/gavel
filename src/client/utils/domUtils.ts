@@ -29,6 +29,14 @@ export function hasActiveTextSelection(): boolean {
 }
 
 /**
+ * Whether a click on a disclosure row should toggle it: the row's own buttons
+ * handle their clicks, and a drag that selected text is not a request to toggle.
+ */
+export function isDisclosureRowClick(target: EventTarget): boolean {
+  return (target as Element).closest('button') === null && !hasActiveTextSelection();
+}
+
+/**
  * Close every empty comment form the click is not in, through its reset handler.
  * Forms with the clicked form's draft key are skipped: they are other copies of
  * the same reply or edit (the Conversation panel and the diff), and resetting

@@ -11,10 +11,11 @@ import {
   Square,
   UnfoldVertical,
 } from 'lucide-react';
-import { useState } from 'react';
+import { type MouseEvent, useState } from 'react';
 
 import type { DiffFile } from '../../types/diff';
 import { copyTextToClipboard } from '../utils/clipboard';
+import { isDisclosureRowClick } from '../utils/domUtils';
 
 interface FullFileToggle {
   expanded: boolean;
@@ -61,29 +62,36 @@ export const DiffViewerHeader = ({
 }: DiffViewerHeaderProps) => {
   const [isCopied, setIsCopied] = useState(false);
 
+  const toggleCollapsed = (e: MouseEvent) => {
+    if (e.altKey) {
+      // When Alt+clicking, collapse all if this file is expanded, expand all if collapsed
+      onToggleAllCollapsed(!isCollapsed);
+    } else {
+      onToggleCollapsed(file.path);
+    }
+  };
+
+  const toggleLabel = isCollapsed
+    ? 'Expand file (Alt+Click to expand all)'
+    : 'Collapse file (Alt+Click to collapse all)';
+
   return (
     <div
       data-diff-viewer-header="true"
-      className={`bg-github-bg-secondary border-t-2 border-t-github-accent border-b border-github-border px-5 py-4 auto-hide-header:py-1 flex items-center justify-between flex-wrap gap-3 sticky top-0 z-10 ${
+      title={toggleLabel}
+      onClick={(e) => {
+        if (isDisclosureRowClick(e.target)) toggleCollapsed(e);
+      }}
+      className={`bg-github-bg-secondary border-t-2 border-t-github-accent border-b border-github-border px-5 py-4 auto-hide-header:py-1 flex items-center justify-between flex-wrap gap-3 sticky top-0 z-10 cursor-pointer ${
         isFocused ? 'keyboard-focused-file-header' : ''
       }`}
     >
       <div className="flex items-start gap-2 flex-[1_1_16rem] min-w-0">
         <button
-          onClick={(e) => {
-            if (e.altKey) {
-              // When Alt+clicking, collapse all if this file is expanded, expand all if collapsed
-              onToggleAllCollapsed(!isCollapsed);
-            } else {
-              onToggleCollapsed(file.path);
-            }
-          }}
-          className="mt-0.5 shrink-0 text-github-text-muted hover:text-github-text-primary transition-colors cursor-pointer"
-          title={
-            isCollapsed
-              ? 'Expand file (Alt+Click to expand all)'
-              : 'Collapse file (Alt+Click to collapse all)'
-          }
+          onClick={toggleCollapsed}
+          aria-expanded={!isCollapsed}
+          aria-label={toggleLabel}
+          className="mt-0.5 shrink-0 text-github-text-muted"
         >
           {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
         </button>

@@ -16,7 +16,7 @@ import { useFocusedAgentMessage } from '../hooks/useFocusedAgentMessage';
 import { agentMessageRevision } from '../hooks/useAgentUpdates';
 import { AgentUpdatesContext } from '../contexts/AgentUpdatesContext';
 import { useCommentDraft, useThreadHadDraftOnMount } from '../hooks/useCommentDrafts';
-import { hasActiveTextSelection } from '../utils/domUtils';
+import { hasActiveTextSelection, isDisclosureRowClick } from '../utils/domUtils';
 
 import { CommentBodyRenderer } from './CommentBodyRenderer';
 import { CommentForm, type CommentSubmitOptions } from './CommentForm';
@@ -425,6 +425,8 @@ export function CommentThreadCard({
   const rootMessage = thread.messages[0];
   if (!rootMessage) return null;
 
+  const toggleLabel = isCollapsed ? 'Expand thread' : 'Collapse thread';
+
   return (
     <div
       id={`comment-thread-${thread.id}`}
@@ -439,20 +441,34 @@ export function CommentThreadCard({
       }`}
       onClick={onClick}
     >
-      <div className={`flex items-center justify-between gap-3 ${isCollapsed ? '' : 'mb-3'}`}>
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          disabled={thread.deleted}
-          aria-expanded={!isCollapsed}
-          aria-controls={contentId}
-          aria-label={isCollapsed ? 'Expand thread' : 'Collapse thread'}
-          title={isCollapsed ? 'Expand thread' : 'Collapse thread'}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded p-0.5 text-left text-xs text-github-text-secondary transition-colors hover:bg-github-bg-primary hover:text-github-text-primary"
+      {/* tabIndex keeps a click here from focusing the card, whose focus handler would expand it. */}
+      <div
+        tabIndex={-1}
+        onClick={(event) => {
+          // A deleted thread's heading is inert; the card's click would navigate away from the list.
+          if (thread.deleted) event.stopPropagation();
+          else if (isDisclosureRowClick(event.target)) toggleCollapsed(event);
+        }}
+        className={`flex items-center justify-between gap-3 ${isCollapsed ? '' : 'mb-3'} ${
+          thread.deleted ? '' : 'cursor-pointer'
+        }`}
+      >
+        {/* Holds the tooltip instead of the row, so Reopen and Undelete do not inherit it. */}
+        <div
+          title={thread.deleted ? undefined : toggleLabel}
+          className="flex min-w-0 flex-1 items-center gap-2 p-0.5 text-xs text-github-text-secondary"
         >
-          <span className="shrink-0">
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            disabled={thread.deleted}
+            aria-expanded={!isCollapsed}
+            aria-controls={contentId}
+            aria-label={toggleLabel}
+            className="shrink-0 text-github-text-muted disabled:cursor-default!"
+          >
             {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          </span>
+          </button>
           <span
             className="font-mono px-1 py-0.5 rounded overflow-hidden text-ellipsis whitespace-nowrap"
             style={{
@@ -490,7 +506,7 @@ export function CommentThreadCard({
               </span>
             </span>
           )}
-        </button>
+        </div>
         {(thread.deleted || thread.resolution?.resolved || !isCollapsed || unreadCount > 0) && (
           <div className="flex shrink-0 items-center gap-2">
             {/* An expanded thread shows each reply's own read control. */}

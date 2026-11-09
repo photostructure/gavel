@@ -350,7 +350,10 @@ describe('CommentsListModal', () => {
     );
 
     const heading = screen.getByText(`${mockThreads[0]!.file}:${mockThreads[0]!.line}`);
-    const disclosure = heading.closest('button')!;
+    const disclosure = within(heading.closest<HTMLElement>('[data-comment-thread-id]')!).getByRole(
+      'button',
+      { name: 'Collapse thread' },
+    );
     await user.click(heading);
     expect(disclosure).toHaveAttribute('aria-expanded', 'false');
     await user.click(heading);

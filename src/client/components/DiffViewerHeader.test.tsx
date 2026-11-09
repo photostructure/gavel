@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom';
 
@@ -70,5 +70,126 @@ describe('DiffViewerHeader', () => {
     render(<DiffViewerHeader {...baseProps} />);
 
     expect(screen.queryByLabelText('Expand all lines')).not.toBeInTheDocument();
+  });
+
+  describe('clicking the header row', () => {
+    const renderHeader = (isCollapsed: boolean, isReviewed = true) => {
+      const handlers = {
+        onToggleCollapsed: vi.fn(),
+        onToggleAllCollapsed: vi.fn(),
+        onToggleReviewed: vi.fn(),
+      };
+      const { container } = render(
+        <DiffViewerHeader
+          {...baseProps}
+          {...handlers}
+          isCollapsed={isCollapsed}
+          isReviewed={isReviewed}
+        />,
+      );
+      const row = container.querySelector('[data-diff-viewer-header="true"]');
+      if (row === null) throw new Error('header row not rendered');
+      return { ...handlers, row };
+    };
+
+    it('expands a collapsed file when the empty part of the row is clicked', () => {
+      const { onToggleCollapsed, row } = renderHeader(true);
+
+      fireEvent.click(row);
+
+      expect(onToggleCollapsed).toHaveBeenCalledExactlyOnceWith(file.path);
+    });
+
+    it('expands a collapsed file when its path is clicked', () => {
+      const { onToggleCollapsed } = renderHeader(true);
+
+      fireEvent.click(screen.getByText(file.path));
+
+      expect(onToggleCollapsed).toHaveBeenCalledExactlyOnceWith(file.path);
+    });
+
+    it('expands every file on Alt+click, like the chevron', () => {
+      const { onToggleAllCollapsed, onToggleCollapsed, row } = renderHeader(true);
+
+      fireEvent.click(row, { altKey: true });
+
+      expect(onToggleAllCollapsed).toHaveBeenCalledExactlyOnceWith(false);
+      expect(onToggleCollapsed).not.toHaveBeenCalled();
+    });
+
+    it('toggles once when the chevron itself is clicked', () => {
+      const { onToggleCollapsed } = renderHeader(true);
+
+      fireEvent.click(screen.getByRole('button', { name: /^Expand file/ }));
+
+      expect(onToggleCollapsed).toHaveBeenCalledExactlyOnceWith(file.path);
+    });
+
+    it('leaves the file collapsed when "Viewed" is clicked', () => {
+      const { onToggleCollapsed, onToggleReviewed } = renderHeader(true);
+
+      fireEvent.click(screen.getByText('Viewed'));
+
+      expect(onToggleReviewed).toHaveBeenCalledExactlyOnceWith(file.path);
+      expect(onToggleCollapsed).not.toHaveBeenCalled();
+    });
+
+    it('collapses an expanded file', () => {
+      const { onToggleCollapsed, row } = renderHeader(false);
+
+      fireEvent.click(row);
+
+      expect(onToggleCollapsed).toHaveBeenCalledExactlyOnceWith(file.path);
+    });
+
+    it('collapses every file on Alt+click of an expanded row', () => {
+      const { onToggleAllCollapsed, onToggleCollapsed, row } = renderHeader(false);
+
+      fireEvent.click(row, { altKey: true });
+
+      expect(onToggleAllCollapsed).toHaveBeenCalledExactlyOnceWith(true);
+      expect(onToggleCollapsed).not.toHaveBeenCalled();
+    });
+
+    it.each([true, false])(
+      'toggles a file that is not marked viewed (collapsed: %s)',
+      (collapsed) => {
+        const { onToggleCollapsed, row } = renderHeader(collapsed, false);
+
+        fireEvent.click(row);
+
+        expect(onToggleCollapsed).toHaveBeenCalledExactlyOnceWith(file.path);
+      },
+    );
+
+    it.each([
+      [true, 'Expand file (Alt+Click to expand all)', 'false'],
+      [false, 'Collapse file (Alt+Click to collapse all)', 'true'],
+    ])('describes the toggle across the row (collapsed: %s)', (collapsed, title, expanded) => {
+      const { row } = renderHeader(collapsed);
+
+      expect(row).toHaveAttribute('title', title);
+      expect(within(row as HTMLElement).getByRole('button', { name: title })).toHaveAttribute(
+        'aria-expanded',
+        expanded,
+      );
+    });
+
+    it('leaves the file alone when the click ends a text selection', () => {
+      const { onToggleCollapsed } = renderHeader(false);
+      const path = screen.getByText(file.path);
+      const selection = document.getSelection()!;
+      const range = document.createRange();
+      range.selectNodeContents(path);
+      selection.addRange(range);
+
+      try {
+        fireEvent.click(path);
+      } finally {
+        selection.removeAllRanges();
+      }
+
+      expect(onToggleCollapsed).not.toHaveBeenCalled();
+    });
   });
 });

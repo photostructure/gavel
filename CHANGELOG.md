@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- File headers and comment thread headers now share one disclosure behavior: clicking anywhere on the row expands or collapses it, whether or not the file is marked **Viewed**, with a tooltip and pointer cursor across the row and no hover highlight. The buttons in the row keep their own actions, and dragging to select text leaves it as it is. Alt+click on a file row applies to every file, like the chevron.
 - **Copy Prompt**, **Copy All Prompt**, `/api/comments-output`, and the comments printed at server shutdown now mark each thread, comment, and reply with XML-style tags instead of plain label lines and `=====` separators. Comment bodies are not escaped, so the output is not valid XML. Anything parsing the old text needs updating. With more than one review on the server, **Copy Prompt** also names the open review's tab, so a pasted thread says which review it came from. **Copy Prompt** and **Copy All Prompt** also give the repository's directory and the launching agent's session ID, and tell the agent to ask before continuing if the diff isn't its own, so a prompt pasted into the wrong window is easier to catch.
 - **Shortcuts** and **Star on GitHub** moved from the bottom of the file list to **About**, where they are also available on mobile.
 - **Keyboard Shortcuts** now takes keyboard focus when it opens and returns it when it closes.

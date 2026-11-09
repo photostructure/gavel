@@ -721,6 +721,76 @@ describe('thread disclosure and replies', () => {
     },
   );
 
+  describe('heading row', () => {
+    const heading = `${mockThread.file}:${mockThread.line}`;
+    const resolved: CommentThread = {
+      ...mockThread,
+      resolution: { resolved: true, updatedAt: mockThread.updatedAt },
+    };
+
+    // Clicking non-interactive heading text focuses the nearest focusable ancestor. The card's
+    // focus handler expands a collapsed thread, which the click would then collapse again.
+    it('expands a collapsed thread with one click on the heading', async () => {
+      const user = userEvent.setup();
+      renderThread({ thread: resolved });
+
+      await user.click(screen.getByText(heading));
+
+      expect(screen.getByRole('button', { name: 'Collapse thread' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+    });
+
+    it('toggles from the empty space in the row', () => {
+      renderThread();
+      const disclosure = screen.getByRole('button', { name: 'Collapse thread' });
+
+      fireEvent.click(disclosure.parentElement!.parentElement!);
+
+      expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('keeps the file path selectable by leaving it outside the disclosure button', () => {
+      renderThread();
+
+      expect(screen.getByText(heading).closest('button')).toBeNull();
+    });
+
+    it('leaves the thread alone when the click ends a text selection', () => {
+      renderThread();
+      const path = screen.getByText(heading);
+      const selection = document.getSelection()!;
+      const range = document.createRange();
+      range.selectNodeContents(path);
+      // An earlier user.click leaves a caret range behind, and addRange ignores a second range.
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      try {
+        fireEvent.click(path);
+      } finally {
+        selection.removeAllRanges();
+      }
+
+      expect(screen.getByRole('button', { name: 'Collapse thread' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+    });
+
+    it('does nothing when the heading of a deleted thread is clicked', () => {
+      const onClick = vi.fn();
+      renderThread({ thread: { ...mockThread, deleted: true }, onClick });
+
+      fireEvent.click(screen.getByText(heading));
+
+      expect(screen.getByRole('button', { name: 'Expand thread' })).toBeDisabled();
+      expect(screen.queryByText('Reply comment')).not.toBeInTheDocument();
+      expect(onClick).not.toHaveBeenCalled();
+    });
+  });
+
   it('supports Enter and Space on the heading without stealing focus', async () => {
     const user = userEvent.setup();
     renderThread();
