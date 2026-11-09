@@ -6,7 +6,7 @@ model in a loop that checks gavel, shell-job status or browser state.
 
 ## Install the Codex entry point
 
-The Codex skill is [`.codex/skills/gavel/SKILL.md`](../.codex/skills/gavel/SKILL.md).
+The Codex skill is [`.codex/skills/gavel/SKILL.md`](https://github.com/photostructure/gavel/blob/main/.codex/skills/gavel/SKILL.md).
 It keeps the Codex handoff rules separate from the Claude entry point at
 `skills/gavel/SKILL.md`. The repository's `gavel-dev` skill uses the same Codex
 workflow.
@@ -28,10 +28,10 @@ external event controller is already configured:
    Save its API host/port, review ID,
    browser URL, capture/summary versions, and pending message revisions. Use a
    named review when the patch must remain frozen.
-2. Send any explicit receipts only after recording the corresponding work. Hand
-   the URL to Matthew and end the Codex turn. Leave the detached server running.
-3. After leaving feedback in gavel, Matthew clicks **Copy resume prompt** and
-   pastes it into the owning Codex chat. The button also works when the browser
+2. Send any explicit receipts only after recording the corresponding work. Give
+   the reviewer the URL and end the Codex turn. Leave the detached server running.
+3. After leaving feedback, the reviewer uses **Conversation → Copy resume prompt**
+   and pastes it into the owning Codex chat. The button also works when the browser
    cannot determine listener presence. It copies a snapshot command and the
    review URL, with the editor-session fragment removed.
 4. Codex reads one `comment snapshot --host <host> --port <actual-port>`, reconciles queued
@@ -56,12 +56,8 @@ server's process lifetime is not a reason to keep a subagent running. The CLI's
 the host imposes a stronger process-lifetime restriction, report it; do not
 substitute a model polling loop to preserve the server.
 
-The cost is one human paste per feedback batch. Closing the browser, leaving a
-hidden tab, or leaving the server running does not itself start a Codex turn.
-The listener indicator describes a subscription, not whether the model is active.
-The Codex model does not infer an automatic delivery path from process launch,
-the existence of a background terminal, or an active browser tab. An external
-controller owns waiting when automatic delivery is configured.
+The listener indicator reports a subscription, not an active model or automatic
+turn delivery. Browser presence and background processes do not resume Codex.
 
 ## Automatic integration: a controller owns event delivery
 
@@ -98,6 +94,6 @@ does not include building or probing an automatic bridge.
 ## Claude integration
 
 Claude's host-specific waiting instructions live in
-[its skill](../skills/gavel/SKILL.md). Changes to that workflow do not change the
+[its skill](https://github.com/photostructure/gavel/blob/main/skills/gavel/SKILL.md). Changes to that workflow do not change the
 Codex handoff rule. Both workflows preserve explicit comment receipts, approval
 guards, and existing review servers.

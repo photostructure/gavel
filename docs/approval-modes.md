@@ -77,6 +77,8 @@ Completion evidence stays separate from thread resolution. Addressing a comment
 does not resolve or delete it. Keep the existing rule to resolve/delete only on
 request.
 
+## Approval invalidation
+
 New or edited human feedback, deletion, a reopened thread, or a changed summary
 revokes approval. Resolving a thread as the reviewer confirms its included
 conditions and decreases the pending count without fabricating agent receipts.

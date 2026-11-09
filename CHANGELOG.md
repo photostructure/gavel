@@ -23,6 +23,8 @@ All notable changes to this project will be documented in this file.
 
 ### Documentation
 
+- Require feature changes to update the affected README, documentation, and agent skills in the same change.
+- Replace outdated architecture and testing inventories with current contributor guides; trim repeated workflow and UI details from integration docs while retaining protocol and recovery requirements.
 - Shorten the README to setup, the review workflow, and common commands; move CLI examples and remote-browser setup into focused guides and remove UI minutiae.
 - Remove the PR Checks badge from the README because it does not report the status of the current `main` branch or published package.
 - Rewrite the README introduction and setup around the gavel walkthrough, explaining reading guides, comment intents, per-commit verdicts, and the Claude Code and Codex feedback workflows.

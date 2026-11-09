@@ -16,18 +16,10 @@ host changes the connection destination; it does not rebind or restart the serve
 These companion commands use HTTP. IPv6 hosts may be supplied with or without
 brackets. Do not put a URL scheme, credentials or path in `--host`.
 
-Message IDs, exact revision cursors, capture guards and explicit delivery receipts
-work the same way regardless of the chosen interface. A server bound to a LAN
-address is not inherently inaccessible to an agent; use its actual address rather
-than falling back to a chat-only reply.
-
 ## HTTPS and remote browsers
 
-The browser's [Clipboard API](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText)
-requires a secure context. Localhost is treated as trustworthy for local development;
-a remote HTTP address such as `http://10.1.1.24:4966` generally is not. gavel tries a
-legacy copy fallback, but trusted HTTPS is the reliable setup for remote browsers.
-Browser permissions can still prevent copying.
+Use trusted HTTPS for remote browsers: clipboard access requires a secure
+context. Localhost qualifies; a remote HTTP address generally does not.
 
 Start the built gavel server on the machine containing the repository:
 
@@ -55,29 +47,8 @@ with a hostname such as `review.example.com`, routed to service type HTTP at
 before exposing private code, and open the resulting HTTPS hostname. Keep `/api/*`
 uncached and confirm live updates using the checks below.
 
-For a temporary preview, an installed `cloudflared` can create a Quick Tunnel:
-
-```sh
-cloudflared tunnel --url http://localhost:4966
-```
-
-Open the HTTPS URL printed by the command. However, [Quick Tunnels do not support
-SSE](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/), which
-gavel uses for live updates. They are unsuitable for the full conversation workflow:
-a page loading and Copy working do not establish that replies or approval changes
-will update live. The URL is public unless access restrictions are configured.
-
-### localtunnel
-
-With [localtunnel](https://github.com/localtunnel/localtunnel), run a second process:
-
-```sh
-pnpm dlx localtunnel --port 4966 --local-host localhost
-```
-
-Open its printed HTTPS URL. This exposes the review through a third-party service;
-use non-sensitive diffs for a public preview. Verify streaming replies and updates
-before relying on a hosted tunnel for a review. Stop the tunnel when finished.
+[Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)
+do not support SSE and are unsuitable for live conversations.
 
 ### local-ip.sh on a LAN
 

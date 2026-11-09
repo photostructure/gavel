@@ -54,13 +54,13 @@ An explicit Git target or `--pr` takes priority over automatic stdin detection.
 
 ## Initial comments
 
-You can inject initial review comments when launching gavel:
+Seed a thread when launching gavel:
 
 ```bash
 gavel --comment '{"type":"thread","filePath":"src/example.ts","position":{"side":"new","line":10},"body":"The background for this change is..."}'
 ```
 
-`--comment` is repeatable and accepts either a single JSON object or a JSON array. Supported types:
+`--comment` accepts a JSON object or array and can be repeated:
 
 - `thread`: create a new thread at the specified diff position
 - `reply`: add a reply to the latest existing thread at the same diff position
@@ -69,9 +69,7 @@ If the same comment already exists, gavel skips importing it.
 
 ## Open in editor
 
-Set the editor before starting gavel. The server chooses the executable and
-arguments; the browser sends the selected file, line, and a session credential. `GAVEL_EDITOR`
-accepts `vscode` (default), `cursor`, `zed`, `textmate`, `bbedit`, `emacs`,
+Set `GAVEL_EDITOR` before starting gavel. It accepts `vscode` (default), `cursor`, `zed`, `textmate`, `bbedit`, `emacs`,
 `macvim`, `sublime`, `nova`, `custom`, or `none`. If `GAVEL_EDITOR` is unset,
 gavel checks `EDITOR` for one of these preset names. Use `none` to hide the
 button. Open in editor is unavailable for stdin diffs.

@@ -27,6 +27,8 @@ Git history mixes lightweight descriptions with Conventional Commit prefixes—f
 
 Add a short entry to the top `## [Unreleased`... section of `CHANGELOG.md` for every user-visible feature, bug fix, or other change.
 
+When adding or changing a feature, update any affected README, documentation, and agent skills in the same change.
+
 ## Tooling & Environment
 
 Use `pnpm` for dependency management (avoid mixing with `npm` or `yarn`) and rely on the `mise.toml` pinned versions for local reproducibility. When performance is a concern, run `pnpm perf:*` scripts to benchmark diff rendering before merging significant parser or rendering changes.

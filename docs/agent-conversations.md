@@ -1,21 +1,13 @@
 # Review conversations
 
-For uncommitted work, start `gavel --review <task-name> --keep-alive` and retain
-the foreground process handle. This captures the selected patch under a stable
-review name. For commits, use `gavel <target> <base> --keep-alive` with immutable
-SHAs for approval. Conversation and LGTM are enabled by default. `--keep-alive`
-lets questions continue across browser disconnects; LGTM keeps the review open
-when approval changes.
+Use the [agent skill](https://github.com/photostructure/gavel/blob/main/skills/gavel/SKILL.md) or
+[Codex entry point](https://github.com/photostructure/gavel/blob/main/.codex/skills/gavel/SKILL.md) for the review workflow.
+This document describes the CLI and HTTP contracts for custom integrations.
+Use the checkout's prescribed gavel launcher from the reviewed repository root.
 
-Each resolved comparison retains its conversations and change summary. Browser
-Back/Forward restores the saved resolved comparison and discussion. Reloading a
-URL with symbolic refs such as `HEAD` follows their current commits, which can
-select a new conversation context. The revision menu's **Recent reviews** list
-also reopens earlier resolved comparisons with comments or a summary. While any
-review asks for approval, the review tabs replace the revision menu. The URL
-records the requested base, target, and comparison mode.
-Retained-review links keep the saved resolved base, including merge-base reviews
-reopened after switching branches.
+Conversation APIs and approval controls are enabled by default. Named reviews
+hold fixed patches; symbolic targets such as `HEAD` can select a new review when
+their resolved commits change. Use immutable SHAs for commit reviews.
 
 ## Named captures for uncommitted work
 
@@ -79,26 +71,11 @@ curl --fail --silent http://localhost:4966/api/reviews/parser-fix
 gavel review update parser-fix --port 4966 --expected-version 1 --pathspec src --pathspec ':(exclude)src/generated/**'
 ```
 
-A review asks for approval when it carries a capture or a proposed commit
-message. A message the server copied from a browsed commit (`fromCommit`) is not
-a proposal, and after a commit moves HEAD only the newest unnamed review for each
-of `.`, `staged`, and `working` counts, with or without a proposal. A different
-base browsed for one of those targets before an agent proposes makes a newer
-review that hides the proposal's tab; that is unsupported. While any review asks
-for approval, approved or not, the viewer's header shows the open review's name
-in place of the revision menu, so the reviewer can't open comparisons the agent
-didn't ask about, and a review bar under the header lists every review that asks
-for approval. The bar is hidden only when the open review is the sole one. It
-starts with a count
-such as "2 of 3 need a verdict", then shows every review as a tab in creation
-order, with a ✓ (approved), ✕ (not yet), or ○ (no verdict) mark in its verdict button's color. Hovering a tab shows its
-proposed commit message title. When the tabs don't fit on one row, the bar shows
-only the open review's tab with a ⌄; it opens a list of every review with its
-mark, commit message title, and approval. Picking a review opens it in the same
-browser tab and keeps the editor connection. It replaces the browser's history entry
-instead of adding one, so Back does not step between reviews and the page can still
-close itself once every review has a verdict. The **Change summary** panel stays open or closed across reviews and
-reloads, the way the reviewer last left it.
+Reviews with a capture or proposed commit message appear in creation order for
+separate verdicts. A browsed commit's copied message (`fromCommit`) is not a
+proposal. For unnamed `.`, `staged`, and `working` reviews, only the newest review
+for each target counts after HEAD moves. Browsing a different base can create a newer review that hides an earlier
+review's proposal; use named captures for stable scope.
 
 An update can instead use `--capture /tmp/next-capture.json` and repeatable
 `--select` IDs, or `gavel review update parser-fix - --port 4966
@@ -114,8 +91,9 @@ as update with `updated:true`.
 expected version returns HTTP 409 with `{error,current}`; inspect `current` and
 reconcile before retrying. Even an identical-patch update checks the expected
 version. An identical patch preserves the version and approval. A changed patch
-advances the version and revokes LGTM, retaining the conversation and proposal
-under the same name and `reviewId`. Earlier inline anchors retain their original
+advances the version and retains the conversation and proposal under the same
+name and `reviewId`. Approval is revalidated under the
+[capture-update rules](approval-modes.md#approval-invalidation). Earlier inline anchors retain their original
 capture version/digest and appear outdated after the capture changes.
 
 ## Discover payloads
@@ -140,14 +118,13 @@ below. Schema discovery does not start a review server.
 Foreground stdout emits one JSON object per line by default. `--jsonl` selects
 this explicitly; `--no-jsonl` selects human-readable output. Startup diagnostics
 go to stderr in both modes; human-mode comment and approval output goes to stdout.
-There is no separate `comment watch` command. `gavel wait` long-polls
-`GET /api/conversation/events`; see [waiting for human review](waiting-for-review.md).
-Otherwise, read output from the running launch process between tool steps.
-`--background` detaches the server and returns connection information without
-live stdout; use foreground `--keep-alive` for active agent conversations. JSONL
-and named reviews require conversation APIs. For unnamed reviews, disable
-conversations with `--no-jsonl --no-conversation`. `--no-jsonl` alone retains the
-control APIs.
+`--background` detaches the server and prints connection information without a
+live stdout stream. Choose foreground output, background waiting, or a chat
+handoff according to the [host workflow](waiting-for-review.md); Codex uses the
+[chat handoff](codex-review-integration.md).
+
+JSONL and named reviews require conversation APIs. For unnamed reviews,
+`--no-jsonl --no-conversation` disables them; `--no-jsonl` alone retains them.
 
 The first `server.ready` event includes `port`, `url`, `launchUrl`, `pid`, `reviewContext`,
 `selection`, `reviewId`, and `timestamp`. Named reviews also include `capture`
@@ -204,15 +181,9 @@ Use message `progress.cursor` for status/reply
 revision guards, not the snapshot's checkpoint cursor. An existing detached server can be recovered
 through snapshots, but it has no launch stream available to the agent.
 
-JSONL output does not itself wake an idle agent. On a host that starts a turn
-when a background command exits and puts no time limit on it, wait while idle by
-running `gavel wait` as one background command; the harness wakes the agent
-once, when it exits. On other hosts, end the turn. See
-[waiting for human review](waiting-for-review.md). Do not wait with a monitor on the launch output: in the
-tested Claude harness a Monitor expires after its configured timeout (at most 30
-minutes), and each expiry wakes the agent even when no record arrived. A subagent
-does not wait for the user. Harness shutdown can also terminate the foreground
-review process; `--keep-alive` only covers browser disconnects.
+JSONL output does not wake an idle agent. Only a configured host integration can
+deliver it to a new turn; otherwise end the turn and resume through chat.
+`--keep-alive` covers browser disconnects, not host process termination.
 
 Consume records in emission order using their cursors. Startup can emit a seeded
 summary whose timestamp predates `server.ready`; sorting by timestamp would put
@@ -270,7 +241,7 @@ gavel . --commit-message 'fix: preserve review intent' --why 'Keep the proposed 
 The browser can edit and save these fields for each diff selection, including
 with `--no-jsonl --no-conversation`. They are saved with the review
 ([saved reviews](#saved-reviews)), except for an unnamed stdin patch or under
-`--no-conversation`, where they disappear when the server restarts. Saving a changed proposal revokes any existing LGTM approval for that
+`--no-conversation`, where they disappear when the server restarts. Saving a changed proposal revokes any existing approval for that
 selection. Editing these fields never executes Git or creates a commit.
 
 A commit that moves HEAD gives a `staged` or `.` diff a new base commit, and so
@@ -328,15 +299,10 @@ remains available regardless of these versions.
 
 ## General conversation and comment intent
 
-The header's **Conversation** button opens a panel containing general and inline
-threads. The general composer accepts comments or questions about the whole review.
-**Send** posts immediately. New comments, replies, and message edits share one
-Intent radio group: **Comment** (default) shares context without requesting a
-reply, **Change request** asks for a code change and follow-up, and **Question**
-asks for an explanation. The body and existing authorization determine what the
-agent should do; intent is not approval to commit, push, or publish. Explicit
-root-message intent takes precedence over the older thread-level question flag,
-which remains a fallback for saved threads without explicit intent.
+Messages carry one intent: `comment` shares context, `change` requests a code
+change, and `question` asks for an explanation. Intent never authorizes a commit,
+push, or publication. Explicit root-message intent takes precedence over the
+legacy thread-level question flag; that flag remains a fallback for saved threads.
 
 After an agent reply, the reviewer can answer with one click. The buttons post
 ordinary replies: "👍 Agreed: no reply needed." as a comment, and "❓ Still
@@ -349,10 +315,8 @@ Use the event's review/thread/message IDs for status and replies just as for inl
 comments. Message events carry optional `intent`: `comment`, `question`, or `change`.
 An intent change is a new message revision, like a body edit.
 
-**Resolve thread** retains all messages and collapses the conversation. **Reopen**
-restores it. The Conversation panel can show All, Open, or Resolved conversations.
-Resolution is separate from reply status: an answer does not prove that a requested
-change is resolved. Agents should resolve only when the user requests it.
+Resolving retains the thread history; reopening restores the discussion.
+Resolution is separate from reply status. Resolve only when the user requests it.
 
 ```sh
 gavel comment resolve <threadId> --review <reviewId> --port <port>
@@ -402,36 +366,22 @@ snapshot, use the message's `progress.cursor`, not the snapshot's checkpoint cur
 Deleted comments return 404. Status updates emit `comment.progress`, not new
 message events. Use `progress.cursor` from a progress event for revision guards.
 Reply to questions, requested changes, and anything needing clarification. Simple
-acknowledgments and LGTM should be marked `noted` after considering them, without
+acknowledgments and approval comments should be marked `noted` after considering them, without
 a redundant answer. Noted records that no reply is needed; Read only records
 inspection. Neither status resolves the conversation.
 
-Progress is saved with its review, so a server that restores the review restores
-its progress ([saved reviews](#saved-reviews)). Hover over a status for its last update time; an inactive
-agent's last report is not proof it is still working. The HTTP status endpoint
+Progress is [saved with the review](#saved-reviews). A stored status is not proof
+that an agent is still working. The HTTP status endpoint
 is `POST /api/conversation/status` and accepts the same JSON as the CLI.
 
-## LGTM and commit approval
+## Commit approval
 
-The header's verdict buttons give commit approval for the reviewed scope, including
-requested fixes: **Approve as-is**, or **Approve after comments are addressed** once
-every included comment has completion evidence (see
-[approval modes](approval-modes.md)). After the checks below, commit without asking
-again in chat. A chosen **Approve as-is** is filled green, a chosen **Approve after comments** amber
-(pending or complete), and a chosen **Not yet** red; clicking it again, or **Clear verdict** in the narrow-screen
-menu, withdraws it.
-**Not yet** records `approval.notYet: true` with `approved: false`: the reviewer is done
-with this capture and wants a revision. Read the comments, revise, and recapture or
-re-propose, which clears it and puts the review back in line for a verdict.
-The server stays running. Approval is scoped to the displayed selection and is
-restored after browser refresh, and by a restarted server that opens the same
-review again ([saved reviews](#saved-reviews)).
-
-After a verdict a notice under the verdict buttons counts down ten seconds, then opens the
-next review without one, or, when every review has one, closes its tab. The browser closes
-only a tab whose history holds one entry (or one a script opened); otherwise the page
-says the tab can be closed. Closing the tab still shuts the server down unless it runs
-with `--keep-alive`.
+**Approve as-is** permits committing the reviewed scope. **Approve after comments**
+permits committing after the recorded feedback has completion evidence. **Not yet**
+requests revision and another verdict. See [approval modes](approval-modes.md)
+for conditions and invalidation rules. A verdict may be changed or cleared before
+the agent acts on it. Browser closure still stops a server unless it runs with
+`--keep-alive`.
 
 The launch stream emits a `review.approval` event with `reviewId`, `selection`,
 `approved`, `approval`, `origin`, `cursor`, and `timestamp`. Not yet and revocation both
@@ -470,7 +420,7 @@ endpoint remains available to old clients for committed ranges, but the button
 never calls it, and it refuses named, `staged`, `working`, and `.` reviews. An old
 server without `/api/approval` must be rebuilt before using the button.
 
-After LGTM, address every comment (answer questions or implement requested
+After approval, address every comment (answer questions or implement requested
 changes), run the relevant checks, and obtain LAND from both Codex and Claude
 second-opinion reviewers on the resulting code (for example via
 `coding:second-opinion`; LAND means no remaining blocking findings). Then commit without asking for
@@ -533,15 +483,10 @@ an empty array means no saved review matches.
 
 ## Compatibility
 
-The last published version, `@photostructure/difit` 5.1.0, does not contain this
-launch JSONL protocol. Until `@photostructure/gavel` is published, use a source build and verify that `--help`
-includes `--jsonl` and `--no-jsonl` and `gavel schema` succeeds. Within this repository,
-run `pnpm build` and launch any review the user will see with
-`node dist/cli/index.js <target> <base> --keep-alive`, which serves the built UI; use
-`pnpm run dev` only for UI development, since its page hot-reloads when client source
-changes. Use `node dist/cli/index.js comment …` for companion commands. From another repository, an absolute
-path to that built CLI preserves the reviewed repository as the working directory.
-Keep the server and companion commands on the same build.
+Keep the server and companion commands on the same build. Check its `--help`
+for `--jsonl` and `--no-jsonl`, and confirm `gavel schema` succeeds. From a source
+checkout, run `pnpm build` and use the prescribed launcher for user reviews.
+Reserve `pnpm dev` for UI development, where source changes reload the page.
 
 The HTTP equivalents are `GET /api/conversation/snapshot` (returns
 `{reviews,cursor}`) and `POST /api/conversation/reply` (JSON body as above).

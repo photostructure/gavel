@@ -1,58 +1,35 @@
 # Waiting for human review
 
-`gavel wait` attaches to running conversation-enabled servers and stays silent
-while waiting for human activity. It has no overall timeout. HTTP request
-deadlines stay inside the process: empty responses do not print a checkpoint or
-complete the command.
+For Codex, use the [chat handoff](codex-review-integration.md): end the turn
+and resume on human feedback. Do not run `gavel wait` in a Codex model turn.
+
+Other hosts may use `gavel wait` only when a background command can wait without
+a time limit and its completion resumes the owning agent. Check the host's tool
+contract; see the [Claude waiting workflow](https://github.com/photostructure/gavel/blob/main/skills/gavel/SKILL.md).
+Otherwise, end the turn and let the reviewer resume through chat. Never replace
+this handoff with a model polling loop, timed Monitor, or repeated empty snapshots.
 
 ```sh
 gavel wait --port 4966
 gavel wait --port 4966 --port 4967
 ```
 
-Use `--host <hostname-or-IP>` when the server listens on a particular interface.
-The selected host applies to all repeated ports; it defaults to localhost.
+Use actual API ports from `server.ready` or `server.background`, and `--host`
+when the server listens on a particular interface. One host applies to all ports.
+Run one waiter in the owning main session; subagents hand review state back.
 
-Use the actual API ports from `server.ready` or `server.background`. Run one waiter
-in the owning main agent session using its host's background-command facility.
-Subagents return their review IDs, URLs, ports and pending work to that session.
-The waiter prints one JSON object and exits when any selected server produces a
-nonempty batch. It cancels the remaining HTTP subscriptions without acknowledging
-their messages.
-
-The server must report reviewer presence. Existing queued messages and replayed
-human events are handled first. If every selected server has no connected
-reviewer and no human work, the waiter reports that once on stderr and exits 4.
-End the agent turn on that result; do not re-arm it in a polling loop. While any
-review is attended, every selected port remains subscribed, including ports whose
-browser windows may be reopened. Absence is detected by the end of the current
-HTTP round (at most 25 seconds under normal operation), or server exit is reported
-if the server closes first.
-
-For Codex desktop, use the [Codex integration workflow](codex-review-integration.md):
-end the turn during human review, then use the browser's **Copy resume prompt**
-button when there is feedback. A detached server alone does not establish a
-delivery path to an idle chat.
-
-Do not wrap the waiter in a timed shell command, run it as a foreground polling
-loop, or watch it with a Monitor that expires periodically. Those host mechanisms
-can wake a model even while this command is silent. Verify the host's background
-task lifetime; the CLI cannot override a limit imposed by the host. For Claude
-Code, read the session's Bash tool definition, including what its `timeout`
-parameter means for background commands, and check its version and session
-mode: the [Claude Code documentation](https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands)
-distinguishes local attended sessions, whose background commands have no time
-limit, from unattended sessions, whose background commands are capped; older
-versions can differ. An idle host
-without an event delivery mechanism requires the turn to remain active or a human
-to resume it.
+The CLI has no overall timeout. Empty HTTP rounds stay silent. It returns one
+nonempty human-event batch from the first selected server with work and cancels
+the other subscriptions without acknowledging their messages. Queued work is
+returned before the presence guard; when no reviewer is connected on any watched
+server and no work remains, it exits 4. End the turn rather than retrying.
 
 ## What completes the wait
 
 Human-origin events that complete the wait:
 
 - New comments and replies, including edits to their body or intent.
-- LGTM approval and revocation.
+- Approval, revocation, and Not yet verdicts.
 - Saved changes to the proposed commit message or rationale.
 
 Agent replies, progress receipts, capture changes, thread resolution/reopening,
@@ -68,26 +45,9 @@ Printing a batch does not mark any message Delivered.
 
 ## Results and resumption
 
-One stdout line has this shape:
-
-```json
-{
-  "type": "wait.events",
-  "port": 4966,
-  "events": [
-    {
-      "type": "review.approval",
-      "origin": "user",
-      "cursor": "opaque-stream:17",
-      "reviewId": "review-id",
-      "selection": { "baseCommitish": "HEAD", "targetCommitish": "." },
-      "approved": true,
-      "timestamp": "2026-11-03T00:00:00Z"
-    }
-  ],
-  "cursor": "opaque-stream:17"
-}
-```
+A successful result is one JSON line with `type: "wait.events"`, the source
+`port`, a nonempty `events` array, and a checkpoint `cursor`. Use
+`gavel schema wait` for the complete schema.
 
 Save each server's last returned `cursor`. Resume using it after handling the
 batch; this covers human activity that arrives while the agent works:
@@ -112,20 +72,18 @@ reply. The batch's top-level `cursor` is a stream checkpoint, not a receipt for
 every message in the batch. A message edit changes its revision and returns it to
 Queued; an old receipt or revision-aware reply is rejected with HTTP 409.
 
-| Exit code | Meaning                                                               | Next action                                                             |
-| --------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| 0         | One nonempty human-event batch was printed.                           | Record and handle the batch, then wait again.                           |
-| 1         | Invalid arguments, unsupported server, or protocol failure.           | Correct the problem before retrying.                                    |
-| 2         | The connection failed, including server exit or a stalled request.    | Inspect the server; do not automatically loop on this result.           |
-| 3         | The cursor expired, is invalid, or belongs to another server process. | Reconcile a snapshot and pending work, then use that snapshot's cursor. |
+| Exit code | Meaning                                                               | Next action                                                                            |
+| --------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 0         | One nonempty human-event batch was printed.                           | Record and handle the batch, then wait again.                                          |
+| 1         | Invalid arguments, unsupported server, or protocol failure.           | Correct invalid arguments and retry once; otherwise report the error and end the turn. |
+| 2         | The connection failed, including server exit or a stalled request.    | Inspect the server; do not automatically loop on this result.                          |
+| 3         | The cursor expired, is invalid, or belongs to another server process. | Reconcile a snapshot and pending work; repeated failure ends the turn.                 |
+| 4         | No reviewer is connected and no human work was returned.              | End the turn; resume on human feedback.                                                |
 
-Errors go to stderr. There is no automatic retry loop on terminal errors, and no
-`--timeout`, `--wait` or `--once` option that can enable empty timed completion.
-The old `comment watch` command remains removed.
-
-Exit **4** means no reviewer is connected on any selected server and no human
-work was returned. End the turn and resume on human feedback; never automatically
-retry this result.
+Errors go to stderr. Never automatically retry terminal errors or wrap the CLI
+in a shell timeout. It has no `--timeout`, `--wait`, or `--once` option for empty
+timed completion. For a recovered cursor, use the snapshot's checkpoint only
+after reconciling outstanding work and confirming the host still supports waiting.
 
 ## Browser and listener presence
 
@@ -142,11 +100,8 @@ This reports a subscription, not a model reading or answering messages. Existing
 explicit receipts remain authoritative for message progress. Presence changes
 stay outside the conversation journal and never count as actionable human events.
 
-This guard prevents blind unattended waiting through this CLI. It cannot stop an
-unrestricted agent from inventing a separate shell polling loop. The host must
-enforce any prohibition on arbitrary polling; presence cannot impose a model-token
-budget. Use a host integration that invokes the model only for actual feedback,
-rather than running the model to check for feedback.
+Presence is metadata, not permission or proof that an agent is working. The host
+must enforce idle behavior; checking presence must not itself start model turns.
 
 ## Event transport
 
@@ -167,5 +122,5 @@ server without the event endpoint or presence reporting causes exit code 1.
 Preserve its review state before
 arranging a replacement; do not stop existing reviews merely to try this command.
 
-Explicit delivery receipts, capture/version checks and conditional LGTM
+Explicit delivery receipts, capture/version checks and conditional approval
 authorization from [the conversation protocol](agent-conversations.md) still apply.

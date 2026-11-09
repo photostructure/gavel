@@ -1,198 +1,61 @@
-# gavel Codebase Structure
+# Codebase structure
 
-## Overview
+gavel has a Node.js CLI, an Express server, and a React client. Shared types
+define the diff and conversation contracts.
 
-gavel is a CLI tool that displays Git diffs in a GitHub-like web interface. The architecture consists of three main components:
+| Path                                                          | Responsibility                                                  |
+| ------------------------------------------------------------- | --------------------------------------------------------------- |
+| `src/cli/index.ts`                                            | Parse options, select Git/PR/stdin input, and launch the server |
+| `src/cli/github.ts`                                           | Fetch PR patches and unresolved review threads through `gh`     |
+| `src/cli/review.ts`                                           | Capture, create, and update named reviews                       |
+| `src/cli/conversation.ts`, `src/cli/wait.ts`                  | Send agent replies and receipts; wait for human events          |
+| `src/cli/schema.ts`                                           | Expose JSON schemas for the protocol                            |
+| `src/server/server.ts`                                        | Serve the UI, HTTP APIs, and event connections                  |
+| `src/server/git-diff.ts`                                      | Read and parse Git diffs                                        |
+| `src/server/review-capture.ts`, `src/server/named-reviews.ts` | Capture immutable patches and manage their versions             |
+| `src/server/conversation.ts`                                  | Manage threads, message revisions, progress, and approval       |
+| `src/server/review-store.ts`                                  | Persist reviews in the Git common directory                     |
+| `src/client/`                                                 | React UI, hooks, diff viewers, and browser state                |
+| `src/types/`, `src/utils/`                                    | Shared contracts and helpers                                    |
+| `public/`                                                     | Static assets                                                   |
 
-1. CLI entry point that handles command-line arguments
-2. Server component that provides APIs and serves the web interface
-3. Client web application
+## Review flow
 
-## Directory Structure
+1. The CLI resolves the requested input and starts the server. PR mode invokes
+   `gh pr diff <url>` and imports unresolved review threads.
+2. The client requests the diff and review state through `/api`. Named reviews
+   hold a fixed patch until an explicit capture update.
+3. Human comments become conversation events. Agent companion commands send
+   replies, progress receipts, and updated proposals to the same review.
+4. The server streams updates to browsers and exposes events to agent consumers.
+   The agent host controls whether feedback can resume an idle model.
+5. Conversation-enabled servers save eligible reviews under
+   `<git-common-dir>/gavel/`; see [saved reviews](agent-conversations.md#saved-reviews)
+   for restoration, locking, and expiry.
 
-```
-src/
-├── cli/              # Command-line interface
-│   ├── index.ts      # Main CLI entry point
-│   ├── utils.ts      # CLI utility functions
-│   └── utils.test.ts # Unit tests for utilities
-├── server/           # Express server
-│   ├── server.ts     # Server setup and API endpoints
-│   └── git-diff.ts   # Git operations and diff parsing
-├── client/           # React web application
-│   └── ...          # UI components
-└── types/            # Shared TypeScript types
-    └── diff.ts      # Diff-related type definitions
-```
+For command examples, see [CLI usage](cli.md). The
+[conversation protocol](agent-conversations.md), [approval modes](approval-modes.md),
+and [waiting guide](waiting-for-review.md) define the integration behavior.
 
-## CLI Arguments and Options
+## Build and development
 
-### Basic Usage
+`pnpm dev` runs the CLI server and Vite development server. `pnpm build` compiles
+the Node.js code with TypeScript and builds the client with Vite:
 
-```bash
-gavel [commit-ish] [compare-with]
-```
-
-### Positional Arguments
-
-- `[commit-ish]`: Target commit/branch/tag to review (default: HEAD)
-  - Git references: SHA, branch names, tags
-  - HEAD references: HEAD, HEAD~n, HEAD^
-  - Special values: "working", "staged", "."
-- `[compare-with]`: Optional base for comparison
-  - If omitted: uses `commit-ish^` (parent commit)
-  - Special handling for "working": compares with "staged"
-
-### Options
-
-| Option          | Description                                | Default   |
-| --------------- | ------------------------------------------ | --------- |
-| `--port <port>` | Preferred port (auto-assigned if occupied) | 4966      |
-| `--host <host>` | Host address to bind                       | 127.0.0.1 |
-| `--no-open`     | Do not automatically open browser          | false     |
-| `--pr <url>`    | Review GitHub PR by URL                    | -         |
-
-### Special Arguments Behavior
-
-#### "working"
-
-- Shows unstaged changes (working directory vs staging area)
-- Cannot be used with `compare-with` (except "staged")
-- Prompts for untracked files inclusion
-
-#### "staged"
-
-- Shows staged changes vs specified commit
-- Only allowed as target, not as base
-- Exception: allowed as base when target is "working"
-
-#### "."
-
-- Shows all uncommitted changes (working + staged)
-- Can be compared with any commit
-- Prompts for untracked files inclusion
-
-## Git Operations (simple-git)
-
-### CLI Operations
-
-1. **Untracked Files Detection** (`src/cli/index.ts:97-98`)
-   - Uses `git.status()` to find untracked files
-   - Prompts user for intent-to-add inclusion
-   - Executes `git.add(['--intent-to-add', ...files])`
-
-### Server Operations (`src/server/git-diff.ts`)
-
-1. **Commit Validation**
-   - `git.show([commitish, '--name-only'])` - Verify commit exists
-2. **Diff Generation**
-   - `git.diffSummary(diffArgs)` - Get changed files summary
-   - `git.diff(['--color=never', ...diffArgs])` - Get full diff content
-3. **Revision Resolution**
-   - `git.revparse([commitish])` - Resolve refs to SHA
-4. **Status Checks**
-   - `git.status()` - Check repository state
-
-### GitHub PR Integration
-
-- Uses `@octokit/rest` for GitHub API
-- Authentication: `GITHUB_TOKEN` env or `gh auth token`
-- Resolves PR commits locally after fetching metadata
-
-## Server Architecture
-
-### Express Server Setup
-
-- **Port Assignment**: Automatic fallback on EADDRINUSE
-- **CORS**: Restricted to localhost origins
-- **Static Files**: Serves client dist in production
-
-### API Endpoints
-
-| Endpoint               | Method | Description                                        |
-| ---------------------- | ------ | -------------------------------------------------- |
-| `/api/diff`            | GET    | Retrieve diff data with optional whitespace ignore |
-| `/api/comments`        | POST   | Save review comments                               |
-| `/api/comments-output` | GET    | Get formatted comments output                      |
-| `/api/heartbeat`       | GET    | SSE endpoint for tab close detection               |
-
-### Request Flow
-
-1. CLI validates arguments and starts server
-2. Server fetches Git diff data on startup
-3. Client connects and requests diff via API
-4. Comments are kept in memory and, with conversation APIs, saved under `.git/gavel`
-5. On disconnect, comments are output to console
-
-## Dependencies
-
-### Core Dependencies
-
-- **commander**: CLI framework for argument parsing
-- **simple-git**: Git command wrapper
-- **express**: Web server framework
-- **@octokit/rest**: GitHub API client
-- **react**: UI framework
-
-### Development Tools
-
-- **vitest**: Testing framework
-- **typescript**: Type safety
-- **oxlint/oxfmt**: Code quality
-- **vite**: Build tool for client
-
-## Build and Distribution
-
-### Build Process
-
-1. TypeScript compilation for CLI/server
-2. Vite build for React client
-3. Bundle into dist/ directory
-
-### Package Structure
-
-```
+```text
 dist/
-├── cli/        # Compiled CLI code
-├── server/     # Compiled server code
-└── client/     # Built React application
+├── cli/       # package.json exposes dist/cli/index.js as gavel
+├── server/
+├── types/
+├── utils/
+└── client/    # Vite output served in production
 ```
 
-### Entry Point
+Use the versions in `package.json` and `mise.toml` rather than a separate
+dependency inventory. See [testing](test.md) for checks and fixture conventions.
 
-- Binary: `dist/cli/index.js` (via package.json bin field)
-- Shebang: `#!/usr/bin/env node`
+## Network access
 
-## Error Handling
-
-### CLI Errors
-
-- Invalid arguments: Validation with descriptive messages
-- Git errors: Caught and displayed to user
-- Server startup: Port conflicts handled automatically
-
-### Server Errors
-
-- Invalid commits: Pre-validated before server start
-- API errors: JSON error responses
-- Shutdown: Graceful with comment preservation
-
-## Security Considerations
-
-1. **Network Binding**
-   - Default: 127.0.0.1 (localhost only)
-   - Warning displayed for external binding
-2. **CORS Policy**
-   - Restricted to localhost origins
-3. **File Access**
-   - Limited to current Git repository
-   - No arbitrary file system access
-
-## Testing Strategy
-
-### Current Test Coverage
-
-- **Unit Tests**: CLI utilities (validation functions)
-- **Missing**: Integration tests for Git operations
-- **Missing**: Server API endpoint tests
-- **Missing**: Error scenario testing
+gavel has no built-in login. Binding it to a reachable interface exposes the
+review and its enabled actions. Use an authenticated HTTPS proxy for remote
+reviewers; see [server addresses](server-addresses.md).
