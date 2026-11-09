@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Circle, X } from 'lucide-react';
+import { Check, ChevronDown, Circle, MessageSquareMore, X } from 'lucide-react';
 import { useState, type MouseEvent, type Ref } from 'react';
 
 import type { ApprovalMode } from '../../types/conversation';
@@ -6,17 +6,10 @@ import type { ApprovalMode } from '../../types/conversation';
 import { HeaderMenu } from './HeaderMenu';
 
 /** Names a recorded approval; undefined when the reviewer has not approved. */
-export const describeApproval = (
-  requested: boolean,
-  approved: boolean,
-  mode: ApprovalMode | undefined,
-  pendingCount: number,
-) =>
+export const describeApproval = (requested: boolean, mode: ApprovalMode | undefined) =>
   requested
     ? mode === 'after-comments'
-      ? approved
-        ? 'Approved after comments'
-        : `Approved · ${pendingCount} pending`
+      ? 'Approved after comments'
       : 'Approved as-is'
     : undefined;
 
@@ -28,13 +21,14 @@ const idleClasses = 'border-github-border bg-github-bg-tertiary text-github-text
 // Only the border tints (doubled by an inset ring): green or red text on this background is
 // too faint to read.
 const approveIdleClasses = `${idleClasses} enabled:hover:border-github-accent enabled:hover:shadow-[inset_0_0_0_1px_var(--color-github-accent)]`;
-// Amber, the fill it gets once chosen.
-const afterCommentsIdleClasses = `${idleClasses} enabled:hover:border-amber-700 enabled:hover:shadow-[inset_0_0_0_1px_var(--color-amber-700)]`;
+// Yellow, like its fill once chosen.
+const afterCommentsIdleClasses = `${idleClasses} enabled:hover:border-verdict-after-comments enabled:hover:shadow-[inset_0_0_0_1px_var(--color-verdict-after-comments)]`;
 const notYetIdleClasses = `${idleClasses} enabled:hover:border-github-danger enabled:hover:shadow-[inset_0_0_0_1px_var(--color-github-danger)]`;
 const approvedClasses = 'border-github-accent bg-github-accent text-white';
-// Pending or complete, a chosen approval after comments is filled amber (white text about 5:1),
-// as as-is is filled green and Not yet red; its label says whether comments are pending.
-const afterCommentsClasses = 'border-amber-700 bg-amber-700 text-white';
+// A chosen approval after comments is filled yellow, with dark text because white on this
+// yellow measures 1.57:1. It stays yellow: comments may live outside gavel, so this verdict
+// neither counts them nor changes on its own.
+const afterCommentsClasses = 'border-yellow-400 bg-yellow-400 text-gray-900';
 const notYetClasses = 'border-github-danger bg-github-danger text-white';
 const clearTitle = 'Clear this verdict';
 
@@ -45,10 +39,8 @@ const clearTitle = 'Clear this verdict';
 export function VerdictControl({
   containerRef,
   requested,
-  approved,
   notYet,
   mode,
-  pendingCount,
   conditionalSupported = false,
   disabled,
   approveDisabled,
@@ -60,10 +52,8 @@ export function VerdictControl({
   // The approval celebration bursts from this element.
   containerRef: Ref<HTMLDivElement>;
   requested: boolean;
-  approved: boolean;
   notYet: boolean;
   mode?: ApprovalMode;
-  pendingCount: number;
   conditionalSupported?: boolean;
   // Every verdict waits for the approval state and comments to load and for summary edits to
   // save: the next step after a verdict leaves the review and would drop the draft.
@@ -76,7 +66,7 @@ export function VerdictControl({
   onRevoke: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const approval = describeApproval(requested, approved, mode, pendingCount);
+  const approval = describeApproval(requested, mode);
   const current = approval ?? (notYet ? 'Not yet' : undefined);
   const asIs = requested && mode !== 'after-comments';
   const afterComments = requested && mode === 'after-comments';
@@ -115,7 +105,7 @@ export function VerdictControl({
           onClick={(event) => (afterComments ? clear(event) : onApprove('after-comments'))}
           className={`${verdictButtonClasses} ${afterComments ? afterCommentsClasses : afterCommentsIdleClasses}`}
         >
-          <Check size={14} aria-hidden="true" />
+          <MessageSquareMore size={14} aria-hidden="true" />
           {afterComments ? approval : 'Approve after comments'}
         </button>
         <button
@@ -149,6 +139,8 @@ export function VerdictControl({
             <>
               {notYet ? (
                 <X size={14} aria-hidden="true" />
+              ) : afterComments ? (
+                <MessageSquareMore size={14} aria-hidden="true" />
               ) : requested ? (
                 <Check size={14} aria-hidden="true" />
               ) : (

@@ -122,8 +122,6 @@ export function useReviewApproval(
     conditionalSupported: current?.conditionalSupported === true,
     mode: current?.mode,
     requested: matchesCapture && Boolean(current?.requested || current?.approved),
-    pendingCount: current?.conditions?.filter((condition) => !condition.addressed).length ?? 0,
-    approved: current?.approved === true && matchesCapture,
     notYet: current?.notYet === true && matchesCapture,
     ready: current !== null,
     error,

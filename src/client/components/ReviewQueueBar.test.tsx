@@ -113,7 +113,7 @@ describe('review queue bar', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'parser, Approved as-is' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'tests, Approved · 1 pending' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'tests, Approved after comments' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'docs, Needs a verdict' })).toHaveAttribute(
       'title',
       'fix: docs\nNeeds a verdict',
@@ -146,7 +146,7 @@ describe('review queue bar', () => {
     expect(docs).toHaveClass('verdict-pulse-0');
   });
 
-  // The same color as the chosen verdict button: green as-is, amber after comments, red not yet.
+  // The same hue as the chosen verdict button: green as-is, yellow after comments, red not yet.
   it('colors each tab mark, and the open tab, like its verdict button', () => {
     const afterComments: ReviewApproval = {
       approved: false,
@@ -158,6 +158,7 @@ describe('review queue bar', () => {
       request('tests', afterComments),
       request('docs', { approved: false, notYet: true }),
       request('none'),
+      request('addressed', { ...afterComments, approved: true }),
     ];
     const mark = (name: string) =>
       screen.getByRole('button', { name: new RegExp(`^${name},`) }).querySelector('svg');
@@ -165,16 +166,24 @@ describe('review queue bar', () => {
       <ReviewQueueBar reviews={queue} current={queue[1]!.selection} approvals onSelect={vi.fn()} />,
     );
     expect(mark('parser')).toHaveClass('text-github-accent');
-    expect(mark('tests')).toHaveClass('text-amber-700');
+    expect(mark('tests')).toHaveClass('text-verdict-after-comments', 'lucide-message-square-more');
+    // The dark-theme brightness filter turns #fdc700 into #fff900, off the button's yellow:
+    // node -e 'console.log([253, 199, 0].map((v) => Math.min(255, Math.round(v * 1.25))))'
+    expect(mark('tests')).not.toHaveClass('verdict-mark');
+    expect(mark('addressed')).toHaveClass(
+      'text-verdict-after-comments',
+      'lucide-message-square-more',
+    );
     expect(mark('docs')).toHaveClass('text-github-danger');
     expect(mark('none')).toHaveClass('text-github-text-muted');
     const open = () => screen.getByRole('button', { current: 'page' });
-    expect(open()).toHaveClass('border-t-amber-700');
+    expect(open()).toHaveClass('border-t-verdict-after-comments');
     for (const [index, border] of [
       [0, 'border-t-github-accent'],
       [2, 'border-t-github-danger'],
       // No verdict yet: neutral, since green would read as approval.
       [3, 'border-t-github-text-secondary'],
+      [4, 'border-t-verdict-after-comments'],
     ] as const) {
       rerender(
         <ReviewQueueBar

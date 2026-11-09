@@ -8,9 +8,7 @@ describe('verdict control', () => {
   const props = {
     containerRef: null,
     requested: false,
-    approved: false,
     notYet: false,
-    pendingCount: 0,
     conditionalSupported: true,
     disabled: false,
     approveDisabled: false,
@@ -67,7 +65,7 @@ describe('verdict control', () => {
       'Choose a verdict',
     );
 
-    rerender(<VerdictControl {...props} requested approved mode="as-is" />);
+    rerender(<VerdictControl {...props} requested mode="as-is" />);
     expect(buttons().getByRole('button', { name: 'Approved as-is' })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -96,19 +94,22 @@ describe('verdict control', () => {
     );
   });
 
-  // Pending or complete, a chosen approval after comments is filled amber, as as-is is filled
-  // green and Not yet red, in the color its hover border previews; its label says which.
-  it('marks an approval after comments in amber and blocks it on older servers', () => {
-    const { rerender } = render(
-      <VerdictControl {...props} requested mode="after-comments" pendingCount={2} />,
-    );
-    const pending = buttons().getByRole('button', { name: 'Approved · 2 pending' });
-    expect(pending).toHaveClass('bg-amber-700', 'text-white');
-    rerender(<VerdictControl {...props} requested approved mode="after-comments" />);
-    const done = buttons().getByRole('button', { name: 'Approved after comments' });
-    expect(done).toHaveClass('bg-amber-700', 'text-white');
-    expect(done).not.toHaveClass('bg-github-accent');
-    expect(screen.getByRole('button', { name: 'Verdict options' })).toHaveClass('bg-amber-700');
+  // Comments may live outside gavel, so this verdict neither counts them nor changes by itself.
+  it('always shows an approval after comments in yellow with a bubble, and blocks older servers', () => {
+    const bubble = '.lucide-message-square-more';
+    const menuButton = () => screen.getByRole('button', { name: 'Verdict options' });
+    const { rerender } = render(<VerdictControl {...props} requested mode="after-comments" />);
+    const chosen = buttons().getByRole('button', { name: 'Approved after comments' });
+    expect(chosen).toHaveClass('bg-yellow-400', 'text-gray-900');
+    expect(chosen).not.toHaveClass('bg-github-accent');
+    expect(chosen.querySelector(bubble)).not.toBeNull();
+    expect(chosen.querySelector('.lucide-check')).toBeNull();
+    expect(menuButton()).toHaveClass('bg-yellow-400');
+    expect(menuButton().querySelector(bubble)).not.toBeNull();
+    rerender(<VerdictControl {...props} />);
+    expect(
+      buttons().getByRole('button', { name: 'Approve after comments' }).querySelector(bubble),
+    ).not.toBeNull();
     rerender(<VerdictControl {...props} conditionalSupported={false} />);
     expect(buttons().getByRole('button', { name: 'Approve after comments' })).toBeDisabled();
     openMenu();
@@ -119,7 +120,7 @@ describe('verdict control', () => {
   });
 
   it('returns every button to its idle colors once the verdict is cleared', () => {
-    const { rerender } = render(<VerdictControl {...props} requested approved mode="as-is" />);
+    const { rerender } = render(<VerdictControl {...props} requested mode="as-is" />);
     expect(buttons().getByRole('button', { name: 'Approved as-is' })).toHaveClass(
       'bg-github-accent',
     );
@@ -148,15 +149,13 @@ describe('verdict control', () => {
     const onNotYet = vi.fn();
     const onRevoke = vi.fn();
     const handlers = { onApprove, onNotYet, onRevoke };
-    const { rerender } = render(
-      <VerdictControl {...props} {...handlers} requested approved mode="as-is" />,
-    );
+    const { rerender } = render(<VerdictControl {...props} {...handlers} requested mode="as-is" />);
     const asIs = buttons().getByRole('button', { name: 'Approved as-is' });
     expect(asIs).toHaveAttribute('title', 'Clear this verdict');
     fireEvent.click(asIs);
 
     rerender(<VerdictControl {...props} {...handlers} requested mode="after-comments" />);
-    fireEvent.click(buttons().getByRole('button', { name: 'Approved · 0 pending' }));
+    fireEvent.click(buttons().getByRole('button', { name: 'Approved after comments' }));
 
     rerender(<VerdictControl {...props} {...handlers} notYet />);
     fireEvent.click(buttons().getByRole('button', { name: 'Not yet' }));
@@ -181,11 +180,11 @@ describe('verdict control', () => {
   it('ignores the second click of a double-click on a pressed button', () => {
     const onRevoke = vi.fn();
     const { rerender } = render(
-      <VerdictControl {...props} requested approved mode="as-is" onRevoke={onRevoke} />,
+      <VerdictControl {...props} requested mode="as-is" onRevoke={onRevoke} />,
     );
     fireEvent.click(buttons().getByRole('button', { name: 'Approved as-is' }), { detail: 2 });
     rerender(<VerdictControl {...props} requested mode="after-comments" onRevoke={onRevoke} />);
-    fireEvent.click(buttons().getByRole('button', { name: 'Approved · 0 pending' }), {
+    fireEvent.click(buttons().getByRole('button', { name: 'Approved after comments' }), {
       detail: 2,
     });
     rerender(<VerdictControl {...props} notYet onRevoke={onRevoke} />);
@@ -199,7 +198,7 @@ describe('verdict control', () => {
   it('clears an approval or a not yet from the menu', () => {
     const onRevoke = vi.fn();
     const { rerender } = render(
-      <VerdictControl {...props} requested approved mode="as-is" onRevoke={onRevoke} />,
+      <VerdictControl {...props} requested mode="as-is" onRevoke={onRevoke} />,
     );
     openMenu();
     fireEvent.click(screen.getByRole('button', { name: 'Clear verdict' }));
@@ -217,9 +216,9 @@ describe('verdict control', () => {
     const asIs = buttons().getByRole('button', { name: 'Approve as-is' });
     expect(notYet).toHaveClass('bg-github-bg-tertiary', 'enabled:hover:border-github-danger');
     expect(asIs).toHaveClass('enabled:hover:border-github-accent');
-    // Amber, the fill it gets once chosen.
+    // Yellow, like its fill once chosen.
     const afterComments = buttons().getByRole('button', { name: 'Approve after comments' });
-    expect(afterComments).toHaveClass('enabled:hover:border-amber-700');
+    expect(afterComments).toHaveClass('enabled:hover:border-verdict-after-comments');
     expect(afterComments.className).not.toMatch(/hover:border-github-accent/);
     for (const button of [notYet, asIs, afterComments]) {
       expect(button).toHaveClass('text-github-text-primary');

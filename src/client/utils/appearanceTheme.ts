@@ -23,6 +23,7 @@ const DARK_THEME_VALUES = {
   '--color-github-accent-text': '#3fb950',
   '--color-github-danger': '#da3633',
   '--color-github-warning': '#d29922',
+  '--color-verdict-after-comments': '#fdc700',
   '--color-diff-addition-bg': '#0d4429',
   '--color-diff-addition-border': '#1b7c3d',
   '--color-diff-deletion-bg': '#67060c',
@@ -54,6 +55,8 @@ const LIGHT_THEME_VALUES = {
   '--color-github-accent-text': '#1f883d',
   '--color-github-danger': '#cf222e',
   '--color-github-warning': '#bf8700',
+  // The dark theme's #fdc700 measures 1.47:1 on a light review tab.
+  '--color-verdict-after-comments': '#a16207',
   '--color-diff-addition-bg': '#d1f4cd',
   '--color-diff-addition-border': '#1f883d',
   '--color-diff-deletion-bg': '#ffd8d3',

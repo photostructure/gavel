@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Circle, X } from 'lucide-react';
+import { Check, ChevronDown, Circle, MessageSquareMore, X } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
 import type { ReviewApproval } from '../../types/conversation';
@@ -17,23 +17,21 @@ export interface ApprovalRequest {
   approval: ReviewApproval;
 }
 
-const approvalLabel = ({ requested = false, approved, mode, conditions, notYet }: ReviewApproval) =>
-  describeApproval(
-    requested,
-    approved,
-    mode,
-    conditions?.filter((condition) => !condition.addressed).length ?? 0,
-  ) ?? (notYet ? 'Not yet' : 'Needs a verdict');
+const approvalLabel = ({ requested = false, mode, notYet }: ReviewApproval) =>
+  describeApproval(requested, mode) ?? (notYet ? 'Not yet' : 'Needs a verdict');
 
 const isDone = (review: ApprovalRequest) => hasVerdict(review.approval);
 
 const tabClasses = '-mb-px inline-flex items-center gap-1 rounded-t-md border px-3 py-1.5';
-// Each verdict's color, the same as its chosen button in VerdictControl.
+const isApprovedAfterComments = ({ requested, mode }: ReviewApproval) =>
+  requested && mode === 'after-comments';
+
+// Each verdict's color, the same hue as its chosen button in VerdictControl.
 const verdictColor = (approval: ReviewApproval) =>
   approval.notYet
     ? { text: 'text-github-danger', topBorder: 'border-t-github-danger' }
-    : approval.requested && approval.mode === 'after-comments'
-      ? { text: 'text-amber-700', topBorder: 'border-t-amber-700' }
+    : isApprovedAfterComments(approval)
+      ? { text: 'text-verdict-after-comments', topBorder: 'border-t-verdict-after-comments' }
       : approval.requested
         ? { text: 'text-github-accent', topBorder: 'border-t-github-accent' }
         : // No verdict yet: neutral, since green would read as approval.
@@ -54,6 +52,8 @@ function ApprovalMark({ approval }: { approval: ReviewApproval }) {
       data-verdict="not-yet"
       className={`verdict-mark shrink-0 ${text}`}
     />
+  ) : isApprovedAfterComments(approval) ? (
+    <MessageSquareMore size={12} aria-hidden="true" className={`shrink-0 ${text}`} />
   ) : approval.requested ? (
     <Check size={12} aria-hidden="true" className={`verdict-mark shrink-0 ${text}`} />
   ) : (

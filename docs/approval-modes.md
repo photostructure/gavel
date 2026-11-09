@@ -81,7 +81,7 @@ request.
 
 New or edited human feedback, deletion, a reopened thread, or a changed summary
 revokes approval. Resolving a thread as the reviewer confirms its included
-conditions and decreases the pending count without fabricating agent receipts.
+conditions without fabricating agent receipts.
 Reconcile still-Queued messages in resolved threads against that confirmation;
 report Noted explicitly rather than restarting work the reviewer has closed.
 Repeated approval of the same mode is idempotent, including while pending.

@@ -28,7 +28,7 @@ describe('review approval', () => {
       'http://10.1.1.24:4966/api/approval/conditional?review=task',
       expect.objectContaining({ method: 'POST' }),
     );
-    expect(result.current.approved).toBe(false);
+    expect(result.current.requested).toBe(false);
     expect(
       fetchMock.mock.calls.filter(
         ([url, init]) =>
@@ -58,12 +58,12 @@ describe('review approval', () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(true));
     vi.stubGlobal('fetch', fetchMock);
     const { result } = renderHook(() => useReviewApproval('/api/approval?target=a'));
-    await waitFor(() => expect(result.current.approved).toBe(true));
+    await waitFor(() => expect(result.current.requested).toBe(true));
     fetchMock.mockResolvedValue(new Response('{}', { status: 500 }));
     await act(async () => {
       await expect(result.current.setApproved(false)).rejects.toThrow('Could not update approval');
     });
-    expect(result.current.approved).toBe(true);
+    expect(result.current.requested).toBe(true);
   });
 
   it('does not apply a late approval response to a different selection', async () => {
@@ -85,13 +85,13 @@ describe('review approval', () => {
       pending = result.current.setApproved(true);
     });
     rerender({ url: '/api/approval?target=b' });
-    await waitFor(() => expect(result.current.approved).toBe(true));
+    await waitFor(() => expect(result.current.requested).toBe(true));
     await act(async () => {
       finishApproval?.(response(true));
       await pending;
     });
     expect(result.current.ready).toBe(true);
-    expect(result.current.approved).toBe(true);
+    expect(result.current.requested).toBe(true);
     expect(
       fetchMock.mock.calls.filter(([url, init]) => String(url).endsWith('a') && !init?.method),
     ).toHaveLength(1);
@@ -105,7 +105,7 @@ describe('review approval', () => {
     const { result } = renderHook(() => useReviewApproval('/api/approval'));
     await waitFor(() => expect(result.current.error).toContain('Could not load approval'));
     expect(result.current.ready).toBe(false);
-    expect(result.current.approved).toBe(false);
+    expect(result.current.requested).toBe(false);
   });
 });
 
@@ -126,7 +126,7 @@ describe('named capture approval', () => {
     const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => namedResponse());
     vi.stubGlobal('fetch', fetchMock);
     const { result } = renderHook(() => useReviewApproval('/api/approval?review=task', first, 3));
-    await waitFor(() => expect(result.current.approved).toBe(true));
+    await waitFor(() => expect(result.current.requested).toBe(true));
     await act(async () => result.current.setApproved(false, 3));
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/approval?review=task',
@@ -160,12 +160,12 @@ describe('named capture approval', () => {
       ({ capture }) => useReviewApproval('/api/approval?review=task', capture, 3),
       { initialProps: { capture: first } },
     );
-    await waitFor(() => expect(result.current.approved).toBe(true));
+    await waitFor(() => expect(result.current.requested).toBe(true));
     const staleApprove = result.current.setApproved;
     rerender({ capture: second });
-    expect(result.current.approved).toBe(false);
+    expect(result.current.requested).toBe(false);
     await waitFor(() => expect(result.current.ready).toBe(true));
-    expect(result.current.approved).toBe(false);
+    expect(result.current.requested).toBe(false);
     await expect(staleApprove(true, 3)).rejects.toThrow('Approval is unavailable for this capture');
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
   });
@@ -189,7 +189,7 @@ describe('named capture approval', () => {
     rerender({ capture: second });
     await waitFor(() => expect(result.current.ready).toBe(true));
     await act(async () => finish?.(namedResponse()));
-    expect(result.current.approved).toBe(false);
+    expect(result.current.requested).toBe(false);
     expect(result.current.ready).toBe(true);
   });
 
@@ -200,7 +200,7 @@ describe('named capture approval', () => {
     );
     const { result } = renderHook(() => useReviewApproval('/api/approval?review=task', first, 3));
     await waitFor(() => expect(result.current.ready).toBe(true));
-    expect(result.current.approved).toBe(false);
+    expect(result.current.requested).toBe(false);
   });
 });
 

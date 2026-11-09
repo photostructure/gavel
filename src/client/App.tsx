@@ -2015,10 +2015,8 @@ function App() {
                   key={commentsContextKey}
                   containerRef={setVerdictControl}
                   requested={approval.requested}
-                  approved={approval.approved}
                   notYet={approval.notYet}
                   mode={approval.mode}
-                  pendingCount={approval.pendingCount}
                   conditionalSupported={approval.conditionalSupported}
                   busy={isShipping || captureReloading}
                   disabled={
