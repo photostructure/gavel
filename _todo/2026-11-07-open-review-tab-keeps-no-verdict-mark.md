@@ -11,7 +11,7 @@ Observed on 2026-11-07 with reviews `gavel-header` and `readme-hero`. The review
 
 - `comment snapshot` showed `approval.approved: true`, `mode: "as-is"` for both reviews (`readme-hero` at 2026-11-07T23:27:54.826Z), so the server recorded both verdicts.
 - The `readme-hero` tab kept the hollow circle that marks a review without a verdict (`ApprovalMark` in `ReviewQueueBar.tsx`), and the queue label read "… need a verdict" (`ReviewQueueBar.tsx:103-108`).
-- `VerdictFollowUpNotice` showed "All 2 reviews have a verdict. You can close this tab." (`VerdictFollowUpNotice.tsx:46,76`).
+- `VerdictFollowUpNotice` showed "All 2 reviews have a verdict. You can close this tab." (`VerdictFollowUpNotice.tsx:48,78`).
 
 `ReviewQueueBar` derives every tab mark and its label from its `reviews` prop (`<ReviewQueueBar reviews={approvalRequests}>` in `App.tsx`); the notice reads its count elsewhere. Not confirmed: the `reviews` list is not refreshed for the open review after its own verdict, while the notice sees that review's current approval.
 
