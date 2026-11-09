@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /* A phone or tablet in either orientation, or a window as short as a landscape phone.
    Keep in sync with MEDIA_QUERIES.autoHideHeader in constants/breakpoints.ts. */
