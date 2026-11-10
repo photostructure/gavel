@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CommentIntent, CommentThread } from '../../types/diff';
 import { AgentUpdatesContext, type AgentUpdatesReadState } from '../contexts/AgentUpdatesContext';
+import { CommentLinkContext } from '../contexts/CommentLinkContext';
+import { agentMessageRevision } from '../hooks/useAgentUpdates';
 import { CommentDraftScope, draftKey } from '../hooks/useCommentDrafts';
 
 import { CommentThreadCard } from './CommentThreadCard';
@@ -545,6 +547,81 @@ describe('reply read state', () => {
       expect(setRead).toHaveBeenCalledWith('thread-1', 'message-2', expect.any(String), unread);
     },
   );
+
+  // Following a link means the reader read the message, as a click on its text does.
+  describe('links in an agent reply', () => {
+    const linkedThread: CommentThread = {
+      ...agentThread,
+      messages: [
+        agentThread.messages[0]!,
+        {
+          ...agentThread.messages[1]!,
+          // mailto: rather than https:, which happy-dom would fetch over the network.
+          body: 'See [the parser](#thread=tour-2) or [email the author](mailto:author@example.com).',
+        },
+      ],
+    };
+    const renderWithLinks = (
+      readState: AgentUpdatesReadState,
+      follow: () => void,
+      props: Partial<ComponentProps<typeof CommentThreadCard>>,
+    ) =>
+      render(
+        <AgentUpdatesContext.Provider value={readState}>
+          <CommentLinkContext.Provider value={follow}>
+            <CommentThreadCard
+              thread={linkedThread}
+              onGeneratePrompt={() => ''}
+              onToggleThreadResolved={vi.fn()}
+              onReplyToThread={vi.fn().mockResolvedValue(undefined)}
+              onRemoveMessage={vi.fn()}
+              onUpdateMessage={vi.fn()}
+              {...props}
+            />
+          </CommentLinkContext.Provider>
+        </AgentUpdatesContext.Provider>,
+      );
+    const renderLinked = (props: Partial<ComponentProps<typeof CommentThreadCard>> = {}) => {
+      const follow = vi.fn();
+      const setRead = vi.fn();
+      renderWithLinks(
+        {
+          enabled: true,
+          unreadKeys: new Set([JSON.stringify(['thread-1', 'message-2'])]),
+          setRead,
+        },
+        follow,
+        props,
+      );
+      return { follow, setRead };
+    };
+
+    it.each(['the parser', 'email the author'])(
+      'marks the reply read when %s is clicked',
+      (name) => {
+        const { setRead } = renderLinked();
+        fireEvent.click(screen.getByRole('link', { name }));
+        expect(setRead).toHaveBeenCalledWith(
+          'thread-1',
+          'message-2',
+          agentMessageRevision(linkedThread.messages[1]!),
+          true,
+        );
+      },
+    );
+
+    it('still follows the gavel link', () => {
+      const { follow } = renderLinked();
+      fireEvent.click(screen.getByRole('link', { name: 'the parser' }));
+      expect(follow).toHaveBeenCalledWith('#thread=tour-2', { threadId: 'thread-1' });
+    });
+
+    it("leaves another review's reply to its read controls, as a click on its text does", () => {
+      const { setRead } = renderLinked({ readOnly: true });
+      fireEvent.click(screen.getByRole('link', { name: 'email the author' }));
+      expect(setRead).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('thread disclosure and replies', () => {

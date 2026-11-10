@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import mermaid from 'mermaid';
 import { describe, expect, it, vi } from 'vitest';
 
+import { CommentLinkContext } from '../contexts/CommentLinkContext';
 import { WordHighlightProvider } from '../contexts/WordHighlightContext';
 
 import { CommentBodyRenderer } from './CommentBodyRenderer';
@@ -181,5 +182,89 @@ describe('CommentBodyRenderer', () => {
     expect(container.querySelector('strong')).toHaveTextContent('Before');
     expect(container.querySelector('em')).toHaveTextContent('After');
     expect(container).toHaveTextContent('new code');
+  });
+
+  describe('gavel links', () => {
+    const renderWithRouter = (body: string) => {
+      const follow = vi.fn();
+      const outerClick = vi.fn();
+      render(
+        <CommentLinkContext.Provider value={follow}>
+          <div onClick={outerClick}>
+            <CommentBodyRenderer body={body} linkSource={{ threadId: 'tour-1' }} />
+          </div>
+        </CommentLinkContext.Provider>,
+      );
+      return { follow, outerClick };
+    };
+
+    it.each(['#thread=tour-2', '?review=api-split#thread=tour-1', '#file=a.ts&line=x'])(
+      'hands %s to the router with the thread it is in, and keeps the click from the card',
+      (href) => {
+        const { follow, outerClick } = renderWithRouter(`[next](${href})`);
+        const anchor = screen.getByRole('link', { name: 'next' });
+        expect(anchor).toHaveAttribute('href', href);
+        expect(anchor).not.toHaveAttribute('target');
+        expect(fireEvent.click(anchor)).toBe(false);
+        expect(follow).toHaveBeenCalledWith(href, { threadId: 'tour-1' });
+        expect(outerClick).not.toHaveBeenCalled();
+      },
+    );
+
+    it("points a relative link in another named review's comment into that review", () => {
+      const follow = vi.fn();
+      const review = { baseCommitish: 'b', targetCommitish: '.', reviewName: 'task-b' };
+      render(
+        <CommentLinkContext.Provider value={follow}>
+          <CommentBodyRenderer
+            body="[next](#thread=t5) [api](?review=api#thread=t1)"
+            linkSource={{ threadId: 't4', review }}
+          />
+        </CommentLinkContext.Provider>,
+      );
+      // A modified click or a copied address resolves the href itself.
+      expect(screen.getByRole('link', { name: 'next' })).toHaveAttribute(
+        'href',
+        '?review=task-b#thread=t5',
+      );
+      expect(screen.getByRole('link', { name: 'api' })).toHaveAttribute(
+        'href',
+        '?review=api#thread=t1',
+      );
+      fireEvent.click(screen.getByRole('link', { name: 'next' }));
+      expect(follow).toHaveBeenCalledWith('#thread=t5', { threadId: 't4', review });
+    });
+
+    it("points a relative link in another Git comparison's comment into that comparison", () => {
+      const follow = vi.fn();
+      render(
+        <CommentLinkContext.Provider value={follow}>
+          <CommentBodyRenderer
+            body="[next](#thread=t5)"
+            linkSource={{
+              threadId: 't4',
+              review: { baseCommitish: 'abc123', targetCommitish: '.', baseMode: 'merge-base' },
+            }}
+          />
+        </CommentLinkContext.Provider>,
+      );
+      // As its review tab opens it.
+      expect(screen.getByRole('link', { name: 'next' })).toHaveAttribute(
+        'href',
+        '?base=abc123&target=.&baseMode=merge-base&retainedReview=1#thread=t5',
+      );
+    });
+
+    it('lets a modified click open the link in a new tab', () => {
+      const { follow } = renderWithRouter('[next](#thread=tour-2)');
+      fireEvent.click(screen.getByRole('link', { name: 'next' }), { metaKey: true });
+      expect(follow).not.toHaveBeenCalled();
+    });
+
+    it('leaves a plain heading anchor to the browser', () => {
+      const { follow } = renderWithRouter('[top](#summary)');
+      fireEvent.click(screen.getByRole('link', { name: 'top' }));
+      expect(follow).not.toHaveBeenCalled();
+    });
   });
 });

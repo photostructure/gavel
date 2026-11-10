@@ -43,3 +43,15 @@ export const getViewerForFile = (file: DiffFile): DiffViewerRegistration => {
   }
   return viewers.find((viewer) => viewer.match(file)) ?? fallback;
 };
+
+/** Whether hidden context around `file`'s hunks can be loaded and shown. */
+export function fileCanExpandHiddenLines(
+  file: DiffFile,
+  source: { contextUnavailable: boolean; baseCommitish?: string; targetCommitish?: string },
+): boolean {
+  const hasBlobContent =
+    !source.contextUnavailable &&
+    source.baseCommitish !== 'stdin' &&
+    source.targetCommitish !== 'stdin';
+  return hasBlobContent && (getViewerForFile(file).canExpandHiddenLines?.(file) ?? false);
+}

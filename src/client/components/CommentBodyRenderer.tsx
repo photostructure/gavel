@@ -1,10 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useContext, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
 import { type DiffLine, type ExpandedLine } from '../../types/diff';
 import { hasSuggestionBlock, parseSuggestionBlocks } from '../../utils/suggestionUtils';
+import { CommentLinkContext, type CommentLinkSource } from '../contexts/CommentLinkContext';
+import { parseCommentLink } from '../utils/commentLinks';
+import { reviewHref } from '../utils/reviewNavigation';
 import { extractMarkdownText, isElementWithCodeProps, isSafeUrl } from '../utils/markdownUtils';
 
 import { DiffCodeLine } from './DiffCodeLine';
@@ -14,7 +17,11 @@ import type { AppearanceSettings } from './SettingsModal';
 
 const COMMENT_REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 
-const transformCommentUrl = (url: string) => (isSafeUrl(url) ? url : '');
+// Gavel links include `?review=…`, a relative URL that isSafeUrl does not list.
+const transformCommentUrl = (url: string) =>
+  isSafeUrl(url) || parseCommentLink(url) !== null ? url : '';
+
+const LINK_CLASS = 'text-sky-400 hover:text-sky-300 underline underline-offset-4';
 
 type SuggestionPart = {
   type: 'text';
@@ -87,7 +94,11 @@ function CommentDiffCodeBlock({ code }: { code: string }) {
   );
 }
 
-const getCommentMarkdownComponents = (syntaxTheme?: AppearanceSettings['syntaxTheme']) => ({
+const getCommentMarkdownComponents = (
+  syntaxTheme: AppearanceSettings['syntaxTheme'] | undefined,
+  // linkHref is what the browser opens on a modified click or copies as the address.
+  links: { follow: (href: string) => void; linkHref: (href: string) => string } | null,
+) => ({
   h1: ({ children }: { children?: React.ReactNode }) => (
     <h1 className="text-lg font-semibold mt-4 mb-2 first:mt-0">{children}</h1>
   ),
@@ -128,6 +139,32 @@ const getCommentMarkdownComponents = (syntaxTheme?: AppearanceSettings['syntaxTh
   hr: () => <hr className="my-3 border-github-border" />,
   a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
     const safeHref = href ?? '';
+    if (links && safeHref && parseCommentLink(safeHref) !== null) {
+      const linkHref = links.linkHref(safeHref);
+      return (
+        <a
+          href={linkHref}
+          onClick={(event) => {
+            // A click in a Conversation card would otherwise also jump to that card's thread.
+            event.stopPropagation();
+            // Modified clicks open the URL in a new tab or window.
+            if (
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            )
+              return;
+            event.preventDefault();
+            links.follow(safeHref);
+          }}
+          className={LINK_CLASS}
+        >
+          {children}
+        </a>
+      );
+    }
     if (!safeHref || !isSafeUrl(safeHref)) {
       return <span>{children}</span>;
     }
@@ -137,7 +174,7 @@ const getCommentMarkdownComponents = (syntaxTheme?: AppearanceSettings['syntaxTh
         href={safeHref}
         target={isExternal ? '_blank' : undefined}
         rel={isExternal ? 'noreferrer' : undefined}
-        className="text-sky-400 hover:text-sky-300 underline underline-offset-4"
+        className={LINK_CLASS}
       >
         {children}
       </a>
@@ -228,6 +265,8 @@ const getCommentMarkdownComponents = (syntaxTheme?: AppearanceSettings['syntaxTh
 
 interface CommentBodyRendererProps {
   body: string;
+  // The thread this body belongs to, so a followed link can bring Back here.
+  linkSource?: CommentLinkSource;
   originalCode?: string;
   filename?: string;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
@@ -239,6 +278,7 @@ export function hasSuggestionInBody(body: string) {
 
 export function CommentBodyRenderer({
   body,
+  linkSource,
   originalCode,
   filename,
   syntaxTheme,
@@ -279,9 +319,23 @@ export function CommentBodyRenderer({
     return result;
   }, [body, originalCode]);
 
+  const follow = useContext(CommentLinkContext);
+  const threadId = linkSource?.threadId;
+  const linkReview = linkSource?.review;
+  const links = useMemo(() => {
+    if (!follow) return null;
+    const source = threadId === undefined ? undefined : { threadId, review: linkReview };
+    return {
+      follow: (href: string) => follow(href, source),
+      // A relative link in another review's comment points into that review, so a modified
+      // click or a copied address opens the place a plain click does.
+      linkHref: (href: string) =>
+        linkReview && href.startsWith('#') ? reviewHref(linkReview, href) : href,
+    };
+  }, [follow, threadId, linkReview]);
   const markdownComponents = useMemo(
-    () => getCommentMarkdownComponents(syntaxTheme),
-    [syntaxTheme],
+    () => getCommentMarkdownComponents(syntaxTheme, links),
+    [syntaxTheme, links],
   );
 
   return (

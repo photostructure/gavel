@@ -88,6 +88,49 @@
   }
 }
 
+/* The comment a link led to: the glow comes up at once and holds while the view scrolls to
+   it; linkTargetGlow.ts then throbs it once on arrival and fades it over its FADE_MS. The
+   throb changes only the glow, never the card's position or size. */
+@keyframes comment-link-glow {
+  from {
+    box-shadow:
+      0 0 0 2px rgb(37 99 235 / 0%),
+      0 0 16px 6px rgb(37 99 235 / 0%);
+  }
+}
+/* The throb on arrival: the held glow dims out, comes back, and dims out again. */
+@keyframes comment-link-glow-fade {
+  25%,
+  to {
+    box-shadow:
+      0 0 0 2px rgb(37 99 235 / 0%),
+      0 0 16px 6px rgb(37 99 235 / 0%);
+  }
+  55% {
+    box-shadow:
+      0 0 0 2px rgb(37 99 235 / 75%),
+      0 0 16px 6px rgb(37 99 235 / 40%);
+  }
+}
+.comment-link-glow,
+.comment-link-glow-fade {
+  box-shadow:
+    0 0 0 2px rgb(37 99 235 / 75%),
+    0 0 16px 6px rgb(37 99 235 / 40%);
+}
+.comment-link-glow {
+  animation: comment-link-glow 0.25s ease-out;
+}
+.comment-link-glow-fade {
+  animation: comment-link-glow-fade 2s ease-in-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .comment-link-glow,
+  .comment-link-glow-fade {
+    animation: none;
+  }
+}
+
 /* The time left in the verdict follow-up countdown; the notice sets its duration. */
 @keyframes verdict-countdown {
   to {

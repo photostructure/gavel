@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DiffChunk, DiffFile } from '../../types/diff';
 import { WordHighlightProvider } from '../contexts/WordHighlightContext';
-import { CommentDraftScope, useCommentDraft } from '../hooks/useCommentDrafts';
+import {
+  CommentDraftScope,
+  useCommentDraft,
+  type LineDraftAnchor,
+} from '../hooks/useCommentDrafts';
 import type { MergedChunk } from '../hooks/useExpandedLines';
 
 import { DiffViewer } from './DiffViewer';
@@ -47,6 +51,7 @@ function renderViewer(
   expandAllBetweenChunks: ExpandAllBetweenChunks,
   chunks: MergedChunk[] = mergedChunks,
   onAddComment: AddComment = vi.fn(async () => {}),
+  pendingJump: LineDraftAnchor | null = null,
 ) {
   return render(
     <WordHighlightProvider>
@@ -75,6 +80,7 @@ function renderViewer(
           collapseExpandedLines={vi.fn()}
           prefetchFileContent={vi.fn(async () => {})}
           isExpandLoading={false}
+          pendingJump={pendingJump}
         />
       </CommentDraftScope>
     </WordHighlightProvider>,
@@ -110,6 +116,17 @@ describe('DiffViewer context expansion for line drafts', () => {
 
     const expandAllBetweenChunks = vi.fn<ExpandAllBetweenChunks>(async () => {});
     renderViewer(expandAllBetweenChunks);
+    expect(expandAllBetweenChunks).toHaveBeenCalledWith(file, 1, 16);
+  });
+
+  it("reopens the hidden context that holds a comment link's line", () => {
+    const expandAllBetweenChunks = vi.fn<ExpandAllBetweenChunks>(async () => {});
+    renderViewer(expandAllBetweenChunks, mergedChunks, undefined, {
+      kind: 'line',
+      filePath: 'notes.txt',
+      side: 'new',
+      lineNumber: [9, 11],
+    });
     expect(expandAllBetweenChunks).toHaveBeenCalledWith(file, 1, 16);
   });
 

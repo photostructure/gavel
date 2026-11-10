@@ -56,9 +56,11 @@ import { AboutPanel } from './components/AboutPanel';
 import { HeaderMenu } from './components/HeaderMenu';
 import { VerdictControl } from './components/VerdictControl';
 import { VerdictFollowUpNotice } from './components/VerdictFollowUpNotice';
+import { CommentLinkNotice } from './components/CommentLinkNotice';
 import { ReviewProviders } from './contexts/ReviewProviders';
 import { useAppearanceSettings } from './hooks/useAppearanceSettings';
 import { filesWithDrafts, useDraftCount, type LineDraftAnchor } from './hooks/useCommentDrafts';
+import { useCommentLinks } from './hooks/useCommentLinks';
 import { useDiffComments } from './hooks/useDiffComments';
 import { useExpandedLines, type MergedChunk } from './hooks/useExpandedLines';
 import { useFileWatch } from './hooks/useFileWatch';
@@ -84,6 +86,10 @@ import { hasMultipleCommentAuthors } from './utils/commentAuthors';
 import { copyTextToClipboard } from './utils/clipboard';
 import { getFileElementId, resetEmptyCommentFormsOutside } from './utils/domUtils';
 import { findCommentPosition, findSidePosition } from './utils/navigation/positionHelpers';
+import { createScrollToElement, linkScrollBehavior } from './hooks/keyboardNavigation/scrollUtils';
+import type { CursorScroll } from './hooks/keyboardNavigation/types';
+import { glowLinkTarget } from './utils/linkTargetGlow';
+import { fileCanExpandHiddenLines } from './viewers/registry';
 import {
   readReviewLocation,
   readReviewHistoryLocation,
@@ -192,8 +198,13 @@ function App() {
   const closeAbout = useCallback(() => setIsAboutOpen(false), []);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
-  // A "Go to line" jump waiting for its line to appear; see handleNavigateToDraftLine.
-  const [pendingDraftJump, setPendingDraftJump] = useState<LineDraftAnchor | null>(null);
+  // A "Go to line" or comment link jump waiting for its line to appear; see
+  // handleNavigateToDraftLine.
+  const [pendingLineJump, setPendingLineJump] = useState<LineDraftAnchor | null>(null);
+  // How that jump scrolls once its line appears: links animate it.
+  const pendingJumpBehavior = useRef<CursorScroll>('auto');
+  // A linked comment whose card scrolls into view once its line is shown.
+  const [threadToReveal, setThreadToReveal] = useState<string | null>(null);
   const collapsedInitializedRef = useRef(false);
   const openedDraftFilesRef = useRef(false);
   const pendingSidebarSelectionsRef = useRef(new Set<string>());
@@ -1037,7 +1048,8 @@ function App() {
         }
       },
       onShowCommentsList: () => {
-        setPendingDraftJump(null);
+        setPendingLineJump(null);
+        setThreadToReveal(null);
         setIsCommentsListOpen(true);
       },
       onRefresh: () => {
@@ -1459,6 +1471,17 @@ function App() {
 
   useEffect(() => {
     const restoreReview = () => {
+      // A comment link's entry differs only in its fragment. Restoring its saved resolved
+      // selection would reload the review, and pin a Git comparison to its launch commits.
+      const requested = readReviewLocation();
+      const shown = selectedRevisionRef.current;
+      if (
+        requested &&
+        diffSelectionsEqual(requested, shown) &&
+        (requested.reviewName !== undefined ||
+          Boolean(requested.retained) === Boolean(shown.retained))
+      )
+        return;
       const selection = readReviewHistoryLocation();
       if (selection) void handleRevisionChange(selection, null);
     };
@@ -1730,29 +1753,31 @@ function App() {
     }
   };
 
-  // A draft's line may sit in hidden context that DiffViewer has not expanded again yet
-  // (after a reload, or while the file is not rendered); it appears in navigableFiles
-  // once DiffViewer does, and the jump waits for it. Until then the draft sits at the
-  // top of its file. The next click anywhere, or opening Conversation, cancels the wait.
+  // A draft's or comment link's line may sit in hidden context that DiffViewer has not
+  // expanded yet (after a reload, or while the file is not rendered); it appears in
+  // navigableFiles once DiffViewer does, and the jump waits for it. Until then the view sits
+  // at the top of its file. The next click anywhere, or opening Conversation, cancels the wait.
   useEffect(() => {
-    if (!pendingDraftJump) return;
-    const position = findDraftPosition(pendingDraftJump, navigableFiles);
+    if (!pendingLineJump) return;
+    const position = findDraftPosition(pendingLineJump, navigableFiles);
     if (!position) return;
     // The scroll to the file would otherwise correct itself back to the header.
     cancelFileScroll();
-    setPendingDraftJump(null);
-    requestAnimationFrame(() => setCursorPosition(position));
-  }, [pendingDraftJump, navigableFiles, setCursorPosition, cancelFileScroll]);
+    setPendingLineJump(null);
+    const behavior = pendingJumpBehavior.current;
+    requestAnimationFrame(() => setCursorPosition(position, behavior));
+  }, [pendingLineJump, navigableFiles, setCursorPosition, cancelFileScroll]);
 
   // The draft's file may be collapsed (marked viewed after the draft was written), so
   // it opens either way. A line the hunks show gets the cursor once its rows render;
   // scrolling to the file as well would end at its header, because that scroll
   // corrects itself 180 ms later. Otherwise the jump scrolls to the file, which renders
   // it so DiffViewer can expand the draft's context, and waits for the line.
-  const handleNavigateToDraftLine = (anchor: LineDraftAnchor) => {
+  const handleNavigateToDraftLine = (anchor: LineDraftAnchor, behavior: CursorScroll = 'auto') => {
     const position = findDraftPosition(anchor, navigableFiles);
     if (!position) {
-      setPendingDraftJump(anchor);
+      pendingJumpBehavior.current = behavior;
+      setPendingLineJump(anchor);
       handleSidebarFileSelected(anchor.filePath);
       return;
     }
@@ -1762,8 +1787,72 @@ function App() {
       next.delete(anchor.filePath);
       return next;
     });
-    requestAnimationFrame(() => setCursorPosition(position));
+    requestAnimationFrame(() => setCursorPosition(position, behavior));
   };
+
+  // A comment link's line can show unless the hunks leave it out and the diff cannot load the
+  // context around them (a named review's capture, piped input, an image).
+  const canShowLinkedLine = (anchor: LineDraftAnchor) => {
+    const file = navigableFiles.find((candidate) => candidate.path === anchor.filePath);
+    if (!file || !diffData) return false;
+    return (
+      findDraftPosition(anchor, navigableFiles) !== null ||
+      fileCanExpandHiddenLines(file, {
+        contextUnavailable: Boolean(diffData.capture),
+        baseCommitish: diffData.baseCommitish,
+        targetCommitish: diffData.targetCommitish,
+      })
+    );
+  };
+  const linkedFilePaths = useMemo(() => navigableFiles.map((file) => file.path), [navigableFiles]);
+  const commentLinks = useCommentLinks({
+    ready: !loading && hasBootstrappedComments,
+    currentSelection: resolvedSelection,
+    reviews: reviewConversations,
+    threads: normalizedThreads,
+    filePaths: linkedFilePaths,
+    switchReview: openReviewFromTab,
+    canShowLine: canShowLinkedLine,
+    jumpToLine: (anchor) => {
+      setIsCommentsListOpen(false);
+      handleNavigateToDraftLine(anchor, linkScrollBehavior());
+    },
+    openFile: (filePath) => {
+      setIsCommentsListOpen(false);
+      handleSidebarFileSelected(filePath);
+    },
+    // The line's own scroll would still be animating when the card is measured, so the card
+    // reveal below is this jump's only scroll.
+    jumpToThread: (anchor, threadId) => {
+      setIsCommentsListOpen(false);
+      handleNavigateToDraftLine(anchor, 'none');
+      setThreadToReveal(threadId);
+    },
+    focusInConversation: (threadId) => {
+      setThreadToFocus(threadId);
+      setIsCommentsListOpen(true);
+    },
+  });
+
+  // A thread jump moves the cursor to the thread's line without scrolling; this scrolls the
+  // comment card below it to the top third of the screen when the card is not fully visible.
+  // The card renders with its line, so this waits until any pending line jump has landed and
+  // the card exists.
+  const scrollToElement = useMemo(() => createScrollToElement(), []);
+  useEffect(() => {
+    if (!threadToReveal || pendingLineJump) return;
+    const frame = requestAnimationFrame(() => {
+      const elementId = `comment-thread-${threadToReveal}`;
+      const card = document.getElementById(elementId);
+      if (!card) return;
+      setThreadToReveal(null);
+      // The glow holds while a smooth scroll brings the card in, so it is still there on arrival.
+      const behavior = linkScrollBehavior();
+      const scrolling = scrollToElement(elementId, behavior) && behavior === 'smooth';
+      glowLinkTarget(card, scrolling ? diffScrollContainerRef.current : null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [threadToReveal, pendingLineJump, cursor, scrollToElement]);
 
   const handleOpenInEditor = useCallback(
     async (filePath: string, lineNumber: number) => {
@@ -1803,7 +1892,8 @@ function App() {
   const handleGlobalClick = (e: React.MouseEvent) => {
     // Clear cursor position
     setCursorPosition(null);
-    setPendingDraftJump(null);
+    setPendingLineJump(null);
+    setThreadToReveal(null);
 
     // Check if clicking on a comment button
     const target = e.target as HTMLElement;
@@ -1848,7 +1938,11 @@ function App() {
   const canOpenInEditor = diffData.openInEditorAvailable !== false && Boolean(editorSessionToken);
 
   return (
-    <ReviewProviders agentUpdates={agentReadContext} draftScope={draftScope}>
+    <ReviewProviders
+      agentUpdates={agentReadContext}
+      draftScope={draftScope}
+      followCommentLink={commentLinks.follow}
+    >
       <div className="h-dvh flex flex-col" onClickCapture={handleGlobalClick}>
         {/* The 0fr row collapses the header group to nothing without measuring it, and the
             diff below grows into the space. */}
@@ -1986,7 +2080,7 @@ function App() {
                 }
                 onClick={() => {
                   setIsAboutOpen(false);
-                  setPendingDraftJump(null);
+                  setPendingLineJump(null);
                   setIsCommentsListOpen(true);
                 }}
                 className="relative inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
@@ -2222,6 +2316,7 @@ function App() {
                       prefetchFileContent={prefetchFileContent}
                       isExpandLoading={isExpandLoading}
                       diffVersion={diffDataVersion}
+                      pendingJump={pendingLineJump?.filePath === file.path ? pendingLineJump : null}
                     />
                   ) : (
                     <div className="bg-github-bg-secondary border border-github-border rounded-md px-4 py-3">
@@ -2323,6 +2418,7 @@ function App() {
           onUpdateMessage={updateMessage}
           syntaxTheme={settings.syntaxTheme}
         />
+        <CommentLinkNotice message={commentLinks.notice} onDismiss={commentLinks.dismissNotice} />
       </div>
     </ReviewProviders>
   );

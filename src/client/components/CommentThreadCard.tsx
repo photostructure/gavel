@@ -10,7 +10,12 @@ import {
 } from 'lucide-react';
 import React, { useContext, useEffect, useId, useRef, useState } from 'react';
 
-import { type CommentIntent, type CommentThread, type DiffCommentMessage } from '../../types/diff';
+import {
+  type CommentIntent,
+  type CommentThread,
+  type DiffCommentMessage,
+  type DiffSelection,
+} from '../../types/diff';
 import { copyTextToClipboard } from '../utils/clipboard';
 import { useFocusedAgentMessage } from '../hooks/useFocusedAgentMessage';
 import { agentMessageRevision } from '../hooks/useAgentUpdates';
@@ -47,6 +52,7 @@ type DraftFormState = 'closed' | 'restored' | 'opened';
 interface ThreadMessageItemProps {
   threadId: string;
   readOnly: boolean;
+  linkReview?: DiffSelection;
   highlighted?: boolean;
   focusRequest?: number;
   message: DiffCommentMessage;
@@ -66,6 +72,7 @@ interface ThreadMessageItemProps {
 function ThreadMessageItem({
   threadId,
   readOnly,
+  linkReview,
   highlighted = false,
   focusRequest,
   message,
@@ -84,6 +91,8 @@ function ThreadMessageItem({
   const messageElement = useFocusedAgentMessage(message.id, highlighted, focusRequest);
   const readState = useContext(AgentUpdatesContext);
   const unread = readState?.unreadKeys.has(JSON.stringify([threadId, message.id])) ?? false;
+  // Another review's replies keep their read state until the reader uses its read controls.
+  const canMarkRead = !readOnly && message.origin === 'agent' && readState?.enabled === true;
   const showAuthorHeader = showAuthorBadge && Boolean(message.author);
   const progress = message.origin !== 'agent' ? message.progress : undefined;
   const isUserAuthoredMessage = message.author?.trim() === 'User';
@@ -147,12 +156,16 @@ function ThreadMessageItem({
       tabIndex={-1}
       data-comment-message-id={message.id}
       className={`${isEditing ? '' : 'flex min-w-0 items-start gap-3'} ${highlighted ? 'rounded ring-2 ring-blue-500 ring-offset-2 ring-offset-github-bg-tertiary' : ''}`}
+      // Following a link means the reader read the message. A gavel link's handler stops the
+      // click before onClick below, and onClick skips other links, so the read mark goes here.
+      onClickCapture={(event) => {
+        if (canMarkRead && event.target instanceof Element && event.target.closest('a[href]'))
+          readState.setRead(threadId, message.id, agentMessageRevision(message), true);
+      }}
       onClick={(event) => {
         const target = event.target;
         if (
-          !readOnly &&
-          message.origin === 'agent' &&
-          readState?.enabled &&
+          canMarkRead &&
           !isEditing &&
           !hasActiveTextSelection() &&
           target instanceof Element &&
@@ -204,6 +217,7 @@ function ThreadMessageItem({
             )}
             <CommentBodyRenderer
               body={message.body}
+              linkSource={{ threadId, review: linkReview }}
               originalCode={originalCode}
               filename={filename}
               syntaxTheme={syntaxTheme}
@@ -312,6 +326,8 @@ interface CommentThreadCardProps {
   onReadUnread?: () => void;
   // A thread from another review: read/unread controls and a click-through only.
   readOnly?: boolean;
+  // That other review, which relative links in the thread's comments point into.
+  linkReview?: DiffSelection;
   thread: CommentThread;
   showAuthorBadges?: boolean;
   onGeneratePrompt: (thread: CommentThread) => string;
@@ -341,6 +357,7 @@ export function CommentThreadCard({
   unreadCount = 0,
   onReadUnread,
   readOnly = false,
+  linkReview,
   thread,
   showAuthorBadges = false,
   onGeneratePrompt,
@@ -578,6 +595,7 @@ export function CommentThreadCard({
             <ThreadMessageItem
               threadId={thread.id}
               readOnly={readOnly}
+              linkReview={linkReview}
               onEscapeKeepingDraft={onEscapeKeepingDraft}
               highlighted={focusedMessageId === rootMessage.id}
               focusRequest={focusedMessageId === rootMessage.id ? focusRequest : undefined}
@@ -618,6 +636,7 @@ export function CommentThreadCard({
                   <ThreadMessageItem
                     threadId={thread.id}
                     readOnly={readOnly}
+                    linkReview={linkReview}
                     onEscapeKeepingDraft={onEscapeKeepingDraft}
                     highlighted={focusedMessageId === message.id}
                     focusRequest={focusedMessageId === message.id ? focusRequest : undefined}

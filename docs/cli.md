@@ -76,6 +76,36 @@ gavel --comment '{"type":"thread","filePath":"src/example.ts","position":{"side"
 
 If the same comment already exists, gavel skips importing it.
 
+### Links in comments
+
+Comment bodies are Markdown. A link whose URL is a fragment naming `thread`, `file`,
+`line`, or `side`, or a query naming `review`, moves around gavel instead of leaving
+the page, so an agent can write a reading tour: a "Start here" comment that links to
+the next stop, with side links to the code it explains.
+
+| Link                                          | Goes to                                                       |
+| --------------------------------------------- | ------------------------------------------------------------- |
+| `[next](#thread=tour-2)`                      | the thread with ID `tour-2` in the same review                |
+| `[parser](#file=src/parse.ts)`                | the file's header                                             |
+| `[parser](#file=src/parse.ts&line=40-52)`     | lines 40-52 of the new side; add `&side=old` for the old side |
+| `[API half](?review=api-split)`               | the named review `api-split`                                  |
+| `[API half](?review=api-split#thread=tour-1)` | a thread, file, or line in that review                        |
+
+Set a thread's ID when importing it (`"id":"api-split-tour-2"`), so a comment can link
+to a thread posted later. Gavel assumes thread IDs are unique across a server's
+reviews, so prefix them with the review name. A link in another review's comment,
+shown in **Conversation**, points into that comment's review.
+
+Each jump adds a browser history entry, so Back returns to the comment the link was
+in, and the page URL keeps the place. For a link in another review's comment, Back
+returns to the review you were reading instead. When gavel cannot follow a link (no
+such thread, file, or named review, or a line the diff cannot show), it says why at
+the bottom of the page. A named review holds only its captured hunks, so link only
+to lines inside them. A line past the end of a file is not detected: the view waits
+at the top of the file. The cursor lands on the last line of a range, where a
+comment on that range shows. Percent-encode spaces (`%20`), `&`, `#`, `+`, and `%`
+in file paths and thread IDs.
+
 ## Open in editor
 
 Set `GAVEL_EDITOR` before starting gavel. It accepts `vscode` (default), `cursor`, `zed`, `textmate`, `bbedit`, `emacs`,

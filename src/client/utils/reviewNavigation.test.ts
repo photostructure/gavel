@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { readReviewLocation, writeReviewLocation } from './reviewNavigation';
+import {
+  readReviewHistoryLocation,
+  readReviewLocation,
+  writeLocationHash,
+  writeReviewLocation,
+} from './reviewNavigation';
 
 describe('review browser locations', () => {
   beforeEach(() =>
@@ -56,5 +61,30 @@ describe('review browser locations', () => {
       baseMode: 'merge-base',
       retained: true,
     });
+  });
+
+  it('keeps the resolved review of an entry whose fragment a comment link rewrites', () => {
+    window.history.replaceState(null, '', '/?base=HEAD&target=.');
+    writeReviewLocation({ baseCommitish: 'HEAD', targetCommitish: '.' }, 'replace', {
+      baseCommitish: 'abc123',
+      targetCommitish: '.',
+    });
+    writeLocationHash('#thread=t1', 'replace');
+    writeLocationHash('#thread=t2', 'push');
+    expect(window.location.hash).toBe('#thread=t2');
+    expect(readReviewHistoryLocation()).toEqual({
+      baseCommitish: 'abc123',
+      targetCommitish: '.',
+      retained: true,
+    });
+  });
+
+  it("drops a comment link's place when the review changes, and keeps it otherwise", () => {
+    window.history.replaceState(null, '', '/?review=a#gavel-editor-token=k&thread=t2');
+    writeReviewLocation({ baseCommitish: '', targetCommitish: '', reviewName: 'a' }, 'replace');
+    expect(window.location.hash).toBe('#gavel-editor-token=k&thread=t2');
+    writeReviewLocation({ baseCommitish: '', targetCommitish: '', reviewName: 'b' }, 'replace');
+    expect(window.location.search).toBe('?review=b');
+    expect(window.location.hash).toBe('#gavel-editor-token=k');
   });
 });

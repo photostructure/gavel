@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Links in comment bodies now move around gavel: `#thread=<id>` jumps to a comment, `#file=<path>&line=40-52&side=old` to a file or its lines, and `?review=<name>#…` to a place in another named review. Back returns to the comment the link was in, the page URL keeps the place, and a link gavel cannot follow says why at the bottom of the page. A jump to a line or comment in a file already on the page scrolls smoothly, unless your system asks for reduced motion, and brings a linked comment to the top third of the screen; a jump into a file that has not rendered yet, or to a file's header, is instant, because files render as the view reaches them. The linked comment glows blue during the jump, throbs once when it arrives, and fades; following a link in an agent's comment marks that comment read. The gavel skills tell agents to link reading-guide comments into a tour on long reviews. See [links in comments](docs/cli.md#links-in-comments).
 - The comment count beside a file in **Files changed** now shows a blue dot on its comment icon while the file has unread agent replies, and its tooltip says how many.
 
 ### Changed

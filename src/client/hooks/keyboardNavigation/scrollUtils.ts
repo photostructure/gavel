@@ -7,9 +7,11 @@ import { SCROLL_CONSTANTS } from './types';
  * Only scrolls when necessary to improve user experience
  */
 export function createScrollToElement() {
-  return (elementId: string): void => {
+  // 'smooth' animates the scroll, so a reader who followed a link sees the view move. Returns
+  // whether the view moves, so a caller can wait for a smooth scroll to end.
+  return (elementId: string, behavior: ScrollBehavior = 'auto'): boolean => {
     const element = document.getElementById(elementId);
-    if (!element) return;
+    if (!element) return false;
 
     // The main scrollable container is always the same in this app
     const scrollContainer = document.querySelector(
@@ -23,6 +25,14 @@ export function createScrollToElement() {
     const containerRect = scrollContainer.getBoundingClientRect();
     const viewportHeight = scrollContainer.clientHeight;
     const scrollTop = scrollContainer.scrollTop;
+    const scrollToTop = (target: number) => {
+      // The browser stops at the end of the content, and does not move to where it already is.
+      const top = Math.min(Math.max(0, target), scrollContainer.scrollHeight - viewportHeight);
+      if (Math.round(top) === Math.round(scrollTop)) return false;
+      if (behavior === 'auto') scrollContainer.scrollTop = top;
+      else scrollContainer.scrollTo({ top, behavior });
+      return true;
+    };
 
     // Check if element is visible within the container's viewport
     const visibleTop = Math.max(containerRect.top, 0);
@@ -33,8 +43,7 @@ export function createScrollToElement() {
     if (!isVisible) {
       const offsetTop = calculateOffsetTop(element, scrollContainer);
       const targetScrollTop = offsetTop - viewportHeight * SCROLL_CONSTANTS.VIEWPORT_OFFSET_RATIO;
-      scrollContainer.scrollTop = Math.max(0, targetScrollTop);
-      return;
+      return scrollToTop(targetScrollTop);
     }
 
     // Element is visible - only scroll if bottom edge is hidden AND we would scroll down
@@ -44,9 +53,7 @@ export function createScrollToElement() {
       elementPosInContainer - viewportHeight * SCROLL_CONSTANTS.VIEWPORT_OFFSET_RATIO;
     const wouldScrollDown = targetScrollTop > scrollTop;
 
-    if (isBottomHidden && wouldScrollDown) {
-      scrollContainer.scrollTop = Math.max(0, targetScrollTop);
-    }
+    return isBottomHidden && wouldScrollDown && scrollToTop(targetScrollTop);
   };
 }
 
@@ -69,4 +76,9 @@ function calculateOffsetTop(element: HTMLElement, container: HTMLElement): numbe
   }
 
   return offsetTop;
+}
+
+/** How a jump from a link scrolls: animated, unless the reader asks for reduced motion. */
+export function linkScrollBehavior(): ScrollBehavior {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 }

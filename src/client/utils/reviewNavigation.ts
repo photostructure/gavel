@@ -1,6 +1,8 @@
 import type { DiffSelection } from '../../types/diff';
 import { createDiffSelection } from '../../utils/diffSelection';
 
+import { withoutLinkPlace } from './commentLinks';
+
 export type ReviewSelection = DiffSelection & { retained?: true };
 
 export function readReviewLocation(): ReviewSelection | null {
@@ -66,27 +68,62 @@ export function readReviewHistoryLocation(): ReviewSelection | null {
   return readReviewLocation();
 }
 
+/**
+ * Sets the URL fragment (a comment link's place) in a new or the current history entry. An
+ * entry that remembered its resolved review keeps it, since the review has not changed.
+ */
+export function writeLocationHash(hash: string, mode: 'push' | 'replace'): void {
+  const url = new URL(window.location.href);
+  url.hash = hash;
+  const previous: unknown = window.history.state;
+  const state =
+    previous &&
+    typeof previous === 'object' &&
+    'gavelReview' in previous &&
+    previous.gavelReview &&
+    typeof previous.gavelReview === 'object' &&
+    'href' in previous.gavelReview &&
+    previous.gavelReview.href === window.location.href
+      ? { ...previous, gavelReview: { ...previous.gavelReview, href: url.href } }
+      : previous;
+  if (mode === 'push') window.history.pushState(state, '', url);
+  else window.history.replaceState(state, '', url);
+}
+
+function setReviewParams(params: URLSearchParams, selection: ReviewSelection): void {
+  if (selection.reviewName !== undefined) {
+    params.set('review', selection.reviewName);
+    for (const parameter of ['base', 'target', 'baseMode', 'retainedReview']) {
+      params.delete(parameter);
+    }
+  } else {
+    params.delete('review');
+    params.set('base', selection.baseCommitish);
+    params.set('target', selection.targetCommitish);
+    if (selection.baseMode === 'merge-base') params.set('baseMode', 'merge-base');
+    else params.delete('baseMode');
+    if (selection.retained) params.set('retainedReview', '1');
+    else params.delete('retainedReview');
+  }
+}
+
+/** A relative URL that opens another review the way its review tab does, at `fragment`. */
+export function reviewHref(selection: DiffSelection, fragment: string): string {
+  const params = new URLSearchParams();
+  setReviewParams(params, { ...selection, retained: true });
+  return `?${params}${fragment}`;
+}
+
 export function writeReviewLocation(
   selection: ReviewSelection,
   mode: 'push' | 'replace',
   resolvedSelection?: ReviewSelection,
 ): void {
   const url = new URL(window.location.href);
-  if (selection.reviewName !== undefined) {
-    url.searchParams.set('review', selection.reviewName);
-    for (const parameter of ['base', 'target', 'baseMode', 'retainedReview']) {
-      url.searchParams.delete(parameter);
-    }
-  } else {
-    url.searchParams.delete('review');
-    url.searchParams.set('base', selection.baseCommitish);
-    url.searchParams.set('target', selection.targetCommitish);
-    if (selection.baseMode === 'merge-base') url.searchParams.set('baseMode', 'merge-base');
-    else url.searchParams.delete('baseMode');
-    if (selection.retained) url.searchParams.set('retainedReview', '1');
-    else url.searchParams.delete('retainedReview');
-  }
-  // Preserve unrelated URL parameters, fragments and history state.
+  setReviewParams(url.searchParams, selection);
+  // Preserve unrelated URL parameters, fragments and history state, except that a comment
+  // link's place belongs to the review it was in.
+  if (url.search !== window.location.search) url.hash = withoutLinkPlace(url.hash);
   if (mode === 'replace' && url.href === window.location.href && !resolvedSelection) return;
   const previous: unknown = window.history.state;
   const state = resolvedSelection

@@ -71,6 +71,12 @@ they may be reading it on another device.
    short explanation with `--why`. Add reading-guide comments with repeatable
    `--comment` arguments: where to start, surprising behavior, and verified
    findings. Anchor each point to its line; skip self-explanatory code.
+   On a review longer than a few hunks, link the comments into a tour: give
+   each thread an `id` unique across the server's reviews (prefix the review
+   name) and link in Markdown with `[next](#thread=<id>)`,
+   `[parser](#file=<path>&line=40-52)` (add `&side=old` for deleted lines), or
+   `[API half](?review=<name>#thread=<id>)`. A named review holds only its
+   captured hunks; link only to lines inside them.
    The viewer's **About** panel names the agent, thread title, and thread ID
    that launched the review. gavel fills in the agent (such as `Codex desktop`,
    from this thread's rollout `originator`) and `$CODEX_THREAD_ID` itself;

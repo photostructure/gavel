@@ -16,7 +16,7 @@ import {
   createNavigationFilters,
   createScrollToElement,
 } from './keyboardNavigation';
-import type { CommentNavigationItem } from './keyboardNavigation/types';
+import type { CommentNavigationItem, CursorScroll } from './keyboardNavigation/types';
 import { getStartPosition, findNextMatchingPosition } from './keyboardNavigation/navigationCore';
 
 /**
@@ -306,7 +306,7 @@ export function useKeyboardNavigation({
 
   // Set cursor position from external source (e.g., mouse click)
   const setCursorPosition = useCallback(
-    (position: CursorPosition | null) => {
+    (position: CursorPosition | null, scroll: CursorScroll = 'auto') => {
       if (!position) {
         setCursor(null);
         return;
@@ -314,7 +314,7 @@ export function useKeyboardNavigation({
       // Fix the side if necessary
       const fixedPosition = fixSide(position, files);
       setCursor(fixedPosition);
-      scrollToElement(getElementId(fixedPosition, viewMode));
+      if (scroll !== 'none') scrollToElement(getElementId(fixedPosition, viewMode), scroll);
     },
     [files, viewMode, scrollToElement],
   );

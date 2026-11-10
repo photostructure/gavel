@@ -217,6 +217,13 @@ Use `old` for deletions, `new` for target lines, and a line number or
 - Label suggested refactors as suggestions and explain why they would help.
 - Prefix verified defects with “Finding:” to distinguish them from navigation.
 
+On a review longer than a few hunks, link the comments into a tour. Give each
+thread an `id` unique across the server's reviews (prefix the review name) and link
+in Markdown: `[next](#thread=<id>)`, `[parser](#file=<path>&line=40-52)` (add
+`&side=old` for deleted lines), or `[API half](?review=<name>#thread=<id>)`. Back
+returns to the linking comment, and a link gavel cannot follow shows a notice. A
+named review holds only its captured hunks; link only to lines inside them.
+
 Skip self-explanatory lines, use the user's language, and keep credentials out.
 Supply `--commit-message` as a Conventional Commit and `--why` as one to three
 sentences explaining the problem and solution. For others' work, identify inferred

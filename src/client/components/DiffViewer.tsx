@@ -10,12 +10,12 @@ import {
 } from '../../types/diff';
 import { FileLevelTokensProvider } from '../contexts/FileLevelTokensContext';
 import { type CursorPosition } from '../hooks/keyboardNavigation';
-import { useLineDraftAnchors } from '../hooks/useCommentDrafts';
+import { useLineDraftAnchors, type LineDraftAnchor } from '../hooks/useCommentDrafts';
 import { type MergedChunk } from '../hooks/useExpandedLines';
 import { useFileLevelTokens } from '../hooks/useFileLevelTokens';
 import { isWholeFileHighlightExtension } from '../utils/languageDetection';
 import { TextDiffViewer } from '../viewers/TextDiffViewer';
-import { getViewerForFile } from '../viewers/registry';
+import { fileCanExpandHiddenLines, getViewerForFile } from '../viewers/registry';
 import type { DiffViewerBodyProps } from '../viewers/types';
 
 import type { CommentSubmitOptions } from './CommentForm';
@@ -93,6 +93,9 @@ interface DiffViewerProps {
   } | null;
   onCommentTriggerHandled?: () => void;
   diffVersion?: number;
+  // A jump to a line of this file that waits for the line to show (a comment link's
+  // target); its hidden context opens the way a thread's does.
+  pendingJump?: LineDraftAnchor | null;
 }
 
 type LineRange = { start: number; end: number };
@@ -236,6 +239,7 @@ export const DiffViewer = memo(function DiffViewer({
   prefetchFileContent,
   isExpandLoading,
   diffVersion,
+  pendingJump,
 }: DiffViewerProps) {
   const isCollapsed = collapsedFiles.has(file.path);
   // Expanded context does not survive a reload or a review switch, so a line draft
@@ -250,16 +254,19 @@ export const DiffViewer = memo(function DiffViewer({
         side: anchor.side,
         line: anchor.lineNumber,
       })),
+      ...(pendingJump ? [{ side: pendingJump.side, line: pendingJump.lineNumber }] : []),
     ],
-    [threads, lineDraftAnchors, mergedChunks],
+    [threads, lineDraftAnchors, mergedChunks, pendingJump],
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
 
   const viewer = getViewerForFile(file);
-  const hasBlobContent =
-    !contextUnavailable && baseCommitish !== 'stdin' && targetCommitish !== 'stdin';
-  const canExpandHiddenLines = hasBlobContent && (viewer.canExpandHiddenLines?.(file) ?? false);
+  const canExpandHiddenLines = fileCanExpandHiddenLines(file, {
+    contextUnavailable,
+    baseCommitish,
+    targetCommitish,
+  });
   // -1 after the last hunk means the file length isn't known yet, so lines may still be hidden.
   const hasHiddenLines = mergedChunks.some(
     (chunk) => chunk.hiddenLinesBefore > 0 || chunk.hiddenLinesAfter !== 0,

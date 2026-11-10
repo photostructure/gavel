@@ -565,6 +565,7 @@ export function CommentsListModal({
                             >
                               <CommentThreadCard
                                 readOnly={group.review !== null}
+                                linkReview={group.review?.selection}
                                 onEscapeKeepingDraft={onClose}
                                 unreadCount={unreadByThread.get(thread.id)?.length ?? 0}
                                 onReadUnread={() => {

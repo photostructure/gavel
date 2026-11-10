@@ -55,7 +55,7 @@ export interface UseKeyboardNavigationReturn {
   cursor: CursorPosition | null;
   isHelpOpen: boolean;
   setIsHelpOpen: (open: boolean) => void;
-  setCursorPosition: (position: CursorPosition | null) => void;
+  setCursorPosition: (position: CursorPosition | null, scroll?: CursorScroll) => void;
   rememberFilePosition: (fileIndex: number) => void;
 }
 
@@ -76,3 +76,6 @@ export const SCROLL_CONSTANTS = {
   /** Position element at 1/3 from top of viewport */
   VIEWPORT_OFFSET_RATIO: 1 / 3,
 } as const;
+
+/** How moving the cursor scrolls to it; 'none' moves it without scrolling. */
+export type CursorScroll = ScrollBehavior | 'none';
