@@ -17,6 +17,9 @@ export function AboutPanel({
   onClose: () => void;
   onShowShortcuts: () => void;
 }) {
+  // vite.config.ts sets these only when `vite build` makes a development build.
+  const buildCommit = import.meta.env.VITE_GAVEL_BUILD_COMMIT;
+  const buildDiffHash = import.meta.env.VITE_GAVEL_BUILD_DIFF_HASH;
   const panel = useRef<HTMLDivElement>(null);
   const { enableScope, disableScope } = useHotkeysContext();
   useEffect(() => {
@@ -103,6 +106,20 @@ export function AboutPanel({
                 </span>
               )}
             </dd>
+            {buildCommit !== undefined && (
+              <>
+                <dt className="mt-2 ui-heading">Built from commit</dt>
+                <dd className="font-mono select-text ui-value">{buildCommit}</dd>
+                <dt className="mt-2 ui-heading">Uncommitted changes</dt>
+                {buildDiffHash ? (
+                  <dd className="font-mono break-all select-text ui-value">
+                    sha256 {buildDiffHash}
+                  </dd>
+                ) : (
+                  <dd className="ui-value">None</dd>
+                )}
+              </>
+            )}
           </dl>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <button
