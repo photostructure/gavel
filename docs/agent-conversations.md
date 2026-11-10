@@ -80,7 +80,9 @@ review's proposal; use named captures for stable scope.
 An update can instead use `--capture /tmp/next-capture.json` and repeatable
 `--select` IDs, or `gavel review update parser-fix - --port 4966
 --expected-version 1 < /tmp/selected.patch`. Capture updates are explicit: source
-edits and browser refresh leave the displayed patch unchanged.
+edits and browser refresh leave the displayed patch unchanged. A bare `review create`
+or `review update` exits with an error when stdin is a pipe, socket, or file; add
+`-` to supply that patch, or redirect stdin from `/dev/null` for a native capture.
 
 `GET /api/reviews/:name` returns current metadata and the file/hunk catalogue with
 `reviewId`; add `?version=<n>` to read a retained capture catalogue.

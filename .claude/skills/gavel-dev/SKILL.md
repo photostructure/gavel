@@ -36,7 +36,8 @@ the detached server's `server.background.url`, including its editor-session frag
 
 Run `review create` and `review update` from the server's worktree: captures are
 bound to the repository root. Provide `- < <patch>` for each additional patch
-review; without `-`, creation captures that worktree's uncommitted tree.
+review; with neither `-` nor a redirect, creation captures that worktree's
+uncommitted tree.
 Make authorized source fixes in the owning checkout and refresh the review from
 the server's worktree. Committed work already on `main` uses `--no-lgtm`; commits
 not yet on `main` may still be approved for landing under the shared scope rules.

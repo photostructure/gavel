@@ -167,6 +167,20 @@ async function resolveCommandReview(
   if (patchSource === '-' && detectStdinSource() === 'tty') {
     throw new Error('Provide a unified diff via stdin for patch source -');
   }
+  // Decide from fstat alone: reading could block on a host's open pipe, and a pipe that looks
+  // empty may just be a git diff that has not written yet. detectStdinSource reports /dev/null
+  // as 'tty', so hosts that give commands no stdin keep capturing the uncommitted tree.
+  if (
+    patchSource === undefined &&
+    options.capture === undefined &&
+    !options.pathspec?.length &&
+    !options.includeUntracked &&
+    detectStdinSource() !== 'tty'
+  ) {
+    throw new Error(
+      'Stdin is a pipe or file, but no patch source was given. To review a diff from stdin, add -. To capture the uncommitted tree, redirect stdin from /dev/null or scope the capture with --pathspec or --include-untracked.',
+    );
+  }
   const patch = patchSource === '-' ? await readStdin({ strictUtf8: true }) : undefined;
   if (patch !== undefined && !patch.trim()) {
     throw new Error('No diff content received from stdin');

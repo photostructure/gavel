@@ -56,6 +56,11 @@ gavel - < changes.patch
 gavel also accepts piped input automatically. `--review` reads stdin only with an explicit `-`.
 An explicit Git target or `--pr` takes priority over automatic stdin detection.
 
+`review create` and `review update` read stdin only with an explicit `-`. Without `-`, `--capture`,
+`--pathspec`, or `--include-untracked`, they exit with an error when stdin is a pipe, socket, or file,
+so a piped patch can't be replaced by a capture of the uncommitted tree. To capture the uncommitted
+tree from a script that leaves stdin open, redirect stdin from `/dev/null`.
+
 ## Initial comments
 
 Seed a thread when launching gavel:

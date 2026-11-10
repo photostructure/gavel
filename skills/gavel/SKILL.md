@@ -168,7 +168,7 @@ Add later commits in order:
 git diff --full-index <sha>^ <sha> | <gavel-command> review create <name> - --host <host> --port <port>
 ```
 
-The `-` is required; without it, `review create` captures the uncommitted tree.
+The `-` is required; without it, `review create` exits with an error.
 Each approval covers its own review. Approving an existing commit permits landing
 it; requested fixes belong in new reviewed commits. Do not amend or rebase the
 reviewed commits without permission; remote-reachable commits remain immutable.

@@ -81,7 +81,7 @@ describe('named review CLI', () => {
     vi.mocked(capturePatch).mockReturnValue(capture);
     vi.mocked(validateCapture).mockReturnValue(capture);
     vi.mocked(selectCapture).mockReturnValue(selectedCapture);
-    vi.mocked(detectStdinSource).mockReturnValue('pipe');
+    vi.mocked(detectStdinSource).mockReturnValue('tty');
     vi.mocked(readStdin).mockResolvedValue(capture.patch);
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true })));
   });
@@ -189,6 +189,7 @@ describe('named review CLI', () => {
     { action: 'update', patch: ' \n\t' },
   ])('rejects blank stdin before $action sends a capture', async ({ action, patch }) => {
     // Ground truth: gavel - --review task rejects blank stdin with No diff content received from stdin.
+    vi.mocked(detectStdinSource).mockReturnValue('pipe');
     vi.mocked(readStdin).mockResolvedValue(patch);
     await run(
       action,
@@ -309,6 +310,7 @@ describe('named review CLI', () => {
   it.each(['create', 'update'])(
     'uses explicit stdin and repeatable selectors for %s',
     async (action) => {
+      vi.mocked(detectStdinSource).mockReturnValue('pipe');
       await run(
         action,
         'task',
@@ -340,6 +342,7 @@ describe('named review CLI', () => {
   it.each(['create', 'update'])(
     'loads a saved capture for %s without reading stdin or the working tree',
     async (action) => {
+      vi.mocked(detectStdinSource).mockReturnValue('pipe');
       const file = join(directory, 'capture.json');
       await writeFile(file, JSON.stringify(capture));
       await run(
@@ -382,8 +385,44 @@ describe('named review CLI', () => {
     },
   );
 
+  it.each([
+    { action: 'create', source: 'pipe' },
+    { action: 'create', source: 'file' },
+    { action: 'create', source: 'socket' },
+    { action: 'update', source: 'pipe' },
+    { action: 'update', source: 'file' },
+    { action: 'update', source: 'socket' },
+  ] as const)(
+    'rejects $action with $source stdin and no patch source before capturing or contacting the server',
+    async ({ action, source }) => {
+      vi.mocked(detectStdinSource).mockReturnValue(source);
+      await run(
+        action,
+        'task',
+        '--port',
+        '4983',
+        ...(action === 'update' ? ['--expected-version', '1'] : []),
+      );
+      expect(readStdin).not.toHaveBeenCalled();
+      expect(captureWorkingTree).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(error).toHaveBeenCalledWith(expect.stringMatching(/add -.*\/dev\/null/i));
+      expect(process.exitCode).toBe(1);
+    },
+  );
+
+  it.each([['--pathspec', 'src'], ['--include-untracked']])(
+    'treats %s as an intentional native capture despite piped stdin',
+    async (...flags) => {
+      vi.mocked(detectStdinSource).mockReturnValue('pipe');
+      await run('create', 'task', '--port', '4983', ...flags);
+      expect(captureWorkingTree).toHaveBeenCalledOnce();
+      expect(readStdin).not.toHaveBeenCalled();
+      expect(error).not.toHaveBeenCalled();
+    },
+  );
+
   it('rejects interactive stdin before waiting for input', async () => {
-    vi.mocked(detectStdinSource).mockReturnValue('tty');
     await run('update', 'task', '-', '--port', '4983', '--expected-version', '1');
     expect(readStdin).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();

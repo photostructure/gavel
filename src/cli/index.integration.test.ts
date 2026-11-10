@@ -10,13 +10,15 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises';
-import { watch } from 'node:fs';
+import { closeSync, openSync, watch } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { devNull, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { fetch } from 'undici';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { ServerEvent } from '../types/events.js';
 import type { DiffResponse, RevisionsResponse } from '../types/diff.js';
@@ -159,6 +161,196 @@ async function stop(child: ChildProcess): Promise<void> {
   child.kill('SIGKILL');
   await new Promise<void>((resolveClose) => child.once('close', () => resolveClose()));
 }
+
+// These run the compiled CLI because the decision depends on what fstat reports for the real fd 0.
+describe('named review stdin sources', () => {
+  const pipedPatch =
+    'diff --git a/tracked.txt b/tracked.txt\n--- a/tracked.txt\n+++ b/tracked.txt\n@@ -1 +1 @@\n-committed\n+piped\n';
+  const ambiguous = /add -.*\/dev\/null/i;
+  const requests: string[] = [];
+  let cwd: string;
+  let patchFile: string;
+  let emptyFile: string;
+  let server: Server;
+  let port: number;
+
+  const environment = () => ({
+    ...withoutGitEnvironment(process.env),
+    GIT_CONFIG_GLOBAL: devNull,
+    GIT_CONFIG_SYSTEM: devNull,
+  });
+
+  beforeAll(async () => {
+    cwd = join(directory, 'stdin-sources');
+    await mkdir(cwd);
+    const git = (...args: string[]) =>
+      execFileSync('git', args, { cwd, env: environment(), encoding: 'utf8' });
+    git('init', '-q');
+    git('config', 'user.name', 'CLI stdin fixture');
+    git('config', 'user.email', 'cli@example.invalid');
+    git('config', 'commit.gpgsign', 'false');
+    await writeFile(join(cwd, 'tracked.txt'), 'committed\n');
+    git('add', 'tracked.txt');
+    git('-c', `core.hooksPath=${devNull}`, 'commit', '-qm', 'fixture');
+    await writeFile(join(cwd, 'tracked.txt'), 'uncommitted\n');
+    patchFile = join(directory, 'stdin-sources.patch');
+    emptyFile = join(directory, 'stdin-sources-empty.patch');
+    await writeFile(patchFile, pipedPatch);
+    await writeFile(emptyFile, '');
+    server = createServer((request, response) => {
+      let body = '';
+      request.setEncoding('utf8');
+      request.on('data', (chunk: string) => {
+        body += chunk;
+      });
+      request.on('end', () => {
+        requests.push(body);
+        response.setHeader('Content-Type', 'application/json');
+        response.end('{}');
+      });
+    });
+    await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+    port = (server.address() as AddressInfo).port;
+  });
+
+  afterAll(async () => {
+    await new Promise((resolveClose) => server.close(resolveClose));
+  });
+
+  beforeEach(() => {
+    requests.length = 0;
+  });
+
+  const reviewArgs = (action: string, ...extra: string[]) => [
+    'review',
+    action,
+    'task',
+    '--host',
+    '127.0.0.1',
+    '--port',
+    String(port),
+    ...(action === 'update' ? ['--expected-version', '1'] : []),
+    ...extra,
+  ];
+
+  function finished(child: ChildProcess): Promise<{ code: number | null; stderr: string }> {
+    let stderr = '';
+    child.stderr!.setEncoding('utf8');
+    child.stderr!.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    return new Promise((resolveClose, reject) => {
+      child.once('error', reject);
+      child.once('close', (code) => resolveClose({ code, stderr }));
+    });
+  }
+
+  function runWithStdin(stdin: 'ignore' | 'pipe' | number, args: string[]) {
+    const child = spawn(process.execPath, [entrypoint, ...args], {
+      cwd,
+      env: environment(),
+      stdio: [stdin, 'ignore', 'pipe'],
+    });
+    return { child, result: finished(child) };
+  }
+
+  function runWithFile(file: string, args: string[]) {
+    const descriptor = openSync(file, 'r');
+    try {
+      return runWithStdin(descriptor, args).result;
+    } finally {
+      closeSync(descriptor);
+    }
+  }
+
+  // A shell pipeline is the only way to give the child a real FIFO on fd 0: Node's own stdio
+  // pipes are sockets on POSIX.
+  function runInPipeline(output: string, args: string[]) {
+    const child = spawn(
+      '/bin/sh',
+      ['-c', 'printf %s "$OUTPUT" | "$NODE" "$ENTRY" "$@"', 'sh', ...args],
+      {
+        cwd,
+        env: { ...environment(), OUTPUT: output, NODE: process.execPath, ENTRY: entrypoint },
+        stdio: ['ignore', 'ignore', 'pipe'],
+      },
+    );
+    return finished(child);
+  }
+
+  const capturedPatch = () => {
+    expect(requests).toHaveLength(1);
+    return (JSON.parse(requests[0]!) as { capture: { patch: string } }).capture.patch;
+  };
+
+  describe.each(['create', 'update'])('review %s', (action) => {
+    it.skipIf(process.platform === 'win32').each([
+      { label: 'a piped patch', output: pipedPatch },
+      { label: 'an empty pipe', output: '' },
+    ])(
+      'rejects $label without the - marker',
+      async ({ output }) => {
+        const { code, stderr } = await runInPipeline(output, reviewArgs(action));
+        expect(code, stderr).toBe(1);
+        expect(stderr).toMatch(ambiguous);
+        expect(requests).toEqual([]);
+      },
+      15000,
+    );
+
+    it.each([
+      { label: 'a redirected patch', file: () => patchFile },
+      { label: 'a redirected empty file', file: () => emptyFile },
+    ])(
+      'rejects $label without the - marker',
+      async ({ file }) => {
+        const { code, stderr } = await runWithFile(file(), reviewArgs(action));
+        expect(code, stderr).toBe(1);
+        expect(stderr).toMatch(ambiguous);
+        expect(requests).toEqual([]);
+      },
+      15000,
+    );
+
+    it('rejects a stdin pipe that never closes instead of waiting on it', async () => {
+      const { child, result } = runWithStdin('pipe', reviewArgs(action));
+      const { code, stderr } = await result;
+      child.stdin!.destroy();
+      expect(code, stderr).toBe(1);
+      expect(stderr).toMatch(ambiguous);
+      expect(requests).toEqual([]);
+    }, 15000);
+
+    it.skipIf(process.platform === 'win32')(
+      'reads a piped patch with the - marker',
+      async () => {
+        const { code, stderr } = await runInPipeline(pipedPatch, reviewArgs(action, '-'));
+        expect(code, stderr).toBe(0);
+        expect(capturedPatch()).toContain('+piped');
+      },
+      15000,
+    );
+
+    it('captures the uncommitted tree when stdin is the null device', async () => {
+      const { code, stderr } = await runWithStdin('ignore', reviewArgs(action)).result;
+      expect(code, stderr).toBe(0);
+      expect(capturedPatch()).toContain('+uncommitted');
+    }, 15000);
+
+    it.skipIf(process.platform === 'win32').each([
+      { label: '--pathspec', flags: ['--pathspec', 'tracked.txt'] },
+      { label: '--include-untracked', flags: ['--include-untracked'] },
+    ])(
+      'captures the uncommitted tree with $label despite a pipe',
+      async ({ flags }) => {
+        const { code, stderr } = await runInPipeline(pipedPatch, reviewArgs(action, ...flags));
+        expect(code, stderr).toBe(0);
+        expect(capturedPatch()).toContain('+uncommitted');
+      },
+      15000,
+    );
+  });
+});
 
 describe('actual CLI launch protocol', () => {
   it.each([

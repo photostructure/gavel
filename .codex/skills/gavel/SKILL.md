@@ -110,7 +110,7 @@ the stack in creation order, each commit once its own review is approved.
 For a stack of commits that already exist, launch the first as
 `<sha>` with `--commit-message <its message>`, add each later one with
 `git diff --full-index <sha>^ <sha> | <launcher> review create <name> - --host <host> --port <port>`
-(without the `-`, `review create` captures the uncommitted tree instead), and
+(without the `-`, `review create` exits with an error), and
 give each its own message with `comment summary`. Approve as-is on an existing
 commit approves it for landing, with nothing to commit. Fixes that Approve
 after comments asks for go in a new commit on top of the branch, reviewed like
