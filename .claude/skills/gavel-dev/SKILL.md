@@ -26,6 +26,17 @@ or to this checkout while other sessions are editing it, skip the build:
 use its existing built assets and tell the user which
 checkout supplies them. This may proceed for diff review; if the review requires
 new UI behavior absent from that build, stop and report the build limitation.
+To tell whether that build matches the checkout's current tree, run
+`node dev/build-info.js` there and compare its `commit` and `diffHash` with
+**About**'s **Built from commit** and **Uncommitted changes** (`null` shows as
+**None**). Without a browser, run `grep -lF <value> dist/client/assets/index-*.js`
+in that checkout once with the `commit` and once with the `diffHash`; the build
+matches only when both print a file. Grep cannot check a clean tree, whose
+`diffHash` is `null`, so check **About** then. A match means `vite build` ran on
+the current tree; `pnpm build` compiles `dist/cli` just before it, but a lone
+`vite build` leaves `dist/cli` unchecked. A mismatch means something changed since
+the build, possibly only another session's edit. A build without those rows is a
+release build or predates them.
 Otherwise run `pnpm build` in the chosen checkout before opening human review.
 Report build failures as failures, not as the user being away.
 

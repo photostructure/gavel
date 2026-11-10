@@ -10,8 +10,16 @@ metadata:
 Read [the Codex gavel skill](../gavel/SKILL.md) and follow its scoped capture,
 feedback, approval, and handoff workflow. Use the user's prescribed launcher;
 otherwise use `node dist/cli/index.js` from the Git root. Never substitute another
-install when a launcher is prescribed. Split a large change into several reviews by that skill's size limits
-and grouping rules. For stacked commits, follow its rule
+install when a launcher is prescribed. A launcher serves its checkout's existing
+`dist/`. To tell whether that build matches the checkout's current tree, run
+`node dev/build-info.js` there, then
+`grep -lF <value> dist/client/assets/index-*.js` once with its `commit` and once
+with its `diffHash`; the build matches only when both print a file. **About**
+shows the same values as **Built from commit** and **Uncommitted changes**; check
+it when `diffHash` is `null`, which shows as **None**. A match covers what
+`vite build` saw; `pnpm build` compiles `dist/cli` just before it, but a lone
+`vite build` leaves `dist/cli` unchecked. Split a large change into several reviews by
+that skill's size limits and grouping rules. For stacked commits, follow its rule
 of one named review per commit on one server, in commit order, with one link.
 
 For routine human review, use a detached `--background` server or reuse an
