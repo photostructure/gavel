@@ -165,14 +165,14 @@ describe('verdict control', () => {
     expect(onNotYet).not.toHaveBeenCalled();
   });
 
-  // Red text measured 3.75:1 on the dark menu, the faintness rejected on the buttons; the icon
+  // Violet text measures 3.75:1 on the dark menu, the faintness rejected on the buttons; the icon
   // carries the color instead.
-  it('keeps the menu Not yet label at full contrast, red only in its icon', () => {
+  it('keeps the menu Not yet label at full contrast, violet only in its icon', () => {
     render(<VerdictControl {...props} />);
     openMenu();
     const item = screen.getByRole('button', { name: /^Not yet Send/ });
-    expect(item.className).not.toMatch(/text-github-danger/);
-    expect(item.querySelector('svg')).toHaveClass('text-github-danger');
+    expect(item.className).not.toMatch(/text-verdict-not-yet/);
+    expect(item.querySelector('svg')).toHaveClass('text-verdict-not-yet');
   });
 
   // A double-click's second click lands on the button the first one pressed; it must not clear
@@ -208,13 +208,13 @@ describe('verdict control', () => {
     expect(onRevoke).toHaveBeenCalledTimes(2);
   });
 
-  // Green or red text on the dark button measured about 3.3:1, too faint to read, so hover
+  // Green or violet text on the dark button measures about 3.3:1, too faint to read, so hover
   // tints only the border and the text keeps full contrast.
   it('keeps idle verdict buttons neutral, tinting only their border on hover', () => {
     render(<VerdictControl {...props} />);
     const notYet = buttons().getByRole('button', { name: 'Not yet' });
     const asIs = buttons().getByRole('button', { name: 'Approve as-is' });
-    expect(notYet).toHaveClass('bg-github-bg-tertiary', 'enabled:hover:border-github-danger');
+    expect(notYet).toHaveClass('bg-github-bg-tertiary', 'enabled:hover:border-verdict-not-yet');
     expect(asIs).toHaveClass('enabled:hover:border-github-accent');
     // Yellow, like its fill once chosen.
     const afterComments = buttons().getByRole('button', { name: 'Approve after comments' });
@@ -222,7 +222,7 @@ describe('verdict control', () => {
     expect(afterComments.className).not.toMatch(/hover:border-github-accent/);
     for (const button of [notYet, asIs, afterComments]) {
       expect(button).toHaveClass('text-github-text-primary');
-      expect(button.className).not.toMatch(/(^| )(text|border|bg)-github-(danger|accent)/);
+      expect(button.className).not.toMatch(/(^| )(text|border|bg)-(verdict-not-yet|github-accent)/);
       expect(button.className).not.toMatch(/hover:text-/);
     }
   });

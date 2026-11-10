@@ -18,18 +18,18 @@ export const verdictButtonClasses =
   'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-60';
 const idleClasses = 'border-github-border bg-github-bg-tertiary text-github-text-primary';
 // Idle buttons look alike, so none reads as already chosen; hover shows which way each goes.
-// Only the border tints (doubled by an inset ring): green or red text on this background is
+// Only the border tints (doubled by an inset ring): green or violet text on this background is
 // too faint to read.
 const approveIdleClasses = `${idleClasses} enabled:hover:border-github-accent enabled:hover:shadow-[inset_0_0_0_1px_var(--color-github-accent)]`;
 // Yellow, like its fill once chosen.
 const afterCommentsIdleClasses = `${idleClasses} enabled:hover:border-verdict-after-comments enabled:hover:shadow-[inset_0_0_0_1px_var(--color-verdict-after-comments)]`;
-const notYetIdleClasses = `${idleClasses} enabled:hover:border-github-danger enabled:hover:shadow-[inset_0_0_0_1px_var(--color-github-danger)]`;
+const notYetIdleClasses = `${idleClasses} enabled:hover:border-verdict-not-yet enabled:hover:shadow-[inset_0_0_0_1px_var(--color-verdict-not-yet)]`;
 const approvedClasses = 'border-github-accent bg-github-accent text-white';
 // A chosen approval after comments is filled yellow, with dark text because white on this
 // yellow measures 1.57:1. It stays yellow: comments may live outside gavel, so this verdict
 // neither counts them nor changes on its own.
 const afterCommentsClasses = 'border-yellow-400 bg-yellow-400 text-gray-900';
-const notYetClasses = 'border-github-danger bg-github-danger text-white';
+const notYetClasses = 'border-verdict-not-yet bg-verdict-not-yet text-white';
 const clearTitle = 'Clear this verdict';
 
 /**
@@ -185,8 +185,8 @@ export function VerdictControl({
             onClick={onNotYet}
             className="w-full rounded p-2 text-left hover:bg-github-bg-tertiary disabled:opacity-60"
           >
-            {/* Red text is too faint on the dark menu, so the icon carries the color. */}
-            <X size={14} aria-hidden="true" className="mr-1 inline text-github-danger" />
+            {/* Violet text is too faint on the dark menu, so the icon carries the color. */}
+            <X size={14} aria-hidden="true" className="mr-1 inline text-verdict-not-yet" />
             Not yet
             <span className="block text-xs text-github-text-secondary">
               Send it back: the agent revises it and asks again.

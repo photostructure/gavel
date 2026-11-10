@@ -137,7 +137,7 @@ describe('review queue bar', () => {
     expect(docs).toHaveClass('verdict-pulse-0');
   });
 
-  // The same hue as the chosen verdict button: green as-is, yellow after comments, red not yet.
+  // The same hue as the chosen verdict button: green as-is, yellow after comments, violet not yet.
   it('colors each tab mark, and the open tab, like its verdict button', () => {
     const afterComments: ReviewApproval = {
       approved: true,
@@ -165,13 +165,13 @@ describe('review queue bar', () => {
       'text-verdict-after-comments',
       'lucide-message-square-more',
     );
-    expect(mark('docs')).toHaveClass('text-github-danger');
+    expect(mark('docs')).toHaveClass('text-verdict-not-yet');
     expect(mark('none')).toHaveClass('text-github-text-muted');
     const open = () => screen.getByRole('button', { current: 'page' });
     expect(open()).toHaveClass('border-t-verdict-after-comments');
     for (const [index, border] of [
       [0, 'border-t-github-accent'],
-      [2, 'border-t-github-danger'],
+      [2, 'border-t-verdict-not-yet'],
       // No verdict yet: neutral, since green would read as approval.
       [3, 'border-t-github-text-secondary'],
       [4, 'border-t-verdict-after-comments'],
@@ -200,7 +200,7 @@ describe('review queue bar', () => {
     expect(allReviews('All reviews 1 approved, 1 not yet, 1 needs a verdict')).toBeVisible();
     const tests = screen.getByRole('button', { name: 'tests, Not yet' });
     expect(tests.querySelector('[data-verdict="not-yet"]')).not.toBeNull();
-    expect(bar().querySelector('[data-verdict-segment].bg-github-danger')).not.toBeNull();
+    expect(bar().querySelector('[data-verdict-segment].bg-verdict-not-yet')).not.toBeNull();
   });
 
   it('draws a bar segment for each verdict some review has, sized by its count', () => {

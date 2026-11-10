@@ -32,7 +32,7 @@ const isApprovedAfterComments = ({ requested, mode }: ReviewApproval) =>
 // deuteranopia mode after-comments is violet here while its chosen button stays yellow.
 const verdictColor = (approval: ReviewApproval) =>
   approval.notYet
-    ? { text: 'text-github-danger', topBorder: 'border-t-github-danger' }
+    ? { text: 'text-verdict-not-yet', topBorder: 'border-t-verdict-not-yet' }
     : isApprovedAfterComments(approval)
       ? { text: 'text-verdict-after-comments', topBorder: 'border-t-verdict-after-comments' }
       : approval.requested
@@ -63,7 +63,7 @@ const VERDICT_SEGMENTS = [
     'bg-verdict-after-comments',
     (count: number) => `${count} approved after comments`,
   ],
-  ['not-yet', 'bg-github-danger', (count: number) => `${count} not yet`],
+  ['not-yet', 'bg-verdict-not-yet', (count: number) => `${count} not yet`],
   [
     'needs-verdict',
     'bg-github-text-muted',

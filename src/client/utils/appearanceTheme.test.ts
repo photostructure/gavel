@@ -63,6 +63,20 @@ describe('appearanceTheme', () => {
     );
   });
 
+  // Violet in normal vision, because Not yet is not a stop. Deuteranopia keeps it orange, since
+  // that mode spends blue on Approve and violet on Approve after comments.
+  it.each([
+    ['normal', 'dark', '#8957e5'],
+    ['normal', 'light', '#8250df'],
+    ['deuteranopia', 'dark', '#d29922'],
+    ['deuteranopia', 'light', '#bf8700'],
+  ] as const)('colors Not yet in %s vision on %s', (colorVision, theme, color) => {
+    saveClientSettings({ appearance: { colorVision, theme } });
+
+    bootstrapAppearanceTheme();
+    expect(document.documentElement.style.getPropertyValue('--color-verdict-not-yet')).toBe(color);
+  });
+
   // Yellow and this mode's orange Not yet measure 1.60:1 on dark and 1.57:1 on light, too close
   // for two verdicts that mean opposite things.
   it.each([
