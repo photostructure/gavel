@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DiffMode, type ClientWatchState, type WatchEvent } from '../../types/watch.js';
-import { resolveEventSourceUrl } from '../utils/eventSourceUrl';
+import { subscribeLive } from '../utils/liveConnection';
 
 interface FileWatchHook {
   shouldReload: boolean;
@@ -30,12 +30,6 @@ export function useFileWatch(
     onSummaryChanged,
     onCaptureChanged,
   };
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 5;
-  const reconnectDelay = 3000; // 3 seconds
-
   const [watchState, setWatchState] = useState<ClientWatchState>({
     isWatchEnabled: false,
     diffMode: DiffMode.DEFAULT,
@@ -48,34 +42,21 @@ export function useFileWatch(
 
   const [error, setError] = useState<string | null>(null);
 
-  const connectToWatch = useCallback(() => {
-    if (eventSourceRef.current) {
-      return; // Already connected
-    }
-
-    try {
-      const eventSource = new EventSource(resolveEventSourceUrl('/api/watch'));
-      eventSourceRef.current = eventSource;
-
-      eventSource.onopen = () => {
-        console.log('Connected to file watch service');
-        setWatchState((prev) => ({
-          ...prev,
-          connectionStatus: 'connected',
-        }));
-        reconnectAttemptsRef.current = 0;
-        setError(null);
-        // Recover approval changes missed while this browser was disconnected.
-        void callbacksRef.current.onApprovalChanged?.();
-        void callbacksRef.current.onSummaryChanged?.();
-        void callbacksRef.current.onCaptureChanged?.();
-      };
-
-      eventSource.onmessage = (event) => {
-        try {
-          // oxlint-disable-next-line typescript/no-unsafe-assignment
-          const data: WatchEvent = JSON.parse(event.data as string);
-
+  useEffect(
+    () =>
+      subscribeLive({
+        onOpen: () => {
+          console.log('Connected to file watch service');
+          setWatchState((prev) => ({ ...prev, connectionStatus: 'connected' }));
+          setError(null);
+          // Recover approval changes missed while this browser was disconnected.
+          void callbacksRef.current.onApprovalChanged?.();
+          void callbacksRef.current.onSummaryChanged?.();
+          void callbacksRef.current.onCaptureChanged?.();
+        },
+        onMessage: (message) => {
+          if (message.channel !== 'watch') return;
+          const data: WatchEvent = message.event;
           switch (data.type) {
             case 'connected':
               setWatchState((prev) => ({
@@ -114,50 +95,18 @@ export function useFileWatch(
               void callbacksRef.current.onSummaryChanged?.();
               break;
           }
-        } catch (parseError) {
-          console.error('Error parsing watch event:', parseError);
-        }
-      };
-
-      eventSource.onerror = () => {
-        console.log('File watch connection lost');
-        setWatchState((prev) => ({
-          ...prev,
-          connectionStatus: 'disconnected',
-        }));
-
-        // Close the current connection
-        if (eventSourceRef.current) {
-          eventSourceRef.current.close();
-          eventSourceRef.current = null;
-        }
-
-        // Attempt to reconnect
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+        },
+        onLost: (retrying) => {
+          console.log('File watch connection lost');
           setWatchState((prev) => ({
             ...prev,
-            connectionStatus: 'reconnecting',
+            connectionStatus: retrying ? 'reconnecting' : 'disconnected',
           }));
-
-          reconnectAttemptsRef.current += 1;
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            console.log(
-              `Attempting to reconnect to file watch service (${reconnectAttemptsRef.current}/${maxReconnectAttempts})...`,
-            );
-            // oxlint-disable-next-line react-hooks-js/immutability -- connectToWatch is defined when setTimeout callback runs
-            connectToWatch();
-          }, reconnectDelay);
-        } else {
-          console.error('Max reconnection attempts reached');
-          setError('Lost connection to file watch service');
-        }
-      };
-    } catch (connectionError) {
-      console.error('Failed to connect to file watch service:', connectionError);
-      setError('Failed to connect to file watch service');
-    }
-  }, [maxReconnectAttempts, reconnectDelay]);
+          if (!retrying) setError('Lost connection to file watch service');
+        },
+      }),
+    [],
+  );
 
   const handleReload = useCallback(async () => {
     if (watchState.isReloading) {
@@ -192,30 +141,6 @@ export function useFileWatch(
       }));
     }
   }, [onReload, watchState.isReloading]);
-
-  const cleanup = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-  };
-
-  // Initialize connection
-  useEffect(() => {
-    connectToWatch();
-
-    return cleanup;
-  }, [connectToWatch]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return cleanup;
-  }, []);
 
   return {
     shouldReload: watchState.shouldReload,

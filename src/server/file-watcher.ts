@@ -1,6 +1,5 @@
 import { join, resolve } from 'path';
 
-import { type Response } from 'express';
 import { type SimpleGit } from 'simple-git';
 
 import { DiffMode, type WatchEvent } from '../types/watch.js';
@@ -51,9 +50,14 @@ const MODE_WATCH_CONFIGS: Record<DiffMode, ModeWatchConfig> = {
   },
 };
 
+/** A browser tab's live connection, which receives every watch event. */
+export interface WatchClient {
+  send(event: WatchEvent): void;
+}
+
 export class FileWatcherService {
   private subscriptions: Array<{ unsubscribe: () => Promise<void> }> = [];
-  private clients: Response[] = [];
+  private clients: WatchClient[] = [];
   private debounceTimer: NodeJS.Timeout | null = null;
   private config: FileWatcherConfig | null = null;
   private git: SimpleGit | null = null;
@@ -245,11 +249,11 @@ export class FileWatcherService {
     this.clients = [];
   }
 
-  addClient(res: Response): void {
-    this.clients.push(res);
+  addClient(client: WatchClient): void {
+    this.clients.push(client);
 
     // Send initial connection event
-    this.sendToClient(res, {
+    this.sendToClient(client, {
       type: 'connected',
       diffMode: this.config?.diffMode || DiffMode.DEFAULT,
       changeType: 'file',
@@ -258,8 +262,8 @@ export class FileWatcherService {
     });
   }
 
-  removeClient(res: Response): void {
-    const index = this.clients.indexOf(res);
+  removeClient(client: WatchClient): void {
+    const index = this.clients.indexOf(client);
     if (index > -1) {
       this.clients.splice(index, 1);
     }
@@ -291,9 +295,9 @@ export class FileWatcherService {
     this.broadcast(event);
   }
 
-  private sendToClient(client: Response, event: unknown): void {
+  private sendToClient(client: WatchClient, event: WatchEvent): void {
     try {
-      client.write(`data: ${JSON.stringify(event)}\n\n`);
+      client.send(event);
     } catch (error) {
       console.error('Failed to send event to client:', error);
       this.removeClient(client);

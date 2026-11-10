@@ -180,10 +180,14 @@ if [ "$MODE" != desktop ]; then
 fi
 [ -n "$PORT" ] || fail "--port is required for desktop mode"
 
-# Hold reviewer presence open the way a browser tab does.
-curl -sN "http://$HOST:$PORT/api/heartbeat?tab=e2e&visible=true" > /dev/null &
+# Hold reviewer presence open the way a browser tab does: one WebSocket on /api/live.
+node -e 'const live = new WebSocket(process.argv[1]); live.onclose = () => process.exit(1);' \
+  "ws://$HOST:$PORT/api/live?tab=e2e&visible=true" &
 HEARTBEAT=$!
 PIDS+=("$HEARTBEAT")
+connected() { curl -s "http://$HOST:$PORT/api/presence" | jq -r .reviewers.connected; }
+for _ in $(seq 20); do [ "$(connected)" -ge 1 ] && break; sleep 0.5; done
+[ "$(connected)" -ge 1 ] || fail "the simulated browser tab did not connect"
 
 if [ "$MODE" = selftest ]; then
   # No model: check the fixture, the posting helpers, and gavel wait itself.

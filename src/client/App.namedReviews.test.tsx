@@ -8,6 +8,7 @@ import type { DiffCommentThread, DiffResponse, ReviewContext } from '../types/di
 import type { NamedReviewMetadata } from '../types/review';
 
 import App from './App';
+import { MockWebSocket } from './utils/liveConnection.testing';
 import { storageService } from './services/StorageService';
 import { copyTextToClipboard } from './utils/clipboard';
 
@@ -235,12 +236,7 @@ describe('named captures in the browser', () => {
     watch.captureChanged = undefined;
     watch.commentsChanged = undefined;
     watch.reload = undefined;
-    vi.stubGlobal(
-      'EventSource',
-      class {
-        close() {}
-      },
-    );
+    vi.stubGlobal('WebSocket', MockWebSocket);
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -1241,12 +1237,7 @@ describe('after a verdict', () => {
     window.history.replaceState(null, '', '/?review=task-a');
     vi.mocked(fetch).mockReset();
     watch.approvalChanged = undefined;
-    vi.stubGlobal(
-      'EventSource',
-      class {
-        close() {}
-      },
-    );
+    vi.stubGlobal('WebSocket', MockWebSocket);
     // Fake timers that still advance with real time, so waitFor keeps polling.
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });

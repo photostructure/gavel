@@ -1,6 +1,6 @@
 import { toCommentThread } from '../utils/commentThreads.js';
 import { spawn } from 'child_process';
-import { createHash, randomBytes, timingSafeEqual } from 'crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { type Server } from 'http';
 import type { AddressInfo } from 'net';
 import { hostname } from 'os';
@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 
 import express, { type Express, type ErrorRequestHandler } from 'express';
 import open from 'open';
+import { WebSocket, WebSocketServer } from 'ws';
 
 import type {
   ReviewApproval,
@@ -24,7 +25,13 @@ import { openReviewStore, savedReviewKey, type SavedReview } from './review-stor
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-import { type DiffMode } from '../types/watch.js';
+import { type DiffMode, type WatchEvent } from '../types/watch.js';
+import {
+  LIVE_OTHER_SERVER,
+  LIVE_PATH,
+  type LiveServerMessage,
+  type LiveVisibilityMessage,
+} from '../types/live.js';
 import { formatCommentsOutput } from '../utils/commentFormatting.js';
 import {
   mergeCommentImports,
@@ -2029,99 +2036,10 @@ export async function startServer(options: ServerOptions): Promise<{
     });
   }
 
-  // SSE endpoint for file watching
-  app.get('/api/watch', (req, res) => {
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-    });
-
-    fileWatcher.addClient(res);
-
-    req.on('close', () => {
-      fileWatcher.removeClient(res);
-    });
-  });
-
   app.get('/api/presence', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json(presence.snapshot());
   });
-  app.post('/api/presence', (req, res) => {
-    const input = req.body as { tab?: unknown; visible?: unknown } | null;
-    if (
-      !req.is('application/json') ||
-      !input ||
-      typeof input.tab !== 'string' ||
-      !/^[\w-]{1,100}$/.test(input.tab) ||
-      typeof input.visible !== 'boolean'
-    ) {
-      res.status(400).json({ error: 'Expected tab ID and visible boolean as JSON' });
-      return;
-    }
-    presence.updateReviewer(input.tab, input.visible);
-    res.json({ success: true });
-  });
-
-  // Existing heartbeat clients remain compatible; new clients also receive presence.
-  app.get('/api/heartbeat', (req, res) => {
-    const tab = req.query.tab;
-    const visible = req.query.visible;
-    if (
-      (tab !== undefined && (typeof tab !== 'string' || !/^[\w-]{1,100}$/.test(tab))) ||
-      (visible !== undefined && visible !== 'true' && visible !== 'false')
-    ) {
-      res.status(400).json({ error: 'Expected an optional tab ID and visible=true or false' });
-      return;
-    }
-    clearTimeout(reviewerDisconnectTimer);
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-    });
-
-    // Send initial heartbeat
-    res.write('data: connected\n\n');
-    const unsubscribe = presence.subscribe((snapshot) => {
-      res.write(`data: ${JSON.stringify({ type: 'presence', presence: snapshot })}\n\n`);
-    });
-    const disconnectReviewer = presence.connectReviewer(tab, visible === 'true');
-
-    // Send heartbeat every 5 seconds
-    const heartbeatInterval = setInterval(() => {
-      res.write('data: heartbeat\n\n');
-    }, 5000);
-
-    // When client disconnects (tab closed, navigation, etc.)
-    res.on('close', () => {
-      clearInterval(heartbeatInterval);
-      unsubscribe();
-      disconnectReviewer();
-      if (closing) return;
-      if (options.keepAlive) {
-        console.error('Client disconnected, but server is staying alive (--keep-alive)');
-        console.error('Press Ctrl+C to stop the server');
-      } else if (presence.snapshot().reviewers.connected === 0) {
-        // Add a small delay to ensure any pending sendBeacon requests are processed
-        reviewerDisconnectTimer = setTimeout(async () => {
-          if (presence.snapshot().reviewers.connected > 0) return;
-          console.error('Client disconnected, shutting down server...');
-
-          // Stop file watcher
-          await fileWatcher.stop();
-
-          outputFinalComments();
-          outputShutdown('client-disconnected');
-          process.stdout.write('', () => process.exit(0));
-        }, 100);
-      }
-    });
-  });
-
   // Always runs in production mode when distributed as a CLI tool
   const isProduction =
     process.env.NODE_ENV === 'production' || process.env.NODE_ENV !== 'development';
@@ -2155,6 +2073,101 @@ export async function startServer(options: ServerOptions): Promise<{
     options.preferredPort ?? 4966,
     options.host || 'localhost',
   );
+  // Live connections are WebSocket upgrades, which Express routes never see.
+  const liveServerId = randomUUID();
+  const liveSockets = new WebSocketServer({ noServer: true });
+  server.on('upgrade', (request, socket, head) => {
+    // Express handles errors only for its own routes; an unhandled socket error crashes Node.
+    socket.on('error', () => socket.destroy());
+    const refuse = (status: string) =>
+      socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\n\r\n`);
+    let requestUrl: URL;
+    try {
+      requestUrl = new URL(request.url ?? '/', 'http://gavel.invalid');
+    } catch {
+      refuse('400 Bad Request');
+      return;
+    }
+    const tab = requestUrl.searchParams.get('tab');
+    const visible = requestUrl.searchParams.get('visible');
+    if (
+      requestUrl.pathname !== LIVE_PATH ||
+      !tab ||
+      !/^[\w-]{1,100}$/.test(tab) ||
+      (visible !== 'true' && visible !== 'false')
+    ) {
+      refuse('400 Bad Request');
+      return;
+    }
+    liveSockets.handleUpgrade(request, socket, head, (live) => {
+      // ws reports a malformed frame as an error event, even on a socket being refused.
+      live.on('error', () => live.terminate());
+      const expectedServer = requestUrl.searchParams.get('server');
+      // A reconnecting tab can reach another review's server on a reused port.
+      if (expectedServer && expectedServer !== liveServerId) {
+        live.close(LIVE_OTHER_SERVER, 'different server');
+        return;
+      }
+      connectLiveTab(live, tab, visible === 'true');
+    });
+  });
+
+  const isVisibilityMessage = (message: unknown): message is LiveVisibilityMessage =>
+    typeof message === 'object' &&
+    message !== null &&
+    (message as { type?: unknown }).type === 'visibility' &&
+    typeof (message as { visible?: unknown }).visible === 'boolean';
+
+  function connectLiveTab(live: WebSocket, tab: string, visible: boolean) {
+    clearTimeout(reviewerDisconnectTimer);
+    const send = (message: LiveServerMessage) => {
+      if (live.readyState === WebSocket.OPEN) live.send(JSON.stringify(message));
+    };
+    send({ channel: 'hello', serverId: liveServerId });
+    const watchClient = { send: (event: WatchEvent) => send({ channel: 'watch', event }) };
+    fileWatcher.addClient(watchClient);
+    const unsubscribe = presence.subscribe((snapshot) =>
+      send({ channel: 'presence', presence: snapshot }),
+    );
+    const disconnectReviewer = presence.connectReviewer(tab, visible);
+    // Pings keep proxies and tunnels from closing an idle connection.
+    const pings = setInterval(() => live.ping(), 5000);
+    live.on('message', (data) => {
+      let message: unknown;
+      try {
+        message = JSON.parse(String(data));
+      } catch {
+        message = undefined;
+      }
+      if (!isVisibilityMessage(message)) {
+        live.close(1003, 'expected a visibility message');
+        return;
+      }
+      presence.updateReviewer(tab, message.visible);
+    });
+    live.on('close', () => {
+      clearInterval(pings);
+      fileWatcher.removeClient(watchClient);
+      unsubscribe();
+      disconnectReviewer();
+      if (closing) return;
+      if (options.keepAlive) {
+        console.error('Client disconnected, but server is staying alive (--keep-alive)');
+        console.error('Press Ctrl+C to stop the server');
+      } else if (presence.snapshot().reviewers.connected === 0) {
+        // Give a reloading tab a moment to reconnect before shutting down.
+        reviewerDisconnectTimer = setTimeout(async () => {
+          if (presence.snapshot().reviewers.connected > 0) return;
+          console.error('Client disconnected, shutting down server...');
+          await fileWatcher.stop();
+          outputFinalComments();
+          outputShutdown('client-disconnected');
+          process.stdout.write('', () => process.exit(0));
+        }, 100);
+      }
+    });
+  }
+
   const launchUrl = `${url}${initialNamedReview ? `?review=${encodeURIComponent(initialNamedReview.metadata.name)}` : ''}#${EDITOR_SESSION_FRAGMENT_KEY}=${editorSessionToken}`;
 
   let shutdownEmitted = false;
@@ -2176,6 +2189,7 @@ export async function startServer(options: ServerOptions): Promise<{
       presence.dispose();
       await fileWatcher.stop();
       outputShutdown(reason);
+      for (const live of liveSockets.clients) live.terminate();
       await new Promise<void>((resolveShutdown) => {
         server.close(() => resolveShutdown());
         server.closeAllConnections();

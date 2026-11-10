@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DiffCommentThread, DiffResponse } from '../types/diff';
 import App from './App';
+import { MockWebSocket } from './utils/liveConnection.testing';
 
 vi.mock('./hooks/useFileWatch', () => ({
   useFileWatch: () => ({
@@ -35,12 +36,7 @@ describe('review conversation navigation with browser storage', () => {
   beforeEach(() => {
     localStorage.clear();
     window.history.replaceState(null, '', '/');
-    vi.stubGlobal(
-      'EventSource',
-      class {
-        close() {}
-      },
-    );
+    vi.stubGlobal('WebSocket', MockWebSocket);
   });
 
   it('retains an agent reply when returning before the next review finishes loading', async () => {

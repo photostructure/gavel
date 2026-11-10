@@ -89,7 +89,7 @@ after reconciling outstanding work and confirming the host still supports waitin
 
 `GET /api/presence`, conversation snapshots and HTTP event batches expose
 `{reviewers: {connected, visible}, listeners}`. The browser receives the same
-state over its heartbeat connection. Visibility changes update metadata without
+state over its `/api/live` WebSocket. Visibility changes update metadata without
 disconnecting the tab. Closing one of several tabs does not shut down the server.
 Connected hidden tabs count as connected; visibility does not prove attention.
 An interrupted browser connection is not approval or evidence that review is done.

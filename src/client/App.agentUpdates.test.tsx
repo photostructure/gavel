@@ -6,6 +6,7 @@ import type { DiffCommentThread } from '../types/diff';
 import type { ReviewApproval } from '../types/conversation';
 
 import App from './App';
+import { MockWebSocket } from './utils/liveConnection.testing';
 
 const callbacks = vi.hoisted(() => ({
   comments: undefined as (() => Promise<void>) | undefined,
@@ -53,12 +54,7 @@ describe('navigating unseen agent replies', () => {
     otherThreads = [];
     localStorage.clear();
     window.history.replaceState(null, '', '/?base=HEAD&target=.');
-    vi.stubGlobal(
-      'EventSource',
-      class {
-        close() {}
-      },
-    );
+    vi.stubGlobal('WebSocket', MockWebSocket);
     vi.stubGlobal(
       'IntersectionObserver',
       class {

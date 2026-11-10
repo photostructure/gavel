@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Each browser tab now keeps one WebSocket, `/api/live`, for live updates and presence, in place of the `/api/watch` and `/api/heartbeat` event streams and `POST /api/presence`. Browsers allow about six connections per server, so a third gavel tab on one server used to stay on **Loading diff...**; six tabs now load. A tab that loses its connection reconnects up to five times, but only to the same server. Proxies in front of gavel must now pass WebSocket upgrades on `/api/live`.
 - The gavel skills now tell agents to pass a short `--title` on every launch, so open servers can be told apart in the browser, and `--help` describes the option that way.
 - **Approve after comments** is now one recorded verdict: the agent acts on all the current comments and commits, and `approved` is true as soon as you choose it. Only you can clear it; new comments, recaptures, and message edits leave it in place. `gavel comment address`, `gavel schema address`, and the approval's `conditions` and `baselineCapture` fields are gone.
 - **Not yet** is now violet instead of red on its verdict button, review tabs, and the **All reviews** button, because it sends a review back for another pass rather than stopping it. Deuteranopia mode keeps it orange.

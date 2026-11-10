@@ -31,10 +31,10 @@ Use the actual port printed at startup if 4966 is occupied. From a source checko
 run `pnpm build`, then use `node dist/cli/index.js` in place of `gavel`.
 Proxy this server, which serves both the UI and `/api`, at the root of one HTTPS
 origin. The development server (`pnpm dev`, usually port 5173) can embed a localhost
-API address for event streams, so it is not the target for these recipes.
+API address for its live connection, so it is not the target for these recipes.
 
-The proxy must stream Server-Sent Events (SSE) on `/api/watch` and `/api/heartbeat`
-without buffering or caching. `--keep-alive` prevents a dropped browser connection
+The proxy must pass WebSocket upgrades on `/api/live`, which carries each tab's live
+updates and presence, and must not cache `/api/*`. `--keep-alive` prevents a dropped browser connection
 from ending the review. gavel has no built-in login: anyone who can reach the
 service can access the review and its enabled actions. Use an authenticated proxy
 for private repositories; HTTPS alone does not restrict access.
@@ -48,7 +48,7 @@ before exposing private code, and open the resulting HTTPS hostname. Keep `/api/
 uncached and confirm live updates using the checks below.
 
 [Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)
-do not support SSE and are unsuitable for live conversations.
+have not been checked with gavel's WebSocket connection.
 
 ### local-ip.sh on a LAN
 
@@ -72,7 +72,7 @@ and open `https://10-1-1-24.local-ip.sh:8443`. Caddy's `tls internal` uses a loc
 install and trust its root certificate on each reviewing device before using the
 page. Alternatively, configure a certificate trusted by those devices with Caddy's
 [`tls` directive](https://caddyserver.com/docs/caddyfile/directives/tls).
-[Caddy streams SSE responses](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#streaming).
+[Caddy passes WebSocket connections through](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#streaming).
 
 local-ip.sh also publishes a wildcard certificate and its private key. Because that
 key is public, use your own certificate for private code. The hostname alone,

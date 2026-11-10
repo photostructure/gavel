@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import { createServer } from 'node:net';
+import { connect, createServer } from 'node:net';
 import { hostname, tmpdir } from 'os';
 import { join, resolve } from 'path';
 import express from 'express';
@@ -15,6 +15,8 @@ import { createSchemaCommand } from '../cli/schema.js';
 import { createCommentCommand } from '../cli/comment.js';
 import type { ServerEvent } from '../types/events.js';
 import { DiffMode } from '../types/watch.js';
+import { LIVE_OTHER_SERVER, type LiveServerMessage } from '../types/live.js';
+import { WebSocket } from 'ws';
 import { FileWatcherService } from './file-watcher.js';
 import type { CommentImport, DiffCommentThread } from '../types/diff.js';
 import type {
@@ -151,6 +153,31 @@ vi.mock('./git-diff.js', () => {
 
   return { GitDiffParser: GitDiffParserMock };
 });
+
+const liveUrl = (url: string, query: Record<string, string>) =>
+  `${url.replace(/^http/, 'ws')}/api/live?${new URLSearchParams(query)}`;
+
+async function openLive(
+  url: string,
+  query: Record<string, string> = { tab: 'tab', visible: 'true' },
+) {
+  const live = new WebSocket(liveUrl(url, query));
+  const messages: LiveServerMessage[] = [];
+  live.on('message', (data) => messages.push(JSON.parse(String(data)) as LiveServerMessage));
+  await new Promise<void>((resolve, reject) => {
+    live.once('open', () => resolve());
+    live.once('error', reject);
+  });
+  return { live, messages };
+}
+
+function closeLive(live: WebSocket): Promise<void> {
+  if (live.readyState === WebSocket.CLOSED) return Promise.resolve();
+  return new Promise((resolve) => {
+    live.once('close', () => resolve());
+    live.close();
+  });
+}
 
 describe('Server Integration Tests', () => {
   describe('Comments API', () => {
@@ -613,10 +640,9 @@ describe('Server Integration Tests', () => {
           { type: 'review.approval', approved: true },
           { type: 'review.approval', approved: false },
         ]);
-        const heartbeat = await fetch(`${origin}/api/heartbeat`);
-        expect(heartbeat.status).toBe(200);
+        const { live } = await openLive(origin);
         await result.shutdown('SIGINT');
-        await heartbeat.body?.cancel();
+        await closeLive(live);
         await result.shutdown('SIGTERM');
         expect(observed.filter((event) => event.type === 'server.shutdown')).toMatchObject([
           { type: 'server.shutdown', reason: 'SIGINT' },
@@ -1890,12 +1916,6 @@ describe('Server Integration Tests', () => {
       expect(output).not.toContain('Other diff comment');
     });
 
-    it.skip('GET /api/heartbeat returns SSE headers', async () => {
-      // Skipped due to connection reset issues in test environment
-      // SSE endpoint functionality is verified through manual testing
-      expect(true).toBe(true);
-    });
-
     it('GET /api/diff sets openInEditorAvailable=false for stdin diff', async () => {
       const stdinServer = await startServer({
         stdinDiff: 'diff --git a/stdin-test.js b/stdin-test.js',
@@ -2386,38 +2406,23 @@ describe('Server Integration Tests', () => {
     it('keeps the server alive when one of two browser tabs disconnects', async () => {
       const result = await startServer({ preferredPort: 0, keepAlive: false, conversation: true });
       servers.push(result.server);
-      const first = new AbortController();
-      const second = new AbortController();
+      const first = await openLive(result.url, { tab: 'first', visible: 'true' });
+      const second = await openLive(result.url, { tab: 'second', visible: 'false' });
+      const presence = async () => (await fetch(`${result.url}/api/presence`)).json();
       try {
-        const a = await fetch(`${result.url}/api/heartbeat?tab=first&visible=true`, {
-          signal: first.signal,
-        });
-        await a.body?.getReader().read();
-        const b = await fetch(`${result.url}/api/heartbeat?tab=second&visible=false`, {
-          signal: second.signal,
-        });
-        await b.body?.getReader().read();
-        expect(await (await fetch(`${result.url}/api/presence`)).json()).toMatchObject({
-          reviewers: { connected: 2, visible: 1 },
-        });
-        await fetch(`${result.url}/api/presence`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tab: 'second', visible: true }),
-        });
-        first.abort();
+        expect(await presence()).toMatchObject({ reviewers: { connected: 2, visible: 1 } });
+        second.live.send(JSON.stringify({ type: 'visibility', visible: true }));
+        await closeLive(first.live);
         await vi.waitFor(async () =>
-          expect(await (await fetch(`${result.url}/api/presence`)).json()).toMatchObject({
-            reviewers: { connected: 1, visible: 1 },
-          }),
+          expect(await presence()).toMatchObject({ reviewers: { connected: 1, visible: 1 } }),
         );
         await new Promise((resolve) => setTimeout(resolve, 150));
         expect(process.exit).not.toHaveBeenCalled();
-        second.abort();
+        await closeLive(second.live);
         await vi.waitFor(() => expect(process.exit).toHaveBeenCalledWith(0));
       } finally {
-        first.abort();
-        second.abort();
+        first.live.terminate();
+        second.live.terminate();
         await result.shutdown('closed');
       }
     });
@@ -2453,12 +2458,8 @@ describe('Server Integration Tests', () => {
             ],
           });
           await post('/api/approval', { approved: true });
-          const controller = new AbortController();
-          const heartbeat = await fetch(`${result.url}/api/heartbeat`, {
-            signal: controller.signal,
-          });
-          await heartbeat.body?.getReader().read();
-          controller.abort();
+          const { live } = await openLive(result.url);
+          await closeLive(live);
           await vi.waitFor(() =>
             expect(error).toHaveBeenCalledWith(
               keepAlive
@@ -2532,24 +2533,8 @@ describe('Server Integration Tests', () => {
       });
       servers.push(server);
 
-      // Connect to heartbeat SSE endpoint and then abort
-      const controller = new AbortController();
-      const responsePromise = fetch(`http://localhost:${port}/api/heartbeat`, {
-        signal: controller.signal,
-      });
-
-      // Wait for the connection to be established
-      const response = await responsePromise.catch(() => null);
-      if (response) {
-        // Start reading the stream to ensure connection is established
-        const reader = response.body?.getReader();
-        if (reader) {
-          await reader.read(); // Read the initial "connected" message
-        }
-      }
-
-      // Disconnect by aborting
-      controller.abort();
+      const { live } = await openLive(`http://localhost:${port}`);
+      await closeLive(live);
 
       // Wait for the server's close handler + setTimeout(100ms) to run
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -2566,29 +2551,194 @@ describe('Server Integration Tests', () => {
       });
       servers.push(server);
 
-      // Connect to heartbeat SSE endpoint and then abort
-      const controller = new AbortController();
-      const responsePromise = fetch(`http://localhost:${port}/api/heartbeat`, {
-        signal: controller.signal,
-      });
-
-      // Wait for the connection to be established
-      const response = await responsePromise.catch(() => null);
-      if (response) {
-        const reader = response.body?.getReader();
-        if (reader) {
-          await reader.read(); // Read the initial "connected" message
-        }
-      }
-
-      // Disconnect by aborting
-      controller.abort();
+      const { live } = await openLive(`http://localhost:${port}`);
+      await closeLive(live);
 
       // Wait for the server's close handler + setTimeout(100ms) to run
       await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Without keepAlive, process.exit SHOULD have been called
       expect(process.exit).toHaveBeenCalledWith(0);
+    });
+  });
+
+  describe('Live connection', () => {
+    it('greets a tab with the server id, watch state, and presence, then relays watch events', async () => {
+      const result = await startServer({ preferredPort: 0, keepAlive: true, shipIt: true });
+      servers.push(result.server);
+      const { live, messages } = await openLive(result.url);
+      try {
+        await vi.waitFor(() => expect(messages).toHaveLength(3));
+        expect(messages[0]).toEqual({ channel: 'hello', serverId: expect.any(String) });
+        expect(messages).toContainEqual({
+          channel: 'watch',
+          event: expect.objectContaining({ type: 'connected' }),
+        });
+        expect(messages).toContainEqual({
+          channel: 'presence',
+          presence: expect.objectContaining({ reviewers: { connected: 1, visible: 1 } }),
+        });
+        await fetch(`${result.url}/api/approval`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ approved: true }),
+        });
+        await vi.waitFor(() =>
+          expect(messages).toContainEqual({
+            channel: 'watch',
+            event: expect.objectContaining({ type: 'approvalChanged' }),
+          }),
+        );
+      } finally {
+        await closeLive(live);
+        await result.shutdown('closed');
+      }
+    });
+
+    // A reused port can serve another review; a tab must not register itself there.
+    it('accepts a reconnect to the same server and refuses one meant for another', async () => {
+      const result = await startServer({ preferredPort: 0, keepAlive: true });
+      servers.push(result.server);
+      const presence = async () => (await fetch(`${result.url}/api/presence`)).json();
+      const first = await openLive(result.url);
+      await vi.waitFor(() => expect(first.messages[0]?.channel).toBe('hello'));
+      const hello = first.messages[0];
+      if (hello?.channel !== 'hello') throw new Error('Expected a hello message');
+      await closeLive(first.live);
+      try {
+        const other = new WebSocket(
+          liveUrl(result.url, { tab: 'tab', visible: 'true', server: 'another-server' }),
+        );
+        const code = await new Promise<number>((resolve) => other.once('close', resolve));
+        expect(code).toBe(LIVE_OTHER_SERVER);
+        expect(await presence()).toMatchObject({ reviewers: { connected: 0 } });
+        const again = await openLive(result.url, {
+          tab: 'tab',
+          visible: 'true',
+          server: hello.serverId,
+        });
+        await vi.waitFor(async () =>
+          expect(await presence()).toMatchObject({ reviewers: { connected: 1 } }),
+        );
+        await closeLive(again.live);
+      } finally {
+        await result.shutdown('closed');
+      }
+    });
+
+    it('closes a tab that sends anything but a visibility message and keeps serving', async () => {
+      const result = await startServer({ preferredPort: 0, keepAlive: true });
+      servers.push(result.server);
+      try {
+        for (const payload of ['null', '"text"', '{"type":"visibility"}', 'not json']) {
+          const { live } = await openLive(result.url);
+          const code = new Promise<number>((resolve) => live.once('close', resolve));
+          live.send(payload);
+          expect(await code).toBe(1003);
+        }
+        expect((await fetch(`${result.url}/api/presence`)).status).toBe(200);
+      } finally {
+        await result.shutdown('closed');
+      }
+    });
+
+    // ws reports a malformed frame as an error event; a socket without a listener crashes Node.
+    it('survives a malformed frame on a reconnect refused for another server', async () => {
+      const result = await startServer({ preferredPort: 0, keepAlive: true });
+      servers.push(result.server);
+      try {
+        const socket = connect(result.port, '127.0.0.1');
+        await new Promise<void>((resolve, reject) => {
+          socket.once('connect', () =>
+            socket.write(
+              'GET /api/live?tab=probe&visible=true&server=another-server HTTP/1.1\r\n' +
+                'Host: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+                'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n',
+            ),
+          );
+          socket.once('data', () => resolve());
+          socket.once('error', reject);
+        });
+        socket.on('error', () => {});
+        // An unmasked text frame; clients must mask every frame.
+        socket.write(Buffer.from([0x81, 0x00]));
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        socket.destroy();
+        expect((await fetch(`${result.url}/api/presence`)).status).toBe(200);
+      } finally {
+        await result.shutdown('closed');
+      }
+    });
+
+    it('survives a client that resets its connection after a refused upgrade', async () => {
+      const result = await startServer({ preferredPort: 0, keepAlive: true });
+      servers.push(result.server);
+      try {
+        for (const target of ['/api/other?tab=tab&visible=true', '//%']) {
+          await new Promise<void>((resolve, reject) => {
+            const socket = connect(result.port, '127.0.0.1', () =>
+              socket.write(
+                `GET ${target} HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\n` +
+                  'Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n' +
+                  'Sec-WebSocket-Version: 13\r\n\r\n',
+              ),
+            );
+            socket.once('data', () => {
+              socket.resetAndDestroy();
+              resolve();
+            });
+            socket.once('error', reject);
+          });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        expect((await fetch(`${result.url}/api/presence`)).status).toBe(200);
+      } finally {
+        await result.shutdown('closed');
+      }
+    });
+
+    it('answers an upgrade with an unparseable URL with 400 and keeps serving', async () => {
+      const result = await startServer({ preferredPort: 0, keepAlive: true });
+      servers.push(result.server);
+      try {
+        const reply = await new Promise<string>((resolve, reject) => {
+          const socket = connect(result.port, '127.0.0.1', () =>
+            socket.write(
+              'GET //% HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+                'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n',
+            ),
+          );
+          let data = '';
+          socket.on('data', (chunk) => (data += String(chunk)));
+          socket.on('end', () => resolve(data));
+          socket.on('error', reject);
+        });
+        expect(reply).toMatch(/^HTTP\/1\.1 400 /);
+        expect((await fetch(`${result.url}/api/presence`)).status).toBe(200);
+      } finally {
+        await result.shutdown('closed');
+      }
+    });
+
+    it.each([
+      '/api/live?tab=bad%20id&visible=true',
+      '/api/live?tab=tab',
+      '/api/other?tab=tab&visible=true',
+    ])('refuses the upgrade request %s', async (path) => {
+      const result = await startServer({ preferredPort: 0, keepAlive: true });
+      servers.push(result.server);
+      try {
+        const live = new WebSocket(`${result.url.replace(/^http/, 'ws')}${path}`);
+        const status = await new Promise<number | string>((resolve) => {
+          live.once('unexpected-response', (_request, response) =>
+            resolve(response.statusCode ?? 0),
+          );
+          live.once('error', (error) => resolve(String(error)));
+        });
+        expect(status).toBe(400);
+      } finally {
+        await result.shutdown('closed');
+      }
     });
   });
 

@@ -12,6 +12,7 @@ import App from './App';
 import { MEDIA_QUERIES } from './constants/breakpoints';
 import { useDiffComments } from './hooks/useDiffComments';
 import { useFileWatch } from './hooks/useFileWatch';
+import { MockWebSocket } from './utils/liveConnection.testing';
 import { useViewedFiles } from './hooks/useViewedFiles';
 import { useViewport } from './hooks/useViewport';
 import {
@@ -115,28 +116,7 @@ Object.defineProperty(window, 'confirm', {
   value: mockConfirm,
 });
 
-// Mock EventSource
-class MockEventSource {
-  static instances: MockEventSource[] = [];
-  onopen: (() => void) | null = null;
-  onerror: ((err: any) => void) | null = null;
-  close = vi.fn();
-
-  constructor(url: string) {
-    this.url = url;
-    MockEventSource.instances.push(this);
-  }
-
-  url: string;
-
-  static clearInstances() {
-    MockEventSource.instances = [];
-  }
-}
-Object.defineProperty(window, 'EventSource', {
-  writable: true,
-  value: MockEventSource,
-});
+Object.defineProperty(window, 'WebSocket', { writable: true, value: MockWebSocket });
 
 let mockComments: DiffCommentThread[] = [];
 const mockReplaceThreads = vi.fn();
@@ -190,7 +170,7 @@ beforeEach(() => {
   window.localStorage.clear();
   resetClientSettingsForTests();
   vi.unstubAllEnvs();
-  MockEventSource.clearInstances();
+  MockWebSocket.instances = [];
   mockViewedFiles = new Set<string>();
   mockChangedSinceViewedFiles = new Set<string>();
   mockHasLoadedInitialViewedFiles = true;
@@ -729,15 +709,13 @@ describe('App Component - Heartbeat Connection', () => {
     mockFetch(mockDiffResponse);
   });
 
-  it('uses the direct API url for heartbeat when configured in development', async () => {
+  it('opens the live connection on the direct API url when configured in development', async () => {
     vi.stubEnv('VITE_GAVEL_API_URL', 'http://localhost:4969');
 
     renderApp();
 
     await waitFor(() => {
-      expect(MockEventSource.instances[0]?.url).toMatch(
-        /^http:\/\/localhost:4969\/api\/heartbeat\?tab=/,
-      );
+      expect(MockWebSocket.instances[0]?.url).toMatch(/^ws:\/\/localhost:4969\/api\/live\?tab=/);
     });
   });
 });
