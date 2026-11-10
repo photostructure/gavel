@@ -48,6 +48,11 @@ const getFileIcon = (status: DiffFile['status']) => {
   }
 };
 
+// The row toggles collapse on any click outside a button, so each button's
+// clickable area extends 0.5rem past its edges, into the gaps beside it, through an
+// invisible ::after overlay.
+const HIT_SLOP = 'relative after:absolute after:-inset-2';
+
 export const DiffViewerHeader = ({
   file,
   fullFileToggle,
@@ -102,7 +107,7 @@ export const DiffViewerHeader = ({
               {file.path}
             </h2>
             <button
-              className={`shrink-0 bg-transparent border-none cursor-pointer px-1.5 py-1 rounded text-sm transition-all hover:bg-github-bg-tertiary ${
+              className={`${HIT_SLOP} shrink-0 bg-transparent border-none cursor-pointer px-1.5 py-1 rounded text-sm transition-all hover:bg-github-bg-tertiary ${
                 isCopied
                   ? 'text-github-accent-text'
                   : 'text-github-text-secondary hover:text-github-text-primary'
@@ -144,7 +149,7 @@ export const DiffViewerHeader = ({
         {fullFileToggle && (
           <button
             type="button"
-            className="bg-transparent border-none cursor-pointer px-1.5 py-1 rounded text-sm transition-all hover:bg-github-bg-tertiary text-github-text-secondary hover:text-github-text-primary"
+            className={`${HIT_SLOP} bg-transparent border-none cursor-pointer px-1.5 py-1 rounded text-sm transition-all hover:bg-github-bg-tertiary text-github-text-secondary hover:text-github-text-primary`}
             onClick={fullFileToggle.onToggle}
             title={fullFileToggle.expanded ? 'Collapse expanded lines' : 'Expand all lines'}
             aria-label={fullFileToggle.expanded ? 'Collapse expanded lines' : 'Expand all lines'}
@@ -164,7 +169,10 @@ export const DiffViewerHeader = ({
           onClick={() => onToggleReviewed(file.path)}
           disabled={!viewedStateReady}
           aria-busy={!viewedStateReady || undefined}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 disabled:cursor-wait disabled:opacity-60 ${
+          // Viewed is the last control, so its area runs on to the row's right edge
+          // (px-5), and stays inside the row's py-1 padding in
+          // auto-hide-header mode.
+          className={`${HIT_SLOP} after:-right-5 auto-hide-header:after:-inset-y-1 flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 disabled:cursor-wait disabled:opacity-60 ${
             isReviewed
               ? 'bg-github-accent text-white'
               : 'dark:bg-slate-600 dark:text-white dark:border-slate-500 dark:hover:bg-slate-500 dark:hover:border-slate-400 bg-github-bg-secondary text-github-text-primary border border-github-border hover:bg-github-bg-tertiary hover:border-github-text-muted'
