@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- The comment count beside a file in **Files changed** now shows a blue dot on its comment icon while the file has unread agent replies, and its tooltip says how many.
+
 ### Changed
 
 - `review create` and `review update` now exit with an error when stdin is a pipe, socket, or file and none of `-`, `--capture`, `--pathspec`, or `--include-untracked` was given, instead of ignoring the piped patch and capturing the uncommitted tree. To capture the uncommitted tree from a script that leaves stdin open, redirect stdin from `/dev/null`.

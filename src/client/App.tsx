@@ -2132,6 +2132,7 @@ function App() {
                   }
                   onFileSelected={isMobile ? handleMobileFileSelected : undefined}
                   comments={normalizedThreads}
+                  unreadUpdates={agentUpdates}
                   reviewedFiles={viewedFiles}
                   viewedStateReady={viewedStateReady}
                   onToggleReviewed={toggleFileReviewed}

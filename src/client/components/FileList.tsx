@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import {
   memo,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -23,6 +24,7 @@ import {
 } from 'react';
 
 import { type DiffFile, type CommentThread } from '../../types/diff';
+import type { AgentUpdate } from '../hooks/useAgentUpdates';
 import { isSafariBrowser } from '../utils/browser';
 
 import { Checkbox } from './Checkbox';
@@ -34,6 +36,7 @@ interface FileListProps {
   onScrollToFirstComment?: (path: string) => void;
   onFileSelected?: () => void;
   comments: CommentThread[];
+  unreadUpdates: AgentUpdate[];
   reviewedFiles: Set<string>;
   viewedStateReady?: boolean;
   onToggleReviewed: (path: string) => void;
@@ -53,6 +56,46 @@ const TREE_ROW_PADDING_LEFT_PX = 16;
 const TREE_ICON_SIZE_PX = 16;
 const TREE_ROW_GAP_PX = 8;
 const TREE_INDENT_STEP_PX = TREE_ICON_SIZE_PX + TREE_ROW_GAP_PX;
+
+// lucide's message-square path, so the unread icon has the same outline as MessageSquare.
+const MESSAGE_SQUARE_PATH =
+  'M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z';
+const UNREAD_DOT_RADIUS = 5.5;
+// The gap the mask cuts in the outline around the dot, in the 24-unit viewBox.
+const UNREAD_DOT_GAP = 2.25;
+
+// The comment bubble with a blue dot over its top-right corner. The mask cuts the outline
+// away around the dot, so the dot stays apart from it on any row background.
+function UnreadCommentIcon() {
+  const maskId = useId();
+  return (
+    <svg
+      width={14}
+      height={14}
+      viewBox="0 0 24 24"
+      overflow="visible"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <mask id={maskId}>
+        <rect x={-2} y={-2} width={28} height={28} fill="white" stroke="none" />
+        <circle cx={19} cy={5} r={UNREAD_DOT_RADIUS + UNREAD_DOT_GAP} fill="black" stroke="none" />
+      </mask>
+      <path d={MESSAGE_SQUARE_PATH} mask={`url(#${maskId})`} />
+      <circle
+        cx={19}
+        cy={5}
+        r={UNREAD_DOT_RADIUS}
+        className="fill-blue-500 dark:fill-blue-400"
+        stroke="none"
+      />
+    </svg>
+  );
+}
 
 function getTreeRowPaddingLeft(depth: number): string {
   return `${depth * TREE_INDENT_STEP_PX + TREE_ROW_PADDING_LEFT_PX}px`;
@@ -171,6 +214,7 @@ export const FileList = memo(function FileList({
   onScrollToFirstComment,
   onFileSelected,
   comments,
+  unreadUpdates,
   reviewedFiles,
   viewedStateReady = true,
   onToggleReviewed,
@@ -202,6 +246,17 @@ export const FileList = memo(function FileList({
     });
     return counts;
   }, [comments]);
+
+  // unreadUpdates also holds other reviews' threads, so count only this review's own.
+  const unreadCountMap = useMemo(() => {
+    const threadIds = new Set(comments.map((comment) => comment.id));
+    const counts = new Map<string, number>();
+    for (const { thread } of unreadUpdates) {
+      if (thread.scope === 'review' || !threadIds.has(thread.id)) continue;
+      counts.set(thread.file, (counts.get(thread.file) ?? 0) + 1);
+    }
+    return counts;
+  }, [comments, unreadUpdates]);
 
   const diffTotals = useMemo(
     () =>
@@ -415,6 +470,12 @@ export const FileList = memo(function FileList({
     } else if (node.file) {
       const file = node.file;
       const commentCount = commentCountMap.get(file.path) ?? 0;
+      const unreadCount = unreadCountMap.get(file.path) ?? 0;
+      const commentButtonLabel = `Jump to first comment in ${file.path}${
+        unreadCount > 0
+          ? `, ${unreadCount} unread agent message${unreadCount === 1 ? '' : 's'}`
+          : ''
+      }`;
       const isReviewed = reviewedFiles.has(file.path);
       const isSelected = file.path === selectedFilePath;
 
@@ -451,15 +512,19 @@ export const FileList = memo(function FileList({
             <button
               type="button"
               className="text-github-warning text-sm font-medium ml-auto flex items-center gap-1 rounded px-1 -mr-1 hover:bg-github-bg-primary focus-visible:outline-2 focus-visible:outline-github-accent"
-              title={`Jump to first comment in ${file.path}`}
-              aria-label={`Jump to first comment in ${file.path}`}
+              title={commentButtonLabel}
+              aria-label={commentButtonLabel}
               onClick={(event) => {
                 event.stopPropagation();
                 (onScrollToFirstComment ?? onScrollToFile)(file.path);
                 onFileSelected?.();
               }}
             >
-              <MessageSquare size={14} aria-hidden="true" />
+              {unreadCount > 0 ? (
+                <UnreadCommentIcon />
+              ) : (
+                <MessageSquare size={14} aria-hidden="true" />
+              )}
               {commentCount}
             </button>
           )}

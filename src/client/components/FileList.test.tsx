@@ -2,7 +2,8 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom';
 
-import type { DiffFile } from '../../types/diff';
+import type { CommentThread, DiffCommentMessage, DiffFile } from '../../types/diff';
+import { agentMessageRevision, type AgentUpdate } from '../hooks/useAgentUpdates';
 
 import { FileList } from './FileList';
 
@@ -37,6 +38,7 @@ describe('FileList', () => {
         ]}
         onScrollToFile={vi.fn()}
         comments={[]}
+        unreadUpdates={[]}
         reviewedFiles={new Set()}
         onToggleReviewed={vi.fn()}
         onToggleFolderReviewed={vi.fn()}
@@ -60,6 +62,7 @@ describe('FileList', () => {
       files,
       onScrollToFile: vi.fn(),
       comments: [],
+      unreadUpdates: [],
       onToggleReviewed: vi.fn(),
       onToggleFolderReviewed: vi.fn(),
       selectedFilePath: null,
@@ -101,6 +104,7 @@ describe('FileList', () => {
         ]}
         onScrollToFile={vi.fn()}
         comments={[]}
+        unreadUpdates={[]}
         reviewedFiles={new Set()}
         onToggleReviewed={vi.fn()}
         onToggleFolderReviewed={onToggleFolderReviewed}
@@ -126,6 +130,7 @@ describe('FileList', () => {
         ]}
         onScrollToFile={onScrollToFile}
         comments={[]}
+        unreadUpdates={[]}
         reviewedFiles={new Set()}
         onToggleReviewed={vi.fn()}
         onToggleFolderReviewed={vi.fn()}
@@ -152,6 +157,7 @@ describe('FileList', () => {
         files={[createFile('src/cli/index.ts'), createFile('src/client/App.tsx')]}
         onScrollToFile={vi.fn()}
         comments={[]}
+        unreadUpdates={[]}
         reviewedFiles={new Set(['src/cli/index.ts', 'src/client/App.tsx'])}
         onToggleReviewed={vi.fn()}
         onToggleFolderReviewed={onToggleFolderReviewed}
@@ -184,6 +190,7 @@ it('makes the comment count a separate action and preserves mobile file selectio
           messages: [],
         },
       ]}
+      unreadUpdates={[]}
       onScrollToFile={onScrollToFile}
       onScrollToFirstComment={onScrollToFirstComment}
       onFileSelected={onFileSelected}
@@ -197,4 +204,59 @@ it('makes the comment count a separate action and preserves mobile file selectio
   expect(onScrollToFirstComment).toHaveBeenCalledWith('test.ts');
   expect(onScrollToFile).not.toHaveBeenCalled();
   expect(onFileSelected).toHaveBeenCalledOnce();
+});
+
+it('puts an unread dot on the comment button of files with unread agent replies', () => {
+  const thread = (id: string, file: string): CommentThread => ({
+    id,
+    file,
+    line: 1,
+    createdAt: '2026-11-10',
+    updatedAt: '2026-11-10',
+    messages: [],
+  });
+  const reply = (id: string): DiffCommentMessage => ({
+    id,
+    origin: 'agent',
+    body: 'Done.',
+    createdAt: '2026-11-10',
+    updatedAt: '2026-11-10',
+  });
+  const unreadThread = thread('unread', 'unread.ts');
+  // App's unread list also holds other reviews' threads; one on read.ts must not mark this review's read.ts.
+  const otherReviewThread = thread('other-review', 'read.ts');
+  const update = (message: DiffCommentMessage, owner = unreadThread): AgentUpdate => ({
+    key: JSON.stringify([owner.id, message.id]),
+    thread: owner,
+    message,
+    revision: agentMessageRevision(message),
+  });
+  render(
+    <FileList
+      files={[createFile('unread.ts'), createFile('read.ts')]}
+      comments={[unreadThread, thread('read', 'read.ts')]}
+      unreadUpdates={[
+        update(reply('one')),
+        update(reply('two')),
+        update(reply('three'), otherReviewThread),
+      ]}
+      onScrollToFile={vi.fn()}
+      reviewedFiles={new Set()}
+      onToggleReviewed={vi.fn()}
+      onToggleFolderReviewed={vi.fn()}
+      selectedFilePath={null}
+    />,
+  );
+
+  const unreadButton = screen.getByRole('button', {
+    name: 'Jump to first comment in unread.ts, 2 unread agent messages',
+  });
+  const dot = unreadButton.querySelector('svg > circle');
+  expect(dot).toHaveClass('fill-blue-500', 'dark:fill-blue-400');
+  const maskUrl = unreadButton.querySelector('path')?.getAttribute('mask');
+  const maskId = unreadButton.querySelector('mask')?.id;
+  expect(maskUrl).toBe(`url(#${maskId})`);
+
+  const readButton = screen.getByRole('button', { name: 'Jump to first comment in read.ts' });
+  expect(readButton.querySelector('circle')).toBeNull();
 });
