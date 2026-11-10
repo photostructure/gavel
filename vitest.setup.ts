@@ -30,7 +30,7 @@ Object.defineProperty(window, 'getComputedStyle', {
 
 // Global test utilities
 export const mockFetch = (response: any, revisionsResponse?: any) => {
-  const approvals = new Map<string, boolean>();
+  const verdicts = new Map<string, string>();
   const summaries = new Map<
     string,
     { commitMessage: string; rationale: string; version: number }
@@ -48,12 +48,13 @@ export const mockFetch = (response: any, revisionsResponse?: any) => {
       });
     }
     if (url.startsWith('/api/approval')) {
-      if (init?.method === 'POST') {
-        approvals.set(url, Boolean(JSON.parse(String(init.body)).approved));
-      }
+      if (init?.method === 'PUT')
+        verdicts.set(url, (JSON.parse(String(init.body)) as { verdict: string }).verdict);
+      if (init?.method === 'DELETE') verdicts.delete(url);
+      const verdict = verdicts.get(url);
       return Promise.resolve({
         ok: true,
-        json: async () => ({ approved: approvals.get(url) ?? false }),
+        json: async () => (verdict ? { verdict } : {}),
       });
     }
     // Handle /api/revisions endpoint

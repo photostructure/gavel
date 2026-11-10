@@ -29,7 +29,7 @@ server and no work remains, it exits 4. End the turn rather than retrying.
 Human-origin events that complete the wait:
 
 - New comments and replies, including edits to their body or intent.
-- Approval, revocation, and Not yet verdicts.
+- Approval and Reject verdicts, and clearing a verdict.
 - Saved changes to the proposed commit message or rationale.
 
 Agent replies, progress receipts, capture changes, thread resolution/reopening,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ApprovalMode, ReviewApproval } from '../../types/conversation';
+import type { ReviewApproval, ReviewVerdict } from '../../types/conversation';
 import type { NamedReviewMetadata } from '../../types/review';
 
 type CaptureIdentity = Pick<NamedReviewMetadata, 'version' | 'patchDigest'>;
@@ -40,8 +40,9 @@ export function useReviewApproval(
     try {
       const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error('Could not load approval');
-      const approval = (await response.json()) as ReviewApproval;
-      if (typeof approval.approved !== 'boolean') throw new Error('Invalid approval response');
+      const approval = (await response.json()) as ReviewApproval | null;
+      if (typeof approval !== 'object' || approval === null)
+        throw new Error('Invalid approval response');
       if (id === requestId.current && activeKey.current === key) {
         setState({ key, approval });
         setError(null);
@@ -63,21 +64,15 @@ export function useReviewApproval(
     };
   }, [refresh]);
 
-  // Conditional approval and not yet have their own endpoints, so an older server answers 404
-  // instead of reading them as as-is approval or revocation.
-  const post = useCallback(
-    async (endpoint: string, body: Record<string, unknown>) => {
+  const send = useCallback(
+    async (method: 'PUT' | 'DELETE', body?: Record<string, unknown>) => {
       if (!url || activeKey.current !== key)
         throw new Error('Approval is unavailable for this capture');
-      const destination = new URL(url, window.location.origin);
-      destination.pathname = endpoint;
-      const requestUrl = url.startsWith('/')
-        ? `${destination.pathname}${destination.search}`
-        : destination.href;
-      const response = await fetch(requestUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      const response = await fetch(url, {
+        method,
+        ...(body
+          ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+          : {}),
       });
       if (response.status === 409) {
         const conflict = (await response.json()) as { diffDigest?: unknown };
@@ -89,46 +84,38 @@ export function useReviewApproval(
     [url, key, refresh],
   );
 
-  const setApproved = useCallback(
-    (approved: boolean, summaryVersion = 0, mode: ApprovalMode = 'as-is') =>
-      post(approved && mode === 'after-comments' ? '/api/approval/conditional' : '/api/approval', {
-        approved,
-        ...(approved && mode === 'after-comments' ? { mode } : {}),
-        ...(approved || captureVersion !== undefined ? { summaryVersion } : {}),
-        ...(captureVersion !== undefined ? { captureVersion, patchDigest } : {}),
-        ...(approved && diffDigest !== undefined ? { diffDigest } : {}),
-      }),
-    [post, captureVersion, patchDigest, diffDigest],
-  );
-
-  const setNotYet = useCallback(
-    () =>
-      post('/api/approval/not-yet', {
-        approved: false,
+  // Reject does not endorse the proposed message, so it sends no summaryVersion.
+  const setVerdict = useCallback(
+    (verdict: ReviewVerdict, summaryVersion = 0) =>
+      send('PUT', {
+        verdict,
+        ...(verdict !== 'reject' ? { summaryVersion } : {}),
         ...(captureVersion !== undefined ? { captureVersion, patchDigest } : {}),
         ...(diffDigest !== undefined ? { diffDigest } : {}),
       }),
-    [post, captureVersion, patchDigest, diffDigest],
+    [send, captureVersion, patchDigest, diffDigest],
   );
 
+  const clearVerdict = useCallback(() => send('DELETE'), [send]);
+
   const current = state?.key === key ? state.approval : null;
-  // An approval after comments follows the agent's revisions, so it applies to any capture.
+  // An approval after comments follows the agent's revisions, and a rejection stays until the
+  // reviewer clears it, so both apply to any capture and summary.
   const matchesCapture =
     captureVersion === undefined ||
-    current?.mode === 'after-comments' ||
+    current?.verdict === 'after-comments' ||
+    current?.verdict === 'reject' ||
     (current?.captureVersion === captureVersion &&
       current.patchDigest === patchDigest &&
       (displayedSummaryVersion === undefined ||
         current.summaryVersion === displayedSummaryVersion));
   return {
     conditionalSupported: current?.conditionalSupported === true,
-    mode: current?.mode,
-    requested: matchesCapture && Boolean(current?.requested || current?.approved),
-    notYet: current?.notYet === true && matchesCapture,
+    verdict: matchesCapture ? current?.verdict : undefined,
     ready: current !== null,
     error,
     refresh,
-    setApproved,
-    setNotYet,
+    setVerdict,
+    clearVerdict,
   };
 }

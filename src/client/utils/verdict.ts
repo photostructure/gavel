@@ -2,12 +2,8 @@ import type { ReviewApproval } from '../../types/conversation';
 import type { DiffSelection } from '../../types/diff';
 import { diffSelectionsEqual } from '../../utils/diffSelection';
 
-/**
- * The reviewer has given this review a verdict: approved as-is, approved after comments, or not
- * yet.
- */
-export const hasVerdict = (approval: ReviewApproval) =>
-  approval.requested === true || approval.notYet === true;
+/** The reviewer has given this review a verdict: approved as-is, approved after comments, or rejected. */
+export const hasVerdict = (approval: ReviewApproval) => approval.verdict !== undefined;
 
 /**
  * The first review after the open one, in creation order and wrapping around, that has no

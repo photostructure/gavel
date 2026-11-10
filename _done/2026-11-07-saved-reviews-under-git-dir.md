@@ -43,7 +43,7 @@ Docs: `docs/agent-conversations.md` "Saved reviews".
 - `_todo/2026-11-07-server-only-review-state.md`: drop the browser's copy of sent
   comments, add an outbox for unconfirmed changes, and move Viewed and read marks
   to the server.
-- `_todo/2026-11-07-approval-verdict-field.md`: one verdict field instead of
+- `_done/2026-11-07-approval-verdict-field.md`: one verdict field instead of
   separate approval flags.
 - The two-process lock race check ran against `dist` only and is not checked in:
   the repo has no TypeScript loader for child processes.

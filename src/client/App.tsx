@@ -1,7 +1,7 @@
 import { Info, GitBranch, MessageSquare, PanelLeftClose, PanelLeft, Settings } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
-import type { ApprovalMode, ConversationSnapshot } from '../types/conversation';
+import type { ConversationSnapshot, ReviewVerdict } from '../types/conversation';
 import {
   type DiffCommentThread,
   type DiffFile,
@@ -445,7 +445,7 @@ function App() {
   );
 
   const fetchDiffDataRef = useRef<((selection?: ReviewSelection) => Promise<void>) | null>(null);
-  const handleVerdict = async (verdict: ApprovalMode | 'not-yet' | 'revoke') => {
+  const handleVerdict = async (verdict: ReviewVerdict | 'clear') => {
     const approving = verdict === 'as-is' || verdict === 'after-comments';
     if (
       !approval.ready ||
@@ -453,7 +453,7 @@ function App() {
       captureReloading ||
       // Saving threads before they load would overwrite the server's with an empty list, and
       // the next step after a verdict leaves the review, dropping an unsaved summary draft.
-      (verdict === 'not-yet' && (!hasBootstrappedComments || summary.dirty || summary.saving)) ||
+      (verdict === 'reject' && (!hasBootstrappedComments || summary.dirty || summary.saving)) ||
       (approving && (!hasBootstrappedComments || !summary.ready || summary.dirty || summary.saving))
     ) {
       return;
@@ -462,21 +462,21 @@ function App() {
     setIsShipping(true);
     setShipItError(null);
     try {
-      // A failed comment save must not prevent the user from revoking approval.
-      if (verdict !== 'revoke') await syncThreadsToServer(threads);
-      if (verdict === 'not-yet') await approval.setNotYet();
-      else await approval.setApproved(approving, summary.version, approving ? verdict : 'as-is');
+      // A failed comment save must not prevent the user from clearing a verdict.
+      if (verdict !== 'clear') await syncThreadsToServer(threads);
+      if (verdict === 'clear') await approval.clearVerdict();
+      else await approval.setVerdict(verdict, summary.version);
       // Skip the burst and the next step if the user switched reviews while the verdict was saving.
       const stillOpen = activeCommentsContextRef.current.generation === commentsGeneration;
       if (
         verdict === 'as-is' &&
-        (!approval.requested || approval.mode === 'after-comments') &&
+        approval.verdict !== 'as-is' &&
         stillOpen &&
         approvalControlRef.current
       ) {
         celebrateApproval(approvalControlRef.current, settings.approvalAnimations);
       }
-      if (verdict === 'revoke') verdictFollowUp.cancel();
+      if (verdict === 'clear') verdictFollowUp.cancel();
       else if (stillOpen) {
         // The next step depends on the other reviews' verdicts. start() sees the list from the
         // click's render; the hook corrects the step from the refreshed list on the next one.
@@ -1484,7 +1484,7 @@ function App() {
   const verdictFollowUp = useVerdictFollowUp({
     reviews: approvalRequests,
     current: resolvedSelection,
-    currentHasVerdict: approval.requested || approval.notYet,
+    currentHasVerdict: approval.verdict !== undefined,
     onSwitch: openReviewFromTab,
   });
 
@@ -2014,18 +2014,15 @@ function App() {
                 <VerdictControl
                   key={commentsContextKey}
                   containerRef={setVerdictControl}
-                  requested={approval.requested}
-                  notYet={approval.notYet}
-                  mode={approval.mode}
+                  verdict={approval.verdict}
                   conditionalSupported={approval.conditionalSupported}
                   busy={isShipping || captureReloading}
                   disabled={
                     !approval.ready || !hasBootstrappedComments || summary.dirty || summary.saving
                   }
                   approveDisabled={!summary.ready}
-                  onApprove={(mode) => void handleVerdict(mode)}
-                  onNotYet={() => void handleVerdict('not-yet')}
-                  onRevoke={() => void handleVerdict('revoke')}
+                  onVerdict={(verdict) => void handleVerdict(verdict)}
+                  onClear={() => void handleVerdict('clear')}
                 />
               )}
               <VerdictFollowUpNotice

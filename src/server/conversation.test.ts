@@ -48,8 +48,8 @@ describe('Conversation state and events', () => {
     const journal = new Conversation(undefined, 2);
     const before = journal.cursor;
     journal.update(selection, [], [thread], 'user');
-    journal.setApproval(selection, true);
-    journal.setApproval(selection, false);
+    journal.setVerdict(selection, 'as-is');
+    journal.clearVerdict(selection, 'user');
     expect(() => journal.read(before)).toThrow('expired');
     expect(journal.read(`${before.split(':')[0]}:1`).events).toHaveLength(2);
     for (const cursor of [
@@ -71,7 +71,7 @@ describe('Conversation state and events', () => {
     const first = journal.wait(journal.cursor, 25000, abort.signal);
     const second = journal.wait(journal.cursor, 25000, abort.signal);
     expect(vi.getTimerCount()).toBe(2);
-    journal.setApproval(selection, true);
+    journal.setVerdict(selection, 'as-is');
     expect((await first).events).toHaveLength(1);
     expect((await second).events).toHaveLength(1);
     expect(vi.getTimerCount()).toBe(0);
@@ -127,16 +127,26 @@ describe('Conversation state and events', () => {
 
   it('emits approval changes and treats repeated state as idempotent', () => {
     const { journal, events } = observedConversation();
-    journal.setApproval(selection, true);
-    expect(events).toEqual([expect.objectContaining({ type: 'review.approval', approved: true })]);
-    journal.setApproval(selection, true);
-    expect(events).toHaveLength(1);
-    journal.setApproval(selection, false);
-    expect(journal.snapshot().reviews[0]?.approval.approved).toBe(false);
-    expect(events.slice(1)).toEqual([
-      expect.objectContaining({ type: 'review.approval', approved: false }),
+    journal.setVerdict(selection, 'as-is');
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: 'review.approval',
+        approval: expect.objectContaining({ verdict: 'as-is' }),
+      }),
     ]);
-    expect(new Conversation().getApproval(selection).approved).toBe(false);
+    journal.setVerdict(selection, 'as-is');
+    expect(events).toHaveLength(1);
+    journal.clearVerdict(selection, 'user');
+    expect(journal.snapshot().reviews[0]?.approval.verdict).toBeUndefined();
+    expect(events.slice(1)).toEqual([
+      expect.objectContaining({
+        type: 'review.approval',
+        approval: expect.not.objectContaining({ verdict: expect.anything() }),
+      }),
+    ]);
+    journal.clearVerdict(selection, 'user');
+    expect(events).toHaveLength(2);
+    expect(new Conversation().getApproval(selection).verdict).toBeUndefined();
   });
 
   it('captures review context, emits edits, and does not repeat unchanged messages', () => {

@@ -3,7 +3,7 @@ import { HotkeysProvider } from 'react-hotkeys-hook';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ConversationSnapshot } from '../types/conversation';
+import type { ConversationSnapshot, ReviewVerdict } from '../types/conversation';
 import type { DiffCommentThread, DiffResponse, ReviewContext } from '../types/diff';
 import type { NamedReviewMetadata } from '../types/review';
 
@@ -75,10 +75,9 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     capture: { ...initialCapture },
     threads: structuredClone(initialThreads),
     commentVersion: 1,
-    approved: false,
-    notYet: false,
-    // task-b's verdict; approved and notYet belong to task-a.
-    approvedB: false,
+    verdict: undefined as ReviewVerdict | undefined,
+    // task-b's verdict; verdict belongs to task-a.
+    verdictB: undefined as ReviewVerdict | undefined,
     showReviewB: true,
     showNamedReviews: true,
     addedLine: 'const stable = true;',
@@ -151,24 +150,13 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
         commitMessage: 'fix: preserve review context',
         rationale: 'Keep the same discussion after requested changes.',
       };
-    } else if (url.pathname === '/api/approval' && reviewName === 'task-b') {
-      if (init?.method === 'POST')
-        state.approvedB = (JSON.parse(String(init.body)) as { approved: boolean }).approved;
+    } else if (url.pathname === '/api/approval') {
+      const key = reviewName === 'task-b' ? 'verdictB' : 'verdict';
+      if (init?.method === 'PUT')
+        state[key] = (JSON.parse(String(init.body)) as { verdict: ReviewVerdict }).verdict;
+      if (init?.method === 'DELETE') state[key] = undefined;
       payload = {
-        approved: state.approvedB,
-        ...(state.approvedB ? { requested: true, mode: 'as-is' } : {}),
-        captureVersion: state.capture.version,
-        patchDigest: state.capture.patchDigest,
-        summaryVersion: 2,
-      };
-    } else if (url.pathname === '/api/approval' || url.pathname === '/api/approval/not-yet') {
-      if (init?.method === 'POST') {
-        state.approved = (JSON.parse(String(init.body)) as { approved: boolean }).approved;
-        state.notYet = url.pathname === '/api/approval/not-yet';
-      }
-      payload = {
-        approved: state.approved,
-        ...(state.notYet ? { notYet: true } : {}),
+        ...(state[key] ? { verdict: state[key] } : {}),
         captureVersion: state.capture.version,
         patchDigest: state.capture.patchDigest,
         summaryVersion: 2,
@@ -188,11 +176,7 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
         selection: { baseCommitish: 'base-one', targetCommitish: '.', reviewName: 'task-a' },
         threads: [],
         summary: { commitMessage: 'fix: preserve review context', rationale: '', version: 2 },
-        approval: state.approved
-          ? { approved: true, requested: true, mode: 'as-is' }
-          : state.notYet
-            ? { approved: false, notYet: true }
-            : { approved: false },
+        approval: state.verdict ? { verdict: state.verdict } : {},
         capture: { ...state.capture },
       },
       ...(state.showReviewB
@@ -206,9 +190,7 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
               },
               threads: [],
               summary: { commitMessage: '', rationale: '', version: 0 },
-              approval: state.approvedB
-                ? { approved: true, requested: true, mode: 'as-is' as const }
-                : { approved: false },
+              approval: state.verdictB ? { verdict: state.verdictB } : {},
               capture: { ...state.capture, name: 'task-b' },
             },
           ]
@@ -645,7 +627,7 @@ describe('named captures in the browser', () => {
     const state = fixture();
     const content = '  const stable = false;  ';
     state.addedLine = content;
-    state.approved = true;
+    state.verdict = 'as-is';
     renderApp();
     const capture = await screen.findByRole('status', { name: 'Named review capture' });
     const identity = capture.textContent;
@@ -679,7 +661,7 @@ describe('named captures in the browser', () => {
       'Mark as not reviewed',
     );
     expect(JSON.stringify(localStorage)).toBe(saved);
-    expect(state.approved).toBe(true);
+    expect(state.verdict).toBe('as-is');
     expect(diffRequests()).toHaveLength(requestCount);
     fireEvent.click(toggle);
     await screen.findByText('Whitespace-only changes hidden');
@@ -857,7 +839,7 @@ describe('named captures in the browser', () => {
       '/api/approval?review=task-a',
       expect.objectContaining({
         body: JSON.stringify({
-          approved: true,
+          verdict: 'as-is',
           summaryVersion: 2,
           captureVersion: 1,
           patchDigest: initialCapture.patchDigest,
@@ -1075,7 +1057,7 @@ describe('named captures in the browser', () => {
         selection: { baseCommitish: 'def456^', targetCommitish: 'def456' },
         threads: [],
         summary: { commitMessage: 'feat: next', rationale: '', version: 1 },
-        approval: { approved: false },
+        approval: {},
       },
     ];
     renderApp();
@@ -1091,7 +1073,7 @@ describe('named captures in the browser', () => {
       selection: { baseCommitish: base, targetCommitish: '.' },
       threads: [],
       summary: { commitMessage, rationale: '', version: commitMessage ? 1 : 0 },
-      approval: { approved: false },
+      approval: {},
     });
     // The proposal landed, so the review for the new HEAD gets no carried summary.
     state.otherReviews = [
@@ -1130,7 +1112,7 @@ describe('named captures in the browser', () => {
         selection: { baseCommitish: 'base-one', targetCommitish: '.' },
         threads: [],
         summary: { commitMessage: '', rationale: '', version: 0 },
-        approval: { approved: false },
+        approval: {},
       },
     ];
     renderApp();
@@ -1150,7 +1132,7 @@ describe('named captures in the browser', () => {
         version: 1,
         ...(fromCommit ? { fromCommit } : {}),
       },
-      approval: { approved: false },
+      approval: {},
     });
     state.otherReviews = [
       // The server copies a browsed commit's Git message into its summary.
@@ -1183,7 +1165,7 @@ describe('named captures in the browser', () => {
         selection: { baseCommitish: 'def456^', targetCommitish: 'def456' },
         threads: [],
         summary: { commitMessage: 'feat: next', rationale: '', version: 1 },
-        approval: { approved: false },
+        approval: {},
       },
     ];
     await act(async () => watch.reload?.());
@@ -1218,7 +1200,7 @@ describe('named captures in the browser', () => {
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
     expect(bar).toHaveTextContent('2 need a verdict');
-    state.approved = true;
+    state.verdict = 'as-is';
     await act(async () => watch.approvalChanged?.());
     expect(
       await within(bar).findByRole('button', { name: 'task-a, Approved as-is' }),
@@ -1282,21 +1264,21 @@ describe('after a verdict', () => {
     expect(close).not.toHaveBeenCalled();
   });
 
-  it('says not yet in one click, then counts down to closing the tab once nothing is left', async () => {
+  it('rejects in one click, then counts down to closing the tab once nothing is left', async () => {
     const state = fixture();
     state.showReviewB = false;
     const close = vi.spyOn(window, 'close').mockImplementation(() => {});
     renderApp();
-    await waitFor(() => expect(verdictButton('Not yet')).toBeEnabled());
-    fireEvent.click(verdictButton('Not yet'));
+    await waitFor(() => expect(verdictButton('Reject')).toBeEnabled());
+    fireEvent.click(verdictButton('Reject'));
     await waitFor(() =>
       expect(nextStep()).toHaveTextContent('This review has a verdict. Closing this tab in 10s'),
     );
     expect(fetch).toHaveBeenCalledWith(
-      '/api/approval/not-yet?review=task-a',
-      expect.objectContaining({ method: 'POST' }),
+      '/api/approval?review=task-a',
+      expect.objectContaining({ method: 'PUT', body: expect.stringContaining('"reject"') }),
     );
-    expect(verdictButton('Not yet')).toHaveAttribute('aria-pressed', 'true');
+    expect(verdictButton('Reject')).toHaveAttribute('aria-pressed', 'true');
     await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
     expect(close).toHaveBeenCalledOnce();
     expect(nextStep()).toHaveTextContent('This review has a verdict. You can close this tab.');
@@ -1315,7 +1297,7 @@ describe('after a verdict', () => {
     );
 
     state.showReviewB = false;
-    state.approved = true;
+    state.verdict = 'as-is';
     await act(async () => watch.approvalChanged?.());
     await waitFor(() =>
       expect(screen.queryByRole('navigation', { name: 'Reviews on this server' })).toBeNull(),

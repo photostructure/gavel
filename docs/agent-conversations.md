@@ -243,8 +243,8 @@ gavel . --commit-message 'fix: preserve review intent' --why 'Keep the proposed 
 The browser can edit and save these fields for each diff selection, including
 with `--no-jsonl --no-conversation`. They are saved with the review
 ([saved reviews](#saved-reviews)), except for an unnamed stdin patch or under
-`--no-conversation`, where they disappear when the server restarts. Saving a changed proposal revokes an Approve as-is and clears Not yet for that
-selection; it leaves Approve after comments in place. Editing these fields never executes Git or creates a commit.
+`--no-conversation`, where they disappear when the server restarts. Saving a changed proposal revokes an Approve as-is for that
+selection; it leaves Approve after comments and Reject in place. Editing these fields never executes Git or creates a commit.
 
 A commit that moves HEAD gives a `staged` or `.` diff a new base commit, and so
 a new review. That review starts with the previous review's summary unless its
@@ -292,7 +292,7 @@ its saved summary). `POST` to the same URL accepts
 with `{error,summary}` containing the latest version. Browser updates broadcast
 `reviewSummaryChanged` through the existing watch connection.
 
-Approving with `POST /api/approval` includes the displayed `summaryVersion`.
+Approving with `PUT /api/approval` includes the displayed `summaryVersion`.
 For a named review, also include the displayed `captureVersion` and `patchDigest`.
 For a `staged`, `working`, or `.` review, include the `diffDigest` from the
 displayed `/api/diff` response.
@@ -379,19 +379,20 @@ is `POST /api/conversation/status` and accepts the same JSON as the CLI.
 ## Commit approval
 
 **Approve as-is** permits committing the reviewed scope. **Approve after comments**
-tells the agent to act on all the current comments and then commit. **Not yet**
-requests revision and another verdict. See [approval modes](approval-modes.md)
-for invalidation rules. A verdict may be changed or cleared before
+tells the agent to act on all the current comments and then commit. **Reject**
+tells it to stop, ask the user what to do instead, and ask whether to revert. See
+[approval modes](approval-modes.md) for invalidation rules and the revert steps. A verdict may be changed or cleared before
 the agent acts on it. Browser closure still stops a server unless it runs with
 `--keep-alive`.
 
 The launch stream emits a `review.approval` event with `reviewId`, `selection`,
-`approved`, `approval`, `origin`, `cursor`, and `timestamp`. Not yet and revocation both
-have `approved: false`; only `approval.notYet` tells them apart. It has no thread or message ID, and does
+`approval`, `origin`, `cursor`, and `timestamp`. `approval.verdict` is `as-is`,
+`after-comments`, or `reject`, and is absent once the reviewer clears it or an
+as-is approval is revoked. The event has no thread or message ID, and does
 not need a comment receipt or reply. `comment snapshot` includes `approval`
 on each review. After addressing comments and completing the checks below,
 fetch a fresh snapshot immediately before committing and verify that the matching
-review still has `approval.approved: true`. For a named review, require
+review still has `approval.verdict` of `as-is` or `after-comments`. For a named review approved as-is, require
 `approval.captureVersion === capture.version`,
 `approval.patchDigest === capture.patchDigest`, and
 `approval.summaryVersion === summary.version`. For a `staged`, `working`, or `.`
@@ -408,13 +409,15 @@ patch scope. A closed tab, quiet stream, timeout, resolved thread, answer, or
 ordinary process exit is not approval.
 
 The approval button uses `GET /api/approval?base=<base>&target=<target>` and
-`POST /api/approval` with the same query. Approve with
-`{"approved":true,"summaryVersion":0}` using the displayed summary version;
-revoke with `{"approved":false}`. Include `baseMode=merge-base` where applicable.
-For a named review, use `?review=<name>` and approve with
-`{"approved":true,"captureVersion":1,"patchDigest":"<current-digest>","summaryVersion":0}`
+`PUT /api/approval` with the same query. Approve with
+`{"verdict":"as-is","summaryVersion":0}` using the displayed summary version; reject
+with `{"verdict":"reject"}` plus the same capture or diff fields, without
+`summaryVersion`; clear with `DELETE /api/approval`. Include
+`baseMode=merge-base` where applicable. For a named review, use `?review=<name>` and
+approve with
+`{"verdict":"as-is","captureVersion":1,"patchDigest":"<current-digest>","summaryVersion":0}`
 using the displayed capture and summary values. For a `staged`, `working`, or `.`
-review, also send `"diffDigest":"<digest from /api/diff>"`. Both
+review, also send `"diffDigest":"<digest from /api/diff>"`. All three
 require `--ship-it`. GET returns the current approval, after revoking an as-is
 approval whose `staged`, `working`, or `.` diff has changed; it also
 works without conversation mode. The legacy `POST /api/ship-it` approve-and-exit
@@ -481,8 +484,9 @@ whose server stopped.
 running server: reviews that targeted the commit, and named reviews of exactly
 `git diff --full-index <commit>^ <commit>`, the stacking recipe in the skills (full object names keep the digest stable as the repository grows). `gavel approval status --patch-digest <digest>`
 matches a named review by its current patch. Both print a JSON array, newest
-first, of `{match, approved, name, selection, approval, commitMessage, updatedAt}`;
-an empty array means no saved review matches.
+first, of `{match, selection, approval, commitMessage, updatedAt}`, where
+`approval.verdict` is absent for a review without one and `selection.reviewName` names a
+named review; an empty array means no saved review matches.
 
 ## Compatibility
 

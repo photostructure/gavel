@@ -945,9 +945,9 @@ describe('App Component - Ship it', () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith('/api/approval?base=HEAD%5E&target=HEAD', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approved: true, summaryVersion: 0 }),
+        body: JSON.stringify({ verdict: 'as-is', summaryVersion: 0 }),
       });
     });
     await waitFor(() => expect(button).toHaveTextContent(/^Approved as-is$/));
@@ -963,9 +963,7 @@ describe('App Component - Ship it', () => {
     expect(button).toBeEnabled();
     expect(button.querySelector('img')).toBeNull();
     expect(global.fetch).toHaveBeenCalledWith('/api/approval?base=HEAD%5E&target=HEAD', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ approved: false }),
+      method: 'DELETE',
     });
   });
 
@@ -975,9 +973,9 @@ describe('App Component - Ship it', () => {
     const approval = await screen.findByRole('button', {
       name: /^(Approve as-is|Approved as-is)$/,
     });
-    const notYet = screen.getByRole('button', { name: 'Not yet' });
+    const reject = screen.getByRole('button', { name: 'Reject' });
     await waitFor(() => expect(approval).toBeEnabled());
-    expect(notYet).toBeEnabled();
+    expect(reject).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: /Change summary/ }));
     fireEvent.change(screen.getByLabelText('Why this change'), {
       target: { value: 'Reviewers need to understand the proposed commit.' },
@@ -986,11 +984,11 @@ describe('App Component - Ship it', () => {
       target: { value: 'feat: explain the proposed commit' },
     });
     expect(approval).toBeDisabled();
-    // Not yet moves on to another review or closes the tab, which would drop the unsaved draft.
-    expect(notYet).toBeDisabled();
+    // Reject moves on to another review or closes the tab, which would drop the unsaved draft.
+    expect(reject).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Save summary' }));
     await waitFor(() => expect(approval).toBeEnabled());
-    expect(notYet).toBeEnabled();
+    expect(reject).toBeEnabled();
     expect(global.fetch).toHaveBeenCalledWith('/api/review-summary?base=HEAD%5E&target=HEAD', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1004,9 +1002,9 @@ describe('App Component - Ship it', () => {
     fireEvent.click(approval);
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith('/api/approval?base=HEAD%5E&target=HEAD', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approved: true, summaryVersion: 1 }),
+        body: JSON.stringify({ verdict: 'as-is', summaryVersion: 1 }),
       }),
     );
   });
@@ -1014,7 +1012,7 @@ describe('App Component - Ship it', () => {
 
 describe('App Component - Approval celebration', () => {
   let bursts = 0;
-  /** While set, approval POSTs wait for this promise before the server answers. */
+  /** While set, verdict PUTs wait for this promise before the server answers. */
   let approvalPostGate: Promise<void> | null = null;
 
   beforeEach(() => {
@@ -1036,21 +1034,26 @@ describe('App Component - Approval celebration', () => {
         },
       ) as never;
     });
-    const approvals = new Map<string, boolean>();
+    const verdicts = new Map<string, string>();
     vi.mocked(global.fetch).mockImplementation((input, init) => {
       const url = String(input);
       if (url.startsWith('/api/review-summary')) {
         return Promise.resolve(Response.json({ commitMessage: '', rationale: '', version: 0 }));
       }
       if (url.startsWith('/api/approval')) {
-        if (init?.method === 'POST') {
-          const approved = Boolean(JSON.parse(String(init.body)).approved);
+        if (init?.method === 'PUT') {
+          const { verdict } = JSON.parse(String(init.body)) as { verdict: string };
           return (approvalPostGate ?? Promise.resolve()).then(() => {
-            approvals.set(url, approved);
-            return Response.json({ approved });
+            verdicts.set(url, verdict);
+            return Response.json({ verdict });
           });
         }
-        return Promise.resolve(Response.json({ approved: approvals.get(url) ?? false }));
+        if (init?.method === 'DELETE') {
+          verdicts.delete(url);
+          return Promise.resolve(Response.json({}));
+        }
+        const verdict = verdicts.get(url);
+        return Promise.resolve(Response.json(verdict ? { verdict } : {}));
       }
       if (url.includes('/api/revisions')) {
         return Promise.resolve(new Response(null, { status: 404 }));
@@ -1122,7 +1125,7 @@ describe('App Component - Approval celebration', () => {
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith(
         '/api/approval?base=HEAD%5E&target=HEAD',
-        expect.objectContaining({ method: 'POST' }),
+        expect.objectContaining({ method: 'PUT' }),
       ),
     );
 
@@ -1189,7 +1192,7 @@ describe('App Component - Ship it delivery', () => {
     await waitFor(() => expect(finishSave).toBeTypeOf('function'));
     expect(global.fetch).not.toHaveBeenCalledWith(
       expect.stringContaining('/api/approval'),
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ method: 'PUT' }),
     );
     expect(button).toBeDisabled();
 
@@ -1198,9 +1201,9 @@ describe('App Component - Ship it delivery', () => {
     });
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith('/api/approval?base=def4567&target=abc1234', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approved: true, summaryVersion: 0 }),
+        body: JSON.stringify({ verdict: 'as-is', summaryVersion: 0 }),
       });
     });
   });
@@ -1223,7 +1226,7 @@ describe('App Component - Ship it delivery', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not save the verdict');
     expect(global.fetch).not.toHaveBeenCalledWith(
       expect.stringContaining('/api/approval'),
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ method: 'PUT' }),
     );
     expect(screen.getByRole('button', { name: /^(Approve as-is|Approved as-is)$/ })).toBeEnabled();
   });
@@ -1232,7 +1235,7 @@ describe('App Component - Ship it delivery', () => {
     mockFetch({ ...mockDiffResponse, shipIt: true });
     const fallback = vi.mocked(global.fetch).getMockImplementation()!;
     vi.mocked(global.fetch).mockImplementation((input, init) => {
-      if (String(input).startsWith('/api/approval') && init?.method === 'POST') {
+      if (String(input).startsWith('/api/approval') && init?.method === 'PUT') {
         return Promise.resolve({
           ok: false,
           status: 409,
@@ -1263,7 +1266,7 @@ describe('App Component - Ship it delivery', () => {
       mockFetch({ ...mockDiffResponse, shipIt: true });
       const fallback = vi.mocked(global.fetch).getMockImplementation()!;
       vi.mocked(global.fetch).mockImplementation((input, init) => {
-        if (String(input).startsWith('/api/approval') && init?.method === 'POST') {
+        if (String(input).startsWith('/api/approval') && init?.method === 'PUT') {
           return failure === 'network'
             ? Promise.reject(new Error('Connection refused'))
             : Promise.resolve({ ok: false, status: 500 } as Response);

@@ -77,13 +77,18 @@ describe('saved review state across server restarts', () => {
     );
   }
 
-  async function request<T>(path: string, body?: unknown, status = 200): Promise<T> {
+  async function request<T>(
+    path: string,
+    body?: unknown,
+    status = 200,
+    method = body === undefined ? 'GET' : 'POST',
+  ): Promise<T> {
     if (!running) throw new Error('Fixture server has not started');
     const response = await fetch(new URL(path, running.url), {
+      method,
       ...(body === undefined
         ? {}
         : {
-            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
           }),
@@ -119,12 +124,17 @@ describe('saved review state across server restarts', () => {
 
   async function approveNamed(name: string, summaryVersion: number) {
     const review = await request<{ version: number; patchDigest: string }>(`/api/reviews/${name}`);
-    return request<ReviewApproval>(`/api/approval?review=${name}`, {
-      approved: true,
-      captureVersion: review.version,
-      patchDigest: review.patchDigest,
-      summaryVersion,
-    });
+    return request<ReviewApproval>(
+      `/api/approval?review=${name}`,
+      {
+        verdict: 'as-is',
+        captureVersion: review.version,
+        patchDigest: review.patchDigest,
+        summaryVersion,
+      },
+      200,
+      'PUT',
+    );
   }
 
   beforeEach(async () => {
@@ -159,11 +169,11 @@ describe('saved review state across server restarts', () => {
     const restored = await reviewOf('task');
     expect(restored).toMatchObject({
       summary: { commitMessage: message, version: summary.version },
-      approval: { approved: true, mode: 'as-is', patchDigest: capture.patchDigest },
+      approval: { verdict: 'as-is', patchDigest: capture.patchDigest },
       threads: [{ id: 'question', messages: [{ body: 'Keep this comment.' }] }],
     });
     expect(await request<ReviewApproval>('/api/approval?review=task')).toMatchObject({
-      approved: true,
+      verdict: 'as-is',
     });
     const comments = await request<{ threads: DiffCommentThread[] }>(
       '/api/comments-json?review=task',
@@ -176,12 +186,12 @@ describe('saved review state across server restarts', () => {
     await approveNamed('task', 1);
 
     await restart(() => startNamed('task', { commitMessage: message, why: 'Same TLDR.' }));
-    expect(await reviewOf('task')).toMatchObject({ approval: { approved: true } });
+    expect(await reviewOf('task')).toMatchObject({ approval: { verdict: 'as-is' } });
 
     await restart(() => startNamed('task', { commitMessage: 'fix: something else', why: '' }));
     expect(await reviewOf('task')).toMatchObject({
       summary: { commitMessage: 'fix: something else' },
-      approval: { approved: false },
+      approval: expect.not.objectContaining({ verdict: expect.anything() }),
     });
   });
 
@@ -194,7 +204,7 @@ describe('saved review state across server restarts', () => {
     running = undefined;
     await startNamed('task');
     expect(await reviewOf('task')).toMatchObject({
-      approval: { approved: false },
+      approval: expect.not.objectContaining({ verdict: expect.anything() }),
       summary: { version: 0 },
       threads: [],
     });
@@ -248,13 +258,18 @@ describe('saved review state across server restarts', () => {
       });
     };
     await start();
-    await request<ReviewApproval>('/api/approval', { approved: true, summaryVersion: 1 });
+    await request<ReviewApproval>(
+      '/api/approval',
+      { verdict: 'as-is', summaryVersion: 1 },
+      200,
+      'PUT',
+    );
     await restart(start);
-    expect(await request<ReviewApproval>('/api/approval')).toMatchObject({ approved: true });
+    expect(await request<ReviewApproval>('/api/approval')).toMatchObject({ verdict: 'as-is' });
     await running?.shutdown('closed');
     running = undefined;
     expect(await findApprovals(root, { commit: 'HEAD' })).toMatchObject([
-      { match: 'commit', approved: true, commitMessage: message },
+      { match: 'commit', approval: { verdict: 'as-is' }, commitMessage: message },
     ]);
   });
 
@@ -313,12 +328,12 @@ describe('saved review state across server restarts', () => {
         rationale: '',
         baseVersion: 1,
       });
-      expect(saves.some((review) => review.summary.version === 2 && review.approval.approved)).toBe(
+      expect(saves.some((review) => review.summary.version === 2 && review.approval.verdict)).toBe(
         false,
       );
       expect(saves.at(-1)).toMatchObject({
         summary: { version: 2 },
-        approval: { approved: false },
+        approval: expect.not.objectContaining({ verdict: expect.anything() }),
       });
     } finally {
       spy.mockRestore();
@@ -339,7 +354,7 @@ describe('saved review state across server restarts', () => {
 
     expect(await reviewOf('task')).toMatchObject({
       capture: { version: 2, patchDigest: next.patchDigest },
-      approval: { approved: true },
+      approval: { verdict: 'as-is' },
       threads: [{ id: 'question', capture: { version: 1, patchDigest: original.patchDigest } }],
     });
     expect(await request<{ version: number }>('/api/reviews/task?version=1')).toMatchObject({
@@ -544,7 +559,7 @@ function savedFixture(): SavedReview {
     selection: createDiffSelection('a'.repeat(40), 'b'.repeat(40)),
     threads: [],
     progress: [],
-    approval: { approved: false },
+    approval: {},
     summary: { commitMessage: '', rationale: '', version: 0 },
     updatedAt: now,
   };

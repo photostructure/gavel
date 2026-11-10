@@ -33,22 +33,20 @@ test Firefox.
 ## Required reading
 
 - **AGENTS.md**
-- **docs/approval-modes.md**: the three verdicts and what clears Not yet
+- **docs/approval-modes.md**: the three verdicts and what clears each
 - `src/client/hooks/useVerdictFollowUp.ts`: the countdown's state machine
 
 ## Interfaces other work may collide with
 
 Check these before merging work that touches approval, the header, or review tabs.
 
-- `ReviewApproval.notYet?: true` (`src/types/conversation.ts`), set only by
-  `POST /api/approval/not-yet` (`src/server/server.ts`, the `approvalRoutes`
-  handler). `Conversation.setNotYet` records it; `setCapture`, `setSummary`,
-  `setApproval(false)`, and `revokeIfDiffChanged` clear it. New comments keep it.
-  The schema (`src/cli/schema.ts`) and the skills' `jq` snapshot filter expose it.
+- Not yet is now Reject, recorded as `ReviewApproval.verdict: 'reject'` through
+  `PUT /api/approval`, and only the reviewer clears it; see
+  [2026-11-10-reject-verdict.md](2026-11-10-reject-verdict.md).
 - `ApprovalSplitButton.tsx` is renamed (`git mv`) to `VerdictControl.tsx`;
   `describeApproval` moved with it. Any branch importing the old path breaks.
 - `App.tsx`: `handleShipIt(mode, revoke)` became `handleVerdict('as-is' |
-  'after-comments' | 'not-yet' | 'revoke')`. `handleRevisionChange`'s second
+  'after-comments' | 'not-yet' | 'revoke')`, now `handleVerdict(ReviewVerdict | 'clear')`. `handleRevisionChange`'s second
   argument changed from `addHistory: boolean` to `'push' | 'replace' | null`.
   `approvalControlRef` is now set through the `setVerdictControl` callback ref,
   which also anchors the notice.
@@ -64,17 +62,17 @@ Check these before merging work that touches approval, the header, or review tab
 
 ## Lore
 
-- Decisions the maintainer made in conversation: Not yet is one click and needs no
+- Decisions the maintainer made in conversation: Not yet (now Reject) is one click and needs no
   comment; three separate buttons from 1280px (at 1024px the header needs about
   1198px for them, measured in the browser pane), one menu below; idle buttons
   are neutral, because a red-tinted idle Not yet "looks like I've already pushed
-  not yet"; hover tints only the border (green, yellow for after comments, red),
+  not yet"; hover tints only the border (green, yellow for after comments, violet),
   because tinted text was too faint in dark mode; clicking the pressed button
   clears the verdict; the countdown notice sits under the verdict buttons, "where
   I'm looking"; auto-close, accepting that Back no longer moves between reviews;
   a 10 s countdown (it was 3 s to switch, 5 s to close) and a 1.6 s pulse beat
   (it was 0.8 s), both lengthened at their request; a chosen button is filled in
-  its verdict's color (green, yellow, red) and Not yet stays red; **Switch now** /
+  its verdict's color (green, yellow, violet) and Reject stays violet; **Switch now** /
   **Close now** beside **Cancel** skip the wait; the notice and its default button
   are blue, because green beside the verdict buttons reads as approval.
 - The countdown notice renders through `FloatingPortal` because the header group
@@ -97,7 +95,7 @@ Check these before merging work that touches approval, the header, or review tab
 - The open review's own approval hook (`currentHasVerdict`) is fresher than its
   entry in the tab list; a recapture that clears its verdict stops any countdown,
   so the tab never closes over a review that needs a verdict again.
-- With `--no-conversation`, Not yet lives in the server's `approvals` map; no test
+- With `--no-conversation`, a verdict lives in the server's `approvals` map; no test
   covers that path.
 
 ## Tasks
@@ -107,7 +105,7 @@ Check these before merging work that touches approval, the header, or review tab
 
   1. Approve the first review. The notice under the buttons counts down 10 s and
      opens the second, and the second review's tab pulses.
-  2. Choose Not yet on the second. The notice counts down 10 s. If the tab has one
+  2. Choose Reject on the second. The notice counts down 10 s. If the tab has one
      history entry it closes; otherwise the notice says the tab can be closed.
   3. Reload with a review that has no verdict. The browser asks before leaving.
   4. After a verdict, Tab past the remaining verdict buttons. Focus moves to

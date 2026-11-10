@@ -10,7 +10,7 @@ const activity = (type = 'review.approval', origin = 'user', cursor = 'stream:1'
   cursor,
   reviewId: 'review',
   selection: { baseCommitish: 'HEAD', targetCommitish: '.' },
-  approved: true,
+  approval: { verdict: 'as-is' },
   timestamp: '2026-11-03T00:00:00Z',
 });
 const response = (body: unknown, status = 200) =>
@@ -107,7 +107,8 @@ describe('gavel wait', () => {
       activity('comment.deleted'),
       activity('review.capture', 'agent'),
     ];
-    const revoked = { ...activity('review.approval', 'user', 'stream:11'), approved: false };
+    // A cleared verdict: the approval no longer has one.
+    const revoked = { ...activity('review.approval', 'user', 'stream:11'), approval: {} };
     fetchMock
       .mockResolvedValueOnce(response(snapshot))
       .mockResolvedValueOnce(response({ events: ignored, cursor: 'stream:10' }))

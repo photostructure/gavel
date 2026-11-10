@@ -7,12 +7,12 @@ import { createDiffSelection } from '../../utils/diffSelection';
 
 import { useVerdictFollowUp } from './useVerdictFollowUp';
 
-const review = (name: string, approval: ReviewApproval = { approved: false }) => ({
+const review = (name: string, approval: ReviewApproval = {}) => ({
   selection: createDiffSelection('base', '.', undefined, name),
   name,
   approval,
 });
-const approved: ReviewApproval = { approved: true, requested: true, mode: 'as-is' };
+const approved: ReviewApproval = { verdict: 'as-is' };
 
 type Props = {
   reviews: ReturnType<typeof review>[];
@@ -178,7 +178,7 @@ describe('verdict follow-up', () => {
     const { result, rerender } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
     expect(result.current.step?.kind).toBe('close');
-    // The agent recaptured the review, which clears its Not yet.
+    // The agent recaptured the review, which clears its as-is approval.
     rerender({ reviews: queue, current: queue[0]!.selection, currentHasVerdict: false });
     expect(result.current.step).toBeNull();
     act(() => void vi.advanceTimersByTime(20_000));

@@ -5,7 +5,8 @@ section: Review protocol
 
 # Remove the redundant requested approval field
 
-Placeholder. Not started.
+Done by [2026-11-10-reject-verdict.md](../_todo/2026-11-10-reject-verdict.md): `verdict`
+replaced `requested`, `approved`, `mode`, and `notYet`.
 
 Matthew found `requested: true` unclear on an **Approve after comments** verdict,
 where it can be mistaken for an agent's request for approval. On a server with

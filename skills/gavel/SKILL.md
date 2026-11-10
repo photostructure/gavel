@@ -264,12 +264,12 @@ URL and resumption instructions. Do not reread an unchanged snapshot.
 
 Read a fresh snapshot before acting: the user can clear or switch a verdict.
 
-| Verdict                                                            | Action                                                               |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| Approve as-is: `approved: true`, `mode: "as-is"`                   | Verify final scope and commit prerequisites below.                   |
-| Approve after comments: `approved: true`, `mode: "after-comments"` | Act on all current comments, then commit.                            |
-| Not yet: `notYet: true`, `approved: false`                         | Revise and update the capture or proposal, then await a new verdict. |
-| No verdict                                                         | Await the user.                                                      |
+| Verdict                                             | Action                                                             |
+| --------------------------------------------------- | ------------------------------------------------------------------ |
+| Approve as-is: `verdict: "as-is"`                   | Verify final scope and commit prerequisites below.                 |
+| Approve after comments: `verdict: "after-comments"` | Act on all current comments, then commit.                          |
+| Reject: `verdict: "reject"`                         | Stop: do not revise, recapture, or commit. Ask what to do instead. |
+| No verdict (`verdict` absent or `null`)             | Await the user.                                                    |
 
 For Approve after comments, read every entry in the filtered snapshot's
 `comments`, plus any feedback in this session or outside gavel, and act on all
@@ -279,10 +279,33 @@ tracks which comments are done, and the verdict stays until the user clears it.
 See the
 [approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md).
 
+After Reject, ask in this session what the user wants instead, using the review's
+comments as context, and whether to revert. Say what each revert step would
+undo, then act on the user's answer without asking again:
+
+- In a worktree of your own: `git worktree remove --force <path>`, then
+  `git branch -D <branch>`. `--force` deletes uncommitted and untracked files for good,
+  and deleting the branch deletes its reflog: give the tip SHA (`git rev-parse <branch>`)
+  in your reply first, since it is the only way back until `git gc` prunes it.
+- For unpushed commits this session made at the branch tip (`git branch -r --contains <oldest>`
+  prints nothing): note the tip SHA, run `git reset --soft <oldest>^`, then
+  `git diff --full-index <oldest>^ <tip> | git apply --cached -R`. That unstages only those
+  commits' hunks and leaves the changes in the working tree to redo; `git restore --staged`
+  would also unstage other sessions' hunks in the same files. If `git apply` fails, it
+  changed nothing: tell the user the rejected changes are still staged. To discard them
+  instead, treat them as uncommitted edits. A pushed range, or one with another session's commit on top,
+  gets a `git revert` commit, under the usual commit approval.
+- For uncommitted edits in a shared checkout: ask how. `git stash push` takes whole files
+  and resets the shared index, so it can take another session's work.
+
+Only the user clears a Reject. Never recapture a rejected review; put a new attempt
+up as a new named review.
+
 Approve as-is or Approve after comments on a review you opened is
 commit approval. After comments, required checks, and independent Codex/Claude
 LAND on final code, read a fresh full snapshot immediately before committing.
-Require `approval.approved: true`; for named captures approved as-is, also match:
+Require `approval.verdict` to be `as-is` or `after-comments`; for named captures approved as-is,
+also match:
 
 - `approval.captureVersion` to `capture.version`;
 - `approval.patchDigest` to `capture.patchDigest`;

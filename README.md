@@ -58,7 +58,7 @@ Give each proposed commit a verdict:
 
 - **Approve as-is** permits the agent to commit the reviewed change.
 - **Approve after comments** permits it to commit once your feedback is addressed.
-- **Not yet** asks for revisions and another review.
+- **Reject** stops the agent, which asks you what to do instead and whether to revert.
 
 The agent must run the required checks before committing. See
 [approval modes](docs/approval-modes.md) for details.

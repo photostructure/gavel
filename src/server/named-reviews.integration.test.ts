@@ -96,11 +96,13 @@ describe('named review HTTP integration', () => {
   const get = <T>(path: string) => request<T>(path);
   const post = <T>(path: string, body: unknown, status = 200) =>
     request<T>(path, 'POST', body, status);
+  const put = <T>(path: string, body: unknown, status = 200) =>
+    request<T>(path, 'PUT', body, status);
   const review = () => get<ReviewResponse>(`/api/reviews/${name}`);
   const approval = () => get<ReviewApproval>(`/api/approval${query}`);
   const snapshot = () => get<ConversationSnapshot>('/api/conversation/snapshot');
   const binding = (capture: ReviewCapture, version: number, summaryVersion = 0) => ({
-    approved: true,
+    verdict: 'as-is',
     captureVersion: version,
     patchDigest: capture.patchDigest,
     summaryVersion,
@@ -225,10 +227,7 @@ describe('named review HTTP integration', () => {
       rationale: 'Carry the discussion through requested fixes.',
       baseVersion: 0,
     });
-    await post<ReviewApproval>(
-      `/api/approval${query}`,
-      binding(initialCapture, 1, summary.version),
-    );
+    await put<ReviewApproval>(`/api/approval${query}`, binding(initialCapture, 1, summary.version));
     const next = await changedCapture();
     const eventStart = events.length;
     const updated = await post<ReviewResponse>(`/api/reviews/${name}/capture`, {
@@ -244,7 +243,7 @@ describe('named review HTTP integration', () => {
       updated: true,
     });
     expect(await get<ReviewSummary>(`/api/review-summary${query}`)).toEqual(summary);
-    expect(await approval()).toMatchObject({ approved: false });
+    expect((await approval()).verdict).toBeUndefined();
     const comments = await get<CommentsResponse>(`/api/comments-json${query}`);
     expect(comments.threads).toHaveLength(1);
     expect(comments.threads[0]).toMatchObject({
@@ -258,7 +257,7 @@ describe('named review HTTP integration', () => {
       selection: { reviewName: name },
       summary,
       capture: { version: 2, patchDigest: next.patchDigest },
-      approval: { approved: false },
+      approval: expect.not.objectContaining({ verdict: expect.anything() }),
       threads: [{ capture: anchor }],
     });
     expect(events.slice(eventStart)).toEqual(
@@ -271,7 +270,7 @@ describe('named review HTTP integration', () => {
         expect.objectContaining({
           type: 'review.approval',
           reviewId: before.reviewId,
-          approved: false,
+          approval: expect.not.objectContaining({ verdict: expect.anything() }),
         }),
       ]),
     );
@@ -312,10 +311,7 @@ describe('named review HTTP integration', () => {
 
   it('leaves approval and capture events unchanged for an identical capture', async () => {
     const before = await review();
-    const approved = await post<ReviewApproval>(
-      `/api/approval${query}`,
-      binding(initialCapture, 1),
-    );
+    const approved = await put<ReviewApproval>(`/api/approval${query}`, binding(initialCapture, 1));
     const eventStart = events.length;
     const updated = await post<ReviewResponse>(`/api/reviews/${name}/capture`, {
       expectedVersion: 1,
@@ -352,13 +348,13 @@ describe('named review HTTP integration', () => {
         409,
       );
     }
-    await post(`/api/approval${query}`, binding(initialCapture, 1), 409);
-    await post(
+    await put(`/api/approval${query}`, binding(initialCapture, 1), 409);
+    await put(
       `/api/approval${query}`,
       { ...binding(next, 2), patchDigest: initialCapture.patchDigest },
       409,
     );
-    expect(await approval()).toMatchObject({ approved: false });
+    expect((await approval()).verdict).toBeUndefined();
     expect(await review()).toEqual(current);
     expect(events.slice(eventStart)).toEqual([]);
 
@@ -367,27 +363,28 @@ describe('named review HTTP integration', () => {
       rationale: 'A revised proposal.',
       baseVersion: 0,
     });
-    await post(`/api/approval${query}`, binding(next, 2, 0), 409);
-    expect(await approval()).toMatchObject({ approved: false });
+    await put(`/api/approval${query}`, binding(next, 2, 0), 409);
+    expect((await approval()).verdict).toBeUndefined();
     expect(
-      await post<ReviewApproval>(`/api/approval${query}`, binding(next, 2, summary.version)),
+      await put<ReviewApproval>(`/api/approval${query}`, binding(next, 2, summary.version)),
     ).toMatchObject(binding(next, 2, summary.version));
   });
 
-  it('records not yet for the displayed capture only, and clears it on recapture', async () => {
-    const notYetBinding = { captureVersion: 1, patchDigest: initialCapture.patchDigest };
-    const verdict = await post<ReviewApproval>(`/api/approval/not-yet${query}`, {
-      approved: false,
-      ...notYetBinding,
-    });
-    expect(verdict).toMatchObject({ approved: false, notYet: true, captureVersion: 1 });
-    expect(await approval()).toMatchObject({ notYet: true });
+  it('records reject for the displayed capture only, and keeps it on recapture', async () => {
+    const rejectBinding = {
+      verdict: 'reject',
+      captureVersion: 1,
+      patchDigest: initialCapture.patchDigest,
+    };
+    await put(`/api/approval${query}`, { ...rejectBinding, captureVersion: 2 }, 409);
+    expect((await approval()).verdict).toBeUndefined();
+    const verdict = await put<ReviewApproval>(`/api/approval${query}`, rejectBinding);
+    expect(verdict).toMatchObject({ verdict: 'reject', captureVersion: 1 });
 
+    // A rejected change is done with, so only the reviewer ends the verdict.
     const next = await changedCapture();
     await post(`/api/reviews/${name}/capture`, { expectedVersion: 1, capture: next });
-    expect((await approval()).notYet).toBeUndefined();
-    await post(`/api/approval/not-yet${query}`, { approved: false, ...notYetBinding }, 409);
-    expect((await approval()).notYet).toBeUndefined();
+    expect(await approval()).toMatchObject({ verdict: 'reject', captureVersion: 1 });
   });
 
   it('files comment imports under the named review that ?review= selects', async () => {
@@ -429,8 +426,8 @@ describe('named review HTTP integration', () => {
       rationale: 'First task only.',
       baseVersion: 0,
     });
-    await post(`/api/approval${query}`, binding(initialCapture, 1, summary.version));
-    await post(`/api/approval${otherQuery}`, binding(initialCapture, 1));
+    await put(`/api/approval${query}`, binding(initialCapture, 1, summary.version));
+    await put(`/api/approval${otherQuery}`, binding(initialCapture, 1));
     const next = await changedCapture();
     await post(`/api/reviews/${name}/capture`, { expectedVersion: 1, capture: next });
 
@@ -450,10 +447,10 @@ describe('named review HTTP integration', () => {
       version: 0,
     });
     expect(await get<ReviewApproval>(`/api/approval${otherQuery}`)).toMatchObject({
-      approved: true,
+      verdict: 'as-is',
       captureVersion: 1,
     });
-    expect(await approval()).toMatchObject({ approved: false });
+    expect((await approval()).verdict).toBeUndefined();
     expect(await get<ReviewResponse>(`/api/reviews/${otherName}`)).toMatchObject({
       reviewId: other.reviewId,
       version: 1,

@@ -14,8 +14,6 @@ const execFileAsync = promisify(execFile);
 export interface ApprovalStatus {
   /** commit: a review of that commit as a target; patch: a review of exactly its patch. */
   match: 'commit' | 'patch';
-  approved: boolean;
-  name?: string;
   selection: DiffSelection;
   approval: ReviewApproval;
   commitMessage: string;
@@ -63,8 +61,6 @@ export async function findApprovals(
       return [
         {
           match,
-          approved: review.approval.approved,
-          ...(review.selection.reviewName ? { name: review.selection.reviewName } : {}),
           selection: review.selection,
           approval: review.approval,
           commitMessage: review.summary.commitMessage,
@@ -77,7 +73,7 @@ export async function findApprovals(
 
 export function createApprovalCommand(): Command {
   const status = new Command('status')
-    .description('Print the saved reviews of a commit or patch and whether each is approved')
+    .description('Print the saved reviews of a commit or patch and the verdict on each')
     .argument(
       '[commit]',
       'a commit; matches reviews of it and of `git diff --full-index <commit>^ <commit>`',
@@ -87,7 +83,7 @@ export function createApprovalCommand(): Command {
       'after',
       `
 Reads the reviews gavel servers saved under <git-common-dir>/gavel; no server needs to run.
-Prints a JSON array, newest first, of {match, approved, name, selection, approval,
+Prints a JSON array, newest first, of {match, selection, approval,
 commitMessage, updatedAt}. An empty array means no saved review matches, for example: no
 review of it was opened by a server that saves reviews, it went untouched for
 ${REVIEW_RETENTION_MS / 86_400_000} days and was deleted, or its patch was piped some other way than

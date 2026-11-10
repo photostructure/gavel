@@ -2,28 +2,27 @@
 
 The verdict buttons have three actions. **Approve as-is** approves the displayed
 patch. **Approve after comments** tells the agent to act on all the current
-comments and then commit. **Not yet** says the displayed patch is not ready:
-revise it, then ask again. None of them authorizes a push, publication, or
-unrelated changes.
+comments and then commit. **Reject** says the change is done with: the agent stops
+and asks the user what to do instead. None of them authorizes a push, publication,
+or unrelated changes.
 
-Approval snapshots and `review.approval` events carry the mode:
+Approval snapshots and `review.approval` events carry the reviewer's `verdict`,
+which is absent until there is one:
 
-- `mode: "as-is", approved: true`: the reviewed patch is approved.
-- `mode: "after-comments", approved: true`: act on the current comments, then commit.
-- `approved: false, notYet: true`: the reviewer chose **Not yet** for the displayed
-  capture or diff. Read the comments, revise, and recapture or re-propose; that clears
-  `notYet`, and the review waits for a new verdict. A changed summary, a changed
-  `staged`, `working`, or `.` diff, or revocation also clears it. New comments keep it.
-- `approved: false` without `requested: true` or `notYet: true`: there is no verdict.
+- `verdict: "as-is"`: the reviewed patch is approved.
+- `verdict: "after-comments"`: act on the current comments, then commit.
+- `verdict: "reject"`: do not revise, recapture, or commit. See
+  [acting on Reject](#acting-on-reject).
+- No `verdict`: there is no verdict.
 
 The nested `approval` object on approval events has the same fields as snapshots.
-**Approve after comments** uses `POST /api/approval/conditional`; an older server
-returns 404 instead of silently treating it as as-is approval. **Not yet** uses
-`POST /api/approval/not-yet` with `approved: false` for the same reason: an older
-server returns 404 instead of treating it as revocation. It carries the displayed
-`captureVersion` and `patchDigest`, or the `diffDigest`, like approval, and returns
-HTTP 409 when they are stale; it does not check `summaryVersion`. The browser checks
-`conditionalSupported` before offering **Approve after comments**.
+`PUT /api/approval` sets a verdict with `{"verdict": ...}` and the displayed
+`captureVersion` and `patchDigest`, or the `diffDigest`; it returns HTTP 409 when
+they are stale. The two approvals also require the displayed `summaryVersion`;
+Reject does not endorse the proposed message, so it ignores the summary.
+`DELETE /api/approval` clears the verdict and requires no matching versions. The
+browser checks `conditionalSupported` before offering **Approve after comments**,
+which needs conversations.
 
 ## Acting on Approve after comments
 
@@ -42,13 +41,45 @@ server. Addressing a comment does not resolve or delete it. Keep the existing ru
 to resolve or delete only on request. Permission does not extend to other changes
 in a shared working tree.
 
+## Acting on Reject
+
+1. Do not revise, recapture, or commit the rejected change.
+2. In the session that opened the review, ask the user what should happen instead,
+   using the review's comments as context, and ask whether to revert.
+3. Say what each revert step would undo, then act on the user's answer without
+   asking again:
+   - In a worktree of the agent's own: `git worktree remove --force <path>`, then
+     `git branch -D <branch>`. `--force` deletes the worktree's uncommitted and
+     untracked files for good. Deleting the branch also deletes its reflog, so its
+     commits are recoverable only by the tip SHA, until `git gc` prunes them: put
+     that SHA (`git rev-parse <branch>`) in the reply before deleting.
+   - For unpushed commits the session made at the branch tip (`git branch -r
+     --contains <oldest>` prints nothing): note the tip SHA, run
+     `git reset --soft <oldest>^`, then
+     `git diff --full-index <oldest>^ <tip> | git apply --cached -R`. The commits
+     stay in the branch's reflog, and their changes stay in the working tree,
+     unstaged, to redo. Reverse-applying only those commits' diff to the index keeps
+     other sessions' staged hunks, even in the same files; a plain `git reset` or
+     `git restore --staged` would unstage them. If `git apply` fails, it changes
+     nothing: another session staged an edit that overlaps, so stop and tell the user
+     that the rejected changes are still staged. If the user wants the changes gone
+     instead, they are now uncommitted edits: see the next item. A pushed range, or
+     one with another session's commit on top, gets a `git revert` commit instead,
+     under the usual commit approval.
+   - For uncommitted edits in a shared checkout: ask how. `git stash push` takes
+     whole files and resets the shared index, so it can take another session's work.
+4. Put a new attempt up as a new named review. Only the reviewer clears a Reject,
+   so a recapture of the rejected review would still show it rejected.
+
 ## Approval invalidation
 
-**Approve after comments** ends only when the reviewer clears it or chooses another
-verdict. New, edited, resolved, or reopened comments leave it in place, and so do
-capture updates, diff changes, and summary edits. The approval's `captureVersion`,
-`patchDigest`, and `summaryVersion` follow the current capture and summary, so a
-commit does not need them to match the capture the reviewer first saw.
+**Approve after comments** and **Reject** end only when the reviewer clears them or
+chooses another verdict. New, edited, resolved, or reopened comments leave them in
+place, and so do capture updates, diff changes, and summary edits. Under Approve
+after comments, the approval's `captureVersion`, `patchDigest`, and `summaryVersion`
+follow the current capture and summary, so a commit does not need them to match the
+capture the reviewer first saw. A Reject keeps the versions of the capture it
+rejected.
 
 **Approve as-is** covers exactly what the reviewer saw. New or edited human feedback,
 deletion, a reopened thread, a changed summary, or a changed named capture revokes

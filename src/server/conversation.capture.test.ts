@@ -42,8 +42,8 @@ describe('capture-bound conversations', () => {
       { commitMessage: 'fix: retain context', rationale: 'Preserve task discussion.', version: 1 },
       'agent',
     );
-    expect(conversation.setApproval(selection, true)).toMatchObject({
-      approved: true,
+    expect(conversation.setVerdict(selection, 'as-is')).toMatchObject({
+      verdict: 'as-is',
       captureVersion: 1,
       patchDigest: capture.patchDigest,
       summaryVersion: 1,
@@ -62,8 +62,8 @@ describe('capture-bound conversations', () => {
     expect(current.selection).toEqual(nextSelection);
     expect(current.threads[0]?.capture).toEqual(thread.capture);
     expect(current.summary.commitMessage).toBe('fix: retain context');
+    expect(current.approval.verdict).toBeUndefined();
     expect(current.approval).toMatchObject({
-      approved: false,
       captureVersion: 2,
       patchDigest: nextCapture.patchDigest,
       summaryVersion: 1,
@@ -73,7 +73,7 @@ describe('capture-bound conversations', () => {
         type: 'review.approval',
         origin: 'agent',
         reviewId: original.id,
-        approved: false,
+        approval: expect.not.objectContaining({ verdict: expect.anything() }),
         capture: nextCapture,
         summaryVersion: 1,
       }),

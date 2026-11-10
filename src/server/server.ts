@@ -14,6 +14,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import type {
   ReviewApproval,
   ReviewSummary,
+  ReviewVerdict,
   ConversationStreamEvent,
 } from '../types/conversation.js';
 import type { ServerEvent, ServerShutdownEvent } from '../types/events.js';
@@ -52,7 +53,7 @@ import {
 import { getFileExtension } from '../utils/fileUtils.js';
 
 import { FileWatcherService } from './file-watcher.js';
-import { Conversation, registerConversationRoutes } from './conversation.js';
+import { Conversation, onRevision, registerConversationRoutes } from './conversation.js';
 import { ReviewPresence } from './review-presence.js';
 import { emptyReviewSummary, parseReviewSummaryInput } from './review-summary.js';
 import { GitDiffParser } from './git-diff.js';
@@ -176,6 +177,11 @@ function createResolvedCommentSelection(
 
 // A save that found its lock briefly contended tries again after this long.
 const SAVE_RETRY_MS = 50;
+const VERDICT_LOG_NAMES: Record<ReviewVerdict, string> = {
+  'as-is': 'approved as-is',
+  'after-comments': 'approved after comments',
+  reject: 'rejected',
+};
 
 function createCommentSessionKey(selection: DiffSelection): string {
   return getDiffSelectionKey(selection);
@@ -1452,28 +1458,26 @@ export async function startServer(options: ServerOptions): Promise<{
     seedSummary(next, summary.commitMessage, summary.rationale);
   }
 
-  // An as-is approval covers the index or worktree diff the reviewer saw. After-comments
-  // approval permits the agent's changes, so the diff may move under it.
+  // An as-is approval covers the index or worktree diff the reviewer saw. After-comments lets the
+  // agent change the diff, so its recorded digest is never compared, and a rejected change must
+  // not ask for a verdict again once the agent reverts it, so only as-is is cleared.
   function revokeIfDiffChanged(selection: DiffSelection, diffDigest: string | undefined): void {
     const approval =
       conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
     if (
-      !(approval?.approved || approval?.notYet) ||
+      !approval ||
+      onRevision(approval.verdict) !== 'clear' ||
       approval.diffDigest === undefined ||
-      approval.diffDigest === diffDigest ||
-      approval.mode === 'after-comments'
+      approval.diffDigest === diffDigest
     )
       return;
-    const revoked = conversation?.setApproval(selection, false, 'agent') ?? {
-      approved: false,
+    const revoked = conversation?.clearVerdict(selection, 'agent') ?? {
       updatedAt: new Date().toISOString(),
     };
     approvals.set(getDiffSelectionKey(selection), revoked);
     // Without a file watcher the cached diff is stale; drop it so a reload shows the change.
     invalidateCache();
-    humanLog(
-      `${approval.notYet ? 'Not yet cleared' : 'Approval revoked'} because the diff changed: ${selection.targetCommitish}`,
-    );
+    humanLog(`Approval revoked because the diff changed: ${selection.targetCommitish}`);
     fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
   }
 
@@ -1490,7 +1494,8 @@ export async function startServer(options: ServerOptions): Promise<{
   async function revokeApprovalIfDiffChanged(selection: DiffSelection): Promise<void> {
     const approval =
       conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
-    if (!(approval?.approved || approval?.notYet) || approval.diffDigest === undefined) return;
+    if (!approval || onRevision(approval.verdict) !== 'clear' || approval.diffDigest === undefined)
+      return;
     revokeIfDiffChanged(selection, await getCurrentDiffDigest(selection));
   }
 
@@ -1564,12 +1569,8 @@ export async function startServer(options: ServerOptions): Promise<{
           fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
         const approval =
           conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
-        if (
-          (approval?.approved || approval?.requested || approval?.notYet) &&
-          approval.mode !== 'after-comments'
-        ) {
-          const revoked = conversation?.setApproval(selection, false, origin) ?? {
-            approved: false,
+        if (approval && onRevision(approval.verdict) === 'clear') {
+          const revoked = conversation?.clearVerdict(selection, origin) ?? {
             updatedAt: new Date().toISOString(),
           };
           approvals.set(getDiffSelectionKey(selection), revoked);
@@ -1856,59 +1857,48 @@ export async function startServer(options: ServerOptions): Promise<{
   }
 
   if (options.shipIt) {
-    // Separate endpoint: an older server must reject toggle requests, not treat
-    // them as the legacy approve-and-exit action below.
     app.get('/api/approval', async (req, res) => {
       const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
       await revokeApprovalIfDiffChanged(selection);
       res.setHeader('Cache-Control', 'no-store');
       res.json(
-        conversation?.getApproval(selection) ??
-          approvals.get(getDiffSelectionKey(selection)) ?? { approved: false },
+        conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection)) ?? {},
       );
     });
 
-    // An older server answers 404 for /not-yet instead of reading it as a revocation.
-    const approvalRoutes = ['/api/approval', '/api/approval/conditional', '/api/approval/not-yet'];
-    app.post(approvalRoutes, async (req, res) => {
+    function reportVerdict(
+      selection: DiffSelection,
+      previous: ReviewApproval | undefined,
+      approval: ReviewApproval,
+    ): void {
+      approvals.set(getDiffSelectionKey(selection), approval);
+      if (previous?.cursor === approval.cursor && previous?.verdict === approval.verdict) return;
+      humanLog(
+        `Verdict: ${approval.verdict ? VERDICT_LOG_NAMES[approval.verdict] : 'cleared'} (${selection.targetCommitish})`,
+      );
+      fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
+    }
+
+    // A verdict is bound to the capture or diff the reviewer saw; approvals also to the summary.
+    app.put('/api/approval', async (req, res) => {
       if (!req.is('application/json')) {
         res.status(415).json({ error: 'Approval requires application/json' });
         return;
       }
       const input = req.body as {
-        approved?: unknown;
-        mode?: unknown;
+        verdict?: unknown;
         summaryVersion?: unknown;
         captureVersion?: unknown;
         patchDigest?: unknown;
         diffDigest?: unknown;
       } | null;
-      if (!input || typeof input.approved !== 'boolean') {
-        res.status(400).json({ error: 'Expected approved: true or false' });
+      const verdict = input?.verdict;
+      if (!input || (verdict !== 'as-is' && verdict !== 'after-comments' && verdict !== 'reject')) {
+        res.status(400).json({ error: 'Expected verdict: as-is, after-comments, or reject' });
         return;
       }
-      if (
-        req.path === '/api/approval/conditional' &&
-        (!input.approved || input.mode !== 'after-comments')
-      ) {
-        res.status(400).json({
-          error: 'Conditional approval requires approved: true and mode: after-comments',
-        });
-        return;
-      }
-      const notYet = req.path === '/api/approval/not-yet';
-      if (notYet && (input.approved || input.mode !== undefined)) {
-        res.status(400).json({ error: 'Not yet requires approved: false and no mode' });
-        return;
-      }
-      // Approval and not yet are both verdicts on the displayed diff, so both must match it.
-      const verdict = input.approved || notYet;
-      if (input.mode !== undefined && input.mode !== 'as-is' && input.mode !== 'after-comments') {
-        res.status(400).json({ error: 'Expected mode: as-is or after-comments' });
-        return;
-      }
-      if (input.approved && input.mode === 'after-comments' && !conversation) {
-        res.status(400).json({ error: 'Conditional approval requires conversations' });
+      if (verdict === 'after-comments' && !conversation) {
+        res.status(400).json({ error: 'Approval after comments requires conversations' });
         return;
       }
       if (
@@ -1920,17 +1910,18 @@ export async function startServer(options: ServerOptions): Promise<{
         res.status(400).json({ error: 'Expected a non-negative integer summaryVersion' });
         return;
       }
+      // Reject does not endorse the proposed message, so it ignores the summary.
+      const approving = verdict !== 'reject';
       const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
       // Read Git first: a summary edit during the await must still fail the check below.
-      const diffDigest =
-        verdict && isLiveWorkingTreeSelection(selection)
-          ? await getCurrentDiffDigest(selection)
-          : undefined;
+      const diffDigest = isLiveWorkingTreeSelection(selection)
+        ? await getCurrentDiffDigest(selection)
+        : undefined;
       if (diffDigest !== undefined && input.diffDigest !== diffDigest) {
         // Without a file watcher the cached diff is stale; drop it so a reload shows the change.
         invalidateCache();
         res.status(409).json({
-          error: 'Diff changed; reload it before approving',
+          error: 'Diff changed; reload it before choosing a verdict',
           diffDigest,
         });
         return;
@@ -1940,66 +1931,51 @@ export async function startServer(options: ServerOptions): Promise<{
         ? namedReviews.get(selection.reviewName)?.metadata
         : undefined;
       if (
-        verdict &&
         capture &&
         (input.captureVersion !== capture.version ||
           input.patchDigest !== capture.patchDigest ||
-          // Not yet does not endorse the proposed message, so it ignores the summary.
-          (input.approved && input.summaryVersion !== summary.version))
+          (approving && input.summaryVersion !== summary.version))
       ) {
         res.status(409).json({
-          error: 'Review capture or summary changed; reload before approving',
+          error: 'Review capture or summary changed; reload before choosing a verdict',
           current: capture,
           summary,
         });
         return;
       }
-      if (input.approved && (input.summaryVersion ?? 0) !== summary.version) {
+      if (approving && (input.summaryVersion ?? 0) !== summary.version) {
         res.status(409).json({
           error: 'Review summary changed; read its latest version before approving',
           summary,
         });
         return;
       }
-      const key = getDiffSelectionKey(selection);
-      const previous = conversation?.getApproval(selection) ?? approvals.get(key);
-      const approval = conversation
-        ? notYet
-          ? conversation.setNotYet(selection, diffDigest)
-          : conversation.setApproval(
-              selection,
-              input.approved,
-              'user',
-              input.mode ?? 'as-is',
-              diffDigest,
-            )
-        : previous?.approved === input.approved && previous.notYet === (notYet || undefined)
+      const previous =
+        conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
+      const approval =
+        conversation?.setVerdict(selection, verdict, diffDigest) ??
+        (previous?.verdict === verdict
           ? previous
           : {
-              approved: input.approved,
-              ...(notYet ? { notYet: true as const } : {}),
+              verdict,
               ...(diffDigest !== undefined ? { diffDigest } : {}),
               updatedAt: new Date().toISOString(),
-            };
-      approvals.set(key, approval);
-      if (
-        previous?.cursor !== approval.cursor ||
-        previous?.approved !== approval.approved ||
-        previous?.notYet !== approval.notYet
-      ) {
-        humanLog(
-          `Verdict: ${
-            approval.notYet
-              ? 'not yet'
-              : approval.requested && approval.mode === 'after-comments'
-                ? 'approved after comments'
-                : approval.approved
-                  ? 'approved as-is'
-                  : 'revoked'
-          } (${selection.targetCommitish})`,
-        );
-        fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
-      }
+            });
+      reportVerdict(selection, previous, approval);
+      res.json(approval);
+    });
+
+    // Clearing needs no matching versions: the reviewer may clear a verdict on a stale view.
+    app.delete('/api/approval', (req, res) => {
+      const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
+      const previous =
+        conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
+      const approval =
+        conversation?.clearVerdict(selection, 'user') ??
+        (previous?.verdict === undefined
+          ? (previous ?? {})
+          : { updatedAt: new Date().toISOString() });
+      reportVerdict(selection, previous, approval);
       res.json(approval);
     });
 
@@ -2024,7 +2000,7 @@ export async function startServer(options: ServerOptions): Promise<{
         return;
       }
       res.on('finish', async () => {
-        conversation?.setApproval(selection, true);
+        conversation?.setVerdict(selection, 'as-is');
         await fileWatcher.stop();
         outputFinalComments(selection);
         humanLog(`✅ Commit approved: ${selection.targetCommitish}`);

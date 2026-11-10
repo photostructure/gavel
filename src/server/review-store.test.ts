@@ -49,7 +49,7 @@ function review(patchDigest?: string, repositoryId = 'repo'): SavedReview {
     selection: createDiffSelection('a'.repeat(40), 'b'.repeat(40)),
     threads: [],
     progress: [],
-    approval: { approved: true, mode: 'as-is', requested: true },
+    approval: { verdict: 'as-is', summaryVersion: 1 },
     summary: { commitMessage: 'fix: keep it', rationale: '', version: 1 },
     ...(patchDigest ? { captures: [version(patchDigest)] } : {}),
     updatedAt: new Date(now).toISOString(),
@@ -89,24 +89,6 @@ describe('ReviewStore', () => {
     for (const name of readdirSync(join(directory, subdirectory)))
       utimesSync(join(directory, subdirectory, name), seconds, seconds);
   }
-
-  // Written by a version that held this verdict at approved: false until comments were certified.
-  it('upgrades an approval after comments saved by an older version', () => {
-    const legacy = {
-      ...review(),
-      approval: {
-        approved: false,
-        requested: true,
-        mode: 'after-comments',
-        conditions: [],
-        baselineCapture: { version: 1, patchDigest: 'a'.repeat(64) },
-      },
-    } as SavedReview;
-    expect(store.save('key', legacy, server.owner)).toBe('saved');
-    const upgraded = { approved: true, requested: true, mode: 'after-comments' };
-    expect(store.load('key')?.approval).toEqual(upgraded);
-    expect(store.list().map((saved) => saved.approval)).toEqual([upgraded]);
-  });
 
   it('reads back a saved review and leaves no temporary file', () => {
     expect(store.save('key', review(), server.owner)).toBe('saved');

@@ -7,7 +7,7 @@ import { diffSelectionsEqual, getDiffSelectionKey } from '../../utils/diffSelect
 import { hasVerdict } from '../utils/verdict';
 
 import { HeaderMenu, headerButtonClasses } from './HeaderMenu';
-import { describeApproval } from './VerdictControl';
+import { describeVerdict } from './VerdictControl';
 
 /** A review on this server that proposes a commit for approval. */
 export interface ApprovalRequest {
@@ -17,25 +17,22 @@ export interface ApprovalRequest {
   approval: ReviewApproval;
 }
 
-const approvalLabel = ({ requested = false, mode, notYet }: ReviewApproval) =>
-  describeApproval(requested, mode) ?? (notYet ? 'Not yet' : 'Needs a verdict');
+const approvalLabel = ({ verdict }: ReviewApproval) =>
+  describeVerdict(verdict) ?? 'Needs a verdict';
 
 const isDone = (review: ApprovalRequest) => hasVerdict(review.approval);
 
 // The inset focus outline keeps the tab row's overflow from clipping it.
 const tabClasses =
   'inline-flex items-center gap-1 rounded-t-md border px-3 py-1.5 focus-visible:-outline-offset-2';
-const isApprovedAfterComments = ({ requested, mode }: ReviewApproval) =>
-  requested && mode === 'after-comments';
-
 // Each verdict's color, the same hue as its chosen button in VerdictControl, except that in
 // deuteranopia mode after-comments is violet here while its chosen button stays yellow.
-const verdictColor = (approval: ReviewApproval) =>
-  approval.notYet
-    ? { text: 'text-verdict-not-yet', topBorder: 'border-t-verdict-not-yet' }
-    : isApprovedAfterComments(approval)
+const verdictColor = ({ verdict }: ReviewApproval) =>
+  verdict === 'reject'
+    ? { text: 'text-verdict-reject', topBorder: 'border-t-verdict-reject' }
+    : verdict === 'after-comments'
       ? { text: 'text-verdict-after-comments', topBorder: 'border-t-verdict-after-comments' }
-      : approval.requested
+      : verdict === 'as-is'
         ? { text: 'text-github-accent', topBorder: 'border-t-github-accent' }
         : // No verdict yet: neutral, since green would read as approval.
           { text: 'text-github-text-muted', topBorder: 'border-t-github-text-secondary' };
@@ -46,15 +43,8 @@ const verdictColor = (approval: ReviewApproval) =>
 const openTabClasses = (approval: ReviewApproval | undefined, approvals: boolean) =>
   `border-github-border border-t-2 ${approvals && approval ? verdictColor(approval).topBorder : 'border-t-github-accent'} border-b-github-bg-secondary bg-github-bg-secondary font-semibold text-github-text-primary`;
 
-// The same precedence as ApprovalMark, so each bar segment matches its reviews' tab marks.
-const verdictKind = (approval: ReviewApproval) =>
-  approval.notYet
-    ? 'not-yet'
-    : isApprovedAfterComments(approval)
-      ? 'after-comments'
-      : approval.requested
-        ? 'approved'
-        : 'needs-verdict';
+const verdictKind = ({ verdict }: ReviewApproval) =>
+  verdict === 'as-is' ? 'approved' : (verdict ?? 'needs-verdict');
 
 const VERDICT_SEGMENTS = [
   ['approved', 'bg-github-accent', (count: number) => `${count} approved`],
@@ -63,7 +53,7 @@ const VERDICT_SEGMENTS = [
     'bg-verdict-after-comments',
     (count: number) => `${count} approved after comments`,
   ],
-  ['not-yet', 'bg-verdict-not-yet', (count: number) => `${count} not yet`],
+  ['reject', 'bg-verdict-reject', (count: number) => `${count} rejected`],
   [
     'needs-verdict',
     'bg-github-text-muted',
@@ -73,16 +63,16 @@ const VERDICT_SEGMENTS = [
 
 function ApprovalMark({ approval }: { approval: ReviewApproval }) {
   const { text } = verdictColor(approval);
-  return approval.notYet ? (
+  return approval.verdict === 'reject' ? (
     <X
       size={12}
       aria-hidden="true"
-      data-verdict="not-yet"
+      data-verdict="reject"
       className={`verdict-mark shrink-0 ${text}`}
     />
-  ) : isApprovedAfterComments(approval) ? (
+  ) : approval.verdict === 'after-comments' ? (
     <MessageSquareMore size={12} aria-hidden="true" className={`shrink-0 ${text}`} />
-  ) : approval.requested ? (
+  ) : approval.verdict === 'as-is' ? (
     <Check size={12} aria-hidden="true" className={`verdict-mark shrink-0 ${text}`} />
   ) : (
     <Circle size={10} aria-hidden="true" className={`verdict-mark shrink-0 ${text}`} />

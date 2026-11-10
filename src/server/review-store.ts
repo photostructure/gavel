@@ -137,19 +137,6 @@ export async function openReviewStore(cwd: string): Promise<ReviewStore> {
   return new ReviewStore(join(await getGitCommonDirectory(cwd), 'gavel'));
 }
 
-// Older versions held an approval after comments at approved: false until each comment was certified.
-function parseSavedReview(text: string): SavedReview {
-  const review = JSON.parse(text) as SavedReview;
-  if (!review.approval.requested || review.approval.mode !== 'after-comments') return review;
-  const approval: ReviewApproval & { conditions?: unknown; baselineCapture?: unknown } = {
-    ...review.approval,
-    approved: true,
-  };
-  delete approval.conditions;
-  delete approval.baselineCapture;
-  return { ...review, approval };
-}
-
 /**
  * Review state saved under the repository's Git directory (`<git-common-dir>/gavel`), shared by
  * its worktrees and never committed, cloned or pushed. Each saved review has a lock naming the
@@ -331,7 +318,7 @@ export class ReviewStore {
     const text = unlessDeleted(() =>
       readFileSync(join(this.reviews, `${hashName(key)}.json`), 'utf8'),
     );
-    return text === undefined ? undefined : parseSavedReview(text);
+    return text === undefined ? undefined : (JSON.parse(text) as SavedReview);
   }
 
   has(key: string): boolean {
@@ -380,7 +367,7 @@ export class ReviewStore {
         const text = unlessDeleted(() => readFileSync(path, 'utf8'));
         if (text === undefined) return [];
         try {
-          return [parseSavedReview(text)];
+          return [JSON.parse(text) as SavedReview];
         } catch (error) {
           throw new Error(
             `Saved review ${path} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,

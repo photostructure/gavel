@@ -24,8 +24,8 @@ const DARK_THEME_VALUES = {
   '--color-github-danger': '#da3633',
   '--color-github-warning': '#d29922',
   '--color-verdict-after-comments': '#fdc700',
-  // Violet rather than the danger red: Not yet sends a review around again, it doesn't stop it.
-  '--color-verdict-not-yet': '#8957e5',
+  // Violet rather than the danger red that error messages use.
+  '--color-verdict-reject': '#8957e5',
   '--color-diff-addition-bg': '#0d4429',
   '--color-diff-addition-border': '#1b7c3d',
   '--color-diff-deletion-bg': '#67060c',
@@ -59,7 +59,7 @@ const LIGHT_THEME_VALUES = {
   '--color-github-warning': '#bf8700',
   // The dark theme's #fdc700 measures 1.47:1 on a light review tab.
   '--color-verdict-after-comments': '#a16207',
-  '--color-verdict-not-yet': '#8250df',
+  '--color-verdict-reject': '#8250df',
   '--color-diff-addition-bg': '#d1f4cd',
   '--color-diff-addition-border': '#1f883d',
   '--color-diff-deletion-bg': '#ffd8d3',
@@ -157,10 +157,10 @@ const DEUTERANOPIA_DARK_OVERRIDES: Record<string, string> = {
   '--color-github-accent': '#58a6ff',
   '--color-github-accent-text': '#58a6ff',
   '--color-github-danger': '#d29922',
-  // Violet, because yellow is too close to this mode's orange Not yet.
+  // Violet, because yellow is too close to this mode's orange Reject.
   '--color-verdict-after-comments': '#a371f7',
   // Orange, because this mode spends blue on Approve and violet on Approve after comments.
-  '--color-verdict-not-yet': '#d29922',
+  '--color-verdict-reject': '#d29922',
   '--color-diff-addition-bg': '#0c2d6b',
   '--color-diff-addition-border': '#388bfd',
   '--color-diff-deletion-bg': '#5a3600',
@@ -172,7 +172,7 @@ const DEUTERANOPIA_LIGHT_OVERRIDES: Record<string, string> = {
   '--color-github-accent-text': '#0969da',
   '--color-github-danger': '#bf8700',
   '--color-verdict-after-comments': '#8250df',
-  '--color-verdict-not-yet': '#bf8700',
+  '--color-verdict-reject': '#bf8700',
   '--color-diff-addition-bg': '#ddf4ff',
   '--color-diff-addition-border': '#0969da',
   '--color-diff-deletion-bg': '#fff8c5',

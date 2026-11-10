@@ -238,7 +238,7 @@ only for an operation not covered here, rather than loading every guide on resum
 ## Approval and completion
 
 Read and honor the saved summary before committing. For Approve after comments
-(`mode: "after-comments"`), read every human message (`origin` is `user` or
+(`verdict: "after-comments"`), read every human message (`origin` is `user` or
 absent) in threads without `resolution.resolved: true`, including ones already
 Replied or Noted, plus any feedback in this session or outside gavel. Act on all
 of them, run checks and independent Codex/Claude review, and commit. If a request
@@ -246,10 +246,16 @@ cannot be done or its meaning is unclear, explain the problem and do not commit.
 Nothing tracks which comments are done, and the verdict stays until the user
 clears it.
 
+For Reject (`verdict: "reject"`), do not revise, recapture, or commit. Ask the user
+in this session what to do instead and whether to revert, saying what each revert
+step would undo, then act on the answer; the approval guide lists the revert steps.
+Only the user clears a Reject; put a new attempt up as a new named review.
+
 Button approval is commit approval. Immediately before committing, read a fresh snapshot.
-Require `approval.approved: true`; for named reviews approved as-is, also match capture version,
-patch digest, and summary version. Compare the actual commit scope with the
-approved patch and feedback; later shared-tree changes do not acquire permission.
+Require `approval.verdict` to be `as-is` or `after-comments`; for named reviews approved
+as-is, also match capture version, patch digest, and summary version. Compare the actual
+commit scope with the approved patch and feedback; later shared-tree changes do not
+acquire permission.
 Then commit without asking again. Approval does not authorize a push.
 See the [approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md)
 for each verdict's rules. Hand back when the authorized work is done;

@@ -5,7 +5,9 @@ section: Review server
 
 # One verdict field on ReviewApproval
 
-Placeholder. Not started.
+Done by [2026-11-10-reject-verdict.md](../_todo/2026-11-10-reject-verdict.md), which made
+`verdict?: 'as-is' | 'after-comments' | 'reject'` the only verdict field and dropped
+`approved`. The branch `tpp/verdict-field` (562fddd) was not merged.
 
 ## Problem
 

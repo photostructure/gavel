@@ -245,14 +245,16 @@ describe('schema command', () => {
       summaryVersion: { type: 'integer', minimum: 0 },
     };
     expect($defs.ApprovalRequest).toMatchObject({
-      required: ['approved'],
+      required: ['verdict'],
       properties: approvalFields,
       description: expect.stringContaining('captureVersion, patchDigest and summaryVersion'),
     });
     expect($defs.ReviewApproval).toMatchObject({
-      required: ['approved'],
-      properties: approvalFields,
+      required: [],
+      properties: { ...approvalFields, verdict: { $ref: '#/$defs/ReviewVerdict' } },
     });
+    expect($defs.ReviewApproval).not.toHaveProperty('properties.approved');
+    expect($defs.ReviewVerdict).toMatchObject({ enum: ['as-is', 'after-comments', 'reject'] });
   });
 
   it('declares excerpt fields only on thread forms that preserve them', async () => {

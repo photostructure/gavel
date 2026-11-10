@@ -294,22 +294,23 @@ const definitions: Record<string, Schema> = {
     },
     ['commitMessage', 'rationale', 'version'],
   ),
-  ApprovalMode: enumeration('as-is', 'after-comments'),
+  ReviewVerdict: {
+    ...enumeration('as-is', 'after-comments', 'reject'),
+    description:
+      "The reviewer's decision. as-is and after-comments approve the review; reject is final for those diffs: do not revise or commit, ask the user what to do instead.",
+  },
   ReviewApproval: object(
     {
-      approved: boolean,
+      verdict: ref('ReviewVerdict'),
       conditionalSupported: boolean,
-      mode: ref('ApprovalMode'),
-      requested: boolean,
       updatedAt: timestamp,
       cursor,
       captureVersion,
       patchDigest: ref('PatchDigest'),
       diffDigest: ref('DiffDigest'),
       summaryVersion: version,
-      notYet: { const: true },
     },
-    ['approved'],
+    [],
   ),
   ServerReadyEvent: object(
     {
@@ -412,10 +413,9 @@ const definitions: Record<string, Schema> = {
       type: { const: 'review.approval' },
       approval: ref('ReviewApproval'),
       capture: ref('NamedReviewMetadata'),
-      approved: boolean,
       summaryVersion: version,
     },
-    ['cursor', 'origin', 'reviewId', 'selection', 'timestamp', 'type', 'approved'],
+    ['cursor', 'origin', 'reviewId', 'selection', 'timestamp', 'type'],
   ),
   ReviewCaptureEvent: object({
     ...streamFields,
@@ -643,17 +643,16 @@ const definitions: Record<string, Schema> = {
   ApprovalRequest: {
     ...object(
       {
-        approved: boolean,
-        mode: ref('ApprovalMode'),
+        verdict: ref('ReviewVerdict'),
         summaryVersion: version,
         captureVersion,
         patchDigest: ref('PatchDigest'),
         diffDigest: ref('DiffDigest'),
       },
-      ['approved'],
+      ['verdict'],
     ),
     description:
-      "POST /api/approval for as-is or revocation; POST /api/approval/conditional for after-comments; POST /api/approval/not-yet with approved: false and no mode for the reviewer's verdict that the displayed diff is not ready. not yet replaces any approval, requires captureVersion and patchDigest (named) or diffDigest (staged, working, or .) like approval but not summaryVersion, and is cleared by a recapture, a summary change, a changed staged or worktree diff, or revocation; new comments keep it. mode defaults to as-is. after-comments sets approved: true at once and tells the agent to act on all the current comments and commit; only the reviewer ends it. New human feedback, a summary edit, or a recapture revokes as-is approval. Named review approval requires captureVersion, patchDigest and summaryVersion matching the displayed capture and proposal. Unnamed approval requires the current summaryVersion (omission means 0); approval of a staged, working, or . diff also requires the diffDigest of the current diff. A later change to that diff revokes as-is approval when comment snapshot or GET /api/approval reads it. Stale approval returns HTTP 409; revocation requires no matching versions.",
+      'PUT /api/approval sets the verdict; DELETE /api/approval clears it and requires no matching versions. Every verdict requires captureVersion and patchDigest (named) or diffDigest (staged, working, or .) matching the displayed capture or diff; as-is and after-comments also require the current summaryVersion (omission means 0 for an unnamed review). Named review approval requires captureVersion, patchDigest and summaryVersion matching the displayed capture and proposal. Stale requests return HTTP 409. as-is is ended by new human feedback, a summary edit, a recapture, or a later change to the staged or worktree diff when comment snapshot or GET /api/approval reads it. after-comments tells the agent to act on all the current comments and commit; reject tells it to stop, ask the user what to do instead, and ask whether to revert. Only the reviewer ends after-comments or reject.',
   },
   ApprovalResponse: ref('ReviewApproval'),
 };

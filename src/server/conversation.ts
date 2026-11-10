@@ -9,8 +9,8 @@ import type {
   ConversationBatch,
   ReviewApproval,
   ReviewSummary,
-  ApprovalMode,
   ReviewStoreStatus,
+  ReviewVerdict,
 } from '../types/conversation.js';
 import type { CommentProgress, DiffCommentThread, DiffSelection } from '../types/diff.js';
 import { getDiffSelectionKey } from '../utils/diffSelection.js';
@@ -28,9 +28,24 @@ interface Review {
   summary: ReviewSummary;
 }
 
-// The agent acts on the comments and commits, so nothing but the reviewer changes this verdict.
-const isAfterComments = (approval: ReviewApproval) =>
-  approval.requested === true && approval.mode === 'after-comments';
+/**
+ * What a recapture, a proposal edit, a changed staged or worktree diff, or new human feedback
+ * does to a verdict. The agent acts on the comments and commits under after-comments, so it
+ * follows the revision; as-is covered only what the reviewer saw; a rejected change is done with,
+ * so only the reviewer ends it. No default branch: a new verdict fails to compile until it is
+ * given a case here.
+ */
+export function onRevision(verdict: ReviewVerdict | undefined): 'follow' | 'clear' | 'keep' {
+  switch (verdict) {
+    case 'after-comments':
+      return 'follow';
+    case 'as-is':
+      return 'clear';
+    case 'reject':
+    case undefined:
+      return 'keep';
+  }
+}
 
 /**
  * Review state and bounded event replay. The replay and its cursors are process-local and change
@@ -113,7 +128,7 @@ export class Conversation {
         selection: { ...selection },
         threads: saved?.threads ?? [],
         progress: new Map<string, CommentProgress>(saved?.progress ?? []),
-        approval: saved?.approval ?? { approved: false },
+        approval: saved?.approval ?? {},
         summary: saved?.summary ?? { commitMessage: '', rationale: '', version: 0 },
         ...(saved?.capture ? { capture: saved.capture } : {}),
       };
@@ -152,14 +167,25 @@ export class Conversation {
       review.capture.patchDigest === capture.patchDigest;
     review.selection = { ...selection };
     review.capture = { ...capture };
-    if (!unchanged && isAfterComments(review.approval))
-      this.recordApproval(
-        review,
-        { ...review.approval, captureVersion: capture.version, patchDigest: capture.patchDigest },
-        'agent',
-      );
-    else if (!unchanged && (review.approval.approved || review.approval.notYet))
-      this.setApproval(selection, false, 'agent');
+    if (!unchanged)
+      switch (onRevision(review.approval.verdict)) {
+        case 'follow':
+          this.recordApproval(
+            review,
+            {
+              ...review.approval,
+              captureVersion: capture.version,
+              patchDigest: capture.patchDigest,
+            },
+            'agent',
+          );
+          break;
+        case 'clear':
+          this.clearVerdict(selection, 'agent');
+          break;
+        case 'keep':
+          break;
+      }
     this.sequence += 1;
     this.emit({
       type: 'review.capture',
@@ -190,65 +216,56 @@ export class Conversation {
       ...(review.capture ? { capture: { ...review.capture } } : {}),
       timestamp: new Date().toISOString(),
     });
-    if (isAfterComments(review.approval))
-      this.recordApproval(review, { ...review.approval, summaryVersion: summary.version }, origin);
-    else if (review.approval.approved || review.approval.requested || review.approval.notYet)
-      this.setApproval(selection, false, origin);
+    switch (onRevision(review.approval.verdict)) {
+      case 'follow':
+        this.recordApproval(
+          review,
+          { ...review.approval, summaryVersion: summary.version },
+          origin,
+        );
+        break;
+      case 'clear':
+        this.clearVerdict(selection, origin);
+        break;
+      case 'keep':
+        break;
+    }
   }
 
-  /** Records the reviewer's verdict that the displayed capture is not ready, replacing any approval. */
-  setNotYet(selection: DiffSelection, diffDigest?: string): ReviewApproval {
+  /** Records the reviewer's verdict on the displayed capture or diff, replacing any other. */
+  setVerdict(
+    selection: DiffSelection,
+    verdict: ReviewVerdict,
+    diffDigest?: string,
+  ): ReviewApproval {
     const review = this.getReview(selection);
-    if (review.approval.notYet) return this.getApproval(selection);
+    if (review.approval.verdict === verdict) return this.getApproval(selection);
     return this.recordApproval(
       review,
       {
-        approved: false,
-        notYet: true,
+        verdict,
+        summaryVersion: review.summary.version,
         ...(diffDigest !== undefined ? { diffDigest } : {}),
         ...(review.capture
-          ? {
-              captureVersion: review.capture.version,
-              patchDigest: review.capture.patchDigest,
-              summaryVersion: review.summary.version,
-            }
+          ? { captureVersion: review.capture.version, patchDigest: review.capture.patchDigest }
           : {}),
       },
       'user',
     );
   }
 
-  setApproval(
-    selection: DiffSelection,
-    approved: boolean,
-    origin: 'user' | 'agent' = 'user',
-    mode: ApprovalMode = 'as-is',
-    diffDigest?: string,
-  ): ReviewApproval {
+  clearVerdict(selection: DiffSelection, origin: 'user' | 'agent'): ReviewApproval {
     const review = this.getReview(selection);
-    if (
-      !approved &&
-      !review.approval.approved &&
-      !review.approval.requested &&
-      !review.approval.notYet
-    )
-      return this.getApproval(selection);
-    if (approved && review.approval.requested && review.approval.mode === mode)
-      return this.getApproval(selection);
+    if (review.approval.verdict === undefined) return this.getApproval(selection);
     return this.recordApproval(
       review,
-      {
-        approved,
-        ...(approved ? { mode, requested: true, summaryVersion: review.summary.version } : {}),
-        ...(approved && diffDigest !== undefined ? { diffDigest } : {}),
-        ...(review.capture
-          ? {
-              captureVersion: review.capture.version,
-              patchDigest: review.capture.patchDigest,
-              summaryVersion: review.summary.version,
-            }
-          : {}),
-      },
+      review.capture
+        ? {
+            captureVersion: review.capture.version,
+            patchDigest: review.capture.patchDigest,
+            summaryVersion: review.summary.version,
+          }
+        : {},
       origin,
     );
   }
@@ -271,7 +288,6 @@ export class Conversation {
       cursor: this.cursor,
       reviewId: review.id,
       selection: { ...review.selection },
-      approved: review.approval.approved,
       approval: structuredClone(review.approval),
       ...(review.capture ? { summaryVersion: review.summary.version } : {}),
       ...(review.capture ? { capture: { ...review.capture } } : {}),
@@ -382,12 +398,12 @@ export class Conversation {
       }
     }
     for (const event of pending) this.emit(event);
+    // New feedback leaves after-comments alone: the agent acts on it before committing.
     if (
-      (review.approval.approved || review.approval.requested) &&
-      !isAfterComments(review.approval) &&
+      onRevision(review.approval.verdict) === 'clear' &&
       pending.some((event) => event.origin === 'user' && event.type !== 'thread.resolved')
     )
-      this.setApproval(selection, false, 'user');
+      this.clearVerdict(selection, 'user');
   }
 
   get cursor(): string {

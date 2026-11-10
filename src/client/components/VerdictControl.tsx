@@ -1,17 +1,19 @@
 import { Check, ChevronDown, Circle, MessageSquareMore, X } from 'lucide-react';
 import { useState, type MouseEvent, type Ref } from 'react';
 
-import type { ApprovalMode } from '../../types/conversation';
+import type { ReviewVerdict } from '../../types/conversation';
 
 import { HeaderMenu } from './HeaderMenu';
 
-/** Names a recorded approval; undefined when the reviewer has not approved. */
-export const describeApproval = (requested: boolean, mode: ApprovalMode | undefined) =>
-  requested
-    ? mode === 'after-comments'
-      ? 'Approved after comments'
-      : 'Approved as-is'
-    : undefined;
+const VERDICT_NAMES: Record<ReviewVerdict, string> = {
+  'as-is': 'Approved as-is',
+  'after-comments': 'Approved after comments',
+  reject: 'Rejected',
+};
+
+/** Names a recorded verdict; undefined when there is none. */
+export const describeVerdict = (verdict: ReviewVerdict | undefined) =>
+  verdict && VERDICT_NAMES[verdict];
 
 // The verdict follow-up notice sizes its buttons with these too.
 export const verdictButtonClasses =
@@ -23,57 +25,52 @@ const idleClasses = 'border-github-border bg-github-bg-tertiary text-github-text
 const approveIdleClasses = `${idleClasses} enabled:hover:border-github-accent enabled:hover:shadow-[inset_0_0_0_1px_var(--color-github-accent)]`;
 // Yellow, like its fill once chosen.
 const afterCommentsIdleClasses = `${idleClasses} enabled:hover:border-verdict-after-comments enabled:hover:shadow-[inset_0_0_0_1px_var(--color-verdict-after-comments)]`;
-const notYetIdleClasses = `${idleClasses} enabled:hover:border-verdict-not-yet enabled:hover:shadow-[inset_0_0_0_1px_var(--color-verdict-not-yet)]`;
+const rejectIdleClasses = `${idleClasses} enabled:hover:border-verdict-reject enabled:hover:shadow-[inset_0_0_0_1px_var(--color-verdict-reject)]`;
 const approvedClasses = 'border-github-accent bg-github-accent text-white';
 // A chosen approval after comments is filled yellow, with dark text because white on this
 // yellow measures 1.57:1. It stays yellow: comments may live outside gavel, so this verdict
 // neither counts them nor changes on its own.
 const afterCommentsClasses = 'border-yellow-400 bg-yellow-400 text-gray-900';
-const notYetClasses = 'border-verdict-not-yet bg-verdict-not-yet text-white';
+const rejectClasses = 'border-verdict-reject bg-verdict-reject text-white';
 const clearTitle = 'Clear this verdict';
+const rejectDescription = 'The agent stops and asks you what to do instead.';
 
 /**
  * The reviewer's verdict on the open review: approve as-is, approve after comments are
- * addressed, or not yet. Wide screens show each as a button; narrow screens list them in a menu.
+ * addressed, or reject. Wide screens show each as a button; narrow screens list them in a menu.
  */
 export function VerdictControl({
   containerRef,
-  requested,
-  notYet,
-  mode,
+  verdict,
   conditionalSupported = false,
   disabled,
   approveDisabled,
   busy,
-  onApprove,
-  onNotYet,
-  onRevoke,
+  onVerdict,
+  onClear,
 }: {
   // The approval celebration bursts from this element.
   containerRef: Ref<HTMLDivElement>;
-  requested: boolean;
-  notYet: boolean;
-  mode?: ApprovalMode;
+  verdict?: ReviewVerdict;
   conditionalSupported?: boolean;
   // Every verdict waits for the approval state and comments to load and for summary edits to
   // save: the next step after a verdict leaves the review and would drop the draft.
   disabled: boolean;
-  // Approval also waits for the summary to load; not yet does not endorse it.
+  // Approval also waits for the summary to load; reject does not endorse it.
   approveDisabled: boolean;
   busy: boolean;
-  onApprove: (mode: ApprovalMode) => void;
-  onNotYet: () => void;
-  onRevoke: () => void;
+  onVerdict: (verdict: ReviewVerdict) => void;
+  onClear: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const approval = describeApproval(requested, mode);
-  const current = approval ?? (notYet ? 'Not yet' : undefined);
-  const asIs = requested && mode !== 'after-comments';
-  const afterComments = requested && mode === 'after-comments';
+  const current = describeVerdict(verdict);
+  const asIs = verdict === 'as-is';
+  const afterComments = verdict === 'after-comments';
+  const rejected = verdict === 'reject';
   // Clearing ignores a double-click's second click (detail 2), which lands on the button its
   // first click just pressed; a keyboard press has detail 0.
   const clear = (event: MouseEvent) => {
-    if (event.detail <= 1) onRevoke();
+    if (event.detail <= 1) onClear();
   };
   const afterCommentsTitle = conditionalSupported
     ? 'The agent addresses all your comments, then commits'
@@ -88,11 +85,11 @@ export function VerdictControl({
           disabled={busy || (!asIs && (disabled || approveDisabled))}
           aria-busy={busy}
           title={asIs ? clearTitle : 'Approve the reviewed patch as-is'}
-          onClick={(event) => (asIs ? clear(event) : onApprove('as-is'))}
+          onClick={(event) => (asIs ? clear(event) : onVerdict('as-is'))}
           className={`${verdictButtonClasses} ${asIs ? approvedClasses : approveIdleClasses}`}
         >
           <Check size={14} aria-hidden="true" />
-          {asIs ? approval : 'Approve as-is'}
+          {asIs ? current : 'Approve as-is'}
         </button>
         <button
           type="button"
@@ -102,23 +99,23 @@ export function VerdictControl({
           }
           aria-busy={busy}
           title={afterComments ? clearTitle : afterCommentsTitle}
-          onClick={(event) => (afterComments ? clear(event) : onApprove('after-comments'))}
+          onClick={(event) => (afterComments ? clear(event) : onVerdict('after-comments'))}
           className={`${verdictButtonClasses} ${afterComments ? afterCommentsClasses : afterCommentsIdleClasses}`}
         >
           <MessageSquareMore size={14} aria-hidden="true" />
-          {afterComments ? approval : 'Approve after comments'}
+          {afterComments ? current : 'Approve after comments'}
         </button>
         <button
           type="button"
-          aria-pressed={notYet}
-          disabled={busy || (!notYet && disabled)}
+          aria-pressed={rejected}
+          disabled={busy || (!rejected && disabled)}
           aria-busy={busy}
-          title={notYet ? clearTitle : 'Not ready: the agent revises it and asks again'}
-          onClick={(event) => (notYet ? clear(event) : onNotYet())}
-          className={`${verdictButtonClasses} ${notYet ? notYetClasses : notYetIdleClasses}`}
+          title={rejected ? clearTitle : rejectDescription}
+          onClick={(event) => (rejected ? clear(event) : onVerdict('reject'))}
+          className={`${verdictButtonClasses} ${rejected ? rejectClasses : rejectIdleClasses}`}
         >
           <X size={14} aria-hidden="true" />
-          Not yet
+          Reject
         </button>
       </div>
       <div className="flex xl:hidden">
@@ -127,21 +124,21 @@ export function VerdictControl({
           onOpenChange={setOpen}
           title={current ?? 'Choose a verdict'}
           className={`inline-flex items-center justify-center gap-1 rounded-md border px-2 disabled:opacity-60 ${
-            notYet
-              ? notYetClasses
-              : !requested
-                ? idleClasses
-                : afterComments
-                  ? afterCommentsClasses
-                  : approvedClasses
+            rejected
+              ? rejectClasses
+              : afterComments
+                ? afterCommentsClasses
+                : asIs
+                  ? approvedClasses
+                  : idleClasses
           }`}
           label={
             <>
-              {notYet ? (
+              {rejected ? (
                 <X size={14} aria-hidden="true" />
               ) : afterComments ? (
                 <MessageSquareMore size={14} aria-hidden="true" />
-              ) : requested ? (
+              ) : asIs ? (
                 <Check size={14} aria-hidden="true" />
               ) : (
                 <Circle size={12} aria-hidden="true" />
@@ -156,7 +153,7 @@ export function VerdictControl({
             type="button"
             disabled={busy || disabled || approveDisabled}
             data-close-menu
-            onClick={() => onApprove('as-is')}
+            onClick={() => onVerdict('as-is')}
             className="w-full rounded p-2 text-left hover:bg-github-bg-tertiary disabled:opacity-60"
           >
             Approve as-is
@@ -168,7 +165,7 @@ export function VerdictControl({
             type="button"
             disabled={busy || disabled || approveDisabled || !conditionalSupported}
             data-close-menu
-            onClick={() => onApprove('after-comments')}
+            onClick={() => onVerdict('after-comments')}
             className="w-full rounded p-2 text-left hover:bg-github-bg-tertiary disabled:opacity-60"
           >
             Approve after comments are addressed
@@ -182,22 +179,20 @@ export function VerdictControl({
             type="button"
             disabled={busy || disabled}
             data-close-menu
-            onClick={onNotYet}
+            onClick={() => onVerdict('reject')}
             className="w-full rounded p-2 text-left hover:bg-github-bg-tertiary disabled:opacity-60"
           >
             {/* Violet text is too faint on the dark menu, so the icon carries the color. */}
-            <X size={14} aria-hidden="true" className="mr-1 inline text-verdict-not-yet" />
-            Not yet
-            <span className="block text-xs text-github-text-secondary">
-              Send it back: the agent revises it and asks again.
-            </span>
+            <X size={14} aria-hidden="true" className="mr-1 inline text-verdict-reject" />
+            Reject
+            <span className="block text-xs text-github-text-secondary">{rejectDescription}</span>
           </button>
-          {(requested || notYet) && (
+          {verdict && (
             <button
               type="button"
               disabled={busy}
               data-close-menu
-              onClick={onRevoke}
+              onClick={onClear}
               className="mt-2 w-full rounded border-t border-github-border p-2 text-left hover:bg-github-bg-tertiary"
             >
               Clear verdict

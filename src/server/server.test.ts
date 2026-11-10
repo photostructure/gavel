@@ -30,6 +30,15 @@ function isCommentEvent(event: ConversationStreamEvent): event is ConversationEv
 }
 
 const eventStreams = new Map<number, ServerEvent[]>();
+/** Sets the verdict as the browser does. */
+function putVerdict(url: string, body: Record<string, unknown>) {
+  return fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 async function startObservedServer(options: ServerOptions) {
   const events: ServerEvent[] = [];
   const result = await startServer({ ...options, onEvent: (event) => events.push(event) });
@@ -634,12 +643,13 @@ describe('Server Integration Tests', () => {
           type: 'comment.progress',
           progress: { status: 'delivered', cursor: comment.cursor },
         });
-        await post('/api/approval', { approved: true });
-        await post('/api/approval', { approved: false });
+        await putVerdict(`${origin}/api/approval`, { verdict: 'as-is' });
+        await fetch(`${origin}/api/approval`, { method: 'DELETE' });
         expect(observed.slice(-2)).toMatchObject([
-          { type: 'review.approval', approved: true },
-          { type: 'review.approval', approved: false },
+          { type: 'review.approval', approval: { verdict: 'as-is' } },
+          { type: 'review.approval', approval: {} },
         ]);
+        expect(observed.at(-1)).not.toHaveProperty('approval.verdict');
         const { live } = await openLive(origin);
         await result.shutdown('SIGINT');
         await closeLive(live);
@@ -2252,25 +2262,13 @@ describe('Server Integration Tests', () => {
 
   describe('approval requests and notifications', () => {
     it.each([
-      {
-        conversation: true,
-        path: '/api/approval/conditional',
-        body: { approved: true, mode: 'as-is' },
-      },
-      {
-        conversation: true,
-        path: '/api/approval/conditional',
-        body: { approved: false, mode: 'after-comments' },
-      },
-      { conversation: true, path: '/api/approval', body: { approved: true, mode: 'unknown' } },
-      {
-        conversation: false,
-        path: '/api/approval/conditional',
-        body: { approved: true, mode: 'after-comments' },
-      },
+      { conversation: true, method: 'PUT', body: { verdict: 'not-yet' }, status: 400 },
+      { conversation: true, method: 'PUT', body: { approved: true }, status: 400 },
+      { conversation: true, method: 'POST', body: { approved: true }, status: 404 },
+      { conversation: false, method: 'PUT', body: { verdict: 'after-comments' }, status: 400 },
     ])(
-      'rejects incompatible approval requests: $path $body.mode conversation=$conversation',
-      async ({ conversation, path, body }) => {
+      'rejects incompatible approval requests: $method $body conversation=$conversation',
+      async ({ conversation, method, body, status }) => {
         const result = await startServer({
           preferredPort: 0,
           keepAlive: true,
@@ -2280,15 +2278,15 @@ describe('Server Integration Tests', () => {
         });
         servers.push(result.server);
         try {
-          const response = await fetch(`${result.url}${path}`, {
-            method: 'POST',
+          const response = await fetch(`${result.url}/api/approval`, {
+            method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
           });
-          expect(response.status).toBe(400);
-          expect(await (await fetch(`${result.url}/api/approval`)).json()).toMatchObject({
-            approved: false,
-          });
+          expect(response.status).toBe(status);
+          expect(await (await fetch(`${result.url}/api/approval`)).json()).not.toHaveProperty(
+            'verdict',
+          );
         } finally {
           await result.shutdown('closed');
         }
@@ -2314,9 +2312,8 @@ describe('Server Integration Tests', () => {
         const summary = (await (await fetch(`${result.url}/api/review-summary`)).json()) as {
           version: number;
         };
-        await post('/api/approval/conditional', {
-          approved: true,
-          mode: 'after-comments',
+        await putVerdict(`${result.url}/api/approval`, {
+          verdict: 'after-comments',
           summaryVersion: summary.version,
         });
         const edited = await post('/api/review-summary', {
@@ -2326,9 +2323,7 @@ describe('Server Integration Tests', () => {
         });
         expect(edited.status).toBe(200);
         expect(await (await fetch(`${result.url}/api/approval`)).json()).toMatchObject({
-          approved: true,
-          requested: true,
-          mode: 'after-comments',
+          verdict: 'after-comments',
           summaryVersion: summary.version + 1,
         });
       } finally {
@@ -2373,13 +2368,12 @@ describe('Server Integration Tests', () => {
         const summary = (await (await fetch(`${result.url}/api/review-summary`)).json()) as {
           version: number;
         };
-        const response = await post('/api/approval', {
-          approved: true,
-          mode: 'as-is',
+        const response = await putVerdict(`${result.url}/api/approval`, {
+          verdict: 'as-is',
           summaryVersion: summary.version,
         });
         expect(response.status).toBe(200);
-        expect(await response.json()).toMatchObject({ requested: true, approved: true });
+        expect(await response.json()).toMatchObject({ verdict: 'as-is' });
         broadcast.mockClear();
         const edited = structuredClone(discussion);
         const message = edited.messages[0];
@@ -2388,11 +2382,9 @@ describe('Server Integration Tests', () => {
         message.updatedAt = new Date(Date.now() + 1000).toISOString();
         expect((await post('/api/comments', { threads: [edited] })).status).toBe(200);
         const approval = (await (await fetch(`${result.url}/api/approval`)).json()) as {
-          approved: boolean;
-          requested?: boolean;
+          verdict?: string;
         };
-        expect(approval.approved).toBe(false);
-        expect(approval.requested).not.toBe(true);
+        expect(approval.verdict).toBeUndefined();
         expect(broadcast).toHaveBeenCalledWith(
           expect.objectContaining({ type: 'approvalChanged' }),
         );
@@ -2457,7 +2449,7 @@ describe('Server Integration Tests', () => {
               { id: 'human-output', file: 'a.ts', line: 1, body: 'Human comment transcript' },
             ],
           });
-          await post('/api/approval', { approved: true });
+          await putVerdict(`${result!.url}/api/approval`, { verdict: 'as-is' });
           const { live } = await openLive(result.url);
           await closeLive(live);
           await vi.waitFor(() =>
@@ -2578,11 +2570,7 @@ describe('Server Integration Tests', () => {
           channel: 'presence',
           presence: expect.objectContaining({ reviewers: { connected: 1, visible: 1 } }),
         });
-        await fetch(`${result.url}/api/approval`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ approved: true }),
-        });
+        await putVerdict(`${result.url}/api/approval`, { verdict: 'as-is' });
         await vi.waitFor(() =>
           expect(messages).toContainEqual({
             channel: 'watch',
@@ -2949,9 +2937,14 @@ describe('Server Integration Tests', () => {
         if (!definition) throw new Error(`Missing schema definition ${name}`);
         assertObjectFields(value, definition, name);
       };
-      const post = async (path: string, body: unknown, responseDefinition: string) => {
+      const post = async (
+        path: string,
+        body: unknown,
+        responseDefinition: string,
+        method = 'POST',
+      ) => {
         const response = await fetch(`${result.url}${path}`, {
-          method: 'POST',
+          method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
@@ -3013,7 +3006,12 @@ describe('Server Integration Tests', () => {
         },
         'SummaryResponse',
       );
-      await post('/api/approval', { approved: true, summaryVersion: 1 }, 'ApprovalResponse');
+      await post(
+        '/api/approval',
+        { verdict: 'as-is', summaryVersion: 1 },
+        'ApprovalResponse',
+        'PUT',
+      );
       await post(
         '/api/conversation/summary',
         {
@@ -3637,7 +3635,7 @@ describe('Server Integration Tests', () => {
         rationale: '',
         version: 0,
       });
-      await post(`${origin}/api/approval?base=base-a&target=target-a`, { approved: true });
+      await putVerdict(`${origin}/api/approval?base=base-a&target=target-a`, { verdict: 'as-is' });
       const input = {
         commitMessage: 'fix: preserve intent',
         rationale: 'Explain the proposed change.',
@@ -3653,7 +3651,7 @@ describe('Server Integration Tests', () => {
       });
       expect(
         await (await fetch(`${origin}/api/approval?base=base-a&target=target-a`)).json(),
-      ).toMatchObject({ approved: false });
+      ).not.toHaveProperty('verdict');
       const stale = await post(url, { ...input, rationale: 'Stale text' });
       expect(stale.status).toBe(409);
       expect(await stale.json()).toMatchObject({
@@ -3676,8 +3674,8 @@ describe('Server Integration Tests', () => {
         (entry) => entry.selection.targetCommitish === 'target-a' && !entry.selection.baseMode,
       )!;
       expect(review.summary).toMatchObject({ version: 1 });
-      await post(`${origin}/api/approval?base=base-a&target=target-a`, {
-        approved: true,
+      await putVerdict(`${origin}/api/approval?base=base-a&target=target-a`, {
+        verdict: 'as-is',
         summaryVersion: 1,
       });
       expect(
@@ -3692,23 +3690,38 @@ describe('Server Integration Tests', () => {
       ).toBe(200);
       expect(
         await (await fetch(`${origin}/api/approval?base=base-a&target=target-a`)).json(),
-      ).toMatchObject({ approved: false });
-      await post(`${origin}/api/approval?base=base-a&target=target-a`, {
-        approved: true,
+      ).not.toHaveProperty('verdict');
+      await putVerdict(`${origin}/api/approval?base=base-a&target=target-a`, {
+        verdict: 'as-is',
         summaryVersion: 2,
       });
       await post(url, { ...input, baseVersion: 2, rationale: 'Agent revision' });
       expect(
         await (await fetch(`${origin}/api/approval?base=base-a&target=target-a`)).json(),
-      ).toMatchObject({ approved: true });
+      ).toMatchObject({ verdict: 'as-is' });
       const batch = capturedEvents(port);
       // Ground truth: node node_modules/vitest/vitest.mjs run src/server/server.test.ts -t 'isolates summaries, rejects stale writes, emits trusted origins, and revokes approval'.
       expect(batch.events.filter((entry) => entry.type === 'review.approval')).toEqual([
-        expect.objectContaining({ approved: true, origin: 'user' }),
-        expect.objectContaining({ approved: false, origin: 'user' }),
-        expect.objectContaining({ approved: true, origin: 'user' }),
-        expect.objectContaining({ approved: false, origin: 'agent' }),
-        expect.objectContaining({ approved: true, origin: 'user' }),
+        expect.objectContaining({
+          approval: expect.objectContaining({ verdict: 'as-is' }),
+          origin: 'user',
+        }),
+        expect.objectContaining({
+          approval: expect.not.objectContaining({ verdict: expect.anything() }),
+          origin: 'user',
+        }),
+        expect.objectContaining({
+          approval: expect.objectContaining({ verdict: 'as-is' }),
+          origin: 'user',
+        }),
+        expect.objectContaining({
+          approval: expect.not.objectContaining({ verdict: expect.anything() }),
+          origin: 'agent',
+        }),
+        expect.objectContaining({
+          approval: expect.objectContaining({ verdict: 'as-is' }),
+          origin: 'user',
+        }),
       ]);
       expect(batch.events.filter((entry) => entry.type === 'review.summary')).toEqual([
         expect.objectContaining({
@@ -3740,20 +3753,14 @@ describe('Server Integration Tests', () => {
         rationale: 'Review the intent.',
         version: 1,
       });
-      await fetch(`${origin}/api/approval`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approved: true, summaryVersion: 1 }),
-      });
+      await putVerdict(`${origin}/api/approval`, { verdict: 'as-is', summaryVersion: 1 });
       const result = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ commitMessage: '', rationale: '', baseVersion: 1 }),
       });
       expect(await result.json()).toMatchObject({ commitMessage: '', rationale: '', version: 2 });
-      expect(await (await fetch(`${origin}/api/approval`)).json()).toMatchObject({
-        approved: false,
-      });
+      expect(await (await fetch(`${origin}/api/approval`)).json()).not.toHaveProperty('verdict');
       expect(
         (
           await fetch(`${origin}/api/conversation/summary`, {
@@ -3777,45 +3784,38 @@ describe('Server Integration Tests', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
           });
-        expect((await post('/api/approval', { approved: true })).status).toBe(200);
+        const approve = (summaryVersion?: unknown) =>
+          putVerdict(`${origin}/api/approval`, {
+            verdict: 'as-is',
+            ...(summaryVersion === undefined ? {} : { summaryVersion }),
+          });
+        const verdict = async () =>
+          ((await (await fetch(`${origin}/api/approval`)).json()) as { verdict?: string }).verdict;
+        expect((await approve()).status).toBe(200);
         await post('/api/review-summary', {
           commitMessage: 'fix: initial proposal',
           rationale: '',
           baseVersion: 0,
         });
-        expect((await post('/api/approval', { approved: true, summaryVersion: 1 })).status).toBe(
-          200,
-        );
+        expect((await approve(1)).status).toBe(200);
         await post('/api/review-summary', {
           commitMessage: 'fix: revised proposal',
           rationale: 'Changed while approving',
           baseVersion: 1,
         });
         for (const summaryVersion of [undefined, 0, 1]) {
-          const response = await post('/api/approval', { approved: true, summaryVersion });
+          const response = await approve(summaryVersion);
           expect(response.status).toBe(409);
           expect(await response.json()).toMatchObject({ summary: { version: 2 } });
-          expect(await (await fetch(`${origin}/api/approval`)).json()).toMatchObject({
-            approved: false,
-          });
+          expect(await verdict()).toBeUndefined();
         }
         for (const summaryVersion of [-1, 1.5, '2', null, Number.MAX_SAFE_INTEGER + 1]) {
-          expect((await post('/api/approval', { approved: true, summaryVersion })).status).toBe(
-            400,
-          );
+          expect((await approve(summaryVersion)).status).toBe(400);
         }
-        expect((await post('/api/approval', { approved: true, summaryVersion: 2 })).status).toBe(
-          200,
-        );
-        expect(await (await fetch(`${origin}/api/approval`)).json()).toMatchObject({
-          approved: true,
-        });
-        expect((await post('/api/approval', { approved: false, summaryVersion: 0 })).status).toBe(
-          200,
-        );
-        expect(await (await fetch(`${origin}/api/approval`)).json()).toMatchObject({
-          approved: false,
-        });
+        expect((await approve(2)).status).toBe(200);
+        expect(await verdict()).toBe('as-is');
+        expect((await fetch(`${origin}/api/approval`, { method: 'DELETE' })).status).toBe(200);
+        expect(await verdict()).toBeUndefined();
       },
     );
 
@@ -3865,36 +3865,38 @@ describe('Server Integration Tests', () => {
       servers.push(server);
       const origin = `http://localhost:${port}`;
       const url = `${origin}/api/approval?base=base-a&target=target-a`;
-      expect(await (await fetch(url)).json()).toMatchObject({ approved: false });
-      for (const approved of [true, false]) {
-        const result = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ approved }),
-        });
+      expect(await (await fetch(url)).json()).not.toHaveProperty('verdict');
+      for (const set of [true, false]) {
+        const result = set
+          ? await putVerdict(url, { verdict: 'as-is' })
+          : await fetch(url, { method: 'DELETE' });
         expect(result.ok).toBe(true);
-        expect(await result.json()).toMatchObject({ approved });
-        expect(await (await fetch(url)).json()).toMatchObject({ approved });
+        const verdict = set ? 'as-is' : undefined;
+        expect(((await result.json()) as { verdict?: string }).verdict).toBe(verdict);
+        expect(((await (await fetch(url)).json()) as { verdict?: string }).verdict).toBe(verdict);
         expect(process.exit).not.toHaveBeenCalled();
       }
       const other = await fetch(`${origin}/api/approval?base=base-b&target=target-b`);
-      expect(await other.json()).toMatchObject({ approved: false });
+      expect(await other.json()).not.toHaveProperty('verdict');
       const batch = capturedEvents(port);
       expect(batch.events).toEqual([
         expect.objectContaining({
           type: 'review.approval',
-          approved: true,
+          approval: expect.objectContaining({ verdict: 'as-is' }),
           selection: { baseCommitish: 'base-a', targetCommitish: 'target-a' },
         }),
-        expect.objectContaining({ type: 'review.approval', approved: false }),
+        expect.objectContaining({
+          type: 'review.approval',
+          approval: expect.not.objectContaining({ verdict: expect.anything() }),
+        }),
       ]);
       const snapshot = (await (
         await fetch(`${origin}/api/conversation/snapshot`)
       ).json()) as ConversationSnapshot;
       expect(
         snapshot.reviews.find((review) => review.selection.targetCommitish === 'target-a')?.approval
-          .approved,
-      ).toBe(false);
+          .verdict,
+      ).toBeUndefined();
     });
 
     it('supports the toggle without conversation mode and rejects malformed approval', async () => {
@@ -3904,11 +3906,11 @@ describe('Server Integration Tests', () => {
       });
       servers.push(server);
       const url = `http://localhost:${port}/api/approval`;
-      for (const body of ['{}', '{"approved":"true"}', 'null']) {
+      for (const body of ['{}', '{"verdict":"approved"}', '{"approved":true}', 'null']) {
         expect(
           (
             await fetch(url, {
-              method: 'POST',
+              method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body,
             })
@@ -3918,19 +3920,16 @@ describe('Server Integration Tests', () => {
       expect(
         (
           await fetch(url, {
-            method: 'POST',
+            method: 'PUT',
             headers: { 'Content-Type': 'text/plain' },
-            body: '{"approved":true}',
+            body: '{"verdict":"as-is"}',
           })
         ).status,
       ).toBe(415);
-      for (const approved of [true, false]) {
-        await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ approved }),
-        });
-        expect(await (await fetch(url)).json()).toMatchObject({ approved });
+      for (const verdict of ['as-is', 'reject', undefined]) {
+        if (verdict) await putVerdict(url, { verdict });
+        else await fetch(url, { method: 'DELETE' });
+        expect(((await (await fetch(url)).json()) as { verdict?: string }).verdict).toBe(verdict);
       }
       expect(process.exit).not.toHaveBeenCalled();
     });
@@ -4014,7 +4013,11 @@ describe('Server Integration Tests', () => {
           .filter((chunk) => chunk.trim())
           .map((chunk) => JSON.parse(chunk) as ServerEvent);
         expect(records.slice(-2)).toEqual([
-          expect.objectContaining({ type: 'review.approval', approved: true, origin: 'user' }),
+          expect.objectContaining({
+            type: 'review.approval',
+            approval: expect.objectContaining({ verdict: 'as-is' }),
+            origin: 'user',
+          }),
           expect.objectContaining({ type: 'server.shutdown', reason: 'approved' }),
         ]);
         expect(process.exit).not.toHaveBeenCalled();

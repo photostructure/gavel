@@ -152,7 +152,7 @@ describe('verdict follow-up notice', () => {
     document.body.appendChild(verdicts);
     render(
       <>
-        <button type="button">Not yet</button>
+        <button type="button">Reject</button>
         <VerdictFollowUpNotice
           anchor={verdicts}
           step={{ kind: 'switch', name: 'task-b', seconds: 3, deadline: 1000 }}
@@ -162,7 +162,7 @@ describe('verdict follow-up notice', () => {
         <button type="button">Next control</button>
       </>,
     );
-    screen.getByRole('button', { name: 'Not yet' }).focus();
+    screen.getByRole('button', { name: 'Reject' }).focus();
     await user.tab();
     expect(screen.getByRole('button', { name: 'Switch now' })).toHaveFocus();
     await user.tab();

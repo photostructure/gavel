@@ -49,7 +49,7 @@ describe('findApprovals', () => {
       selection: createDiffSelection('a'.repeat(40), 'b'.repeat(40)),
       threads: [],
       progress: [],
-      approval: { approved: true, mode: 'as-is', requested: true },
+      approval: { verdict: 'as-is' },
       summary: { commitMessage: 'fix: one', rationale: '', version: 1 },
       updatedAt: '2026-11-07T12:00:00.000Z',
       ...overrides,
@@ -96,7 +96,7 @@ describe('findApprovals', () => {
       saved({
         selection: createDiffSelection(sha, '.', undefined, 'c2'),
         captures: [{ version: 1, patchDigest: digest(patch), baseCommit: 'b'.repeat(40) }],
-        approval: { approved: false },
+        approval: {},
       }),
       server.owner,
     );
@@ -107,10 +107,16 @@ describe('findApprovals', () => {
     );
 
     const found = await findApprovals(root, { commit: 'HEAD' });
-    expect(found.map(({ match, name, approved }) => ({ match, name, approved }))).toEqual(
+    expect(
+      found.map(({ match, selection, approval }) => ({
+        match,
+        name: selection.reviewName,
+        verdict: approval.verdict,
+      })),
+    ).toEqual(
       expect.arrayContaining([
-        { match: 'commit', name: undefined, approved: true },
-        { match: 'patch', name: 'c2', approved: false },
+        { match: 'commit', name: undefined, verdict: 'as-is' },
+        { match: 'patch', name: 'c2', verdict: undefined },
       ]),
     );
     expect(found).toHaveLength(2);
@@ -129,7 +135,12 @@ describe('findApprovals', () => {
       server.owner,
     );
     expect(await findApprovals(root, { patchDigest: 'current' })).toMatchObject([
-      { match: 'patch', name: 'task', approved: true, commitMessage: 'fix: one' },
+      {
+        match: 'patch',
+        selection: { reviewName: 'task' },
+        approval: { verdict: 'as-is' },
+        commitMessage: 'fix: one',
+      },
     ]);
     expect(await findApprovals(root, { patchDigest: 'old' })).toEqual([]);
     expect(await findApprovals(root, { commit: 'HEAD^' })).toEqual([]);

@@ -5,18 +5,18 @@ import { createDiffSelection } from '../../utils/diffSelection';
 
 import { hasVerdict, nextReviewNeedingVerdict } from './verdict';
 
-const review = (name: string, approval: ReviewApproval = { approved: false }) => ({
+const review = (name: string, approval: ReviewApproval = {}) => ({
   selection: createDiffSelection('base', '.', undefined, name),
   approval,
 });
-const approved: ReviewApproval = { approved: true, requested: true, mode: 'as-is' };
+const approved: ReviewApproval = { verdict: 'as-is' };
 
 describe('hasVerdict', () => {
-  it('counts approval, approval after comments, and not yet as verdicts', () => {
+  it('counts approval, approval after comments, and reject as verdicts', () => {
     expect(hasVerdict(approved)).toBe(true);
-    expect(hasVerdict({ approved: true, requested: true, mode: 'after-comments' })).toBe(true);
-    expect(hasVerdict({ approved: false, notYet: true })).toBe(true);
-    expect(hasVerdict({ approved: false })).toBe(false);
+    expect(hasVerdict({ verdict: 'after-comments' })).toBe(true);
+    expect(hasVerdict({ verdict: 'reject' })).toBe(true);
+    expect(hasVerdict({})).toBe(false);
   });
 });
 

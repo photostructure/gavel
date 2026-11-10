@@ -153,7 +153,7 @@ describe('navigating unseen agent replies', () => {
                     id: 'open',
                     selection: { baseCommitish: 'HEAD', targetCommitish: '.' },
                     threads,
-                    approval: { approved: false },
+                    approval: {},
                     summary: { commitMessage: '', rationale: '', version: 0 },
                   },
                   {
@@ -164,7 +164,7 @@ describe('navigating unseen agent replies', () => {
                       reviewName: 'other',
                     },
                     threads: otherThreads,
-                    approval: { approved: false },
+                    approval: {},
                     summary: { commitMessage: '', rationale: '', version: 0 },
                     capture: { name: 'other' },
                   },
@@ -316,15 +316,10 @@ describe('navigating unseen agent replies', () => {
   });
 
   it('clears the approval label when an approval-change notification arrives', async () => {
-    approvalState = {
-      approved: true,
-      requested: true,
-      mode: 'after-comments',
-      conditionalSupported: true,
-    };
+    approvalState = { verdict: 'after-comments', conditionalSupported: true };
     mount();
     expect(await screen.findByRole('button', { name: 'Approved after comments' })).toBeVisible();
-    approvalState = { approved: false, conditionalSupported: true };
+    approvalState = { conditionalSupported: true };
     await act(async () => {
       await callbacks.approval?.();
     });

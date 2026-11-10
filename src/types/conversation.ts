@@ -30,24 +30,25 @@ export interface ConversationEvent {
   timestamp: string;
 }
 
-export type ApprovalMode = 'as-is' | 'after-comments';
+/**
+ * The reviewer's decision on a review. as-is and after-comments approve it; reject is final for
+ * those diffs: the agent stops and asks the user what to do instead.
+ */
+export type ReviewVerdict = 'as-is' | 'after-comments' | 'reject';
 
 export interface ReviewApproval {
+  /** Present when the server has conversations, which after-comments needs. */
   conditionalSupported?: boolean;
-  mode?: ApprovalMode;
-  /** The reviewer chose an approval verdict. */
-  requested?: boolean;
+  /**
+   * Absent until the reviewer gives one. New human feedback, a recapture, a summary change, or a
+   * changed staged or worktree diff ends as-is. Only the reviewer ends after-comments or reject.
+   */
+  verdict?: ReviewVerdict;
   captureVersion?: number;
   patchDigest?: string;
-  /** The approved index or worktree diff; a different current diff revokes an as-is approval. */
+  /** The staged or worktree diff the verdict was given on. */
   diffDigest?: string;
   summaryVersion?: number;
-  approved: boolean;
-  /**
-   * The reviewer read this capture and it is not ready: revise it and ask again. approved stays
-   * false. A recapture, a changed summary, or a changed staged or worktree diff clears it.
-   */
-  notYet?: true;
   updatedAt?: string;
   cursor?: string;
 }
@@ -81,7 +82,6 @@ interface ReviewApprovalEvent {
   cursor: string;
   reviewId: string;
   selection: DiffSelection;
-  approved: boolean;
   timestamp: string;
 }
 
