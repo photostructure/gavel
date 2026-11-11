@@ -35,7 +35,7 @@ describe('HelpModal', () => {
     render(<AboutThenHelp />);
     const opener = screen.getByRole('button', { name: 'Open About' });
     await user.click(opener);
-    await user.click(screen.getByRole('button', { name: 'Shortcuts' }));
+    await user.click(screen.getByRole('button', { name: 'Keyboard shortcuts' }));
 
     const modal = screen.getByRole('heading', { name: 'Keyboard Shortcuts' }).closest('.fixed');
     expect(modal?.contains(document.activeElement)).toBe(true);

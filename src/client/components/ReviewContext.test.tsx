@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import type { ReviewContext as ReviewContextData } from '../../types/diff';
@@ -65,6 +65,15 @@ describe('ReviewContext', () => {
     expect(document.title).toBe(previousTitle);
     unmount();
     expect(document.title).toBe(previousTitle);
+  });
+
+  it('groups the review and server details, without the browser address', () => {
+    render(<ReviewContext context={context} />);
+    const review = screen.getByRole('heading', { name: 'This review' }).parentElement!;
+    expect(within(review).getByText('Worktree')).toBeVisible();
+    const server = screen.getByRole('heading', { name: 'Server' }).parentElement!;
+    expect(within(server).getByText('Launched from')).toBeVisible();
+    expect(screen.queryByText('Browser address')).not.toBeInTheDocument();
   });
 
   it('renders nothing for older servers without context', () => {

@@ -1,59 +1,73 @@
+import type { ReactNode } from 'react';
+
 import type { ReviewContext as ReviewContextData } from '../../types/diff';
+
+// A fixed label column, not max-content, so every group's labels and values line up. 11em fits
+// "Uncommitted changes", the longest label, on one line.
+export function DetailGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <h3 className="mb-2 text-sm ui-heading">{title}</h3>
+      <dl className="grid min-w-0 grid-cols-[11em_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-xs">
+        {children}
+      </dl>
+    </div>
+  );
+}
+
+export function Detail({
+  label,
+  mono = false,
+  children,
+}: {
+  label: string;
+  mono?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <dt className="text-right ui-label">{label}</dt>
+      <dd className={`min-w-0 select-text break-all ui-value ${mono ? 'font-mono' : ''}`}>
+        {children}
+      </dd>
+    </>
+  );
+}
 
 export function ReviewContext({ context }: { context?: ReviewContextData }) {
   const name = context?.repositoryName || 'Imported diff';
   if (!context) return null;
 
   return (
-    <section aria-label="Review context" className="min-w-0">
-      <dl className="grid min-w-0 grid-cols-1 gap-y-1 pb-3 pt-2 text-xs [&>dt:not(:first-child)]:mt-2">
-        {context.agent && (
-          <>
-            <dt className="ui-heading">Agent</dt>
-            <dd className="min-w-0 select-text break-all ui-value">{context.agent}</dd>
-          </>
-        )}
+    <section aria-label="Review context" className="flex min-w-0 flex-col gap-5">
+      <DetailGroup title="This review">
+        {context.agent && <Detail label="Agent">{context.agent}</Detail>}
         {context.agentSessionName && (
-          <>
-            <dt className="ui-heading">Agent session name</dt>
-            <dd className="min-w-0 select-text break-all ui-value">{context.agentSessionName}</dd>
-          </>
+          <Detail label="Agent session name">{context.agentSessionName}</Detail>
         )}
         {context.agentSessionId && (
-          <>
-            <dt className="ui-heading">Agent session ID</dt>
-            <dd className="min-w-0 select-text break-all font-mono ui-value">
-              {context.agentSessionId}
-            </dd>
-          </>
+          <Detail label="Agent session ID" mono>
+            {context.agentSessionId}
+          </Detail>
         )}
-        {context.source === 'stdin' && (
-          <>
-            <dt className="ui-heading">Review source</dt>
-            <dd className="min-w-0 ui-value">Imported diff</dd>
-          </>
-        )}
+        {context.source === 'stdin' && <Detail label="Review source">Imported diff</Detail>}
         {context.repositoryPath && (
           <>
-            <dt className="ui-heading">Repository</dt>
-            <dd className="min-w-0 select-text break-all ui-value">{name}</dd>
-            <dt className="ui-heading">Worktree</dt>
-            <dd className="min-w-0 select-text break-all font-mono ui-value">
+            <Detail label="Repository">{name}</Detail>
+            <Detail label="Worktree" mono>
               {context.repositoryPath}
-            </dd>
+            </Detail>
           </>
         )}
-        <dt className="ui-heading">Browser address</dt>
-        <dd className="min-w-0 select-text break-all font-mono ui-value">
-          {window.location.origin}
-        </dd>
-        <dt className="ui-heading">Server host</dt>
-        <dd className="min-w-0 select-text break-all font-mono ui-value">{context.hostname}</dd>
-        <dt className="ui-heading">Launched from</dt>
-        <dd className="min-w-0 select-text break-all font-mono ui-value">
+      </DetailGroup>
+      <DetailGroup title="Server">
+        <Detail label="Server host" mono>
+          {context.hostname}
+        </Detail>
+        <Detail label="Launched from" mono>
           {context.workingDirectory}
-        </dd>
-      </dl>
+        </Detail>
+      </DetailGroup>
     </section>
   );
 }
