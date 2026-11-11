@@ -13,129 +13,75 @@ const initial: ReviewSummary = {
 const response = (summary: ReviewSummary) => new Response(JSON.stringify(summary));
 afterEach(() => vi.unstubAllGlobals());
 
-describe('review summary drafts', () => {
-  it('keeps a saved user message when an older committed-message seed arrives on refresh', async () => {
-    const saved = { ...initial, commitMessage: 'My saved commit explanation', version: 2 };
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(saved));
+describe('useReviewSummary', () => {
+  it('loads the summary and only ever reads it', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(initial));
     vi.stubGlobal('fetch', fetchMock);
-    const { result } = renderHook(() => useReviewSummary('/api/review-summary?target=abc1234'));
+    const { result } = renderHook(() => useReviewSummary('/api/review-summary?target=a'));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(result.current).toMatchObject({
+      commitMessage: initial.commitMessage,
+      rationale: initial.rationale,
+      version: 1,
+      error: null,
+    });
+    expect(fetchMock).toHaveBeenCalledWith('/api/review-summary?target=a', { cache: 'no-store' });
+    expect(result.current).not.toHaveProperty('save');
+  });
+
+  it('shows an agent update on refresh', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(initial));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useReviewSummary('/api/review-summary?target=a'));
     await waitFor(() => expect(result.current.ready).toBe(true));
     fetchMock.mockResolvedValue(
-      response({ ...initial, commitMessage: 'Original Git message\n\nFull body.\n', version: 1 }),
+      response({ ...initial, commitMessage: 'feat: updated by agent', version: 2 }),
     );
-
     await act(async () => result.current.refresh());
-
-    expect(result.current.draft.commitMessage).toBe(saved.commitMessage);
+    expect(result.current.commitMessage).toBe('feat: updated by agent');
     expect(result.current.version).toBe(2);
-    expect(result.current.dirty).toBe(false);
   });
 
-  it('saves both fields with the version the user edited', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(initial));
+  it('ignores a refresh that returns a lower version', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(response({ ...initial, commitMessage: 'feat: newer', version: 2 }));
     vi.stubGlobal('fetch', fetchMock);
     const { result } = renderHook(() => useReviewSummary('/api/review-summary?target=a'));
     await waitFor(() => expect(result.current.ready).toBe(true));
-    act(() => result.current.updateDraft({ commitMessage: 'feat: explain review context' }));
-    expect(result.current.dirty).toBe(true);
-    const saved = { ...initial, commitMessage: 'feat: explain review context', version: 2 };
-    fetchMock.mockResolvedValue(response(saved));
-    await act(async () => {
-      expect(await result.current.save()).toBe(true);
-    });
-    expect(fetchMock).toHaveBeenLastCalledWith('/api/review-summary?target=a', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        commitMessage: saved.commitMessage,
-        rationale: initial.rationale,
-        baseVersion: 1,
-      }),
-    });
-    expect(result.current.dirty).toBe(false);
-    expect(result.current.draft.commitMessage).toBe(saved.commitMessage);
-  });
-
-  it('keeps a local draft when a remote update arrives and rejects stale saves', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(initial));
-    vi.stubGlobal('fetch', fetchMock);
-    const { result } = renderHook(() => useReviewSummary('/api/review-summary?target=a'));
-    await waitFor(() => expect(result.current.ready).toBe(true));
-    act(() => result.current.updateDraft({ rationale: 'My unsaved explanation' }));
-    const latest = { ...initial, commitMessage: 'feat: updated by agent', version: 2 };
-    fetchMock.mockResolvedValue(response(latest));
+    fetchMock.mockResolvedValue(response(initial));
     await act(async () => result.current.refresh());
-    expect(result.current.conflict).toBe(true);
-    expect(result.current.draft.rationale).toBe('My unsaved explanation');
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ summary: latest }), { status: 409 }));
-    await act(async () => {
-      expect(await result.current.save()).toBe(false);
-    });
-    expect(result.current.draft.rationale).toBe('My unsaved explanation');
-    act(() => result.current.discard());
-    expect(result.current.draft.commitMessage).toBe(latest.commitMessage);
-    expect(result.current.dirty).toBe(false);
-    expect(result.current.conflict).toBe(false);
+    expect(result.current.commitMessage).toBe('feat: newer');
+    expect(result.current.version).toBe(2);
   });
 
-  it('does not apply a late save to another diff selection', async () => {
-    let finishSave: ((response: Response) => void) | undefined;
+  it('does not show one selection’s summary under another', async () => {
     const other = { ...initial, commitMessage: 'fix: another review', version: 0 };
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
-      if (init?.method === 'POST')
-        return new Promise((resolve) => {
-          finishSave = resolve;
-        });
-      return response(String(url).endsWith('b') ? other : initial);
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn<typeof fetch>()
+        .mockImplementation(async (url) => response(String(url).endsWith('b') ? other : initial)),
+    );
     const { result, rerender } = renderHook(({ url }) => useReviewSummary(url), {
       initialProps: { url: '/api/review-summary?target=a' },
     });
-    await waitFor(() => expect(result.current.ready).toBe(true));
-    act(() => result.current.updateDraft({ rationale: 'Draft for A' }));
-    let pending: Promise<boolean>;
-    act(() => {
-      pending = result.current.save();
-    });
+    await waitFor(() => expect(result.current.commitMessage).toBe(initial.commitMessage));
     rerender({ url: '/api/review-summary?target=b' });
-    await waitFor(() => expect(result.current.draft.commitMessage).toBe(other.commitMessage));
-    await act(async () => {
-      finishSave?.(response({ ...initial, version: 2 }));
-      await pending;
-    });
-    expect(result.current.draft.commitMessage).toBe(other.commitMessage);
-    expect(result.current.saving).toBe(false);
+    expect(result.current.ready).toBe(false);
+    await waitFor(() => expect(result.current.commitMessage).toBe(other.commitMessage));
+    expect(result.current.version).toBe(0);
   });
 
-  it('preserves a newer server version when an older save response arrives last', async () => {
-    let finishSave: ((response: Response) => void) | undefined;
-    let remote = initial;
+  it('reports a failed load', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
-        if (init?.method === 'POST')
-          return new Promise((resolve) => {
-            finishSave = resolve;
-          });
-        return response(remote);
-      }),
+      vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 500 })),
     );
     const { result } = renderHook(() => useReviewSummary('/api/review-summary?target=a'));
-    await waitFor(() => expect(result.current.ready).toBe(true));
-    act(() => result.current.updateDraft({ commitMessage: 'feat: local edit' }));
-    let pending: Promise<boolean>;
-    act(() => {
-      pending = result.current.save();
-    });
-    remote = { ...initial, commitMessage: 'feat: newer agent edit', version: 3 };
-    await act(async () => result.current.refresh());
-    await act(async () => {
-      finishSave?.(response({ ...initial, commitMessage: 'feat: local edit', version: 2 }));
-      await pending;
-    });
-    expect(result.current.draft.commitMessage).toBe(remote.commitMessage);
-    expect(result.current.version).toBe(3);
-    expect(result.current.dirty).toBe(false);
+    await waitFor(() =>
+      expect(result.current.error).toBe('Could not load the change summary. Try again.'),
+    );
+    expect(result.current.ready).toBe(false);
   });
 });

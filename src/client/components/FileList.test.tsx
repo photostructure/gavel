@@ -52,6 +52,35 @@ describe('FileList', () => {
     expect(screen.getByText('-5')).toBeInTheDocument();
   });
 
+  it('lists the change summary first and jumps to it', () => {
+    const onScrollToSummary = vi.fn();
+    const onFileSelected = vi.fn();
+    render(
+      <FileList
+        files={[createFile('README.md')]}
+        onScrollToFile={vi.fn()}
+        onScrollToSummary={onScrollToSummary}
+        onFileSelected={onFileSelected}
+        comments={[]}
+        unreadUpdates={[]}
+        reviewedFiles={new Set()}
+        onToggleReviewed={vi.fn()}
+        onToggleFolderReviewed={vi.fn()}
+        selectedFilePath={null}
+      />,
+    );
+    const summary = screen.getByRole('button', { name: 'Change summary' });
+    expect(summary.querySelector('svg.lucide-file-question-mark')).not.toBeNull();
+    // Above the files, like the section it jumps to.
+    expect(
+      summary.compareDocumentPosition(getLabel('README.md')) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    fireEvent.click(summary);
+    expect(onScrollToSummary).toHaveBeenCalledOnce();
+    // On phones this closes the file list, as picking a file does.
+    expect(onFileSelected).toHaveBeenCalledOnce();
+  });
+
   it('strikes through directories when all descendant files are reviewed', () => {
     const files = [
       createFile('src/cli/index.ts'),

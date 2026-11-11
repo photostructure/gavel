@@ -129,7 +129,7 @@ function fixture({ git = false } = {}) {
       payload = {
         version: 1,
         commitMessage: '',
-        rationale: '',
+        rationale: 'Start the tour at [tour 2](#thread=tour-2).',
       };
     } else if (url.pathname === '/api/approval') {
       payload = { captureVersion: 1, patchDigest: capture(reviewName).patchDigest };
@@ -255,6 +255,12 @@ describe('links in comments', () => {
     );
     expect(window.location.hash).toBe('#gavel-editor-token=token&thread=tour-1');
     await waitFor(() => expect(cursorText()).toContain('new task-a'));
+  });
+
+  it('follows a link in the change summary', async () => {
+    renderApp();
+    fireEvent.click(await screen.findByRole('link', { name: 'tour 2' }));
+    await waitFor(() => expect(cursorText()).toContain('old task-a'));
   });
 
   it('opens the place a pasted URL names', async () => {

@@ -9,6 +9,7 @@ import {
   FilePen,
   Search,
   MessageSquare,
+  FileQuestionMark,
   ChevronsDownUp,
   ChevronsUpDown,
 } from 'lucide-react';
@@ -34,6 +35,8 @@ interface FileListProps {
   files: DiffFile[];
   onScrollToFile: (path: string) => void;
   onScrollToFirstComment?: (path: string) => void;
+  /** Adds a Change summary row above the files that jumps to the review's summary. */
+  onScrollToSummary?: () => void;
   onFileSelected?: () => void;
   comments: CommentThread[];
   unreadUpdates: AgentUpdate[];
@@ -212,6 +215,7 @@ export const FileList = memo(function FileList({
   files,
   onScrollToFile,
   onScrollToFirstComment,
+  onScrollToSummary,
   onFileSelected,
   comments,
   unreadUpdates,
@@ -583,6 +587,19 @@ export const FileList = memo(function FileList({
         style={stickyContainerStyle}
         ref={scrollContainerRef}
       >
+        {onScrollToSummary && (
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-github-text-primary hover:bg-github-bg-tertiary focus-visible:outline-2 focus-visible:outline-github-accent"
+            onClick={() => {
+              onScrollToSummary();
+              onFileSelected?.();
+            }}
+          >
+            <FileQuestionMark size={16} className="shrink-0 text-github-text-secondary" />
+            Change summary
+          </button>
+        )}
         {filteredFileTree.children?.map((child) => renderTreeNode(child))}
       </div>
     </div>

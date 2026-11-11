@@ -202,13 +202,14 @@ export class Conversation {
     return { ...this.getReview(selection).summary };
   }
 
-  setSummary(selection: DiffSelection, summary: ReviewSummary, origin: 'user' | 'agent'): void {
+  /** Records an agent's proposal; the browser cannot write one. */
+  setSummary(selection: DiffSelection, summary: ReviewSummary): void {
     const review = this.getReview(selection);
     review.summary = { ...summary };
     this.sequence += 1;
     this.emit({
       type: 'review.summary',
-      origin,
+      origin: 'agent',
       cursor: this.cursor,
       reviewId: review.id,
       selection: { ...selection },
@@ -221,11 +222,11 @@ export class Conversation {
         this.recordApproval(
           review,
           { ...review.approval, summaryVersion: summary.version },
-          origin,
+          'agent',
         );
         break;
       case 'clear':
-        this.clearVerdict(selection, origin);
+        this.clearVerdict(selection, 'agent');
         break;
       case 'keep':
         break;

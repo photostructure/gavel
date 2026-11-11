@@ -84,8 +84,9 @@ Name related parts in order, such as `task-9a-schema` and `task-9b-server`. Star
 each rationale with its place (“Task 9, part A of 3”) and refer to other parts by
 tab name. Make separate commits when parts build and pass tests independently.
 Otherwise use one commit across reviews, the same proposed message on each, and
-commit exactly their captured union after every part is approved. Honor a user's
-message edit without copying it to other parts: summary edits revoke Approve as-is.
+commit exactly their captured union after every part is approved. When a comment
+asks for a different message on one part, write it to that part only with
+`comment summary`: copying it to the others would revoke their Approve as-is.
 
 ## Prepare and launch
 
@@ -222,7 +223,9 @@ thread an `id` unique across the server's reviews (prefix the review name) and l
 in Markdown: `[next](#thread=<id>)`, `[parser](#file=<path>&line=40-52)` (add
 `&side=old` for deleted lines), or `[API half](?review=<name>#thread=<id>)`. Back
 returns to the linking comment, and a link gavel cannot follow shows a notice. A
-named review holds only its captured hunks; link only to lines inside them.
+named review holds only its captured hunks; link only to lines inside them. End
+`--why` with the tour's first link, such as `Start here: [parser](#thread=<id>)`;
+the rationale renders the same Markdown.
 
 Skip self-explanatory lines, use the user's language, and keep credentials out.
 Supply `--commit-message` as a Conventional Commit and `--why` as one to three
@@ -230,7 +233,8 @@ sentences explaining the problem and solution. For others' work, identify inferr
 intent. For added reviews, send `comment summary` JSON on stdin:
 `{reviewId,commitMessage,rationale,baseVersion}`. Read `summary.version` from a
 snapshot for `baseVersion`; do not assume 0 because saved proposals may exist.
-Changed summaries revoke Approve as-is. Honor the user's saved message when committing.
+Changed summaries revoke Approve as-is. Commit with the saved summary; when a
+comment asks for a different message, write it with `comment summary` first.
 
 ## Handle feedback
 

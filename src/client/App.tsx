@@ -462,10 +462,9 @@ function App() {
       !approval.ready ||
       isShipping ||
       captureReloading ||
-      // Saving threads before they load would overwrite the server's with an empty list, and
-      // the next step after a verdict leaves the review, dropping an unsaved summary draft.
-      (verdict === 'reject' && (!hasBootstrappedComments || summary.dirty || summary.saving)) ||
-      (approving && (!hasBootstrappedComments || !summary.ready || summary.dirty || summary.saving))
+      // Saving threads before they load would overwrite the server's with an empty list.
+      (verdict === 'reject' && !hasBootstrappedComments) ||
+      (approving && (!hasBootstrappedComments || !summary.ready))
     ) {
       return;
     }
@@ -2111,9 +2110,7 @@ function App() {
                   verdict={approval.verdict}
                   conditionalSupported={approval.conditionalSupported}
                   busy={isShipping || captureReloading}
-                  disabled={
-                    !approval.ready || !hasBootstrappedComments || summary.dirty || summary.saving
-                  }
+                  disabled={!approval.ready || !hasBootstrappedComments}
                   approveDisabled={!summary.ready}
                   onVerdict={(verdict) => void handleVerdict(verdict)}
                   onClear={() => void handleVerdict('clear')}
@@ -2143,11 +2140,6 @@ function App() {
               pulse={verdictFollowUp.pulse}
               unreadReviews={unreadReviews}
               onSelect={openReviewFromTab}
-            />
-            <ReviewSummaryPanel
-              key={commentsContextKey}
-              summary={summary}
-              committed={!diffData.capture && diffData.targetCommitMessage !== undefined}
             />
           </div>
         </div>
@@ -2221,6 +2213,18 @@ function App() {
                   onScrollToFirstComment={(path) =>
                     handleSidebarFileSelected(path, 'first-comment')
                   }
+                  onScrollToSummary={
+                    // Nothing to jump to until the agent proposes a rationale or message.
+                    summary.commitMessage.trim() || summary.rationale.trim()
+                      ? () => {
+                          const main = diffScrollContainerRef.current;
+                          if (!main) throw new Error('The diff scroll area is not mounted');
+                          // A file click's lazy-render scroll could still land and pull the view back.
+                          cancelFileScroll();
+                          main.scrollTo({ top: 0 });
+                        }
+                      : undefined
+                  }
                   onFileSelected={isMobile ? handleMobileFileSelected : undefined}
                   comments={normalizedThreads}
                   unreadUpdates={agentUpdates}
@@ -2253,6 +2257,12 @@ function App() {
               topVisibleFile.onScroll(event);
             }}
           >
+            {/* Here rather than in the header so the fields size to their content and scroll
+                away with the diff. */}
+            <ReviewSummaryPanel
+              summary={summary}
+              committed={!diffData.capture && diffData.targetCommitMessage !== undefined}
+            />
             {diffData.files.map((file, fileIndex) => {
               const fileThreads = threadsByFile.get(file.path) ?? EMPTY_COMMENT_THREADS;
               const mergedChunks = presentationChunksByPath.get(file.path) ?? EMPTY_MERGED_CHUNKS;

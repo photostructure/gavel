@@ -68,11 +68,12 @@ describe('approval of a staged review', () => {
   const putVerdict = <T = ReviewApproval>(diff: DiffResponse, body: unknown, status = 200) =>
     call<T>(approvalPath(diff), body, status, 'PUT');
 
-  const approvalOf = async (diff: DiffResponse) => {
+  const reviewOf = async (diff: DiffResponse) => {
     const snapshot = await call<ConversationSnapshot>('/api/conversation/snapshot');
-    return snapshot.reviews.find((review) => review.selection.baseCommitish === diff.baseCommitish)
-      ?.approval;
+    return snapshot.reviews.find((review) => review.selection.baseCommitish === diff.baseCommitish);
   };
+
+  const approvalOf = async (diff: DiffResponse) => (await reviewOf(diff))?.approval;
 
   beforeEach(async () => {
     for (const key of Object.keys(process.env)) {
@@ -219,6 +220,7 @@ describe('approval of a staged review', () => {
 
   it('refuses an approval when the summary changes while the digest is computed', async () => {
     const diff = await startDiff();
+    const reviewId = (await reviewOf(diff))!.id;
     const original = GitDiffParser.prototype.parseDiff;
     let editSummary = true;
     vi.spyOn(GitDiffParser.prototype, 'parseDiff').mockImplementation(async function (
@@ -227,7 +229,8 @@ describe('approval of a staged review', () => {
     ) {
       if (editSummary) {
         editSummary = false;
-        await call('/api/review-summary', {
+        await call('/api/conversation/summary', {
+          reviewId,
           commitMessage: 'feat: a message the reviewer has not seen',
           rationale: '',
           baseVersion: 0,

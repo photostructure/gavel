@@ -82,7 +82,7 @@ describe('gavel wait', () => {
     );
   });
 
-  it.each(['comment.created', 'comment.updated', 'review.approval', 'review.summary'])(
+  it.each(['comment.created', 'comment.updated', 'review.approval'])(
     'finishes on a human %s event',
     async (type) => {
       const event = activity(type);

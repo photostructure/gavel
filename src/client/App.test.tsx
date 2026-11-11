@@ -967,46 +967,48 @@ describe('App Component - Ship it', () => {
     });
   });
 
-  it('edits review intent and waits for the summary to be saved before any verdict', async () => {
+  it('shows the agent’s proposal read-only and approves the version it shows', async () => {
     mockFetch({ ...mockDiffResponse, shipIt: true });
+    const fallback = vi.mocked(global.fetch).getMockImplementation()!;
+    vi.mocked(global.fetch).mockImplementation((input, init) =>
+      String(input).startsWith('/api/review-summary')
+        ? Promise.resolve(
+            Response.json({
+              commitMessage: 'feat: explain the proposed commit',
+              rationale: 'Reviewers need to understand the proposed commit.',
+              version: 3,
+            }),
+          )
+        : fallback(input, init),
+    );
     renderApp();
     const approval = await screen.findByRole('button', {
       name: /^(Approve as-is|Approved as-is)$/,
     });
-    const reject = screen.getByRole('button', { name: 'Reject' });
     await waitFor(() => expect(approval).toBeEnabled());
-    expect(reject).toBeEnabled();
-    fireEvent.click(screen.getByRole('button', { name: /Change summary/ }));
-    fireEvent.change(screen.getByLabelText('Why this change'), {
-      target: { value: 'Reviewers need to understand the proposed commit.' },
-    });
-    fireEvent.change(screen.getByLabelText('Proposed commit message'), {
-      target: { value: 'feat: explain the proposed commit' },
-    });
-    expect(approval).toBeDisabled();
-    // Reject moves on to another review or closes the tab, which would drop the unsaved draft.
-    expect(reject).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Save summary' }));
-    await waitFor(() => expect(approval).toBeEnabled());
-    expect(reject).toBeEnabled();
-    expect(global.fetch).toHaveBeenCalledWith('/api/review-summary?base=HEAD%5E&target=HEAD', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        commitMessage: 'feat: explain the proposed commit',
-        rationale: 'Reviewers need to understand the proposed commit.',
-        baseVersion: 0,
-      }),
-    });
-    expect(screen.getByText('Saved for this review')).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Proposed commit message' })).toHaveTextContent(
+      'feat: explain the proposed commit',
+    );
+    expect(screen.getByRole('group', { name: 'Why this change' })).toHaveTextContent(
+      'Reviewers need to understand the proposed commit.',
+    );
+    expect(screen.queryByRole('button', { name: 'Save summary' })).toBeNull();
     fireEvent.click(approval);
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith('/api/approval?base=HEAD%5E&target=HEAD', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verdict: 'as-is', summaryVersion: 1 }),
+        body: JSON.stringify({ verdict: 'as-is', summaryVersion: 3 }),
       }),
     );
+    expect(
+      vi
+        .mocked(global.fetch)
+        .mock.calls.some(
+          ([input, init]) =>
+            String(input).startsWith('/api/review-summary') && init?.method === 'POST',
+        ),
+    ).toBe(false);
   });
 });
 
@@ -2847,12 +2849,103 @@ describe('App Component - Committed review summaries', () => {
     );
 
     renderApp();
-    fireEvent.click(await screen.findByRole('button', { name: /Change summary/ }));
 
-    await waitFor(() => expect(screen.getByLabelText(label)).toHaveValue(message));
+    await waitFor(() =>
+      expect(screen.getByRole('group', { name: label }).textContent).toBe(message),
+    );
     expect(
-      screen.queryByLabelText(committed ? 'Proposed commit message' : 'Commit message'),
+      screen.queryByRole('group', {
+        name: committed ? 'Proposed commit message' : 'Commit message',
+      }),
     ).toBeNull();
+  });
+});
+
+describe('change summary placement', () => {
+  const mockSummary = (summary: { commitMessage: string; rationale: string }) => {
+    mockFetch(mockDiffResponse);
+    const fallback = vi.mocked(global.fetch).getMockImplementation()!;
+    vi.mocked(global.fetch).mockImplementation((input, init) =>
+      String(input).startsWith('/api/review-summary')
+        ? Promise.resolve(Response.json({ ...summary, version: 1 }))
+        : fallback(input, init),
+    );
+  };
+
+  it('omits the Files changed summary row while both fields are blank', async () => {
+    mockComments = [];
+    mockFetch(mockDiffResponse);
+    renderApp();
+    await screen.findByRole('group', { name: 'Why this change' });
+    // Only a loaded blank summary counts; while loading, both fields are blank too.
+    await waitFor(() => expect(screen.queryByText('Loading…')).toBeNull());
+    expect(screen.getByText('No rationale yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change summary' })).toBeNull();
+  });
+
+  it('jumps to the summary from the top of Files changed', async () => {
+    mockComments = [];
+    mockSummary({ commitMessage: '', rationale: 'Explain the change.' });
+    renderApp();
+    await screen.findByText('Explain the change.');
+    const main = screen.getByRole('main');
+    const scrollTo = vi.fn();
+    main.scrollTo = scrollTo as typeof main.scrollTo;
+    fireEvent.click(screen.getByRole('button', { name: 'Change summary' }));
+    // The summary is the first thing in the diff's scroll area.
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+  });
+
+  it('keeps a summary jump from being undone by a file jump still in flight', async () => {
+    mockComments = [];
+    mockSummary({ commitMessage: 'feat: explain', rationale: '' });
+    renderApp();
+    await screen.findByText('feat: explain');
+    const main = screen.getByRole('main');
+    const scrollTo = vi.fn();
+    main.scrollTo = scrollTo as typeof main.scrollTo;
+    // happy-dom does no layout; place files 500px down so a file jump is distinguishable.
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        const top = this.dataset.filePath ? 500 : 0;
+        return {
+          top,
+          bottom: top + 100,
+          left: 0,
+          right: 0,
+          width: 0,
+          height: 100,
+          x: 0,
+          y: top,
+          toJSON: () => ({}),
+        };
+      });
+    try {
+      fireEvent.click(screen.getByTitle('test.ts'));
+      fireEvent.click(screen.getByRole('button', { name: 'Change summary' }));
+      // Past the file scroll's frame retries and its 180 ms correction.
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 400)));
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 0 });
+      expect(scrollTo).not.toHaveBeenCalledWith({ top: 500 });
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it('always shows the summary at the top of the diff’s scroll area, with no toggle', async () => {
+    mockComments = [];
+    mockFetch(mockDiffResponse);
+    renderApp();
+    const why = await screen.findByRole('group', { name: 'Why this change' });
+    const main = screen.getByRole('main');
+    expect(main).toContainElement(why);
+    expect(screen.getByTestId('review-chrome')).not.toContainElement(why);
+    expect(within(main).queryByRole('button', { name: /Change summary/ })).toBeNull();
+    // It comes before the first file, so it scrolls away with the diff.
+    const firstFile = main.querySelector('[data-file-path]');
+    expect(firstFile).not.toBeNull();
+    expect(why.compareDocumentPosition(firstFile!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

@@ -76,7 +76,9 @@ they may be reading it on another device.
    name) and link in Markdown with `[next](#thread=<id>)`,
    `[parser](#file=<path>&line=40-52)` (add `&side=old` for deleted lines), or
    `[API half](?review=<name>#thread=<id>)`. A named review holds only its
-   captured hunks; link only to lines inside them.
+   captured hunks; link only to lines inside them. End `--why` with the tour's
+   first link, such as `Start here: [parser](#thread=<id>)`; the rationale
+   renders the same Markdown.
    The viewer's **About** panel names the agent, thread title, and thread ID
    that launched the review. gavel fills in the agent (such as `Codex desktop`,
    from this thread's rollout `originator`) and `$CODEX_THREAD_ID` itself;
@@ -196,8 +198,9 @@ Make each part its own commit when it builds and passes tests alone. When parts
 can only land together, such as a signature change and its callers, they are one
 commit across several reviews: give each the same `--commit-message`, commit
 once every part is approved, and commit exactly the union of their captures. If
-the user edits the message on one part, commit with that edit and don't copy it
-to the others, because a changed summary revokes Approve as-is.
+a comment on one part asks for a different message, write it to that part with
+`comment summary`, commit with it, and don't copy it to the others, because a
+changed summary revokes Approve as-is.
 
 To split a commit, branch, or PR that already exists (fetch a PR's head first),
 give each part its own patch. For a branch or PR, `<base>` below is

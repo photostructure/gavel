@@ -30,10 +30,11 @@ Human-origin events that complete the wait:
 
 - New comments and replies, including edits to their body or intent.
 - Approval and Reject verdicts, and clearing a verdict.
-- Saved changes to the proposed commit message or rationale.
 
-Agent replies, progress receipts, capture changes, thread resolution/reopening,
-deletions and empty HTTP rounds do not complete the wait. The full event endpoint
+Agent replies, progress receipts, capture changes, summary changes, thread
+resolution/reopening, deletions and empty HTTP rounds do not complete the wait.
+Only the agent changes the proposed commit message or rationale; a reviewer who
+wants a different one asks in a comment. The full event endpoint
 and launch stream still carry these state changes. Reconcile a fresh snapshot
 before acting on an event whose message, approval or capture may have changed.
 
@@ -59,10 +60,10 @@ gavel wait --port 4966 --port 4967 \
 ```
 
 Without `--after`, the initial snapshot establishes the stream checkpoint.
-Queued messages are recovered, but existing approvals and summaries are read
-from that snapshot by the agent; only subsequent changes wake the waiter. To
-cover approval or summary changes before the first wait, reconcile a snapshot
-yourself and pass its cursor. Keep the last checkpoint for every other server
+Queued messages are recovered, but existing approvals are read from that
+snapshot by the agent; only subsequent changes wake the waiter. To cover
+approval changes before the first wait, reconcile a snapshot yourself and pass
+its cursor. Keep the last checkpoint for every other server
 when one server wins the wait. Concurrent activity on those servers remains
 available for their next subscription.
 

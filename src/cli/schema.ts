@@ -403,6 +403,8 @@ const definitions: Record<string, Schema> = {
       ...streamFields,
       capture: ref('NamedReviewMetadata'),
       type: { const: 'review.summary' },
+      // Only agents write the proposal; the browser shows it read-only.
+      origin: { const: 'agent' },
       summary: ref('ReviewSummary'),
     },
     ['cursor', 'origin', 'reviewId', 'selection', 'timestamp', 'type', 'summary'],
@@ -451,7 +453,7 @@ const definitions: Record<string, Schema> = {
         minItems: 1,
         items: {
           allOf: [
-            { oneOf: ['CommentEvent', 'ReviewApprovalEvent', 'ReviewSummaryEvent'].map(ref) },
+            { oneOf: ['CommentEvent', 'ReviewApprovalEvent'].map(ref) },
             { properties: { origin: { const: 'user' } } },
           ],
         },
@@ -471,11 +473,6 @@ const definitions: Record<string, Schema> = {
       'ConversationEvent',
     ].map(ref),
   },
-  ReviewSummaryEditRequest: {
-    ...object({ ...summaryFields, baseVersion: version }),
-    description:
-      'POST /api/review-summary for a browser-selected review. baseVersion must match the current summary.version; changes revoke approval.',
-  },
   SummaryRequest: {
     ...object({
       reviewId: { type: 'string', minLength: 1 },
@@ -483,7 +480,7 @@ const definitions: Record<string, Schema> = {
       baseVersion: version,
     }),
     description:
-      'JSON input to comment summary (POST /api/conversation/summary). baseVersion must equal the current summary.version. Empty text clears a field; edits revoke approval.',
+      'JSON input to comment summary (POST /api/conversation/summary). baseVersion must equal the current summary.version. Empty text clears a field. A changed summary revokes Approve as-is, moves Approve after comments to the new version, and leaves Reject in place.',
   },
   SummaryResponse: ref('ReviewSummary'),
   ReplyRequest: {
@@ -652,7 +649,7 @@ const definitions: Record<string, Schema> = {
       ['verdict'],
     ),
     description:
-      'PUT /api/approval sets the verdict; DELETE /api/approval clears it and requires no matching versions. Every verdict requires captureVersion and patchDigest (named) or diffDigest (staged, working, or .) matching the displayed capture or diff; as-is and after-comments also require the current summaryVersion (omission means 0 for an unnamed review). Named review approval requires captureVersion, patchDigest and summaryVersion matching the displayed capture and proposal. Stale requests return HTTP 409. as-is is ended by new human feedback, a summary edit, a recapture, or a later change to the staged or worktree diff when comment snapshot or GET /api/approval reads it. after-comments tells the agent to act on all the current comments and commit; reject tells it to stop, ask the user what to do instead, and ask whether to revert. Only the reviewer ends after-comments or reject.',
+      'PUT /api/approval sets the verdict; DELETE /api/approval clears it and requires no matching versions. Every verdict requires captureVersion and patchDigest (named) or diffDigest (staged, working, or .) matching the displayed capture or diff; as-is and after-comments also require the current summaryVersion (omission means 0 for an unnamed review). Named review approval requires captureVersion, patchDigest and summaryVersion matching the displayed capture and proposal. Stale requests return HTTP 409. as-is is ended by new human feedback, an agent summary edit, a recapture, or a later change to the staged or worktree diff when comment snapshot or GET /api/approval reads it. after-comments tells the agent to act on all the current comments and commit; reject tells it to stop, ask the user what to do instead, and ask whether to revert. Only the reviewer ends after-comments or reject.',
   },
   ApprovalResponse: ref('ReviewApproval'),
 };

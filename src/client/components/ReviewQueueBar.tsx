@@ -37,9 +37,9 @@ const verdictColor = ({ verdict }: ReviewApproval) =>
         : // No verdict yet: neutral, since green would read as approval.
           { text: 'text-github-text-muted', topBorder: 'border-t-github-text-secondary' };
 
-// The open tab overlaps the bar's bottom border and shares the Change summary row's
-// background, so it reads as attached to the review below it. Its top border takes its
-// verdict's color.
+// The open tab overlaps the bar's bottom border and shares the secondary background of the
+// file list and the Change summary below it, so it reads as attached to the review. Its top
+// border takes its verdict's color.
 const openTabClasses = (approval: ReviewApproval | undefined, approvals: boolean) =>
   `border-github-border border-t-2 ${approvals && approval ? verdictColor(approval).topBorder : 'border-t-github-accent'} border-b-github-bg-secondary bg-github-bg-secondary font-semibold text-github-text-primary`;
 

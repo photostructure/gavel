@@ -117,7 +117,7 @@ describe('Conversation state and events', () => {
     const { journal, events } = observedConversation();
     expect(journal.getSummary(selection)).toEqual({ commitMessage: '', rationale: '', version: 0 });
     const summary = { commitMessage: 'fix: preserve intent', rationale: 'Review why.', version: 1 };
-    journal.setSummary(selection, summary, 'agent');
+    journal.setSummary(selection, summary);
     expect(events).toEqual([
       expect.objectContaining({ type: 'review.summary', origin: 'agent', summary }),
     ]);

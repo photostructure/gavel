@@ -75,14 +75,15 @@ in a shared working tree.
 
 **Approve after comments** and **Reject** end only when the reviewer clears them or
 chooses another verdict. New, edited, resolved, or reopened comments leave them in
-place, and so do capture updates, diff changes, and summary edits. Under Approve
+place, and so do capture updates, diff changes, and the agent's summary edits
+(only the agent writes the summary; the browser shows it read-only). Under Approve
 after comments, the approval's `captureVersion`, `patchDigest`, and `summaryVersion`
 follow the current capture and summary, so a commit does not need them to match the
 capture the reviewer first saw. A Reject keeps the versions of the capture it
 rejected.
 
 **Approve as-is** covers exactly what the reviewer saw. New or edited human feedback,
-deletion, a reopened thread, a changed summary, or a changed named capture revokes
+deletion, a reopened thread, an agent's change to the summary, or a changed named capture revokes
 it. A `staged`, `working`, or `.` review records the digest of the diff the reviewer
 approved, so a different current diff, such as more staged hunks, also revokes it.
 `comment snapshot` and `GET /api/approval` check the current diff before they report

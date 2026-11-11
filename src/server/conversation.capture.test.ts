@@ -37,11 +37,11 @@ describe('capture-bound conversations', () => {
       ],
     };
     conversation.update(selection, [], [thread], 'user');
-    conversation.setSummary(
-      selection,
-      { commitMessage: 'fix: retain context', rationale: 'Preserve task discussion.', version: 1 },
-      'agent',
-    );
+    conversation.setSummary(selection, {
+      commitMessage: 'fix: retain context',
+      rationale: 'Preserve task discussion.',
+      version: 1,
+    });
     expect(conversation.setVerdict(selection, 'as-is')).toMatchObject({
       verdict: 'as-is',
       captureVersion: 1,

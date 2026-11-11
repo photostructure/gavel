@@ -53,8 +53,7 @@ export function VerdictControl({
   containerRef: Ref<HTMLDivElement>;
   verdict?: ReviewVerdict;
   conditionalSupported?: boolean;
-  // Every verdict waits for the approval state and comments to load and for summary edits to
-  // save: the next step after a verdict leaves the review and would drop the draft.
+  // Every verdict waits for the approval state and comments to load.
   disabled: boolean;
   // Approval also waits for the summary to load; reject does not endorse it.
   approveDisabled: boolean;

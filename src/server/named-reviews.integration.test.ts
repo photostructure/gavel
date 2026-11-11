@@ -101,6 +101,15 @@ describe('named review HTTP integration', () => {
   const review = () => get<ReviewResponse>(`/api/reviews/${name}`);
   const approval = () => get<ReviewApproval>(`/api/approval${query}`);
   const snapshot = () => get<ConversationSnapshot>('/api/conversation/snapshot');
+  const proposeSummary = async (body: {
+    commitMessage: string;
+    rationale: string;
+    baseVersion: number;
+  }) =>
+    post<ReviewSummary>('/api/conversation/summary', {
+      ...body,
+      reviewId: (await review()).reviewId,
+    });
   const binding = (capture: ReviewCapture, version: number, summaryVersion = 0) => ({
     verdict: 'as-is',
     captureVersion: version,
@@ -222,7 +231,7 @@ describe('named review HTTP integration', () => {
     });
     const anchor = { version: 1, patchDigest: initialCapture.patchDigest };
     expect(saved.threads[0]?.capture).toEqual(anchor);
-    const summary = await post<ReviewSummary>(`/api/review-summary${query}`, {
+    const summary = await proposeSummary({
       commitMessage: 'fix: preserve captured task discussion',
       rationale: 'Carry the discussion through requested fixes.',
       baseVersion: 0,
@@ -358,7 +367,7 @@ describe('named review HTTP integration', () => {
     expect(await review()).toEqual(current);
     expect(events.slice(eventStart)).toEqual([]);
 
-    const summary = await post<ReviewSummary>(`/api/review-summary${query}`, {
+    const summary = await proposeSummary({
       commitMessage: 'fix: update the proposed change',
       rationale: 'A revised proposal.',
       baseVersion: 0,
@@ -421,7 +430,7 @@ describe('named review HTTP integration', () => {
     expect(other.reviewId).not.toBe(first.reviewId);
     await post(`/api/comments${query}`, { threads: [lineThread('first-question')] });
     await post(`/api/comments${otherQuery}`, { threads: [lineThread('other-question')] });
-    const summary = await post<ReviewSummary>(`/api/review-summary${query}`, {
+    const summary = await proposeSummary({
       commitMessage: 'fix: first task',
       rationale: 'First task only.',
       baseVersion: 0,

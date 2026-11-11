@@ -111,7 +111,7 @@ messages and edits, progress, threads, and approval. Read the installed build's
 schema rather than copying payload definitions from another version.
 
 The proposed commit message is `commitMessage`; its TLDR is `rationale` in
-`comment summary` JSON. Both are editable in the browser, and saved changes emit
+`comment summary` JSON. The browser shows both read-only, and saved changes emit
 `review.summary`. Comments, replies, and progress reports are JSON as described
 below. Schema discovery does not start a review server.
 
@@ -177,7 +177,7 @@ cursor are captured together. Compare that cursor for equality with concurrently
 buffered live event cursors: a matching event's state change is already reflected
 in the snapshot. Treat the tokens as opaque; do not decode or sort them. A
 consumer that waits next with `gavel wait` passes the checkpoint cursor to
-`--after`, so an approval or summary edit made after the snapshot is not
+`--after`, so an approval made after the snapshot is not
 missed; only a consumer that keeps reading live launch output may ignore it.
 Use message `progress.cursor` for status/reply
 revision guards, not the snapshot's checkpoint cursor. An existing detached server can be recovered
@@ -240,11 +240,19 @@ committed and why. Seed the initial selection when starting gavel:
 gavel . --commit-message 'fix: preserve review intent' --why 'Keep the proposed change clear during review.'
 ```
 
-The browser can edit and save these fields for each diff selection, including
-with `--no-jsonl --no-conversation`. They are saved with the review
-([saved reviews](#saved-reviews)), except for an unnamed stdin patch or under
-`--no-conversation`, where they disappear when the server restarts. Saving a changed proposal revokes an Approve as-is for that
-selection; it leaves Approve after comments and Reject in place. Editing these fields never executes Git or creates a commit.
+The browser shows the rationale as Markdown, so [links in comments](cli.md#links-in-comments)
+work in it too, and the commit message as plain text. Neither field is editable
+there: a reviewer who wants a different message or rationale says so in a
+comment, and the agent writes the new proposal with `gavel comment summary`.
+Under `--no-conversation` there is no `comment summary`, so the seeded fields
+stay as launched.
+
+The fields are saved with the review ([saved reviews](#saved-reviews)), except
+for an unnamed stdin patch or under `--no-conversation`, where they disappear
+when the server restarts. Saving a changed proposal revokes an Approve as-is for
+that selection, moves an Approve after comments to the new summary version, and
+leaves Reject in place. Writing these fields never executes Git or creates a
+commit.
 
 A commit that moves HEAD gives a `staged` or `.` diff a new base commit, and so
 a new review. That review starts with the previous review's summary unless its
@@ -279,18 +287,18 @@ the fields. Commit messages are limited to 16000 characters and rationales to 40
 
 Saved changes emit `review.summary` events with `origin`, `reviewId`, `selection`,
 `summary`, `cursor`, and `timestamp`. These events have no thread or message ID
-and require no comment receipt. Browser writes always use user origin; the agent
-command always uses agent origin. Approval revocations emit `review.approval`
-with the summary edit's origin; direct approval changes use user origin.
+and require no comment receipt. Their origin is always `agent`. A summary edit
+that revokes an Approve as-is, or moves an Approve after comments to the new
+`summaryVersion`, emits `review.approval` with agent origin; direct approval
+changes use user origin.
 
 Browser API: `GET /api/review-summary?base=...&target=...&baseMode=merge-base`
 returns the summary (initially empty, version 0, unless a restored review brought
-its saved summary). `POST` to the same URL accepts
-`{commitMessage,rationale,baseVersion}`. Agent writes use
-`POST /api/conversation/summary` with the command's JSON shape. Both require
-`application/json` and return the saved summary. Stale writes return HTTP 409
-with `{error,summary}` containing the latest version. Browser updates broadcast
-`reviewSummaryChanged` through the existing watch connection.
+its saved summary). The browser has no write route. Agent writes use
+`POST /api/conversation/summary` with the command's JSON shape; it requires
+`application/json` and returns the saved summary. Stale writes return HTTP 409
+with `{error,summary}` containing the latest version. Each changed write
+broadcasts `reviewSummaryChanged` to browsers over `/api/live`.
 
 Approving with `PUT /api/approval` includes the displayed `summaryVersion`.
 For a named review, also include the displayed `captureVersion` and `patchDigest`.

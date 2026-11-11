@@ -31,20 +31,11 @@ Object.defineProperty(window, 'getComputedStyle', {
 // Global test utilities
 export const mockFetch = (response: any, revisionsResponse?: any) => {
   const verdicts = new Map<string, string>();
-  const summaries = new Map<
-    string,
-    { commitMessage: string; rationale: string; version: number }
-  >();
   (global.fetch as any).mockImplementation((url: string, init?: RequestInit) => {
     if (url.startsWith('/api/review-summary')) {
-      const saved = summaries.get(url) ?? { commitMessage: '', rationale: '', version: 0 };
-      if (init?.method === 'POST') {
-        const input = JSON.parse(String(init.body)) as { commitMessage: string; rationale: string };
-        summaries.set(url, { ...input, version: saved.version + 1 });
-      }
       return Promise.resolve({
         ok: true,
-        json: async () => summaries.get(url) ?? saved,
+        json: async () => ({ commitMessage: '', rationale: '', version: 0 }),
       });
     }
     if (url.startsWith('/api/approval')) {

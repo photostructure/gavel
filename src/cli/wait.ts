@@ -31,8 +31,7 @@ function isActionable(event: ConversationStreamEvent): boolean {
     event.origin === 'user' &&
     (event.type === 'comment.created' ||
       event.type === 'comment.updated' ||
-      event.type === 'review.approval' ||
-      event.type === 'review.summary')
+      event.type === 'review.approval')
   );
 }
 
@@ -179,7 +178,7 @@ export function createWaitCommand(): Command {
 There is no overall timeout. Empty HTTP responses, agent replies/progress, thread
 changes and deletions do not finish the wait or produce output. Queued messages
 are recovered from a snapshot on every invocation; no delivery receipt is sent.
-Without --after, approval and summary changes are watched from attachment onward.
+Without --after, approval changes are watched from attachment onward.
 Save the result's port and cursor and pass them to --after on the next invocation
 to include changes made between waits. Keep each server's last returned cursor.
 Expired/restarted cursors require explicit snapshot reconciliation.

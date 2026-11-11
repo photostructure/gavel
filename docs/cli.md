@@ -91,6 +91,9 @@ the next stop, with side links to the code it explains.
 | `[API half](?review=api-split)`               | the named review `api-split`                                  |
 | `[API half](?review=api-split#thread=tour-1)` | a thread, file, or line in that review                        |
 
+The **Why this change** text in **Change summary** (`--why`) renders the same links, so
+it can hold the tour's first link.
+
 Set a thread's ID when importing it (`"id":"api-split-tour-2"`), so a comment can link
 to a thread posted later. Gavel assumes thread IDs are unique across a server's
 reviews, so prefix them with the review name. A link in another review's comment,

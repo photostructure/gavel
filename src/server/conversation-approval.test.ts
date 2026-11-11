@@ -74,11 +74,11 @@ describe('approval after comments', () => {
     const { conversation } = setup();
     conversation.setVerdict(selection, 'after-comments');
     conversation.setCapture(selection, { ...capture, version: 2, patchDigest: 'c'.repeat(64) });
-    conversation.setSummary(
-      selection,
-      { commitMessage: 'revised message', rationale: '', version: 3 },
-      'agent',
-    );
+    conversation.setSummary(selection, {
+      commitMessage: 'revised message',
+      rationale: '',
+      version: 3,
+    });
     expect(conversation.getApproval(selection)).toMatchObject({
       verdict: 'after-comments',
       captureVersion: 2,
@@ -114,11 +114,7 @@ describe('as-is approval', () => {
     conversation.setCapture(selection, { ...capture, version: 2 });
     expect(conversation.getApproval(selection).verdict).toBeUndefined();
     conversation.setVerdict(selection, 'as-is');
-    conversation.setSummary(
-      selection,
-      { commitMessage: 'new message', rationale: '', version: 1 },
-      'user',
-    );
+    conversation.setSummary(selection, { commitMessage: 'new message', rationale: '', version: 1 });
     expect(conversation.getApproval(selection).verdict).toBeUndefined();
   });
 });
@@ -163,11 +159,11 @@ describe('reject verdict', () => {
     const { conversation } = setup();
     const rejected = conversation.setVerdict(selection, 'reject');
     conversation.setCapture(selection, { ...capture, version: 2, patchDigest: 'c'.repeat(64) });
-    conversation.setSummary(
-      selection,
-      { commitMessage: 'revised message', rationale: '', version: 1 },
-      'agent',
-    );
+    conversation.setSummary(selection, {
+      commitMessage: 'revised message',
+      rationale: '',
+      version: 1,
+    });
     expect(conversation.getApproval(selection)).toEqual(rejected);
   });
 

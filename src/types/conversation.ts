@@ -65,7 +65,7 @@ export interface ReviewSummary {
 interface ReviewSummaryEvent {
   capture?: NamedReviewMetadata;
   type: 'review.summary';
-  origin: 'user' | 'agent';
+  origin: 'agent';
   cursor: string;
   reviewId: string;
   selection: DiffSelection;

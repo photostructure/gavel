@@ -122,6 +122,15 @@ describe('saved review state across server restarts', () => {
       (review) => review.selection.reviewName === name,
     );
 
+  const proposeSummary = async (
+    name: string,
+    body: { commitMessage: string; rationale: string; baseVersion: number },
+  ) =>
+    request<ReviewSummary>('/api/conversation/summary', {
+      ...body,
+      reviewId: (await reviewOf(name))!.id,
+    });
+
   async function approveNamed(name: string, summaryVersion: number) {
     const review = await request<{ version: number; patchDigest: string }>(`/api/reviews/${name}`);
     return request<ReviewApproval>(
@@ -156,7 +165,7 @@ describe('saved review state across server restarts', () => {
   it('restores a named review’s comments, proposal and approval after a restart', async () => {
     await startNamed('task');
     await request('/api/comments?review=task', { threads: [thread()] });
-    const summary = await request<ReviewSummary>('/api/review-summary?review=task', {
+    const summary = await proposeSummary('task', {
       commitMessage: message,
       rationale: 'Approvals survive.',
       baseVersion: 0,
@@ -323,7 +332,7 @@ describe('saved review state across server restarts', () => {
     try {
       await startNamed('task', { commitMessage: message });
       await approveNamed('task', 1);
-      await request('/api/review-summary?review=task', {
+      await proposeSummary('task', {
         commitMessage: 'fix: a different proposal',
         rationale: '',
         baseVersion: 1,

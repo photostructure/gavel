@@ -184,6 +184,21 @@ describe('schema command', () => {
     }
   });
 
+  it('describes summary events as agent-only, so a wait never returns one', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await createSchemaCommand().parseAsync(['node', 'gavel', 'wait']);
+    const { $defs } = readOutput(log);
+    const summary = $defs.ReviewSummaryEvent as { properties: Record<string, unknown> };
+    expect(summary.properties.origin).toEqual({ const: 'agent' });
+    const wait = $defs.WaitResult as {
+      properties: { events: { items: { allOf: [{ oneOf: { $ref: string }[] }] } } };
+    };
+    expect(wait.properties.events.items.allOf[0].oneOf).toEqual([
+      { $ref: '#/$defs/CommentEvent' },
+      { $ref: '#/$defs/ReviewApprovalEvent' },
+    ]);
+  });
+
   it('keeps capture metadata optional on existing events and required on review.capture', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     await createSchemaCommand().parseAsync(['node', 'gavel']);

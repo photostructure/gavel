@@ -866,7 +866,7 @@ describe('named captures in the browser', () => {
     expect(window.location.search).toBe('?review=task-a');
   });
 
-  it('retains local storage and proposal drafts while marking original inline anchors outdated', async () => {
+  it('retains local storage while marking original inline anchors outdated', async () => {
     const state = fixture([originalThread]);
     renderApp();
     fireEvent.click(await screen.findByRole('button', { name: 'Conversation' }));
@@ -877,10 +877,6 @@ describe('named captures in the browser', () => {
     ).toBeVisible();
     expect(screen.queryByLabelText('Outdated comment')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Close conversation' }));
-    fireEvent.click(screen.getByRole('button', { name: /Change summary/ }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Why this change' }), {
-      target: { value: 'Unsaved proposal detail' },
-    });
     const storageKeys = Object.keys(localStorage).filter((key) =>
       key.startsWith('gavel-storage-v1/repository-one/'),
     );
@@ -899,9 +895,6 @@ describe('named captures in the browser', () => {
       expect(screen.getByRole('status', { name: 'Named review capture' })).toHaveTextContent(
         'capture v2',
       ),
-    );
-    expect(screen.getByRole('textbox', { name: 'Why this change' })).toHaveValue(
-      'Unsaved proposal detail',
     );
     expect(
       Object.keys(localStorage).filter((key) => key.startsWith('gavel-storage-v1/repository-one/')),
@@ -1170,29 +1163,6 @@ describe('named captures in the browser', () => {
     ];
     await act(async () => watch.reload?.());
     await waitFor(() => expect(tabs()).toHaveLength(3));
-  });
-
-  it('keeps the change summary open across reviews and page loads once opened', async () => {
-    fixture();
-    const { unmount } = renderApp();
-    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
-    const toggle = () => screen.getByRole('button', { name: /Change summary/ });
-    expect(toggle()).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(toggle());
-
-    fireEvent.click(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' }));
-    await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
-    expect(toggle()).toHaveAttribute('aria-expanded', 'true');
-
-    unmount();
-    renderApp();
-    await screen.findByRole('navigation', { name: 'Reviews on this server' });
-    expect(toggle()).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.click(toggle());
-    unmount();
-    renderApp();
-    await screen.findByRole('navigation', { name: 'Reviews on this server' });
-    expect(toggle()).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('marks a review approved in the bar once its approval arrives', async () => {

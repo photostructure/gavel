@@ -77,6 +77,19 @@ describe('committed review summary HTTP integration', () => {
       target: diff.targetCommitish!,
     })}`;
 
+  async function proposeSummary(
+    diff: DiffResponse,
+    body: { commitMessage: string; rationale: string; baseVersion: number },
+  ): Promise<ReviewSummary> {
+    const snapshot = await request<ConversationSnapshot>('/api/conversation/snapshot');
+    const review = snapshot.reviews.find(
+      (entry) =>
+        entry.selection.baseCommitish === diff.baseCommitish &&
+        entry.selection.targetCommitish === diff.targetCommitish,
+    );
+    return request<ReviewSummary>('/api/conversation/summary', { ...body, reviewId: review!.id });
+  }
+
   beforeEach(() => {
     for (const key of Object.keys(process.env)) {
       if (key.startsWith('GIT_')) vi.stubEnv(key, undefined);
@@ -127,9 +140,9 @@ describe('committed review summary HTTP integration', () => {
     const currentPath = summaryPath(current);
     const initial = await request<ReviewSummary>(currentPath);
     expect(initial.commitMessage).toBe(currentMessage);
-    const saved = await request<ReviewSummary>(currentPath, {
+    const saved = await proposeSummary(current, {
       commitMessage: 'My saved explanation\n\nKeep this instead of the Git default.',
-      rationale: 'User notes for this comparison.',
+      rationale: 'Agent notes for this comparison.',
       baseVersion: initial.version,
     });
     const originalSnapshot = await request<ConversationSnapshot>('/api/conversation/snapshot');
@@ -147,7 +160,7 @@ describe('committed review summary HTTP integration', () => {
 
     await request('/api/diff?base=HEAD%5E&target=HEAD');
     expect(await request(currentPath)).toEqual(saved);
-    const cleared = await request<ReviewSummary>(currentPath, {
+    const cleared = await proposeSummary(current, {
       commitMessage: '',
       rationale: '',
       baseVersion: saved.version,
@@ -163,7 +176,7 @@ describe('committed review summary HTTP integration', () => {
     expect(snapshot.reviews).toHaveLength(3);
   });
 
-  it('marks a message copied from the commit until someone saves the summary', async () => {
+  it('marks a message copied from the commit until an agent saves the summary', async () => {
     await start();
     const diff = await request<DiffResponse>('/api/diff');
     const copied = await request<ReviewSummary>(summaryPath(diff));
@@ -172,7 +185,7 @@ describe('committed review summary HTTP integration', () => {
     expect(snapshot.reviews[0]?.summary.fromCommit).toBe(true);
 
     // Saving the copied text unchanged adopts it as a proposal, so it drops the mark too.
-    const adopted = await request<ReviewSummary>(summaryPath(diff), {
+    const adopted = await proposeSummary(diff, {
       commitMessage: currentMessage,
       rationale: '',
       baseVersion: copied.version,
@@ -184,7 +197,7 @@ describe('committed review summary HTTP integration', () => {
 
     // Once it is a proposal, an unchanged save is a no-op again.
     expect(
-      await request<ReviewSummary>(summaryPath(diff), {
+      await proposeSummary(diff, {
         commitMessage: currentMessage,
         rationale: '',
         baseVersion: adopted.version,

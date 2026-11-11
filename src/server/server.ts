@@ -598,7 +598,7 @@ export async function startServer(options: ServerOptions): Promise<{
       updatedAt: new Date().toISOString(),
     };
     summaries.set(getDiffSelectionKey(currentCommentSelection), summary);
-    conversation?.setSummary(currentCommentSelection, summary, 'agent');
+    conversation?.setSummary(currentCommentSelection, summary);
   }
 
   seedCommittedSummary(currentCommentSelection, initialDiffData);
@@ -1397,7 +1397,7 @@ export async function startServer(options: ServerOptions): Promise<{
       ...(fromCommit ? { fromCommit: true as const } : {}),
     };
     summaries.set(getDiffSelectionKey(selection), summary);
-    conversation?.setSummary(selection, summary, 'agent');
+    conversation?.setSummary(selection, summary);
   }
 
   function seedCommittedSummary(selection: DiffSelection, diff: DiffResponse): void {
@@ -1505,84 +1505,65 @@ export async function startServer(options: ServerOptions): Promise<{
     res.json(getReviewSummary(selection));
   });
 
-  for (const origin of ['user', 'agent'] as const) {
-    if (origin === 'agent' && !conversation) continue;
-    app.post(
-      origin === 'user' ? '/api/review-summary' : '/api/conversation/summary',
-      (req, res) => {
-        if (!req.is('application/json')) {
-          res.status(415).json({ error: 'Review summary requires application/json' });
-          return;
-        }
-        const input = parseReviewSummaryInput(req.body);
-        if (!input) {
-          res.status(400).json({
-            error:
-              'Expected commitMessage (at most 16000 characters), rationale (at most 4000), and non-negative integer baseVersion',
-          });
-          return;
-        }
-        let selection: DiffSelection;
-        if (origin === 'agent') {
-          const reviewId = (req.body as Record<string, unknown>).reviewId;
-          if (typeof reviewId !== 'string' || !reviewId) {
-            res
-              .status(400)
-              .json({ error: 'Expected reviewId from a conversation snapshot or event' });
-            return;
-          }
-          const review = conversation?.findReview(reviewId);
-          if (!review) {
-            res.status(404).json({ error: 'Review no longer exists' });
-            return;
-          }
-          selection = review.selection;
-        } else {
-          selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
-        }
-        const previous = getReviewSummary(selection);
-        if (previous.version !== input.baseVersion) {
-          res
-            .status(409)
-            .json({ error: 'Review summary changed; read its latest version', summary: previous });
-          return;
-        }
-        // Saving a message copied from the commit adopts it as a proposal even when the
-        // text is unchanged, so only a save of an existing proposal can be a no-op.
-        if (
-          !previous.fromCommit &&
-          previous.commitMessage === input.commitMessage &&
-          previous.rationale === input.rationale
-        ) {
-          res.json(previous);
-          return;
-        }
-        const summary: ReviewSummary = {
-          commitMessage: input.commitMessage,
-          rationale: input.rationale,
-          version: previous.version + 1,
-          updatedAt: new Date().toISOString(),
-        };
-        summaries.set(getDiffSelectionKey(selection), summary);
-        conversation?.setSummary(selection, summary, origin);
-        if (conversation)
-          fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
-        const approval =
-          conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
-        if (approval && onRevision(approval.verdict) === 'clear') {
-          const revoked = conversation?.clearVerdict(selection, origin) ?? {
-            updatedAt: new Date().toISOString(),
-          };
-          approvals.set(getDiffSelectionKey(selection), revoked);
-          fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
-        }
-        fileWatcher.broadcast({
-          type: 'reviewSummaryChanged',
-          timestamp: new Date().toISOString(),
+  // Only agents write the proposal; the browser shows it read-only and asks for changes in a comment.
+  if (conversation) {
+    app.post('/api/conversation/summary', (req, res) => {
+      if (!req.is('application/json')) {
+        res.status(415).json({ error: 'Review summary requires application/json' });
+        return;
+      }
+      const input = parseReviewSummaryInput(req.body);
+      if (!input) {
+        res.status(400).json({
+          error:
+            'Expected commitMessage (at most 16000 characters), rationale (at most 4000), and non-negative integer baseVersion',
         });
-        res.json(summary);
-      },
-    );
+        return;
+      }
+      const reviewId = (req.body as Record<string, unknown>).reviewId;
+      if (typeof reviewId !== 'string' || !reviewId) {
+        res.status(400).json({ error: 'Expected reviewId from a conversation snapshot or event' });
+        return;
+      }
+      const review = conversation.findReview(reviewId);
+      if (!review) {
+        res.status(404).json({ error: 'Review no longer exists' });
+        return;
+      }
+      const selection = review.selection;
+      const previous = getReviewSummary(selection);
+      if (previous.version !== input.baseVersion) {
+        res
+          .status(409)
+          .json({ error: 'Review summary changed; read its latest version', summary: previous });
+        return;
+      }
+      // Saving a message copied from the commit adopts it as a proposal even when the
+      // text is unchanged, so only a save of an existing proposal can be a no-op.
+      if (
+        !previous.fromCommit &&
+        previous.commitMessage === input.commitMessage &&
+        previous.rationale === input.rationale
+      ) {
+        res.json(previous);
+        return;
+      }
+      const summary: ReviewSummary = {
+        commitMessage: input.commitMessage,
+        rationale: input.rationale,
+        version: previous.version + 1,
+        updatedAt: new Date().toISOString(),
+      };
+      summaries.set(getDiffSelectionKey(selection), summary);
+      // setSummary revokes an Approve as-is and moves an Approve after comments to this version.
+      conversation.setSummary(selection, summary);
+      fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
+      fileWatcher.broadcast({
+        type: 'reviewSummaryChanged',
+        timestamp: new Date().toISOString(),
+      });
+      res.json(summary);
+    });
   }
 
   app.post('/api/comments', (req, res) => {
