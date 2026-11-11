@@ -155,7 +155,7 @@ const definitions: Record<string, Schema> = {
   ReviewCaptureUpdate: {
     ...object({ expectedVersion: captureVersion, capture: ref('ReviewCapture') }),
     description:
-      'POST /api/reviews/:name/capture. expectedVersion must match the current capture version, including for unchanged patches. A changed patch advances the version and revokes approval; an identical patch preserves both.',
+      'POST /api/reviews/:name/capture. expectedVersion must match the current capture version, including for unchanged patches. A changed patch advances the version, revokes Approve as-is, moves Approve after comments to the new capture, and leaves Reject in place; an identical patch preserves the version and verdict.',
   },
   NamedReviewCatalogueResponse: {
     ...object({ reviewId: string, ...metadataFields, files: array(ref('CapturedFile')) }),
