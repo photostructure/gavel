@@ -72,7 +72,7 @@ All notable changes to this project will be documented in this file.
 
 ## [6.0.0] - 2026-11-08
 
-### Added in the PhotoStructure fork
+### Added
 
 - Save each review's comments, progress, proposal and approval under `.git/gavel`, and restore them when a restarted server opens the same named review and patch, or the same commits. `gavel approval status <commit>` reports a commit's saved approvals without a server. A server starting up deletes saved reviews untouched for 7 days.
 - Find unread agent replies in Conversation with visible filter pills, per-reply read/unread controls, Mark all read, and jumps into resolved or outdated threads. Visibility and panel close never mark replies read.
@@ -90,7 +90,7 @@ All notable changes to this project will be documented in this file.
 - Print the desktop user's idle time with `gavel idle` on Linux (KDE on X11, GNOME), macOS, and Windows, so agents can hold a review until the user is back.
 - Restore the conversation event endpoint with cursor replay of the latest 256 events per server process.
 
-### Changed in the PhotoStructure fork
+### Changed
 
 - Rename the project from difit to gavel, because speech-to-text could not transcribe "difit" in dictated prompts. The npm package is `@photostructure/gavel`, the command is `gavel`, and the repository is [photostructure/gavel](https://github.com/photostructure/gavel); the header and browser tab show the gavel mark. Nothing carries over from difit: there is no `difit` command, `DIFIT_EDITOR`, `DIFIT_EDITOR_COMMAND`, `DIFIT_EDITOR_ARGS`, and `DIFIT_CONFIG_DIR` are now `GAVEL_EDITOR`, `GAVEL_EDITOR_COMMAND`, `GAVEL_EDITOR_ARGS`, and `GAVEL_CONFIG_DIR`, the user config moves from `~/.difit/config.json` to `~/.gavel/config.json`, saved reviews start fresh under `.git/gavel`, and browser settings, viewed marks, unread marks, unsent drafts, and the **Change summary** panel's open state start fresh. Set auto-viewed patterns again in **Settings**. The skills are now `gavel` and `gavel-dev`.
 - Bind approval of a `staged`, `working`, or `.` review to the diff the reviewer saw: `POST /api/approval` requires the `diffDigest` from `/api/diff` and returns HTTP 409 when the diff has changed, and a later change to the diff revokes an as-is approval when `comment snapshot` or `GET /api/approval` reads it. The legacy `POST /api/ship-it` route now refuses these reviews with HTTP 409.
@@ -121,12 +121,12 @@ All notable changes to this project will be documented in this file.
 - In **Conversation**, Escape in a reply or an edit that holds text closes the panel and keeps any unsent text, as it does for a line draft listed under **Unsent drafts**. Escape used to leave a reply and the panel open, and discard an edit's changes.
 - Escape no longer discards unsent text anywhere; only **Cancel** or Send does. In the diff, Escape in a line comment or an edit with unsaved changes keeps the form open, as it already did for a reply, and Escape in an edit you have not changed closes it; Escape used to discard a line comment's or an edit's text. In **Conversation**, Escape in the general comment form closes the panel and keeps its text for the next open; it used to discard it.
 
-### Removed in the PhotoStructure fork
+### Removed
 
 - Remove the bundled VS Code extension (`packages/vscode`). It was set up to publish under upstream's Marketplace publisher, which this project cannot publish under.
 - Remove the project site and its static live demo (`src/site`, `pnpm dev:site`, `pnpm build:site`, `pnpm export:site-data`, and the Pages workflow). The demo could not show an agent answering comments; [the walkthrough on photostructure.com](https://photostructure.com/coding/gavel/) replaces the site.
 
-### Fixed in the PhotoStructure fork
+### Fixed
 
 - Keep unsent text in a line comment, a reply, or an edit through a reload, a page crash, a development-server hot update, or a switch to another review tab: each draft is saved in the tab's sessionStorage per review and its form reopens with the text, expanding the context around its line and opening its file even if the file is marked viewed. A draft whose line the diff no longer shows appears at the top of its file. **Conversation** lists every unsent draft under **Unsent drafts**, including drafts on files no longer in the diff, with a pencil badge on the button that counts them; the list is taken when the panel opens. Opening a second line comment in the same hunk no longer closes the first one and discards its text.
 - Show an edit inside Markdown frontmatter that is not a YAML key/value mapping in **Diff Preview**: a YAML syntax error, a scalar such as `title New`, a sequence, or a blank or comment-only block. The preview used to strip the frontmatter lines anyway, so the edit appeared in neither the frontmatter table nor the preview; it now keeps the lines and shows no table.
@@ -134,7 +134,7 @@ All notable changes to this project will be documented in this file.
 
 ## [5.1.0] - 2026-10-29
 
-### Added in the PhotoStructure fork
+### Added
 
 - Review-wide conversations alongside inline threads, with drafts retained while navigating code.
 - Immediate JSON comment events, exact-thread agent replies, and Delivered, Read, Thinking, Replying, Replied, and Noted progress.
@@ -143,7 +143,7 @@ All notable changes to this project will be documented in this file.
 - Repository and server information in the file tree, plus repository and port identity in the browser title.
 - Reversible LGTM approval that stays visible and can be revoked.
 
-### Changed in the PhotoStructure fork
+### Changed
 
 - Distribute the fork as `@photostructure/difit`, retaining the `difit` command.
 - Enable conversations and LGTM by default, with `--no-conversation` and `--no-lgtm` opt-outs.
