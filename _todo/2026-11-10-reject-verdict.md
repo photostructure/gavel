@@ -23,9 +23,9 @@ main in 22 files, so it serves only as a list of call sites and tests to cover.
 
 ## Current phase
 
-Commit 1, the Reject verdict.
+Commit 2, `gavel review unapply` and `reapply`: implemented, in review.
 
-- [ ] Commit 1: Reject verdict, `verdict` as the only field, GET/PUT/DELETE routes
+- [x] Commit 1: Reject verdict, `verdict` as the only field, GET/PUT/DELETE routes (daeadd8)
 - [ ] Commit 2: `gavel review unapply` and `gavel review reapply`
 
 ## Required reading
@@ -54,9 +54,17 @@ Made by the maintainer in conversation on 2026-11-09 and 2026-11-10:
   (`git diff <oldest>^ <tip> | git apply --cached -R`). A plain `git reset`, or
   `git restore --staged` on the changed files, also unstages other sessions' staged
   hunks in them (probed 2026-11-10).
-- Revert in a shared checkout: a recovery snapshot (`git stash create` + `git stash
-  store`), then `git apply -R`, then `git merge-file`, stopping on conflicts. It lives
-  in a gavel subcommand (accepted as recommended).
+- Revert in a shared checkout: a gavel subcommand (accepted as recommended) that wraps
+  `git apply -R`. The maintainer rejected a first version that merged each file with
+  `git merge-file` to keep nearby edits by other sessions: it re-implemented `git apply`
+  in about 600 lines. The recovery stash is an emergency snapshot of whole files; edits by
+  other sessions in the same files need no special handling (maintainer, 2026-11-10).
+- When another session's edit is within 3 lines of a hunk, as with adjacent CHANGELOG
+  bullets, unapply stashes and then reverts what it can (`git apply -R -C0 --reject`)
+  instead of refusing, and reports the hunks left in place (maintainer, F1-10 A,
+  2026-11-10). Files with a hunk that adds no lines keep the context check
+  (`git apply -R --reject`), because `-C0` puts a reversed deletion at its old line
+  number, and so does every file on reapply (maintainer, F1-11 A, 2026-11-10).
 - Edits are made in the primary checkout so the maintainer can test them there.
 
 - The agent asks once whether to revert, saying what each step would affect (uncommitted
@@ -85,17 +93,17 @@ Made by the maintainer in conversation on 2026-11-09 and 2026-11-10:
 
 ## Commit 2 tasks
 
-1. Test rebuilding a file's before and after contents from a capture in a temporary
-   index (`GIT_INDEX_FILE`); this is reasoned, not tested.
-2. `gavel review unapply <name> [--dry-run] [--patch <file>]`: snapshot, check every
-   file, write none on any conflict, print JSON with per-file results, the stash name,
-   and created-file blob IDs.
-3. `gavel review reapply <name>`: re-apply the capture forward with `git merge-file`.
-4. Tests in temporary repos: own-only file, another session's edit three lines away,
-   adjacent edit (conflict, nothing written), created and deleted files, `--dry-run`,
-   unapply then reapply.
-5. SKILL.md shared-checkout revert becomes the command; `docs/cli.md`, schema,
-   CHANGELOG.
+- [x] `gavel review unapply <name> [-] [--dry-run] [--patch-digest <digest>]` and
+      `gavel review reapply`, in `src/cli/unapply.ts`: a wrapper around `git apply -R` (and
+      `git apply`) on the named review's saved capture, read from `<git-common-dir>/gavel`
+      (no server needed), or a patch on stdin with `-`. Unapply refuses while the capture's
+      paths are staged and does not change what is staged; before writing, both store a
+      `git stash create` snapshot of the tracked files. When the exact apply fails, unapply
+      runs `git apply -R -C0 --reject` (`-R --reject` for files with a hunk that adds no
+      lines) and reapply `git apply --reject`, reporting the hunks left in place.
+- [x] Tests (`src/cli/unapply.test.ts`) and CLI wiring tests (`src/cli/review.test.ts`).
+- [x] Skill, `docs/approval-modes.md`, `docs/cli.md`, CHANGELOG.
+- [ ] Second-opinion review, then gavel with a manual test script.
 
 ## Lore
 

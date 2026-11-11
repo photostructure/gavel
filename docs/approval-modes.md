@@ -66,8 +66,17 @@ in a shared working tree.
      instead, they are now uncommitted edits: see the next item. A pushed range, or
      one with another session's commit on top, gets a `git revert` commit instead,
      under the usual commit approval.
-   - For uncommitted edits in a shared checkout: ask how. `git stash push` takes
-     whole files and resets the shared index, so it can take another session's work.
+   - For uncommitted edits in a shared checkout, when the rejected change is a named
+     review: run `gavel review unapply <name> --dry-run` and include its output in the
+     question. If the name is ambiguous, that run lists each saved capture's digest
+     instead: rerun the dry run with `--patch-digest <the rejected review's digest>` and
+     include that output. On a yes, run `gavel review unapply <name> --patch-digest
+     <digest>` with the dry run's `patchDigest`. It stores a stash of the tracked files,
+     runs `git apply -R` on that capture's patch, and reports in `rejected` any hunk whose
+     lines another session has since changed; `gavel review reapply <name> --patch-digest
+     <digest>` undoes it ([details](cli.md#undo-a-named-reviews-change)).
+     For any other review, ask how. `git stash push` takes whole files and resets the
+     shared index, so it can take another session's work.
 4. Put a new attempt up as a new named review. Only the reviewer clears a Reject,
    so a recapture of the rejected review would still show it rejected.
 

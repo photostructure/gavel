@@ -306,8 +306,16 @@ undo, then act on the user's answer without asking again:
   changed nothing: tell the user the rejected changes are still staged. To discard them
   instead, treat them as uncommitted edits. A pushed range, or one with another session's commit on top,
   gets a `git revert` commit, under the usual commit approval.
-- For uncommitted edits in a shared checkout: ask how. `git stash push` takes whole files
-  and resets the shared index, so it can take another session's work.
+- For uncommitted edits in a shared checkout from a named review: put the output of
+  `<gavel-command> review unapply <name> --dry-run` in your question. If the name is
+  ambiguous, that run lists each saved capture's digest instead: rerun the dry run with
+  `--patch-digest <the rejected review's digest>` and put that output in the question. On a
+  yes, run `review unapply <name> --patch-digest <patchDigest from the dry run>`. It runs
+  `git apply -R` on that capture's patch, after a stash of the tracked files. `refused` means
+  nothing changed; `rejected` lists hunks it left in place: report either. `review reapply
+  <name> --patch-digest <digest>` undoes it. For other reviews, ask how:
+  `git stash push` takes whole files and resets the shared index, so it can take another
+  session's work.
 
 Only the user clears a Reject. Never recapture a rejected review; put a new attempt
 up as a new named review.

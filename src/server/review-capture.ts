@@ -73,7 +73,7 @@ function repositoryId(repositoryRoot: string): string {
   return digest(repositoryRoot);
 }
 
-function gitEnvironment(cwd: string): NodeJS.ProcessEnv {
+export function gitEnvironment(cwd: string): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = {
     ...Object.fromEntries(
       Object.entries(process.env).filter(
@@ -502,6 +502,22 @@ export function validateCapture(value: unknown): ReviewCapture {
   if (!('files' in value) || !catalogueMatches(value.files, capture.files))
     throw new Error('Review capture catalogue does not match its patch');
   return capture;
+}
+
+/** IDs of the files with a hunk that adds no lines, such as a hunk that only deletes lines. */
+export function filesWithoutAddedLines(capture: ReviewCapture): string[] {
+  const rawFiles = parsePatch(capture.patch);
+  return capture.files
+    .filter((_file, index) =>
+      rawFiles[index]?.hunks.some(
+        (hunk) =>
+          !hunk.raw
+            .split('\n')
+            .slice(1)
+            .some((line) => line.startsWith('+')),
+      ),
+    )
+    .map((file) => file.id);
 }
 
 /** Select only explicit immutable IDs; file-only changes require a file ID. */

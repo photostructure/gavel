@@ -20,6 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   capturePatch,
   captureWorkingTree,
+  filesWithoutAddedLines,
   getCaptureRepository,
   MAX_CAPTURE_BYTES,
   selectCapture,
@@ -202,6 +203,16 @@ describe('immutable review capture artifacts', () => {
       'diff --git a/\uFEFFfile b/\uFEFFfile\nold mode 100644\nnew mode 100755\n',
     );
     expect(bomName.files[0]?.path).toBe('\uFEFFfile');
+  });
+});
+
+describe('filesWithoutAddedLines', () => {
+  it('names the files with a hunk that adds no lines, including plain unified patches', () => {
+    const removeOnly = '--- a/gone.txt\n+++ b/gone.txt\n@@ -1,2 +1 @@\n keep\n-gone\n';
+    const parsed = capture();
+    expect(filesWithoutAddedLines(parsed)).toEqual([]);
+    const plain = capture(`--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-one\n+ONE\n${removeOnly}`);
+    expect(filesWithoutAddedLines(plain)).toEqual([plain.files[1]?.id]);
   });
 });
 

@@ -15,6 +15,7 @@ import {
 import type { ReviewCapture } from '../types/review.js';
 
 import { createReviewCommand, resolveNamedReview, validateReviewName } from './review.js';
+import { findSavedCapture, revertCapture, type RevertResult } from './unapply.js';
 import { detectStdinSource, readStdin } from './utils.js';
 
 vi.mock('../server/review-capture.js', () => ({
@@ -24,6 +25,8 @@ vi.mock('../server/review-capture.js', () => ({
   selectCapture: vi.fn(),
   validateCapture: vi.fn(),
 }));
+
+vi.mock('./unapply.js', () => ({ findSavedCapture: vi.fn(), revertCapture: vi.fn() }));
 
 vi.mock('./utils.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./utils.js')>()),
@@ -601,5 +604,107 @@ describe('named review CLI', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     await run('create', 'task', '--port', '4983');
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe('review unapply and reapply', () => {
+  const log = vi.fn();
+  const error = vi.fn();
+  const result = (fields: Partial<RevertResult> = {}): RevertResult => ({
+    direction: 'unapply',
+    label: 'task',
+    patchDigest: capture.patchDigest,
+    baseCommit: capture.baseCommit,
+    dryRun: false,
+    written: true,
+    stat: ' file.ts | 2 +-\n',
+    ...fields,
+  });
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(log);
+    vi.spyOn(console, 'error').mockImplementation(error);
+    vi.mocked(findSavedCapture).mockResolvedValue(capture);
+    vi.mocked(revertCapture).mockResolvedValue(result());
+    vi.mocked(getCaptureRepository).mockResolvedValue({
+      repositoryRoot: capture.repositoryRoot,
+      repositoryId: capture.repositoryId,
+      baseCommit: capture.baseCommit,
+    });
+    vi.mocked(capturePatch).mockReturnValue(selectedCapture);
+    vi.mocked(detectStdinSource).mockReturnValue('pipe');
+    vi.mocked(readStdin).mockResolvedValue(capture.patch);
+  });
+
+  afterEach(() => {
+    process.exitCode = 0;
+    vi.restoreAllMocks();
+    vi.resetAllMocks();
+  });
+
+  it.each(['unapply', 'reapply'] as const)(
+    '%s reads the saved capture by name and prints the result',
+    async (direction) => {
+      vi.mocked(detectStdinSource).mockReturnValue('tty');
+      await run(direction, 'task', '--dry-run');
+      expect(findSavedCapture).toHaveBeenCalledWith(process.cwd(), 'task', undefined);
+      expect(revertCapture).toHaveBeenCalledWith(capture, {
+        cwd: process.cwd(),
+        direction,
+        label: 'task',
+        dryRun: true,
+      });
+      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({ written: true });
+      expect(process.exitCode).toBe(0);
+    },
+  );
+
+  it('passes --patch-digest through to the saved-review lookup', async () => {
+    vi.mocked(detectStdinSource).mockReturnValue('tty');
+    await run('unapply', 'task', '--patch-digest', capture.patchDigest);
+    expect(findSavedCapture).toHaveBeenCalledWith(process.cwd(), 'task', capture.patchDigest);
+  });
+
+  it.each([
+    ['piped stdin without -', [], 'pipe', 'Stdin is a pipe or file'],
+    ['- with a terminal for stdin', ['-'], 'tty', 'Provide a unified diff via stdin'],
+    ['a patch source other than -', ['patch.diff'], 'tty', 'Patch source must be -'],
+  ] as const)('refuses %s', async (_case, extra, stdin, message) => {
+    vi.mocked(detectStdinSource).mockReturnValue(stdin);
+    await run('unapply', 'task', ...extra);
+    expect(revertCapture).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(message));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('uses a patch from stdin with -', async () => {
+    await run('unapply', 'task', '-');
+    expect(findSavedCapture).not.toHaveBeenCalled();
+    expect(capturePatch).toHaveBeenCalledWith(capture.patch, expect.anything());
+    expect(revertCapture).toHaveBeenCalledWith(selectedCapture, expect.anything());
+  });
+
+  it('refuses a piped patch whose digest differs from --patch-digest', async () => {
+    await run('unapply', 'task', '-', '--patch-digest', 'f'.repeat(64));
+    expect(revertCapture).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('does not match --patch-digest'));
+  });
+
+  it.each([
+    ['paths are staged', { written: false, refused: 'Unstage these paths first:\nfile.ts' }],
+    ['git apply left hunks in place', { rejected: 'error: patch failed: file.ts:1' }],
+  ])('exits 1 when %s, after printing the result', async (_case, fields) => {
+    vi.mocked(revertCapture).mockResolvedValue(result(fields));
+    vi.mocked(detectStdinSource).mockReturnValue('tty');
+    await run('unapply', 'task');
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject(fields);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('rejects an invalid name before reading anything', async () => {
+    await run('unapply', 'a/b');
+    expect(findSavedCapture).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('Review name'));
+    expect(process.exitCode).toBe(1);
   });
 });

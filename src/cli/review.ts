@@ -13,6 +13,7 @@ import type { NamedReviewStart, ReviewCapture, ReviewCaptureUpdate } from '../ty
 import { validateReviewName } from '../utils/review-name.js';
 
 import { serverUrl } from './server-url.js';
+import { findSavedCapture, revertCapture, type RevertResult } from './unapply.js';
 
 import { detectStdinSource, readStdin } from './utils.js';
 
@@ -334,6 +335,89 @@ export function createReviewCommand(): Command {
         reportError(error, options.port, options.host);
       }
     });
+
+  for (const direction of ['unapply', 'reapply'] as const)
+    review
+      .command(direction)
+      .description(
+        direction === 'unapply'
+          ? "Reverse a named review's change in the working tree, keeping other edits"
+          : 'Restore a change that unapply reversed, keeping edits made since',
+      )
+      .argument('<name>', 'saved named review whose current capture to use')
+      .argument('[patch-source]', 'use - to read the patch from stdin instead')
+      .option('--dry-run', 'print what would change and write nothing')
+      .option(
+        '--patch-digest <digest>',
+        'use the saved capture with this digest, as printed by --dry-run',
+      )
+      .addHelpText(
+        'after',
+        `
+Reads the review's current capture from <git-common-dir>/gavel; no server needs to run.
+When several saved reviews share the name, pass --patch-digest to pick one.
+First it stores a stash of the tracked files ("gavel review ${direction} <name> <digest>")
+as an emergency snapshot. Then it runs git apply${direction === 'unapply' ? ' -R' : ''} on the capture's patch. If any hunk
+does not apply, that writes nothing, and it runs ${
+          direction === 'unapply'
+            ? `git apply -R -C0 --reject, which matches only
+each hunk's own lines, so edits next to a hunk do not stop it (files with a hunk that adds
+no lines get git apply -R --reject)`
+            : 'git apply --reject'
+        }. That writes the hunks
+that apply; "rejected" holds git apply's message for the rest, and the command exits 1.${
+          direction === 'unapply'
+            ? `
+Unapply refuses while any of the capture's paths are staged ("refused", exit 1), and does
+not change what is staged.`
+            : ''
+        }
+Prints JSON: {direction, label, patchDigest, baseCommit, dryRun, written, refused,
+fallback, rejected, stash, stat}.
+`,
+      )
+      .action(
+        async (
+          name: string,
+          patchSource: string | undefined,
+          options: { dryRun?: boolean; patchDigest?: string },
+        ) => {
+          try {
+            validateReviewName(name);
+            if (patchSource !== undefined && patchSource !== '-')
+              throw new Error('Patch source must be - for stdin');
+            let capture: ReviewCapture;
+            if (patchSource === '-') {
+              if (detectStdinSource() === 'tty')
+                throw new Error('Provide a unified diff via stdin for patch source -');
+              const patch = await readStdin({ strictUtf8: true });
+              if (!patch.trim()) throw new Error('No diff content received from stdin');
+              capture = capturePatch(patch, await getCaptureRepository());
+              if (options.patchDigest !== undefined && capture.patchDigest !== options.patchDigest)
+                throw new Error(
+                  `The piped patch has digest ${capture.patchDigest}, which does not match --patch-digest ${options.patchDigest}`,
+                );
+            } else {
+              // As for review create: a piped patch without - must not be silently ignored.
+              if (detectStdinSource() !== 'tty')
+                throw new Error(
+                  'Stdin is a pipe or file, but no patch source was given. To use a patch from stdin, add -. To use the saved capture, redirect stdin from /dev/null.',
+                );
+              capture = await findSavedCapture(process.cwd(), name, options.patchDigest);
+            }
+            const result: RevertResult = await revertCapture(capture, {
+              cwd: process.cwd(),
+              direction,
+              label: name,
+              ...(options.dryRun ? { dryRun: true } : {}),
+            });
+            console.log(JSON.stringify(result, null, 2));
+            if (result.refused !== undefined || result.rejected !== undefined) process.exitCode = 1;
+          } catch (error) {
+            reportError(error);
+          }
+        },
+      );
 
   return review;
 }

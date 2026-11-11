@@ -22,6 +22,41 @@ To tell servers apart in the browser, pass a short `--title`, such as
 `--title 'parser recovery'`. Browsers only show the first 10-20 characters. The title
 belongs to the server, so every review tab on that server shares it.
 
+### Undo a named review's change
+
+`gavel review unapply <name>` runs `git apply -R` on a named review's captured patch, for
+example after a Reject, and `gavel review reapply <name>` runs `git apply` to put it back.
+Both read the review's current capture from `<git-common-dir>/gavel`, so no server needs
+to run; pass `-` to read the patch from stdin instead. When several saved reviews share the
+name, they list each one's digest; pass `--patch-digest` to pick one, and pass the digest the
+dry run printed when you run the real command.
+
+```sh
+gavel review unapply parser-fix --dry-run
+gavel review unapply parser-fix --patch-digest <patchDigest>
+gavel review reapply parser-fix --patch-digest <patchDigest>
+```
+
+Before writing, both store `git stash create` of every tracked file, other sessions' edits
+included, as an emergency snapshot (`gavel review unapply <name> <digest>` in
+`git stash list`); files the review created come back with reapply.
+
+Then `git apply` either applies every hunk or writes nothing. It needs the 3 lines around
+each hunk to match, so another session's edit within 3 lines of a hunk, such as a CHANGELOG
+bullet added next to the review's, stops it. Unapply then runs `git apply -R -C0 --reject`,
+which matches only each hunk's own lines and writes every hunk it finds. A file with a hunk
+that adds no lines gets `git apply -R --reject` instead: reversing that hunk inserts lines,
+which have nothing of their own to match, and `-C0` would put them at the hunk's old line
+number. For the same reason, reapply's fallback is `git apply --reject` for every file. The
+output lists each command and its files under `fallback`. Hunks that still do not apply stay
+in place: `rejected` holds Git's message for them, the command exits 1, and no `.rej` files
+are left behind. `--dry-run` reports `fallback` and `rejected` the same way and writes
+nothing. Matching on a hunk's own lines can pick an identical line nearby, such as a blank
+line or a lone `}`; the stash holds the files as they were.
+
+Unapply refuses while any of the capture's paths are staged (`refused`, exit 1), so a
+rejected change is never left staged, and it does not change what is staged.
+
 ## GitHub pull requests
 
 ```bash
