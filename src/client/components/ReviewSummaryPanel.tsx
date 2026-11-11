@@ -28,7 +28,7 @@ export function ReviewSummaryPanel({
     >
       <div className="grid min-w-0 gap-3 md:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-1 text-xs">
-          <span id={`${id}-why`} className="ui-heading">
+          <span id={`${id}-why`} className="text-sm ui-heading">
             Why this change
           </span>
           <div role="group" aria-labelledby={`${id}-why`} className={FIELD_CLASS}>
@@ -40,7 +40,7 @@ export function ReviewSummaryPanel({
           </div>
         </div>
         <div className="flex min-w-0 flex-col gap-1 text-xs">
-          <span id={`${id}-message`} className="ui-heading">
+          <span id={`${id}-message`} className="text-sm ui-heading">
             {messageLabel}
           </span>
           <div role="group" aria-labelledby={`${id}-message`} className={FIELD_CLASS}>
