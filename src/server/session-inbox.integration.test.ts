@@ -197,7 +197,12 @@ describe('pushing review activity to the owning session', () => {
       if (status !== 200) return created;
       await call(
         `/api/approval?review=${name}`,
-        { verdict: 'as-is', captureVersion: 1, patchDigest: capture.patchDigest, summaryVersion: 0 },
+        {
+          verdict: 'as-is',
+          captureVersion: 1,
+          patchDigest: capture.patchDigest,
+          summaryVersion: 0,
+        },
         200,
         'PUT',
       );
