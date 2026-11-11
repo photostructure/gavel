@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 
 import type { ConversationSnapshot, ReviewVerdict } from '../types/conversation';
 import type { DiffCommentThread, DiffResponse, ReviewContext } from '../types/diff';
+import type { InboxDelivery } from '../types/presence';
 import type { NamedReviewMetadata } from '../types/review';
 
 import App from './App';
@@ -20,6 +21,7 @@ const watch = vi.hoisted(() => ({
   approvalChanged: undefined as (() => Promise<void>) | undefined,
   captureChanged: undefined as ((reviewName?: string) => Promise<void>) | undefined,
   commentsChanged: undefined as (() => Promise<void>) | undefined,
+  inboxChanged: undefined as (() => Promise<void>) | undefined,
   reload: undefined as (() => Promise<void>) | undefined,
 }));
 vi.mock('./hooks/useFileWatch', () => ({
@@ -29,8 +31,10 @@ vi.mock('./hooks/useFileWatch', () => ({
     onApprovalChanged?: () => Promise<void>,
     _onSummaryChanged?: () => Promise<void>,
     onCaptureChanged?: (reviewName?: string) => Promise<void>,
+    onInboxChanged?: () => Promise<void>,
   ) => {
     watch.approvalChanged = onApprovalChanged;
+    watch.inboxChanged = onInboxChanged;
     watch.captureChanged = onCaptureChanged;
     watch.commentsChanged = onCommentsChanged;
     watch.reload = onReload;
@@ -84,6 +88,8 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     hideFiles: false,
     otherReviews: [] as ConversationSnapshot['reviews'],
     reviewContext: undefined as ReviewContext | undefined,
+    // task-a's delivery to the agent session that owns it; undefined is a server without an inbox.
+    inbox: undefined as InboxDelivery | undefined,
   };
   vi.mocked(fetch).mockImplementation(async (input, init) => {
     const url = new URL(String(input), window.location.origin);
@@ -160,6 +166,16 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
         captureVersion: state.capture.version,
         patchDigest: state.capture.patchDigest,
         summaryVersion: 2,
+      };
+    } else if (url.pathname === '/api/inbox' && state.inbox) {
+      payload = {
+        reviews: [
+          {
+            id: 'review-a',
+            selection: { baseCommitish: 'base-one', targetCommitish: '.', reviewName: 'task-a' },
+            delivery: state.inbox,
+          },
+        ],
       };
     } else if (url.pathname === '/api/conversation/snapshot') {
       payload = {
@@ -1333,9 +1349,35 @@ describe('after a verdict', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt and close' }));
       await waitFor(() => expect(close).toHaveBeenCalledOnce());
       expect(copyTextToClipboard).toHaveBeenCalledWith(expect.stringContaining('comment snapshot'));
-      expect(nextStep()).toHaveTextContent('Resume prompt copied. Paste it into the Codex chat');
+      expect(nextStep()).toHaveTextContent("Resume prompt copied. Paste it into the agent's chat");
     },
   );
+
+  // The send settles 2 seconds after the verdict, so the failure arrives during the countdown.
+  it('keeps the tab open with the resume prompt when the last verdict did not reach the agent', async () => {
+    const state = fixture();
+    state.showReviewB = false;
+    state.inbox = { status: 'ready' };
+    const close = vi.spyOn(window, 'close').mockImplementation(() => {});
+    vi.mocked(copyTextToClipboard).mockClear();
+    renderApp();
+    await waitFor(() => expect(verdictButton('Approve as-is')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve as-is'));
+    await waitFor(() =>
+      expect(nextStep()).toHaveTextContent('This review has a verdict. Closing this tab in 10s'),
+    );
+    await act(async () => void (await vi.advanceTimersByTimeAsync(2_000)));
+    state.inbox = { status: 'failed', at: '2026-11-11T17:00:00.000Z', error: 'connect ENOENT' };
+    await act(async () => {
+      await watch.inboxChanged?.();
+    });
+    await act(async () => void (await vi.advanceTimersByTimeAsync(20_000)));
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt and close' }));
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect(copyTextToClipboard).toHaveBeenCalledWith(expect.stringContaining('comment snapshot'));
+    expect(nextStep()).toHaveTextContent("Paste it into the agent's chat that opened this review");
+  });
 
   it('asks before leaving while a review has no verdict, and pulses its tab', async () => {
     const state = fixture();

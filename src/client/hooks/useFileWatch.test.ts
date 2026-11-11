@@ -77,6 +77,19 @@ describe('useFileWatch', () => {
     });
     expect(onSummaryChanged).toHaveBeenCalledTimes(2);
   });
+  it('refreshes inbox delivery on reconnect and when a send finishes', async () => {
+    const onInboxChanged = vi.fn(async () => {});
+    renderHook(() =>
+      useFileWatch(undefined, undefined, undefined, undefined, undefined, onInboxChanged),
+    );
+    await waitFor(() => expect(onInboxChanged).toHaveBeenCalledTimes(1));
+    act(() => {
+      sockets()
+        .at(-1)
+        ?.dispatchMessage(JSON.stringify({ type: 'inboxDeliveryChanged' }));
+    });
+    expect(onInboxChanged).toHaveBeenCalledTimes(2);
+  });
   it('refreshes approval after reconnecting and when another tab changes it', async () => {
     const onApprovalChanged = vi.fn(async () => {});
     renderHook(() => useFileWatch(undefined, undefined, onApprovalChanged));

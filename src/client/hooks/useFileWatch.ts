@@ -17,18 +17,21 @@ export function useFileWatch(
   onApprovalChanged?: () => Promise<void>,
   onSummaryChanged?: () => Promise<void>,
   onCaptureChanged?: (reviewName?: string) => Promise<void>,
+  onInboxChanged?: () => Promise<void>,
 ): FileWatchHook {
   const callbacksRef = useRef({
     onCommentsChanged,
     onApprovalChanged,
     onSummaryChanged,
     onCaptureChanged,
+    onInboxChanged,
   });
   callbacksRef.current = {
     onCommentsChanged,
     onApprovalChanged,
     onSummaryChanged,
     onCaptureChanged,
+    onInboxChanged,
   };
   const [watchState, setWatchState] = useState<ClientWatchState>({
     isWatchEnabled: false,
@@ -53,6 +56,7 @@ export function useFileWatch(
           void callbacksRef.current.onApprovalChanged?.();
           void callbacksRef.current.onSummaryChanged?.();
           void callbacksRef.current.onCaptureChanged?.();
+          void callbacksRef.current.onInboxChanged?.();
         },
         onMessage: (message) => {
           if (message.channel !== 'watch') return;
@@ -93,6 +97,9 @@ export function useFileWatch(
               break;
             case 'reviewSummaryChanged':
               void callbacksRef.current.onSummaryChanged?.();
+              break;
+            case 'inboxDeliveryChanged':
+              void callbacksRef.current.onInboxChanged?.();
               break;
           }
         },

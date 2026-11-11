@@ -43,6 +43,7 @@ import { codeInFiles } from './components/LineCommentComposer';
 import { Logo } from './components/Logo';
 import { ReloadButton } from './components/ReloadButton';
 import { ReviewSummaryPanel } from './components/ReviewSummaryPanel';
+import { AgentDeliveryAlert, AgentDeliveryStatus } from './components/AgentDeliveryStatus';
 import { ReviewPresenceIndicator } from './components/ReviewPresenceIndicator';
 import { DraftBadge } from './components/DraftBadge';
 import { UnreadBadge } from './components/UnreadBadge';
@@ -64,6 +65,7 @@ import { useCommentLinks } from './hooks/useCommentLinks';
 import { useDiffComments } from './hooks/useDiffComments';
 import { useExpandedLines, type MergedChunk } from './hooks/useExpandedLines';
 import { useFileWatch } from './hooks/useFileWatch';
+import { useInboxDelivery } from './hooks/useInboxDelivery';
 import { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
 import { useLazyDiffRendering } from './hooks/useLazyDiffRendering';
 import { DiffChangedError, useReviewApproval } from './hooks/useReviewApproval';
@@ -1005,6 +1007,8 @@ function App() {
     await Promise.all([refreshSummary(), loadRecentReviewsRef.current?.()]);
   }, [refreshSummary]);
 
+  const inboxDelivery = useInboxDelivery(resolvedSelection);
+
   // File watch for reload functionality - initialize with callback
   const { shouldReload, reload, watchState } = useFileWatch(
     handleWatchReload,
@@ -1012,6 +1016,7 @@ function App() {
     handleApprovalChanged,
     handleSummaryChanged,
     handleCaptureChanged,
+    inboxDelivery.refresh,
   );
 
   // Track which file the mouse is over so `v` works without a cursor
@@ -1509,7 +1514,10 @@ function App() {
     reviews: approvalRequests,
     current: resolvedSelection,
     currentHasVerdict: approval.verdict !== undefined,
-    requiresResume,
+    // A verdict that did not reach the owning session needs the same hand-back before the tab
+    // closes. The follow-up reads this when its countdown ends, so a failure that arrives during
+    // the countdown still counts.
+    requiresResume: requiresResume || inboxDelivery.delivery?.status === 'failed',
     onSwitch: openReviewFromTab,
   });
 
@@ -1988,6 +1996,7 @@ function App() {
                   </span>
                 )}
               </div>
+              <AgentDeliveryStatus delivery={inboxDelivery.delivery} />
               {/* While an agent asks for approval, the tabs are the way between reviews. Picking
               another comparison would create a review the tabs can't place. */}
               {revisionOptions && approvalRequests.length === 0 ? (
@@ -2135,6 +2144,7 @@ function App() {
                   {settingsSaveError}
                 </span>
               )}
+              <AgentDeliveryAlert delivery={inboxDelivery.delivery} />
             </header>
             <ReviewQueueBar
               reviews={approvalRequests}
@@ -2392,7 +2402,15 @@ function App() {
           }}
           headerActions={
             <>
-              <ReviewPresenceIndicator presence={reviewPresence} requiresResume={requiresResume} />
+              {/* The header's agent status covers reviews an agent session owns. This listener
+                  view, with its resume prompt, remains for older servers and for reviews no
+                  session owns, which phones' headers have no room to show. */}
+              {(!inboxDelivery.delivery || inboxDelivery.delivery.status === 'unavailable') && (
+                <ReviewPresenceIndicator
+                  presence={reviewPresence}
+                  requiresResume={requiresResume}
+                />
+              )}
               {threads.length > 0 && (
                 <CommentsDropdown
                   commentsCount={threads.length}

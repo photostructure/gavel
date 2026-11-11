@@ -68,7 +68,7 @@ describe('verdict follow-up notice', () => {
       <VerdictFollowUpNotice {...props} step={{ kind: 'resume', reviews: 2, status: 'ready' }} />,
     );
     expect(status()).toHaveTextContent('All 2 reviews have a verdict.');
-    expect(status()).toHaveTextContent('paste it into the Codex chat that opened this review');
+    expect(status()).toHaveTextContent("paste it into the agent's chat that opened this review");
     expect(status().querySelector('.verdict-countdown-bar')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt and close' }));
     expect(onProceed).toHaveBeenCalledOnce();
