@@ -922,8 +922,8 @@ export async function startServer(options: ServerOptions): Promise<{
     );
     currentCommentSelection = responseSelection;
 
-    await trackWorkingTreeReview(requestedSelection, currentCommentSelection, responseDiffData);
-    seedCommittedSummary(currentCommentSelection, responseDiffData);
+    await trackWorkingTreeReview(requestedSelection, responseSelection, responseDiffData);
+    seedCommittedSummary(responseSelection, responseDiffData);
 
     const baseCommitish =
       responseDiffData.baseCommitish ?? (options.stdinDiff ? 'stdin' : undefined);

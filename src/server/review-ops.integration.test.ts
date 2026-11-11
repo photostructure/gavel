@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';
 import { promises as fsPromises } from 'node:fs';
+import { connect } from 'node:net';
 import { join } from 'node:path';
 
 import { fetch } from 'undici';
@@ -1096,6 +1097,46 @@ describe('POST /api/review-ops', () => {
       release();
 
       expect((await other).clearComments).toBeUndefined();
+    });
+
+    it('seeds the commit message only into the review whose diff carries it, when requests arrive together', async () => {
+      git('add', 'first.txt');
+      git('commit', '--quiet', '--no-verify', '-m', 'second');
+      writeFileSync(join(root, 'first.txt'), 'uncommitted first\n');
+      running = await startServer({
+        selection: createDiffSelection('HEAD^', 'HEAD'),
+        repoPath: root,
+        preferredPort: 0,
+        openBrowser: false,
+        keepAlive: true,
+      });
+      // Cache both diffs, so the pipelined requests below answer without reading Git.
+      await request('/api/diff?base=HEAD^&target=HEAD');
+      const work = await request<{ baseCommitish: string; targetCommitish: string }>(
+        '/api/diff?base=HEAD&target=.',
+      );
+      // The summary is keyed by the selection the diff resolved to, not by HEAD.
+      const summaryPath = `/api/review-summary?${new URLSearchParams({
+        base: work.baseCommitish,
+        target: work.targetCommitish,
+      })}`;
+      expect((await request<{ commitMessage: string }>(summaryPath)).commitMessage).toBe('');
+
+      // Two requests in one write, which Node parses and starts before either handler resumes.
+      const { hostname, port } = new URL(running.url);
+      await new Promise<void>((resolve, reject) => {
+        const socket = connect(Number(port), hostname, () => {
+          socket.end(
+            'GET /api/diff?base=HEAD%5E&target=HEAD HTTP/1.1\r\nHost: localhost\r\n\r\n' +
+              'GET /api/diff?base=HEAD&target=. HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n',
+          );
+        });
+        socket.on('data', () => {});
+        socket.on('close', () => resolve());
+        socket.on('error', reject);
+      });
+
+      expect((await request<{ commitMessage: string }>(summaryPath)).commitMessage).toBe('');
     });
 
     it('works without conversation mode', async () => {
