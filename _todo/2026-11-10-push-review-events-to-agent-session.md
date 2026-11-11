@@ -38,8 +38,8 @@ the receiving session, and an idle session starts a turn with the message.
    never saved under `.git/gavel`, logged, or returned by an API.
 2. **Send.** Only human-origin `review.approval`, `comment.created` and
    `comment.updated` events schedule a send to the review's owner. Proposal
-   edits do not: the read-only proposal change, landing separately on main,
-   removes the browser's edit route. Agent-origin events never do. A verdict sends
+   edits do not: the read-only proposal change removed the browser's edit
+   route. Agent-origin events never do. A verdict sends
    after a 2-second settle; comments alone send after 5 seconds without further human
    activity on that owner's reviews. One message covers every review of that
    owner with undelivered activity: a state line per review, then only the
@@ -89,7 +89,8 @@ Hosts without the inbox variables, Codex included, keep the existing hand-back.
       session. Each verdict, a cleared verdict, a new comment, an edit, and two
       batched comments arrived the same way.
 - [ ] `gavel pending` run from a real `UserPromptSubmit` or `SessionStart` hook
-      (74-5: the hooks go into the maintainer's settings after this lands).
+      (74-5: the maintainer's settings run it from both hooks since 2026-11-11;
+      not yet seen recovering a failed send).
 
 ## Lore
 
