@@ -7,11 +7,12 @@
 
 # @photostructure/gavel
 
-**Your agent writes the code. You give the verdict.**
+**Your agent makes the case for its code. You give the verdict.**
 
 gavel is a local Git diff viewer for reviewing your coding agent's changes.
-Discuss the code in threads beside the diff, then approve each proposed commit
-or request revisions. Works with Claude Code and Codex.
+Its skill tells your agent to explain its choices and guide you through the diff.
+Discuss the changes in threads beside the code, then approve each proposed
+commit or request revisions. Works with Claude Code and Codex.
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@photostructure/gavel"><img src="https://img.shields.io/npm/v/@photostructure/gavel.svg" alt="npm version"></a>
@@ -50,7 +51,13 @@ To request reviews routinely, add this to `AGENTS.md` or `CLAUDE.md`:
 
 ## Review your agent's changes
 
-The agent prepares a change summary, proposed commit message, and reading guide.
+The skill tells your agent to prepare a change summary, proposed commit message,
+and reading-guide comments before you review the code. On longer reviews, it
+links those comments into a guided tour. Start in **Why this change**, then follow
+links to the next explanation or the code it discusses. Links can jump to files,
+specific lines, other comments, or another proposed commit's review. Your browser's
+Back button returns you after a detour. See [links in comments](docs/cli.md#links-in-comments).
+
 Ask questions or request changes beside the code, or use **Conversation** to
 discuss the whole review. The agent replies in those threads.
 

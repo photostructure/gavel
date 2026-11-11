@@ -14,6 +14,8 @@ const linkRow =
 const linkIcon = 'shrink-0 text-github-text-secondary';
 const linkHint = 'ml-auto text-xs text-github-text-secondary';
 
+export const tagline = 'Your agent makes the case for its code. You give the verdict.';
+
 export function AboutPanel({
   context,
   onClose,
