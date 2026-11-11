@@ -42,7 +42,7 @@ Check these before merging work that touches approval, the header, or review tab
 
 - Not yet is now Reject, recorded as `ReviewApproval.verdict: 'reject'` through
   `PUT /api/approval`, and only the reviewer clears it; see
-  [2026-11-10-reject-verdict.md](2026-11-10-reject-verdict.md).
+  [2026-11-10-reject-verdict.md](../_done/2026-11-10-reject-verdict.md).
 - `ApprovalSplitButton.tsx` is renamed (`git mv`) to `VerdictControl.tsx`;
   `describeApproval` moved with it. Any branch importing the old path breaks.
 - `App.tsx`: `handleShipIt(mode, revoke)` became `handleVerdict('as-is' |

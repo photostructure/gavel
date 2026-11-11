@@ -20,5 +20,5 @@ comment bubble) differ. Not checked with a colour-blind viewer.
 The violet was chosen because yellow measured too close to this mode's orange
 Not yet (1.60:1 dark, 1.57:1 light). A fix needs a third hue that is distinct
 from both blue and orange after simulation. If Not yet becomes Reject
-(`_todo/2026-11-10-reject-verdict.md`) and changes color, recheck all three
+(`_done/2026-11-10-reject-verdict.md`) and changes color, recheck all three
 together.
