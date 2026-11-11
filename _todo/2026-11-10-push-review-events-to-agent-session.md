@@ -52,6 +52,8 @@ the receiving session, and an idle session starts a turn with the message.
    when needed. The Conversation panel's listener label remains for servers
    older than the inbox and for reviews no session owns; on phones, which have
    no room for the icon, it is the only Copy resume prompt for those reviews.
+   When the last verdict's delivery fails, the verdict follow-up ends at Copy
+   resume prompt and close instead of closing the tab.
 4. **Fallback.** The server writes `<runtime-dir>/gavel/sessions/<session-id>/<host>_<port>.json`.
    `gavel pending`, run from `UserPromptSubmit` and `SessionStart` hooks, reads the
    files for its session, re-attaches the session's current socket and token
@@ -88,12 +90,6 @@ Hosts without the inbox variables, Codex included, keep the existing hand-back.
       batched comments arrived the same way.
 - [ ] `gavel pending` run from a real `UserPromptSubmit` or `SessionStart` hook
       (74-5: the hooks go into the maintainer's settings after this lands).
-
-## Merge notes
-
-- The header status (commit 2) imports `buildResumePrompt()` from
-  `src/client/utils/resumePrompt.ts`, which a Codex session's uncommitted work
-  adds. Commit 2 lands after that file does; its tree does not build without it.
 
 ## Lore
 
