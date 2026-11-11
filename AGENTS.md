@@ -25,7 +25,17 @@ Vitest with the `happy-dom` environment drives unit and integration coverage, an
 
 Git history mixes lightweight descriptions with Conventional Commit prefixes—follow the pattern where it clarifies intent: `fix: guard empty diff (#123)` or `feat(cli): add --port flag`. Keep commits focused, include context in the body, and reference issues with `#id` when relevant. Before opening a PR, ensure `pnpm check`, `pnpm test`, and `pnpm build` succeed locally. PRs should outline motivation, implementation notes, manual verification steps, and UI changes (attach refreshed `docs/images` assets or screenshots for web updates).
 
-Add a short entry to the top `## [Unreleased`... section of `CHANGELOG.md` for every user-visible feature, bug fix, or other change.
+Do not edit `CHANGELOG.md` in feature or fix commits: every worktree adds lines at the top of its Unreleased section, so their merges conflict. Before a release, the [prerelease skill](.claude/skills/prerelease/SKILL.md) writes that section from the commits since the last tag and picks the version bump.
+
+End the message of each commit that changes something users see (the CLI, server output, web UI, user docs, or the shipped `skills/gavel/` skill) with a `Changelog:` trailer on one line. It holds a suggested entry: one or two sentences, in the present tense, saying what a user can now do or what changed for them. Omit it for tests, CI, refactors, and TPPs. When a change breaks an existing caller, such as a removed or renamed command, flag, endpoint, or JSON field, put `!` just before the subject's colon, as in `feat(review.ts)!:`, and say in the trailer what the caller must change.
+
+```text
+feat(review.ts): rename and delete named reviews on a running server
+
+Agents restarted the server to rename a review, which dropped every review's comments.
+
+Changelog: `gavel review rename <name> <new-name>` and `gavel review delete <name>` rename or remove a named review without restarting the server.
+```
 
 When adding or changing a feature, update any affected README, documentation, and agent skills in the same change.
 

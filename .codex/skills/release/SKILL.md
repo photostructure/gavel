@@ -14,11 +14,11 @@ and `gavel` is Apiary's unrelated HTTP validator).
 
 ## Prepare
 
-- Write the release notes in `CHANGELOG.md` under a heading that names the version
-  bump: `## [Unreleased (patch)]`, `## [Unreleased (minor)]` or
-  `## [Unreleased (major)]`. Create that heading if `CHANGELOG.md` has only
-  `## [Unreleased]`, and raise the bump when an entry needs a bigger one than the
-  heading names; never lower it. Run the project's check, format, knip, test and
+- Write the release notes in `CHANGELOG.md` by following
+  `.claude/skills/prerelease/SKILL.md`, which drafts them from the commits since
+  the last tag under a heading that names the version bump:
+  `## [Unreleased (patch)]`, `## [Unreleased (minor)]` or
+  `## [Unreleased (major)]`. Run the project's check, format, knip, test and
   build gates plus the package acceptance procedure in `scripts/release-package.mjs`.
 - Confirm that the intended source is committed and that the GitHub Actions checks
   passed on that source. Preserve commits already reachable from remote refs.
