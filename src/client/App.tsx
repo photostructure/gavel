@@ -2214,7 +2214,7 @@ function App() {
                     handleSidebarFileSelected(path, 'first-comment')
                   }
                   onScrollToSummary={
-                    // Nothing to jump to until the agent proposes a rationale or message.
+                    // Nothing to jump to while both fields are blank.
                     summary.commitMessage.trim() || summary.rationale.trim()
                       ? () => {
                           const main = diffScrollContainerRef.current;
