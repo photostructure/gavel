@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 import type { ConversationSnapshot, ReviewVerdict } from '../types/conversation';
 import {
-  type DiffCommentThread,
   type DiffFile,
   type DiffResponse,
   type DiffSelection,
@@ -15,7 +14,6 @@ import {
   type RevisionsResponse,
 } from '../types/diff';
 import { DEFAULT_DIFF_VIEW_MODE, normalizeDiffViewMode } from '../utils/diffMode';
-import { mergeCommentThreads } from '../utils/commentImports';
 import { toCommentThread } from '../utils/commentThreads';
 import { EDITOR_SESSION_FRAGMENT_KEY, EDITOR_SESSION_HEADER } from '../utils/editorOptions';
 import {
@@ -68,11 +66,13 @@ import { useFileWatch } from './hooks/useFileWatch';
 import { useInboxDelivery } from './hooks/useInboxDelivery';
 import { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
 import { useLazyDiffRendering } from './hooks/useLazyDiffRendering';
-import { DiffChangedError, useReviewApproval } from './hooks/useReviewApproval';
+import { useReviewApproval } from './hooks/useReviewApproval';
+import { type ReviewOpAnswer, useReviewOps } from './hooks/useReviewOps';
 import { useReviewSummary } from './hooks/useReviewSummary';
 import { useVerdictFollowUp } from './hooks/useVerdictFollowUp';
 import { useReviewPresence } from './hooks/useReviewPresence';
 import { useViewedFiles } from './hooks/useViewedFiles';
+import { storageService } from './services/StorageService';
 import { useViewport } from './hooks/useViewport';
 import { useHideHeaderOnScroll } from './hooks/useHideHeaderOnScroll';
 import { useTopVisibleFile } from './hooks/useTopVisibleFile';
@@ -188,7 +188,6 @@ function App() {
     approvalControlRef.current = element;
     setVerdictAnchor(element);
   }, []);
-  const [shipItError, setShipItError] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(getInitialSidebarWidth);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isFileTreeOpen, setIsFileTreeOpen] = useState(getInitialFileTreeOpen);
@@ -269,33 +268,6 @@ function App() {
   const reviewChrome = useHideHeaderOnScroll();
   const topVisibleFile = useTopVisibleFile(diffScrollContainerRef, diffData?.files ?? EMPTY_FILES);
 
-  // New diff-aware comment system
-  const {
-    hasLoadedComments,
-    threads,
-    replaceThreads,
-    addThread,
-    addReviewThread,
-    replyToThread,
-    toggleThreadResolved,
-    removeThread,
-    deletedComments,
-    restoreComment,
-    removeMessage,
-    updateMessage,
-    clearAllComments,
-    generateThreadPrompt,
-    generateAllCommentsPrompt,
-  } = useDiffComments(
-    storageSelection?.baseCommitish,
-    storageSelection?.targetCommitish,
-    storageCommit, // Stable for a named review across capture updates
-    undefined, // branchToHash map - could be populated from server data
-    diffData?.repositoryId, // Repository identifier for storage isolation
-    storageSelection?.baseMode,
-    diffData?.capture,
-  );
-
   const commentsContextKey = useMemo(() => {
     if (!resolvedSelectionKey) {
       return null;
@@ -316,10 +288,6 @@ function App() {
       ? reviewDraftScope
       : `${reviewDraftScope}:${diffData.stdinDiffDigest}`;
   const draftCount = useDraftCount(draftScope);
-  const fileOfThread = useCallback(
-    (threadId: string) => threads.find((thread) => thread.id === threadId)?.filePath,
-    [threads],
-  );
   const commentSessionQueryString = useMemo(() => {
     if (!resolvedSelection) {
       return null;
@@ -347,8 +315,34 @@ function App() {
     },
     [commentSessionQueryString],
   );
-  const [bootstrappedCommentsKey, setBootstrappedCommentsKey] = useState<string | null>(null);
-  const [bootstrappedCommentsGeneration, setBootstrappedCommentsGeneration] = useState(-1);
+  // The server finds a review's comments by its selection, so a moved commit keeps the queue.
+  const reviewScope = useMemo(
+    () =>
+      resolvedSelectionKey &&
+      JSON.stringify([diffData?.repositoryId ?? 'default', resolvedSelectionKey]),
+    [diffData?.repositoryId, resolvedSelectionKey],
+  );
+  const reviewOps = useReviewOps(reviewScope, commentSessionQueryString, diffData?.repositoryId);
+  const { enqueue, loaded: hasLoadedComments } = reviewOps;
+  const {
+    threads,
+    addThread,
+    addReviewThread,
+    replyToThread,
+    toggleThreadResolved,
+    removeThread,
+    deletedComments,
+    restoreComment,
+    removeMessage,
+    updateMessage,
+    clearAllComments,
+    generateThreadPrompt,
+    generateAllCommentsPrompt,
+  } = useDiffComments(reviewScope, reviewOps.threads, enqueue, diffData?.capture);
+  const fileOfThread = useCallback(
+    (threadId: string) => threads.find((thread) => thread.id === threadId)?.filePath,
+    [threads],
+  );
   const summary = useReviewSummary(
     commentSessionQueryString ? getCommentApiUrl('/api/review-summary') : null,
   );
@@ -360,10 +354,6 @@ function App() {
     diffData?.diffDigest,
   );
   const refreshApproval = approval.refresh;
-  const bootstrappingCommentsGenerationRef = useRef<number | null>(null);
-  const skipNextCommentSyncRef = useRef(false);
-  // Last server comment version seen; echoed back as baseVersion so the server can detect concurrent writes.
-  const serverCommentVersionRef = useRef<number | null>(null);
   const commentsCaptureKey = diffData?.capture
     ? `${diffData.capture.version}:${diffData.capture.patchDigest}`
     : null;
@@ -372,8 +362,8 @@ function App() {
     captureKey: commentsCaptureKey,
     generation: 0,
   });
-  // Storage stays stable across captures; retire old HTTP callbacks so late responses
-  // cannot replace threads loaded for the new capture.
+  // Counts changes of review, commit or capture, so work that finishes later, such as a verdict
+  // answer or the viewed-file updates below, can tell that the page moved on.
   if (
     activeCommentsContextRef.current.key !== commentsContextKey ||
     activeCommentsContextRef.current.captureKey !== commentsCaptureKey
@@ -383,138 +373,88 @@ function App() {
       captureKey: commentsCaptureKey,
       generation: activeCommentsContextRef.current.generation + 1,
     };
-    serverCommentVersionRef.current = null;
   }
   const commentsGeneration = activeCommentsContextRef.current.generation;
-  const hasBootstrappedComments =
-    hasLoadedComments &&
-    commentsContextKey !== null &&
-    commentsContextKey === bootstrappedCommentsKey &&
-    commentsGeneration === bootstrappedCommentsGeneration;
-  const pendingBootstrapAfterLocalResetRef = useRef(false);
-
-  useEffect(() => {
-    if (commentsContextKey !== bootstrappedCommentsKey) {
-      skipNextCommentSyncRef.current = false;
-    }
-  }, [bootstrappedCommentsKey, commentsContextKey]);
-
-  const fetchServerThreads = useCallback(
-    async (isCurrentRefresh?: () => boolean): Promise<DiffCommentThread[] | null> => {
-      const response = await fetch(getCommentApiUrl('/api/comments-json'));
-      if (!response.ok) {
-        throw new Error(`Failed to fetch comments: ${response.status} ${response.statusText}`);
-      }
-
-      const payload = (await response.json()) as {
-        version?: number;
-        threads?: DiffCommentThread[];
-      };
-      if (
-        activeCommentsContextRef.current.generation !== commentsGeneration ||
-        (isCurrentRefresh && !isCurrentRefresh())
-      )
-        return null;
-      if (typeof payload.version === 'number') {
-        serverCommentVersionRef.current = payload.version;
-      }
-      return Array.isArray(payload.threads) ? payload.threads : [];
-    },
-    [getCommentApiUrl, commentsGeneration],
-  );
-
-  const capture = diffData?.capture;
-  const syncThreadsToServer = useCallback(
-    async (nextThreads: DiffCommentThread[]) => {
-      const response = await fetch(getCommentApiUrl('/api/comments'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          threads: nextThreads,
-          baseVersion: serverCommentVersionRef.current ?? undefined,
-          ...(capture
-            ? {
-                captureVersion: capture.version,
-                patchDigest: capture.patchDigest,
-              }
-            : {}),
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to save comments: ${response.status} ${response.statusText}`);
-      }
-
-      const result = (await response.json()) as {
-        version?: number;
-        merged?: boolean;
-        threads?: DiffCommentThread[];
-      };
-      if (activeCommentsContextRef.current.generation !== commentsGeneration) return;
-      if (typeof result.version === 'number') {
-        serverCommentVersionRef.current = result.version;
-      }
-      // Server merged in a concurrent change; adopt it so we don't push a stale set back.
-      if (result.merged && Array.isArray(result.threads)) {
-        skipNextCommentSyncRef.current = true;
-        replaceThreads(result.threads);
-      }
-    },
-    [getCommentApiUrl, replaceThreads, commentsGeneration, capture],
-  );
-
   const fetchDiffDataRef = useRef<((selection?: ReviewSelection) => Promise<void>) | null>(null);
+  // Counts verdict clicks, so only the latest one's answer moves the page on.
+  const verdictClickRef = useRef(0);
+  // Runs once the server answers a verdict, which can be long after the click when the first
+  // send fails. The ref holds the latest render's version, so it reads the current page state.
+  const finishVerdict = async (
+    verdict: ReviewVerdict | 'clear',
+    answer: ReviewOpAnswer,
+    click: number,
+    generation: number,
+    shownVerdict: ReviewVerdict | undefined,
+  ) => {
+    // The reviewer moved to another review, so its reload and next step no longer apply.
+    const sameReview = () => activeCommentsContextRef.current.generation === generation;
+    const latest = () => sameReview() && verdictClickRef.current === click;
+    if (!sameReview()) return;
+    // Another tab sent it, so only the server knows how it went.
+    if (answer === 'elsewhere') {
+      await refreshApproval();
+      return;
+    }
+    if (answer.status === 'rejected') {
+      // The capture, summary or diff changed. Without a file watcher no Reload prompt appears,
+      // so reload here, re-checking viewed files so a collapsed file whose diff changed is flagged.
+      await Promise.all([refreshSummary(), refreshApproval(), fetchDiffDataRef.current?.()]);
+      if (sameReview()) setReloadVersion((prev) => prev + 1);
+      return;
+    }
+    await refreshApproval();
+    // A later click replaced this verdict, so its burst and next step would be wrong.
+    if (!latest()) return;
+    if (verdict === 'clear') {
+      verdictFollowUp.cancel();
+      return;
+    }
+    // A change applied after it, such as a new comment, can end the verdict on the server.
+    const stillGiven = () => latest() && approval.servedVerdict() === verdict;
+    if (!stillGiven()) return;
+    if (verdict === 'as-is' && shownVerdict !== 'as-is' && approvalControlRef.current) {
+      celebrateApproval(approvalControlRef.current, settings.approvalAnimations);
+    }
+    // The next step depends on the other reviews' verdicts. start() sees the list from the
+    // click's render; the hook corrects the step from the refreshed list on the next one.
+    await loadRecentReviewsRef.current?.();
+    if (stillGiven()) verdictFollowUp.start();
+  };
+  const finishVerdictRef = useRef(finishVerdict);
+  finishVerdictRef.current = finishVerdict;
+
   const handleVerdict = async (verdict: ReviewVerdict | 'clear') => {
     const approving = verdict === 'as-is' || verdict === 'after-comments';
     if (
       !approval.ready ||
       isShipping ||
       captureReloading ||
-      // Saving threads before they load would overwrite the server's with an empty list.
-      (verdict === 'reject' && !hasBootstrappedComments) ||
-      (approving && (!hasBootstrappedComments || !summary.ready))
+      // A verdict answers the comments, so it waits until they load.
+      (verdict === 'reject' && !hasLoadedComments) ||
+      (approving && (!hasLoadedComments || !summary.ready))
     ) {
       return;
     }
 
     setIsShipping(true);
-    setShipItError(null);
     try {
-      // A failed comment save must not prevent the user from clearing a verdict.
-      if (verdict !== 'clear') await syncThreadsToServer(threads);
-      if (verdict === 'clear') await approval.clearVerdict();
-      else await approval.setVerdict(verdict, summary.version);
-      // Skip the burst and the next step if the user switched reviews while the verdict was saving.
-      const stillOpen = activeCommentsContextRef.current.generation === commentsGeneration;
-      if (
-        verdict === 'as-is' &&
-        approval.verdict !== 'as-is' &&
-        stillOpen &&
-        approvalControlRef.current
-      ) {
-        celebrateApproval(approvalControlRef.current, settings.approvalAnimations);
-      }
-      if (verdict === 'clear') verdictFollowUp.cancel();
-      else if (stillOpen) {
-        // The next step depends on the other reviews' verdicts. start() sees the list from the
-        // click's render; the hook corrects the step from the refreshed list on the next one.
-        await loadRecentReviewsRef.current?.();
-        if (activeCommentsContextRef.current.generation === commentsGeneration)
-          verdictFollowUp.start();
-      }
-    } catch (approvalError) {
-      console.error('Failed to save the verdict:', approvalError);
-      if (approvalError instanceof DiffChangedError) {
-        // Without a file watcher no Reload prompt appears, so reload here the same way,
-        // re-checking viewed files so a collapsed file whose diff changed is flagged.
-        setShipItError(
-          'The diff changed since it loaded. Review the update, then choose a verdict.',
-        );
-        await Promise.all([refreshSummary(), fetchDiffDataRef.current?.()]);
-        setReloadVersion((prev) => prev + 1);
-        return;
-      }
-      setShipItError('Could not save the verdict. Please try again.');
-      await Promise.all([refreshSummary(), refreshApproval()]);
+      // Reject does not endorse the proposed message, so it sends no summaryVersion.
+      const capture = diffData?.capture;
+      const { sent, answer } = enqueue({
+        type: 'verdict.set',
+        verdict,
+        ...(approving ? { summaryVersion: summary.version } : {}),
+        ...(capture ? { captureVersion: capture.version, patchDigest: capture.patchDigest } : {}),
+        ...(diffData?.diffDigest !== undefined ? { diffDigest: diffData.diffDigest } : {}),
+      });
+      const click = ++verdictClickRef.current;
+      const finished = answer.then((result) =>
+        finishVerdictRef.current(verdict, result, click, commentsGeneration, approval.verdict),
+      );
+      // After a failed send the verdict waits in the queue, and the header says so; the controls
+      // free up, and the answer to a later retry finishes it.
+      if (await sent) await finished;
     } finally {
       setIsShipping(false);
     }
@@ -863,10 +803,10 @@ function App() {
   );
   const unreadCandidateThreads = useMemo(
     () => [
-      ...(hasBootstrappedComments ? normalizedThreads : []),
+      ...(hasLoadedComments ? normalizedThreads : []),
       ...otherReviews.flatMap((review) => review.threads),
     ],
-    [hasBootstrappedComments, normalizedThreads, otherReviews],
+    [hasLoadedComments, normalizedThreads, otherReviews],
   );
   // Scoped to the repository because thread IDs are unique, and any review's threads can be
   // marked read from Conversation while another review is open.
@@ -879,7 +819,7 @@ function App() {
   const replyPulse = useNewReplyPulse(
     allAgentUpdates,
     agentUpdates,
-    hasBootstrappedComments && hasLoadedReviews,
+    hasLoadedComments && hasLoadedReviews,
   );
   const unreadReviews = new Set(
     agentUpdates.flatMap(
@@ -965,27 +905,17 @@ function App() {
     // A commit that moves HEAD creates a review on the server without any other event.
     await loadRecentReviewsRef.current?.();
   }, [refreshApproval, refreshSummary]);
-  const commentsRefreshRequestRef = useRef(0);
+  const refreshComments = reviewOps.refresh;
   const handleCommentsChanged = useCallback(async () => {
     // The event doesn't say which review changed, so re-read them all. Without this, a new
     // reply on another review wouldn't reach the badge until some other event refreshed the list.
     void loadRecentReviewsRef.current?.();
-    const request = ++commentsRefreshRequestRef.current;
     try {
-      const serverThreads = await fetchServerThreads(
-        () => commentsRefreshRequestRef.current === request,
-      );
-      if (serverThreads === null) return;
-      skipNextCommentSyncRef.current = true;
-      replaceThreads(serverThreads);
-      if (commentsContextKey) {
-        setBootstrappedCommentsKey(commentsContextKey);
-        setBootstrappedCommentsGeneration(commentsGeneration);
-      }
+      await refreshComments();
     } catch (commentsError) {
       console.error('Failed to refresh comments from server:', commentsError);
     }
-  }, [commentsContextKey, commentsGeneration, fetchServerThreads, replaceThreads]);
+  }, [refreshComments]);
 
   const captureReloadRequestRef = useRef(0);
   const handleCaptureChanged = useCallback(async (reviewName?: string) => {
@@ -1015,7 +945,7 @@ function App() {
   const inboxDelivery = useInboxDelivery(resolvedSelection);
 
   // File watch for reload functionality - initialize with callback
-  const { shouldReload, reload, watchState } = useFileWatch(
+  const { shouldReload, reload, watchState, isConnected } = useFileWatch(
     handleWatchReload,
     handleCommentsChanged,
     handleApprovalChanged,
@@ -1023,6 +953,27 @@ function App() {
     handleCaptureChanged,
     inboxDelivery.refresh,
   );
+  // Changes that failed to reach the server go again once the live connection opens, after a
+  // drop or while changes wait. A first connect with nothing waiting follows the load, which
+  // already read the review.
+  const retryReviewOps = reviewOps.retry;
+  const connectionRef = useRef<'never' | 'open' | 'dropped'>('never');
+  const opsWaitingRef = useRef(reviewOps.waiting);
+  opsWaitingRef.current = reviewOps.waiting;
+  useEffect(() => {
+    if (!isConnected) {
+      if (connectionRef.current === 'open') connectionRef.current = 'dropped';
+      return;
+    }
+    if (
+      connectionRef.current === 'dropped' ||
+      (connectionRef.current === 'never' && opsWaitingRef.current)
+    )
+      retryReviewOps().catch((commentsError: unknown) =>
+        console.error('Failed to refresh comments from server:', commentsError),
+      );
+    connectionRef.current = 'open';
+  }, [isConnected, retryReviewOps]);
 
   // Track which file the mouse is over so `v` works without a cursor
   const hoveredFileIndexRef = useRef<number | null>(null);
@@ -1541,131 +1492,48 @@ function App() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [reviewsNeedVerdict, pulseNow]);
 
-  // Clear comments and viewed files on initial load if requested via CLI flag
+  // Clear viewed files on initial load if requested via CLI flag; the server clears comments.
   const hasCleanedRef = useRef(false);
   useEffect(() => {
     if (diffData?.clearComments && !hasCleanedRef.current) {
       hasCleanedRef.current = true;
-      pendingBootstrapAfterLocalResetRef.current = true;
-      clearAllComments({ resetAppliedCommentImportIds: true });
       clearViewedFiles();
       console.log(
         '✅ All existing comments and viewed files cleared as requested via --clean flag',
       );
     }
-  }, [diffData?.clearComments, clearAllComments, clearViewedFiles]);
+  }, [diffData?.clearComments, clearViewedFiles]);
 
+  // Earlier versions kept a copy of sent threads, and undo copies, in the browser. The threads in
+  // it that the server lacks are sent once, unless --clean asked for none, and then both go.
+  const migratedRecordsRef = useRef(new Set<string>());
   useEffect(() => {
-    if (!commentsContextKey || !hasLoadedComments) {
-      return;
-    }
-
-    if (hasBootstrappedComments) {
-      return;
-    }
-
-    if (bootstrappingCommentsGenerationRef.current === commentsGeneration) {
-      return;
-    }
-
-    const shouldReplaceFromServer = pendingBootstrapAfterLocalResetRef.current;
-    pendingBootstrapAfterLocalResetRef.current = false;
-
-    bootstrappingCommentsGenerationRef.current = commentsGeneration;
-    let cancelled = false;
-
-    const bootstrapComments = async () => {
-      try {
-        const serverThreads = await fetchServerThreads();
-        if (serverThreads === null) return;
-        const nextThreads = shouldReplaceFromServer
-          ? serverThreads
-          : mergeCommentThreads(serverThreads, threads).threads;
-        if (cancelled) {
-          return;
-        }
-
-        skipNextCommentSyncRef.current = true;
-        replaceThreads(nextThreads);
-
-        if (
-          !shouldReplaceFromServer &&
-          JSON.stringify(serverThreads) !== JSON.stringify(nextThreads)
-        ) {
-          await syncThreadsToServer(nextThreads);
-        }
-      } catch (commentsError) {
-        if (!cancelled) {
-          console.error('Failed to bootstrap comments from server:', commentsError);
-        }
-      } finally {
-        if (!cancelled) {
-          setBootstrappedCommentsKey(commentsContextKey);
-          setBootstrappedCommentsGeneration(commentsGeneration);
-        }
-        if (bootstrappingCommentsGenerationRef.current === commentsGeneration) {
-          bootstrappingCommentsGenerationRef.current = null;
-        }
-      }
-    };
-
-    void bootstrapComments();
-
-    return () => {
-      cancelled = true;
-      if (bootstrappingCommentsGenerationRef.current === commentsGeneration) {
-        bootstrappingCommentsGenerationRef.current = null;
-      }
-    };
+    if (!hasLoadedComments || !storageSelection) return;
+    const record = [
+      storageSelection.baseCommitish,
+      storageSelection.targetCommitish,
+      storageCommit,
+      undefined,
+      diffData?.repositoryId,
+      storageSelection.baseMode,
+    ] as const;
+    const recordKey = JSON.stringify(record);
+    if (migratedRecordsRef.current.has(recordKey)) return;
+    migratedRecordsRef.current.add(recordKey);
+    const kept = storageService.getCommentThreads(...record);
+    if (!diffData?.clearComments)
+      for (const thread of kept)
+        if (!threads.some(({ id }) => id === thread.id)) enqueue({ type: 'thread.add', thread });
+    storageService.removeCommentThreads(...record);
   }, [
-    commentsContextKey,
-    commentsGeneration,
-    fetchServerThreads,
-    hasBootstrappedComments,
     hasLoadedComments,
-    replaceThreads,
-    syncThreadsToServer,
+    storageSelection,
+    storageCommit,
+    diffData?.repositoryId,
+    diffData?.clearComments,
     threads,
+    enqueue,
   ]);
-
-  // Send comments to server whenever they change and before page unload
-  useEffect(() => {
-    if (!hasBootstrappedComments) {
-      return;
-    }
-
-    const data = JSON.stringify({
-      threads,
-      baseVersion: serverCommentVersionRef.current ?? undefined,
-      ...(diffData?.capture
-        ? { captureVersion: diffData.capture.version, patchDigest: diffData.capture.patchDigest }
-        : {}),
-    });
-    const commentsApiUrl = getCommentApiUrl('/api/comments');
-
-    // Also handle page unload
-    const sendCommentsBeforeUnload = () => {
-      // Use sendBeacon for reliable delivery during page unload, including empty states.
-      navigator.sendBeacon(commentsApiUrl, data);
-    };
-
-    window.addEventListener('beforeunload', sendCommentsBeforeUnload);
-
-    if (skipNextCommentSyncRef.current) {
-      skipNextCommentSyncRef.current = false;
-      return () => {
-        window.removeEventListener('beforeunload', sendCommentsBeforeUnload);
-      };
-    }
-
-    syncThreadsToServer(threads).catch((syncError) => {
-      console.error('Failed to sync comments:', syncError);
-    });
-
-    return () => {
-      window.removeEventListener('beforeunload', sendCommentsBeforeUnload);
-    };
-  }, [getCommentApiUrl, hasBootstrappedComments, syncThreadsToServer, threads, diffData?.capture]);
 
   const reviewPresence = useReviewPresence();
   const reviewContext = diffData?.reviewContext;
@@ -1685,11 +1553,11 @@ function App() {
   }, [pageTitle, unreadCount]);
   const agentReadContext = useMemo(
     () => ({
-      enabled: hasBootstrappedComments && !captureReloading,
+      enabled: hasLoadedComments && !captureReloading,
       unreadKeys: new Set(agentUpdates.map((update) => update.key)),
       setRead: setAgentMessageRead,
     }),
-    [hasBootstrappedComments, captureReloading, agentUpdates, setAgentMessageRead],
+    [hasLoadedComments, captureReloading, agentUpdates, setAgentMessageRead],
   );
   const markAllReviewsRepliesRead = useCallback(() => {
     for (const update of agentUpdates) {
@@ -1821,7 +1689,7 @@ function App() {
   };
   const linkedFilePaths = useMemo(() => navigableFiles.map((file) => file.path), [navigableFiles]);
   const commentLinks = useCommentLinks({
-    ready: !loading && hasBootstrappedComments,
+    ready: !loading && hasLoadedComments,
     currentSelection: resolvedSelection,
     reviews: reviewConversations,
     threads: normalizedThreads,
@@ -2127,7 +1995,7 @@ function App() {
                   verdict={approval.verdict}
                   conditionalSupported={approval.conditionalSupported}
                   busy={isShipping || captureReloading}
-                  disabled={!approval.ready || !hasBootstrappedComments}
+                  disabled={!approval.ready || !hasLoadedComments}
                   approveDisabled={!summary.ready}
                   onVerdict={(verdict) => void handleVerdict(verdict)}
                   onClear={() => void handleVerdict('clear')}
@@ -2139,9 +2007,9 @@ function App() {
                 onCancel={verdictFollowUp.cancel}
                 onProceed={verdictFollowUp.proceed}
               />
-              {(shipItError || approval.error) && (
+              {approval.error && (
                 <span role="alert" className="w-full text-xs text-github-danger">
-                  {shipItError || approval.error}
+                  {approval.error}
                 </span>
               )}
               {settingsSaveError && (
@@ -2150,6 +2018,11 @@ function App() {
                 </span>
               )}
               <AgentDeliveryAlert delivery={inboxDelivery.delivery} />
+              {reviewOps.alert && (
+                <span role="alert" className="w-full text-xs text-github-danger">
+                  {reviewOps.alert}
+                </span>
+              )}
             </header>
             <ReviewQueueBar
               reviews={approvalRequests}
@@ -2435,8 +2308,8 @@ function App() {
             resolvedSelection ? formatReviewSelection(resolvedSelection) : undefined
           }
           onOpenOtherReviewThread={openOtherReviewThread}
-          // Cached threads show first; waiting for the server's lets it pick the first unread reply.
-          focusThreadId={hasBootstrappedComments ? threadToFocus : null}
+          // Waiting for the server's threads lets it pick the first unread reply.
+          focusThreadId={hasLoadedComments ? threadToFocus : null}
           onThreadFocused={clearThreadToFocus}
           onNavigate={handleNavigateToComment}
           comments={displayThreads}

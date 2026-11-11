@@ -106,7 +106,8 @@ capture version/digest and appear outdated after the capture changes.
 Run `gavel --help` for commands and `gavel comment <command> --help` for companion
 command usage. `gavel schema` prints a JSON Schema Draft 2020-12 bundle for launch
 events. Select a root with `gavel schema events`, `summary`, `reply`, `status`, or
-`snapshot`; `comments`, `import`, and `approval` describe the other control payloads.
+`snapshot`; `comments`, `review-ops`, `import`, and `approval` describe the other control
+payloads.
 `capture` validates a saved artifact and `capture-update` describes its guarded
 update request.
 The bundle's `$defs` also describe request/response payloads, comment
@@ -419,11 +420,16 @@ Match immutable targets to the saved SHA and mutable targets to the recorded
 patch scope. A closed tab, quiet stream, timeout, resolved thread, answer, or
 ordinary process exit is not approval.
 
-The approval button uses `GET /api/approval?base=<base>&target=<target>` and
-`PUT /api/approval` with the same query. Approve with
+The approval button reads `GET /api/approval?base=<base>&target=<target>` and sends
+its verdict as a `verdict.set` op to `POST /api/review-ops` with the same query,
+after any comment changes still waiting in the browser, in a body such as
+`{"repositoryId":"<from /api/diff>","ops":[{"id":"<uuid>","type":"verdict.set","verdict":"as-is","summaryVersion":0}]}`
+(`gavel schema review-ops`). `PUT /api/approval` takes the op's fields without
+`id` and `type`. Approve with
 `{"verdict":"as-is","summaryVersion":0}` using the displayed summary version; reject
 with `{"verdict":"reject"}` plus the same capture or diff fields, without
-`summaryVersion`; clear with `DELETE /api/approval`. Include
+`summaryVersion`; clear with `DELETE /api/approval`, or `"verdict":"clear"` in a
+`verdict.set` op. Include
 `baseMode=merge-base` where applicable. For a named review, use `?review=<name>` and
 approve with
 `{"verdict":"as-is","captureVersion":1,"patchDigest":"<current-digest>","summaryVersion":0}`
@@ -471,7 +477,9 @@ event stream, so run `comment snapshot` before sending status, replies, or a
 `comment summary`, whose `baseVersion` is the restored summary's `version`.
 Comment `progress.cursor` values from before the restart still work. A server
 launched with `--clean` restores the launched review without its comments and
-progress, and saves it that way; other reviews it opens keep theirs.
+progress, and saves it that way; other reviews it opens keep theirs. Comment changes
+still waiting in a browser's queue are sent to it anyway, and ones the review has
+not applied before are applied.
 
 Each saved review has a lock naming the running server that saves it. While
 another server on this host holds a review's lock, a new server neither restores

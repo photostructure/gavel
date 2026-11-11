@@ -44,6 +44,8 @@ export interface SavedReviewState {
   progress: [string, CommentProgress][];
   approval: ReviewApproval;
   summary: ReviewSummary;
+  /** Ids of every review op applied, oldest first; absent from older records. */
+  appliedOps?: string[];
 }
 
 /** One capture version of a named review, enough to find its saved patch. */

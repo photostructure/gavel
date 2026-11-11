@@ -1604,19 +1604,22 @@ describe('Server Integration Tests', () => {
       expect(data).toHaveProperty('success', true);
     });
 
-    it('POST /api/comments handles text/plain content type', async () => {
-      const comments = [{ file: 'test.js', line: 10, body: 'This is a test comment' }];
+    it.each(['text/plain', 'application/x-www-form-urlencoded'])(
+      'POST /api/comments refuses browser-simple %s requests',
+      async (contentType) => {
+        const comments = [{ file: 'test.js', line: 10, body: 'This is a test comment' }];
 
-      const response = await fetch(`http://localhost:${port}/api/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ comments }),
-      });
+        const response = await fetch(`http://localhost:${port}/api/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': contentType, Origin: 'https://example.invalid' },
+          body: JSON.stringify({ comments }),
+        });
 
-      const data = await response.json();
-      expect(response.ok).toBe(true);
-      expect(data).toHaveProperty('success', true);
-    });
+        expect(response.status).toBe(415);
+        const output = await (await fetch(`http://localhost:${port}/api/comments-output`)).text();
+        expect(output).not.toContain('This is a test comment');
+      },
+    );
 
     it('GET /api/comments-output returns formatted comments', async () => {
       // First post some comments
@@ -2761,6 +2764,55 @@ describe('Server Integration Tests', () => {
             event: expect.objectContaining({ type: 'approvalChanged' }),
           }),
         );
+      } finally {
+        await closeLive(live);
+        await result.shutdown('closed');
+      }
+    });
+
+    it('orders comment snapshots by the live server id and comment version without conversations', async () => {
+      const result = await startServer({ preferredPort: 0, keepAlive: true, conversation: false });
+      servers.push(result.server);
+      const { live, messages } = await openLive(result.url);
+      try {
+        await vi.waitFor(() => expect(messages[0]?.channel).toBe('hello'));
+        const hello = messages[0];
+        if (hello?.channel !== 'hello') throw new Error('Expected a hello message');
+        const { repositoryId } = (await (await fetch(`${result.url}/api/diff`)).json()) as {
+          repositoryId: string;
+        };
+        const thread = {
+          id: 't1',
+          scope: 'review',
+          createdAt: '2026-11-11T00:00:00.000Z',
+          updatedAt: '2026-11-11T00:00:00.000Z',
+          messages: [
+            {
+              id: 't1',
+              body: 'A comment',
+              createdAt: '2026-11-11T00:00:00.000Z',
+              updatedAt: '2026-11-11T00:00:00.000Z',
+            },
+          ],
+        };
+        const answer = (await (
+          await fetch(`${result.url}/api/review-ops`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              repositoryId,
+              ops: [{ id: 'add', type: 'thread.add', thread }],
+            }),
+          })
+        ).json()) as { version: number; cursor: string };
+        const read = (await (await fetch(`${result.url}/api/comments-json`)).json()) as {
+          version: number;
+          cursor: string;
+        };
+
+        expect(answer.cursor).toBe(`${hello.serverId}:${answer.version}`);
+        expect(read.cursor).toBe(`${hello.serverId}:${read.version}`);
+        expect(read.version).toBe(answer.version);
       } finally {
         await closeLive(live);
         await result.shutdown('closed');

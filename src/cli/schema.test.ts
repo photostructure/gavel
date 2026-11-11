@@ -70,6 +70,7 @@ describe('schema command', () => {
     ['batch', 'ConversationBatch'],
     ['presence', 'ReviewPresence'],
     ['comments', 'CommentsRequest'],
+    ['review-ops', 'ReviewOpsRequest'],
     ['import', 'CommentImportRequest'],
     ['approval', 'ApprovalRequest'],
     ['capture', 'ReviewCapture'],

@@ -43,7 +43,7 @@ describe('review conversation navigation with browser storage', () => {
     let serverThreads = [thread('original', 'Original review comment')];
     let version = 1;
     let loadingOtherReview = false;
-    vi.mocked(fetch).mockImplementation((input, init) => {
+    vi.mocked(fetch).mockImplementation((input) => {
       const url = new URL(String(input), window.location.origin);
       const target = url.searchParams.get('target');
       let payload: unknown = {};
@@ -66,17 +66,7 @@ describe('review conversation navigation with browser storage', () => {
           loadingOtherReview = true;
           return new Promise<Response>(() => {});
         }
-        payload = { version, threads: structuredClone(serverThreads) };
-      } else if (url.pathname === '/api/comments' && init?.method === 'POST' && target === '.') {
-        const body = JSON.parse(String(init.body)) as {
-          threads: DiffCommentThread[];
-          baseVersion?: number;
-        };
-        // Match /api/comments: only the current baseVersion allows replacement;
-        // a stale or omitted version requires merging with newer server comments.
-        const stale = body.baseVersion !== version;
-        if (!stale) serverThreads = structuredClone(body.threads);
-        payload = { version: ++version, merged: stale, threads: structuredClone(serverThreads) };
+        payload = { version, cursor: `test:${version}`, threads: structuredClone(serverThreads) };
       }
       return Promise.resolve({ ok: true, json: async () => payload } as Response);
     });

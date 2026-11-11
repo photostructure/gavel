@@ -7,6 +7,8 @@ import type { ConversationSnapshot, ReviewVerdict } from '../types/conversation'
 import type { DiffCommentThread, DiffResponse, ReviewContext } from '../types/diff';
 import type { InboxDelivery } from '../types/presence';
 import type { NamedReviewMetadata } from '../types/review';
+import type { ReviewOp } from '../types/reviewOps';
+import { applyReviewOp } from '../utils/reviewOps';
 
 import App from './App';
 import { MockWebSocket } from './utils/liveConnection.testing';
@@ -136,19 +138,24 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     } else if (url.pathname === '/api/comments-json') {
       payload = {
         version: state.commentVersion,
+        cursor: `test:${state.commentVersion}`,
         threads: reviewName === 'task-b' ? [] : structuredClone(state.threads),
       };
-    } else if (url.pathname === '/api/comments' && init?.method === 'POST') {
-      const body = JSON.parse(String(init.body)) as {
-        threads: DiffCommentThread[];
-        captureVersion: number;
-        patchDigest: string;
-      };
-      if (reviewName === state.capture.name) state.threads = structuredClone(body.threads);
+    } else if (url.pathname === '/api/review-ops') {
+      const { ops } = JSON.parse(String(init?.body)) as { ops: Array<ReviewOp & { id: string }> };
+      const key = reviewName === 'task-b' ? 'verdictB' : 'verdict';
+      for (const op of ops) {
+        if (op.type === 'verdict.set') state[key] = op.verdict === 'clear' ? undefined : op.verdict;
+        else if (reviewName === state.capture.name) {
+          const outcome = applyReviewOp(state.threads, op, '2026-11-11T00:00:00Z');
+          if ('threads' in outcome) state.threads = outcome.threads;
+        }
+      }
       payload = {
         version: ++state.commentVersion,
-        merged: false,
-        threads: structuredClone(state.threads),
+        cursor: `test:${state.commentVersion}`,
+        results: ops.map(({ id }) => ({ id, status: 'applied' })),
+        threads: reviewName === 'task-b' ? [] : structuredClone(state.threads),
       };
     } else if (url.pathname === '/api/review-summary') {
       payload = {
@@ -222,6 +229,17 @@ const renderApp = () =>
       <App />
     </HotkeysProvider>,
   );
+// Earlier versions kept sent threads in the storage record of a review.
+function keepLegacyThreads(ref: string, threads: DiffCommentThread[]) {
+  storageService.saveViewedFiles(ref, ref, [], ref, undefined, initialCapture.repositoryId);
+  const key = Object.keys(localStorage).find((item) => item.startsWith('gavel-storage-v1/'))!;
+  const record = JSON.parse(localStorage.getItem(key)!) as object;
+  localStorage.setItem(key, JSON.stringify({ ...record, threads }));
+}
+const opPosts = (reviewName: string) =>
+  vi
+    .mocked(fetch)
+    .mock.calls.filter(([url]) => String(url) === `/api/review-ops?review=${reviewName}`);
 const diffRequests = () =>
   vi.mocked(fetch).mock.calls.filter(([url]) => String(url).startsWith('/api/diff?'));
 
@@ -548,14 +566,7 @@ describe('named captures in the browser', () => {
   it.each(['task.a', 'task_2e_a'])(
     'does not restore ambiguous legacy discussion into %s',
     async (reviewName) => {
-      storageService.saveCommentThreads(
-        'review:task.a',
-        'review:task.a',
-        [originalThread],
-        'review:task.a',
-        undefined,
-        initialCapture.repositoryId,
-      );
+      keepLegacyThreads('review:task.a', [originalThread]);
       const legacyKey = Object.keys(localStorage)[0]!;
       const legacyValue = localStorage.getItem(legacyKey);
       const state = fixture();
@@ -567,14 +578,10 @@ describe('named captures in the browser', () => {
           screen.getByRole('button', { name: /^(Approve as-is|Approved as-is)$/ }),
         ).toBeEnabled(),
       );
-      const posts = vi
-        .mocked(fetch)
-        .mock.calls.filter(
-          ([url, init]) =>
-            String(url) === `/api/comments?review=${reviewName}` && init?.method === 'POST',
-        );
       expect(
-        posts.some(([, init]) => String(init?.body).includes('Original capture discussion')),
+        opPosts(reviewName).some(([, init]) =>
+          String(init?.body).includes('Original capture discussion'),
+        ),
       ).toBe(false);
       expect(localStorage.getItem(legacyKey)).toBe(legacyValue);
     },
@@ -584,28 +591,16 @@ describe('named captures in the browser', () => {
     'recovers the existing unambiguous legacy discussion for %s',
     async (reviewName) => {
       const ref = `review:${reviewName}`;
-      storageService.saveCommentThreads(
-        ref,
-        ref,
-        [originalThread],
-        ref,
-        undefined,
-        initialCapture.repositoryId,
-      );
+      keepLegacyThreads(ref, [originalThread]);
       const state = fixture();
       state.capture.name = reviewName;
       window.history.replaceState(null, '', `/?review=${reviewName}`);
       renderApp();
       await waitFor(() =>
         expect(
-          vi
-            .mocked(fetch)
-            .mock.calls.some(
-              ([url, init]) =>
-                String(url) === `/api/comments?review=${reviewName}` &&
-                init?.method === 'POST' &&
-                String(init.body).includes('Original capture discussion'),
-            ),
+          opPosts(reviewName).some(([, init]) =>
+            String(init?.body).includes('Original capture discussion'),
+          ),
         ).toBe(true),
       );
     },
@@ -687,7 +682,7 @@ describe('named captures in the browser', () => {
     expect(document.querySelectorAll('[data-diff-line-row="true"]')).toHaveLength(0);
   });
 
-  it('orders same-capture comment refreshes before updating threads and the next write version', async () => {
+  it('orders same-capture comment refreshes before updating threads', async () => {
     const state = fixture([originalThread]);
     renderApp();
     await waitFor(() =>
@@ -703,18 +698,6 @@ describe('named captures in the browser', () => {
     });
     let delayNext = true;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
-      if (String(input).startsWith('/api/comments?') && init?.method === 'POST') {
-        const body = JSON.parse(String(init.body)) as { baseVersion?: number };
-        if (typeof body.baseVersion === 'number' && body.baseVersion < state.commentVersion) {
-          return new Response(
-            JSON.stringify({
-              version: state.commentVersion,
-              merged: true,
-              threads: structuredClone(state.threads),
-            }),
-          );
-        }
-      }
       if (String(input).startsWith('/api/comments-json?') && delayNext) {
         delayNext = false;
         return oldResponse;
@@ -743,7 +726,9 @@ describe('named captures in the browser', () => {
         ),
       ).toBeVisible();
       await act(async () => {
-        releaseOld?.(new Response(JSON.stringify({ version: 1, threads: [originalThread] })));
+        releaseOld?.(
+          new Response(JSON.stringify({ version: 1, cursor: 'test:1', threads: [originalThread] })),
+        );
         await pending;
       });
       expect(
@@ -751,21 +736,10 @@ describe('named captures in the browser', () => {
           'Same capture new discussion',
         ),
       ).toBeVisible();
-      const callStart = vi.mocked(fetch).mock.calls.length;
-      await act(async () => watch.captureChanged?.('task-a'));
-      await waitFor(() => {
-        const writes = vi
-          .mocked(fetch)
-          .mock.calls.slice(callStart)
-          .filter(
-            ([url, init]) => String(url).startsWith('/api/comments?') && init?.method === 'POST',
-          );
-        expect(writes.length).toBeGreaterThan(0);
-        for (const [, init] of writes)
-          expect(JSON.parse(String(init?.body)) as unknown).toMatchObject({ baseVersion: 2 });
-      });
     } finally {
-      releaseOld?.(new Response(JSON.stringify({ version: 1, threads: [originalThread] })));
+      releaseOld?.(
+        new Response(JSON.stringify({ version: 1, cursor: 'test:1', threads: [originalThread] })),
+      );
     }
   });
 
@@ -785,19 +759,6 @@ describe('named captures in the browser', () => {
     });
     let delayNext = true;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
-      if (String(input).startsWith('/api/comments?') && init?.method === 'POST') {
-        const body = JSON.parse(String(init.body)) as { baseVersion?: number };
-        // Match the real server's stale-version merge: this old subset cannot remove the new thread.
-        if (typeof body.baseVersion === 'number' && body.baseVersion < state.commentVersion) {
-          return new Response(
-            JSON.stringify({
-              version: state.commentVersion,
-              merged: true,
-              threads: structuredClone(state.threads),
-            }),
-          );
-        }
-      }
       if (String(input).startsWith('/api/comments-json?') && delayNext) {
         delayNext = false;
         return oldResponse;
@@ -822,13 +783,17 @@ describe('named captures in the browser', () => {
     state.commentVersion += 1;
     try {
       await act(async () => watch.captureChanged?.('task-a'));
+      // The server announces the agent's comment on the new capture.
+      await act(async () => watch.commentsChanged?.());
       expect(
         await within(screen.getByRole('dialog', { name: 'Conversation' })).findByText(
           'New capture discussion',
         ),
       ).toBeVisible();
       await act(async () => {
-        releaseOld?.(new Response(JSON.stringify({ version: 1, threads: [originalThread] })));
+        releaseOld?.(
+          new Response(JSON.stringify({ version: 1, cursor: 'test:1', threads: [originalThread] })),
+        );
         await pending;
       });
       expect(
@@ -837,7 +802,9 @@ describe('named captures in the browser', () => {
         ),
       ).toBeVisible();
     } finally {
-      releaseOld?.(new Response(JSON.stringify({ version: 1, threads: [originalThread] })));
+      releaseOld?.(
+        new Response(JSON.stringify({ version: 1, cursor: 'test:1', threads: [originalThread] })),
+      );
     }
   });
 
@@ -854,24 +821,28 @@ describe('named captures in the browser', () => {
     await waitFor(() => expect(approve).toBeEnabled());
     fireEvent.click(approve);
     await waitFor(() => expect(approve).toHaveTextContent(/^Approved as-is$/));
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/approval?review=task-a',
-      expect.objectContaining({
-        body: JSON.stringify({
+    const init = opPosts('task-a')[0]?.[1];
+    expect(JSON.parse(String(init?.body))).toEqual({
+      repositoryId: initialCapture.repositoryId,
+      ops: [
+        {
+          type: 'verdict.set',
           verdict: 'as-is',
           summaryVersion: 2,
           captureVersion: 1,
           patchDigest: initialCapture.patchDigest,
-        }),
-      }),
-    );
+          id: expect.any(String),
+          queuedAt: expect.any(String),
+        },
+      ],
+    });
     for (const [input] of vi.mocked(fetch).mock.calls) {
       const url = new URL(String(input), window.location.origin);
       if (
         [
           '/api/diff',
           '/api/comments-json',
-          '/api/comments',
+          '/api/review-ops',
           '/api/approval',
           '/api/review-summary',
         ].includes(url.pathname)
@@ -885,7 +856,7 @@ describe('named captures in the browser', () => {
     expect(window.location.search).toBe('?review=task-a');
   });
 
-  it('retains local storage while marking original inline anchors outdated', async () => {
+  it('keeps the discussion while marking original inline anchors outdated', async () => {
     const state = fixture([originalThread]);
     renderApp();
     fireEvent.click(await screen.findByRole('button', { name: 'Conversation' }));
@@ -896,10 +867,6 @@ describe('named captures in the browser', () => {
     ).toBeVisible();
     expect(screen.queryByLabelText('Outdated comment')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Close conversation' }));
-    const storageKeys = Object.keys(localStorage).filter((key) =>
-      key.startsWith('gavel-storage-v1/repository-one/'),
-    );
-    expect(storageKeys).toHaveLength(1);
     const before = diffRequests().length;
     await act(async () => watch.captureChanged?.('another-task'));
     expect(diffRequests()).toHaveLength(before);
@@ -915,9 +882,6 @@ describe('named captures in the browser', () => {
         'capture v2',
       ),
     );
-    expect(
-      Object.keys(localStorage).filter((key) => key.startsWith('gavel-storage-v1/repository-one/')),
-    ).toEqual(storageKeys);
     expect(state.threads[0]?.capture).toEqual({
       version: 1,
       patchDigest: initialCapture.patchDigest,
@@ -1317,8 +1281,8 @@ describe('after a verdict', () => {
       expect(nextStep()).toHaveTextContent('This review has a verdict. Closing this tab in 10s'),
     );
     expect(fetch).toHaveBeenCalledWith(
-      '/api/approval?review=task-a',
-      expect.objectContaining({ method: 'PUT', body: expect.stringContaining('"reject"') }),
+      '/api/review-ops?review=task-a',
+      expect.objectContaining({ method: 'POST', body: expect.stringContaining('"reject"') }),
     );
     expect(verdictButton('Reject')).toHaveAttribute('aria-pressed', 'true');
     await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));

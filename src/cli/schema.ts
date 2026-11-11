@@ -53,6 +53,7 @@ const messageFields = {
   createdAt: timestamp,
   updatedAt: timestamp,
 };
+const reviewOpPlacement = { followingIds: array(string), precedingIds: array(string) };
 const threadFields = {
   capture: ref('CaptureAnchor'),
   id: string,
@@ -276,7 +277,7 @@ const definitions: Record<string, Schema> = {
   },
   DisplayCommentThread: {
     description:
-      'Browser comment representation for POST /api/comments; line ranges use [start, end]. Inline excerpts use codeContent; review-scope threads do not preserve excerpts.',
+      'Flat comment thread shape that POST /api/comments also accepts, where a line thread names its file, line and side; line ranges use [start, end]. Inline excerpts use codeContent; review-scope threads do not preserve excerpts.',
     oneOf: [
       object(
         {
@@ -606,7 +607,7 @@ const definitions: Record<string, Schema> = {
   CommentsRequest: {
     type: 'object',
     description:
-      'POST /api/comments edits/replaces comments, including message body and intent edits. A baseVersion equal to the current version replaces the thread list; a stale or omitted baseVersion merges, so existing threads stay. An invalid baseVersion, or a body with neither threads nor comments, returns HTTP 400 without applying comments. Server-owned progress is ignored. For named reviews, a new thread uses its own retained capture anchor when present, otherwise the optional captureVersion and patchDigest pair (both or neither), otherwise the current capture. A partial or unknown body pair, or an invalid new-thread anchor, returns HTTP 400 without applying comments. Saved threads keep their server anchor and ignore supplied replacements. Ordinary reviews discard capture stamps.',
+      'POST /api/comments edits/replaces comments, including message body and intent edits. JSON only (HTTP 415 otherwise). A baseVersion equal to the current version replaces the thread list; a stale or omitted baseVersion merges, so existing threads stay. An invalid baseVersion, or a body with neither threads nor comments, returns HTTP 400 without applying comments. Server-owned progress is ignored. For named reviews, a new thread uses its own retained capture anchor when present, otherwise the optional captureVersion and patchDigest pair (both or neither), otherwise the current capture. A partial or unknown body pair, or an invalid new-thread anchor, returns HTTP 400 without applying comments. Saved threads keep their server anchor and ignore supplied replacements. Ordinary reviews discard capture stamps.',
     dependentRequired: { captureVersion: ['patchDigest'], patchDigest: ['captureVersion'] },
     anyOf: [
       object(
@@ -631,12 +632,89 @@ const definitions: Record<string, Schema> = {
   },
   CommentsResponse: object({
     version: { type: 'integer', minimum: 0 },
+    cursor: string,
     threads: array(ref('CommentThread')),
   }),
   CommentsEditResponse: object({
     success: { const: true },
     merged: boolean,
     version: { type: 'integer', minimum: 0 },
+    threads: array(ref('CommentThread')),
+  }),
+  ReviewOp: {
+    oneOf: [
+      object(
+        {
+          id: string,
+          type: { const: 'thread.add' },
+          thread: ref('CommentThread'),
+          ...reviewOpPlacement,
+        },
+        ['id', 'type', 'thread'],
+      ),
+      object(
+        {
+          id: string,
+          type: { const: 'message.add' },
+          threadId: string,
+          message: ref('CommentMessage'),
+          ...reviewOpPlacement,
+        },
+        ['id', 'type', 'threadId', 'message'],
+      ),
+      object(
+        {
+          id: string,
+          type: { const: 'message.edit' },
+          threadId: string,
+          messageId: string,
+          body: string,
+          intent: ref('CommentIntent'),
+          at: timestamp,
+        },
+        ['id', 'type', 'threadId', 'messageId', 'body', 'at'],
+      ),
+      object({
+        id: string,
+        type: { const: 'message.delete' },
+        threadId: string,
+        messageId: string,
+      }),
+      object({ id: string, type: { const: 'thread.delete' }, threadId: string }),
+      object({
+        id: string,
+        type: { const: 'thread.resolve' },
+        threadId: string,
+        resolved: boolean,
+        at: timestamp,
+      }),
+      object(
+        {
+          id: string,
+          type: { const: 'verdict.set' },
+          verdict: { oneOf: [ref('ReviewVerdict'), { const: 'clear' }] },
+          summaryVersion: version,
+          captureVersion,
+          patchDigest: ref('PatchDigest'),
+          diffDigest: ref('DiffDigest'),
+        },
+        ['id', 'type', 'verdict'],
+      ),
+    ],
+  },
+  ReviewOpsRequest: {
+    ...object({ repositoryId: string, ops: array(ref('ReviewOp')) }),
+    description:
+      "POST /api/review-ops?<same selection query as /api/comments-json>. JSON only (HTTP 415 otherwise), at most 16 MiB (HTTP 413). Applies each op in order as a user change, one request at a time, with the same events and approval revocation as other comment edits, and also works without conversation mode. Replaying an id in the review's ledger of applied ops returns duplicate and changes nothing; the ledger keeps every id for as long as the review is saved, --clean included, and each op's id is saved together with its change before the response. When that save fails or waits on another server's lock, the endpoint returns HTTP 503 with an error, whatever each op's status was: the ops stay applied in this server's memory, and sending the batch again returns duplicate with HTTP 200 once the save succeeds. Reviews this server does not save (no store, or saved by another running server) return HTTP 200. Deleting something already gone is applied; message.add, message.edit, or thread.resolve against something gone, a malformed or unknown op, and a thread.add with an unavailable capture anchor are rejected with an error, and rejected ops do not enter the ledger. Deleting a first message deletes its thread. followingIds and precedingIds place a restored item; without them it is appended. verdict.set takes the body PUT /api/approval takes and is rejected with that endpoint's error where it would answer 400 or 409; verdict clear clears the verdict as DELETE /api/approval does. A server started without verdicts rejects verdict.set. HTTP 400 for a batch without repositoryId, ops, or an id on every op; HTTP 409, applying nothing, when repositoryId is not this server's (GET /api/diff). The answer's cursor, `<server instance>:<sequence>`, orders it among the review's snapshots from GET /api/comments-json, which carry one too: from the same instance a higher sequence is newer, and at an equal sequence a higher version; progress changes advance the sequence without a new version, and some thread edits through POST /api/comments advance the version alone; another instance means the server restarted.",
+  },
+  ReviewOpResult: object(
+    { id: string, status: enumeration('applied', 'duplicate', 'rejected'), error: string },
+    ['id', 'status'],
+  ),
+  ReviewOpsResponse: object({
+    version: { type: 'integer', minimum: 0 },
+    cursor: string,
+    results: array(ref('ReviewOpResult')),
     threads: array(ref('CommentThread')),
   }),
   ResolutionRequest: object({ resolved: boolean, reviewId: string }, ['resolved']),
@@ -685,6 +763,7 @@ const roots = {
   batch: 'ConversationBatch',
   presence: 'ReviewPresence',
   comments: 'CommentsRequest',
+  'review-ops': 'ReviewOpsRequest',
   import: 'CommentImportRequest',
   approval: 'ApprovalRequest',
   capture: 'ReviewCapture',

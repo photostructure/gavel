@@ -1,16 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ReviewApproval, ReviewVerdict } from '../../types/conversation';
+import type { ReviewApproval } from '../../types/conversation';
 import type { NamedReviewMetadata } from '../../types/review';
 
 type CaptureIdentity = Pick<NamedReviewMetadata, 'version' | 'patchDigest'>;
-
-/** The staged or worktree diff changed after it was displayed; reload it before approving. */
-export class DiffChangedError extends Error {
-  constructor() {
-    super('The diff changed after it was displayed');
-  }
-}
 
 /** Server-owned approval, bound to the displayed selection and captured patch. */
 export function useReviewApproval(
@@ -31,8 +24,13 @@ export function useReviewApproval(
   const [state, setState] = useState<{ key: string; approval: ReviewApproval } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
+  // The newest read whose answer is shown. Reads overlap, such as the one a verdict's own
+  // completion starts and one an approval event starts; an older answer never replaces a newer one.
+  const keptId = useRef(0);
   const activeKey = useRef(key);
   activeKey.current = key;
+  // The approval the server last answered, for work that resumes before the page renders it.
+  const served = useRef<{ key: string; approval: ReviewApproval } | null>(null);
 
   const refresh = useCallback(async () => {
     if (!url || activeKey.current !== key) return;
@@ -43,12 +41,16 @@ export function useReviewApproval(
       const approval = (await response.json()) as ReviewApproval | null;
       if (typeof approval !== 'object' || approval === null)
         throw new Error('Invalid approval response');
-      if (id === requestId.current && activeKey.current === key) {
+      if (activeKey.current === key && id > keptId.current) {
+        keptId.current = id;
+        served.current = { key, approval };
         setState({ key, approval });
         setError(null);
       }
     } catch {
-      if (id === requestId.current && activeKey.current === key) {
+      if (activeKey.current === key && id > keptId.current) {
+        keptId.current = id;
+        served.current = null;
         setState(null);
         setError('Could not load approval. Refresh the review to retry.');
       }
@@ -59,44 +61,12 @@ export function useReviewApproval(
     setState(null);
     setError(null);
     void refresh();
-    return () => {
-      requestId.current += 1;
-    };
   }, [refresh]);
 
-  const send = useCallback(
-    async (method: 'PUT' | 'DELETE', body?: Record<string, unknown>) => {
-      if (!url || activeKey.current !== key)
-        throw new Error('Approval is unavailable for this capture');
-      const response = await fetch(url, {
-        method,
-        ...(body
-          ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-          : {}),
-      });
-      if (response.status === 409) {
-        const conflict = (await response.json()) as { diffDigest?: unknown };
-        if (typeof conflict.diffDigest === 'string') throw new DiffChangedError();
-      }
-      if (!response.ok) throw new Error('Could not update approval');
-      await refresh();
-    },
-    [url, key, refresh],
+  const servedVerdict = useCallback(
+    () => (served.current?.key === activeKey.current ? served.current.approval.verdict : undefined),
+    [],
   );
-
-  // Reject does not endorse the proposed message, so it sends no summaryVersion.
-  const setVerdict = useCallback(
-    (verdict: ReviewVerdict, summaryVersion = 0) =>
-      send('PUT', {
-        verdict,
-        ...(verdict !== 'reject' ? { summaryVersion } : {}),
-        ...(captureVersion !== undefined ? { captureVersion, patchDigest } : {}),
-        ...(diffDigest !== undefined ? { diffDigest } : {}),
-      }),
-    [send, captureVersion, patchDigest, diffDigest],
-  );
-
-  const clearVerdict = useCallback(() => send('DELETE'), [send]);
 
   const current = state?.key === key ? state.approval : null;
   // An approval after comments follows the agent's revisions, and a rejection stays until the
@@ -115,7 +85,6 @@ export function useReviewApproval(
     ready: current !== null,
     error,
     refresh,
-    setVerdict,
-    clearVerdict,
+    servedVerdict,
   };
 }

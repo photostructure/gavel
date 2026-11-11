@@ -115,19 +115,6 @@ export interface LineSelection {
   lineNumber: number;
 }
 
-export interface LegacyDiffComment {
-  id: string;
-  filePath: string;
-  body: string;
-  author?: string;
-  createdAt: string; // ISO 8601 format
-  updatedAt: string; // ISO 8601 format
-
-  position: DiffCommentPosition;
-
-  codeSnapshot?: DiffCommentCodeSnapshot;
-}
-
 export interface CommentProgress {
   status: 'queued' | 'delivered' | 'read' | 'thinking' | 'replying' | 'noted' | 'replied';
   cursor: string;
@@ -209,7 +196,7 @@ export interface ViewedHashIndex {
   entries: ViewedHashIndexEntry[];
 }
 
-// Browser-local undo copies; never included in conversation API requests.
+// Undo copies of deleted comments, kept in page memory; never included in conversation API requests.
 export interface DeletedComment {
   thread: DiffCommentThread;
   followingIds: string[];
@@ -225,10 +212,13 @@ export interface DiffContextStorage {
   createdAt: string; // ISO 8601 format
   lastModifiedAt: string; // ISO 8601 format
 
-  threads: DiffCommentThread[];
+  /**
+   * Kept before the review-op queue: sent threads, read once to send the ones the server lacks,
+   * and undo copies, which are deleted unsent.
+   */
+  threads?: DiffCommentThread[];
   deletedComments?: DeletedComment[];
   viewedFiles: ViewedFileRecord[];
-  appliedCommentImportIds: string[];
 }
 
 interface DisplayCommentThreadBase {

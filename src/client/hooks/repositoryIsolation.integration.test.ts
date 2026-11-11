@@ -1,7 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { useDiffComments } from './useDiffComments';
 import { useViewedFiles } from './useViewedFiles';
 
 // Mock StorageService with isolated storage
@@ -10,22 +9,6 @@ const mockStorage = new Map<string, any>();
 vi.mock('../services/StorageService', () => ({
   VIEWED_HASH_VERSION: 1,
   storageService: {
-    getCommentThreads: vi.fn((base, target, _hash, _branch, repoId) => {
-      const key = `${repoId || 'default'}-${base}-${target}-threads`;
-      return mockStorage.get(key) || [];
-    }),
-    saveCommentThreads: vi.fn((base, target, threads, _hash, _branch, repoId) => {
-      const key = `${repoId || 'default'}-${base}-${target}-threads`;
-      mockStorage.set(key, threads);
-    }),
-    getComments: vi.fn((base, target, _hash, _branch, repoId) => {
-      const key = `${repoId || 'default'}-${base}-${target}-comments`;
-      return mockStorage.get(key) || [];
-    }),
-    saveComments: vi.fn((base, target, comments, _hash, _branch, repoId) => {
-      const key = `${repoId || 'default'}-${base}-${target}-comments`;
-      mockStorage.set(key, comments);
-    }),
     getViewedFiles: vi.fn((base, target, _hash, _branch, repoId) => {
       const key = `${repoId || 'default'}-${base}-${target}-viewed`;
       return mockStorage.get(key) || [];
@@ -84,8 +67,6 @@ vi.mock('../services/StorageService', () => ({
     clearViewedHashIndex: vi.fn((repoId) => {
       mockStorage.delete(`${repoId || 'default'}-viewed-hash-index`);
     }),
-    getDiffContextData: vi.fn(() => null),
-    saveDiffContextData: vi.fn(),
   },
 }));
 
@@ -93,82 +74,6 @@ describe('Repository Isolation Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockStorage.clear();
-  });
-
-  describe('useDiffComments - Repository Isolation', () => {
-    it('should isolate comments between different repositories', () => {
-      // Render hook for repository 1
-      const { result: result1 } = renderHook(() =>
-        useDiffComments('base', 'target', undefined, undefined, 'repo-1'),
-      );
-
-      // Render hook for repository 2
-      const { result: result2 } = renderHook(() =>
-        useDiffComments('base', 'target', undefined, undefined, 'repo-2'),
-      );
-
-      // Add comment in repository 1
-      act(() => {
-        result1.current.addComment({
-          filePath: 'test.ts',
-          body: 'Comment in repo 1',
-          side: 'new',
-          line: 10,
-        });
-      });
-
-      // Repository 1 should have 1 comment
-      expect(result1.current.comments.length).toBe(1);
-      expect(result1.current.comments[0]?.body).toBe('Comment in repo 1');
-
-      // Repository 2 should have 0 comments
-      expect(result2.current.comments.length).toBe(0);
-
-      // Add comment in repository 2
-      act(() => {
-        result2.current.addComment({
-          filePath: 'test.ts',
-          body: 'Comment in repo 2',
-          side: 'new',
-          line: 10,
-        });
-      });
-
-      // Repository 1 should still have only its own comment
-      expect(result1.current.comments.length).toBe(1);
-      expect(result1.current.comments[0]?.body).toBe('Comment in repo 1');
-
-      // Repository 2 should have only its own comment
-      expect(result2.current.comments.length).toBe(1);
-      expect(result2.current.comments[0]?.body).toBe('Comment in repo 2');
-    });
-
-    it('should isolate comments in working diff mode across repositories', () => {
-      // Repository 1 - working diff
-      const { result: result1 } = renderHook(() =>
-        useDiffComments('HEAD', 'working', 'abc123', undefined, 'repo-1'),
-      );
-
-      // Repository 2 - working diff with same commit
-      const { result: result2 } = renderHook(() =>
-        useDiffComments('HEAD', 'working', 'abc123', undefined, 'repo-2'),
-      );
-
-      act(() => {
-        result1.current.addComment({
-          filePath: 'file.ts',
-          body: 'Working diff comment in repo 1',
-          side: 'new',
-          line: 5,
-        });
-      });
-
-      // Repo 1 should have the comment
-      expect(result1.current.comments.length).toBe(1);
-
-      // Repo 2 should NOT see the comment
-      expect(result2.current.comments.length).toBe(0);
-    });
   });
 
   describe('useViewedFiles - Repository Isolation', () => {

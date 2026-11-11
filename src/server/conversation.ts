@@ -26,6 +26,7 @@ interface Review {
   progress: Map<string, CommentProgress>;
   approval: ReviewApproval;
   summary: ReviewSummary;
+  appliedOps: string[];
 }
 
 /**
@@ -130,6 +131,7 @@ export class Conversation {
         progress: new Map<string, CommentProgress>(saved?.progress ?? []),
         approval: saved?.approval ?? {},
         summary: saved?.summary ?? { commitMessage: '', rationale: '', version: 0 },
+        appliedOps: saved?.appliedOps ?? [],
         ...(saved?.capture ? { capture: saved.capture } : {}),
       };
       this.reviews.set(key, review);
@@ -152,7 +154,21 @@ export class Conversation {
       progress: [...review.progress.entries()],
       approval: review.approval,
       summary: review.summary,
+      appliedOps: review.appliedOps,
     });
+  }
+
+  getAppliedOps(selection: DiffSelection): string[] {
+    return [...this.getReview(selection).appliedOps];
+  }
+
+  /** Mirrors the review-op ledger into the state a restarted server restores. */
+  setAppliedOps(selection: DiffSelection, appliedOps: string[]): void {
+    this.getReview(selection).appliedOps = [...appliedOps];
+  }
+
+  getReviewId(selection: DiffSelection): string {
+    return this.getReview(selection).id;
   }
 
   getApproval(selection: DiffSelection): ReviewApproval {

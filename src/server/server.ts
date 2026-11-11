@@ -27,6 +27,7 @@ import { openReviewStore, savedReviewKey, type SavedReview } from './review-stor
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+import type { ReviewOpResult, ReviewOpsResponse } from '../types/reviewOps.js';
 import { type DiffMode, type WatchEvent } from '../types/watch.js';
 import {
   LIVE_OTHER_SERVER,
@@ -52,6 +53,7 @@ import {
   resolveEditorOption,
 } from '../utils/editorOptions.js';
 import { getFileExtension } from '../utils/fileUtils.js';
+import { applyReviewOp, parseReviewOp, parseReviewOpBatch } from '../utils/reviewOps.js';
 
 import { FileWatcherService } from './file-watcher.js';
 import { Conversation, onRevision, registerConversationRoutes } from './conversation.js';
@@ -164,6 +166,8 @@ function setCachedDiffResponse(cache: Map<string, DiffResponse>, key: string, va
 interface CommentSessionState {
   threads: DiffCommentThread[];
   version: number;
+  /** Ids of every review op applied, oldest first, so a replay changes nothing. */
+  appliedOps: string[];
 }
 
 function createResolvedCommentSelection(
@@ -376,6 +380,7 @@ export async function startServer(options: ServerOptions): Promise<{
     if (options.jsonl) writeJsonl(event);
     options.onEvent?.(event);
   };
+  const liveServerId = randomUUID();
   const conversation = conversationEnabled
     ? new Conversation(
         (event) => {
@@ -441,6 +446,7 @@ export async function startServer(options: ServerOptions): Promise<{
     const worthSaving =
       review.capture ||
       review.threads.length > 0 ||
+      (review.appliedOps?.length ?? 0) > 0 ||
       review.approval.updatedAt !== undefined ||
       (review.summary.version > 0 && !review.summary.fromCommit);
     if (!worthSaving && !reviewStore.has(key)) return true;
@@ -504,25 +510,34 @@ export async function startServer(options: ServerOptions): Promise<{
     return undefined;
   };
 
-  // Give named capture clients a machine-readable size error.
-  const handleNamedReviewBodyLimit: ErrorRequestHandler = (error: unknown, _req, res, next) => {
-    if (
-      typeof error === 'object' &&
-      error !== null &&
-      'type' in error &&
-      error.type === 'entity.too.large'
-    ) {
-      res.status(413).json({
-        error:
-          'Named review request exceeds the 16 MiB serialized JSON limit. Narrow the selected patch, or launch a new local review with --review and --capture.',
-      });
-      return;
-    }
-    next(error);
-  };
-  app.use('/api/reviews', express.json({ limit: '16mb' }), handleNamedReviewBodyLimit);
+  // Give clients of the 16 MiB routes a machine-readable size error.
+  const handleJsonBodyLimit =
+    (message: string): ErrorRequestHandler =>
+    (error: unknown, _req, res, next) => {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'type' in error &&
+        error.type === 'entity.too.large'
+      ) {
+        res.status(413).json({ error: message });
+        return;
+      }
+      next(error);
+    };
+  app.use(
+    '/api/reviews',
+    express.json({ limit: '16mb' }),
+    handleJsonBodyLimit(
+      'Named review request exceeds the 16 MiB serialized JSON limit. Narrow the selected patch, or launch a new local review with --review and --capture.',
+    ),
+  );
+  app.use(
+    '/api/review-ops',
+    express.json({ limit: '16mb' }),
+    handleJsonBodyLimit('Review ops request exceeds the 16 MiB serialized JSON limit.'),
+  );
   app.use(express.json());
-  app.use(express.text()); // For sendBeacon text/plain requests
 
   app.use((_req, res, next) => {
     res.header('Access-Control-Allow-Origin', 'http://localhost:*');
@@ -588,6 +603,8 @@ export async function startServer(options: ServerOptions): Promise<{
   // Resolved commits, so the launched diff stays put when HEAD moves and matches its review.
   const launch = initialNamedReview || options.explicitTarget ? currentCommentSelection : undefined;
   if (options.clearComments) cleanKey = reviewKey(currentCommentSelection);
+  // The diff of that review alone tells the page not to send an old browser copy of its comments.
+  const cleanSelection = options.clearComments ? currentCommentSelection : undefined;
   // Ensure agents can discover the initial review even before a comment is posted.
   conversation?.getSummary(currentCommentSelection);
   if (initialNamedReview)
@@ -670,6 +687,7 @@ export async function startServer(options: ServerOptions): Promise<{
     commentSessions.set(createCommentSessionKey(currentCommentSelection), {
       threads: initialCommentThreads,
       version: 1,
+      appliedOps: conversation?.getAppliedOps(currentCommentSelection) ?? [],
     });
     conversation?.update(
       currentCommentSelection,
@@ -823,7 +841,11 @@ export async function startServer(options: ServerOptions): Promise<{
 
     // A review an earlier server saved opens with its comments.
     const threads = conversation?.getThreads(selection) ?? [];
-    const nextSession: CommentSessionState = { threads, version: threads.length > 0 ? 1 : 0 };
+    const nextSession: CommentSessionState = {
+      threads,
+      version: threads.length > 0 ? 1 : 0,
+      appliedOps: conversation?.getAppliedOps(selection) ?? [],
+    };
     commentSessions.set(key, nextSession);
     return nextSession;
   }
@@ -892,11 +914,13 @@ export async function startServer(options: ServerOptions): Promise<{
 
     currentSelection = requestedSelection;
 
-    currentCommentSelection = createResolvedCommentSelection(
+    // Other requests change currentCommentSelection while this one awaits below.
+    const responseSelection = createResolvedCommentSelection(
       responseDiffData,
       requestedSelection,
       Boolean(options.stdinDiff),
     );
+    currentCommentSelection = responseSelection;
 
     await trackWorkingTreeReview(requestedSelection, currentCommentSelection, responseDiffData);
     seedCommittedSummary(currentCommentSelection, responseDiffData);
@@ -932,7 +956,9 @@ export async function startServer(options: ServerOptions): Promise<{
       requestedBaseCommitish,
       requestedTargetCommitish,
       requestedBaseMode,
-      clearComments: options.clearComments,
+      ...(cleanSelection && diffSelectionsEqual(cleanSelection, responseSelection)
+        ? { clearComments: true }
+        : {}),
       shipIt: options.shipIt,
       repositoryId,
       reviewContext,
@@ -1270,16 +1296,10 @@ export async function startServer(options: ServerOptions): Promise<{
   }
 
   function parseCommentsPayload(body: unknown): DiffCommentThread[] {
-    const payload =
-      typeof body === 'string'
-        ? (JSON.parse(body) as {
-            comments?: Comment[];
-            threads?: Array<CommentThread | DiffCommentThread>;
-          })
-        : (body as {
-            comments?: Comment[];
-            threads?: Array<CommentThread | DiffCommentThread>;
-          });
+    const payload = body as {
+      comments?: Comment[];
+      threads?: Array<CommentThread | DiffCommentThread>;
+    };
 
     if (Array.isArray(payload.threads)) {
       return payload.threads.map(normalizeThreadPayload);
@@ -1290,14 +1310,6 @@ export async function startServer(options: ServerOptions): Promise<{
     }
 
     throw new Error('Expected threads or comments');
-  }
-
-  function parseCommentImportsPayload(body: unknown): CommentImport[] {
-    if (typeof body === 'string') {
-      return normalizeCommentImports(JSON.parse(body));
-    }
-
-    return normalizeCommentImports(body);
   }
 
   // A saved thread keeps its server anchor; a new thread must name a retained capture.
@@ -1329,11 +1341,26 @@ export async function startServer(options: ServerOptions): Promise<{
     };
   }
 
+  // Orders a review's comment snapshots as `<server instance>:<sequence>`. The conversation
+  // cursor advances with every comment and progress event; without conversations only comment
+  // changes reach a snapshot, so the comment version counts them.
+  const snapshotCursor = (session: CommentSessionState) =>
+    conversation?.cursor ?? `${liveServerId}:${session.version}`;
+
+  function broadcastCommentsChanged(selection: DiffSelection): void {
+    fileWatcher.broadcast({
+      type: 'commentsChanged',
+      version: getOrCreateCommentSession(selection).version,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   function updateCommentSession(
     selection: DiffSelection,
     nextThreads: DiffCommentThread[],
     origin: 'user' | 'agent' = 'user',
     anchorCapture?: DiffCommentThread['capture'],
+    announce = true,
   ): boolean {
     const session = getOrCreateCommentSession(selection);
     // Progress is process-local agent state, never restored or overwritten by browser payloads.
@@ -1358,11 +1385,7 @@ export async function startServer(options: ServerOptions): Promise<{
     conversation?.update(selection, previousThreads, nextThreads, origin);
     if (previousApprovalCursor !== conversation?.getApproval(selection).cursor)
       fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
-    fileWatcher.broadcast({
-      type: 'commentsChanged',
-      version: session.version,
-      timestamp: new Date().toISOString(),
-    });
+    if (announce) broadcastCommentsChanged(selection);
     return true;
   }
 
@@ -1373,12 +1396,7 @@ export async function startServer(options: ServerOptions): Promise<{
       (selection, threads) => {
         updateCommentSession(selection, threads, 'agent');
       },
-      (selection) =>
-        fileWatcher.broadcast({
-          type: 'commentsChanged',
-          version: getOrCreateCommentSession(selection).version,
-          timestamp: new Date().toISOString(),
-        }),
+      broadcastCommentsChanged,
       presence,
       async () => {
         for (const review of conversation.snapshot().reviews)
@@ -1605,10 +1623,14 @@ export async function startServer(options: ServerOptions): Promise<{
   }
 
   app.post('/api/comments', (req, res) => {
+    // JSON requires a CORS preflight, so unrelated pages cannot post comments with a simple POST.
+    if (!req.is('application/json')) {
+      res.status(415).json({ error: 'Comments require application/json' });
+      return;
+    }
     try {
       const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
-      const body: unknown =
-        typeof req.body === 'string' ? (JSON.parse(req.body) as unknown) : req.body;
+      const body: unknown = req.body;
       const nextThreads = parseCommentsPayload(body);
       // The version of the comments the caller read before this post, when it read them.
       const { baseVersion } = body as { baseVersion?: unknown };
@@ -1639,8 +1661,8 @@ export async function startServer(options: ServerOptions): Promise<{
       // so every posted anchor is checked first.
       for (const thread of nextThreads) resolveThreadCapture(selection, thread, anchorCapture);
 
-      // Only a post based on the current version replaces, which is how a browser delete
-      // reaches the server. A stale or absent version may not have seen every thread, so merge.
+      // Only a post based on the current version replaces, which is how a caller deletes threads
+      // through this endpoint. A stale or absent version may not have seen every thread, so merge.
       const isCurrent = baseVersion === session.version;
       const resolvedThreads = isCurrent
         ? nextThreads
@@ -1660,11 +1682,109 @@ export async function startServer(options: ServerOptions): Promise<{
     }
   });
 
+  // One batch at a time: a verdict waits on Git, and a second request carrying the same op id,
+  // such as two tabs sending one shared queue, must find it in the ledger. Batches also apply
+  // in the order they arrive.
+  let reviewOpsTurn: Promise<unknown> = Promise.resolve();
+  const applyReviewOps: express.RequestHandler = async (req, res) => {
+    if (!req.is('application/json')) {
+      res.status(415).json({ error: 'Review ops require application/json' });
+      return;
+    }
+    const batch = parseReviewOpBatch(req.body);
+    if (!batch) {
+      res.status(400).json({ error: 'Expected repositoryId and ops, each with an id' });
+      return;
+    }
+    if (batch.repositoryId !== repositoryId) {
+      res.status(409).json({ error: 'Review ops belong to a different repository' });
+      return;
+    }
+    const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
+    const session = getOrCreateCommentSession(selection);
+    const results: ReviewOpResult[] = [];
+    let changed = false;
+    const reviewId = conversation?.getReviewId(selection);
+    // A later op can throw, such as a verdict whose Git read fails; the ops before it still save
+    // and reach open pages.
+    try {
+      for (const input of batch.ops) {
+        const { id } = input;
+        if (session.appliedOps.includes(id)) {
+          results.push({ id, status: 'duplicate' });
+          continue;
+        }
+        const op = parseReviewOp(input);
+        if (!op) {
+          results.push({ id, status: 'rejected', error: 'Malformed or unsupported review op' });
+          continue;
+        }
+        if (op.type === 'verdict.set') {
+          const verdict = !options.shipIt
+            ? ({ status: 400, body: { error: 'This server takes no verdicts' } } as const)
+            : op.verdict === 'clear'
+              ? () => clearVerdict(selection)
+              : await checkVerdict(selection, op);
+          if (typeof verdict !== 'function') {
+            results.push({ id, status: 'rejected', error: verdict.body.error });
+            continue;
+          }
+          verdict();
+        } else {
+          if (op.type === 'thread.add') {
+            try {
+              resolveThreadCapture(selection, op.thread);
+            } catch (error) {
+              results.push({ id, status: 'rejected', error: (error as Error).message });
+              continue;
+            }
+          }
+          const outcome = applyReviewOp(session.threads, op, new Date().toISOString());
+          if ('error' in outcome) {
+            results.push({ id, status: 'rejected', error: outcome.error });
+            continue;
+          }
+          changed =
+            updateCommentSession(selection, outcome.threads, 'user', undefined, false) || changed;
+        }
+        // The id joins the saved ledger in the same task as the change, before any save can run,
+        // so no saved record holds a change without its id.
+        session.appliedOps.push(id);
+        conversation?.setAppliedOps(selection, session.appliedOps);
+        // An op that changed nothing emits no event, and events are what schedule other saves.
+        if (reviewId) scheduleSave(reviewId);
+        results.push({ id, status: 'applied' });
+      }
+    } finally {
+      flushSaves();
+      // Open pages show what this server holds, whether or not it reached the disk.
+      if (changed) broadcastCommentsChanged(selection);
+    }
+    // A client drops an op on a 2xx, so nothing short of a saved record may answer one. A retry
+    // finds its ops in the in-memory ledger as duplicates, so this covers every status.
+    if (reviewId && unsavedReviews.has(reviewId)) {
+      res.status(503).json({ error: saveError ?? 'The review is not saved yet' });
+      return;
+    }
+    const response: ReviewOpsResponse = {
+      version: session.version,
+      cursor: snapshotCursor(session),
+      results,
+      threads: conversation?.withProgress(selection, session.threads) ?? session.threads,
+    };
+    res.json(response);
+  };
+  app.post('/api/review-ops', (req, res, next) => {
+    const turn = reviewOpsTurn.then(() => applyReviewOps(req, res, next));
+    reviewOpsTurn = turn.catch(() => undefined);
+    return turn;
+  });
+
   app.post('/api/comment-imports', (req, res) => {
     try {
       const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
       const session = getOrCreateCommentSession(selection);
-      const commentImports = parseCommentImportsPayload(req.body);
+      const commentImports = normalizeCommentImports(req.body);
       const importId = createHash('sha256')
         .update(serializeCommentImports(commentImports))
         .digest('hex');
@@ -1749,6 +1869,7 @@ export async function startServer(options: ServerOptions): Promise<{
     const session = getOrCreateCommentSession(selection);
     res.json({
       version: session.version,
+      cursor: snapshotCursor(session),
       threads: conversation?.withProgress(selection, session.threads) ?? session.threads,
     });
   });
@@ -1767,14 +1888,7 @@ export async function startServer(options: ServerOptions): Promise<{
   });
 
   app.put('/api/auto-viewed-patterns', async (req, res) => {
-    let patterns: string[] | null;
-    try {
-      const body: unknown = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      patterns = parseAutoViewedPatternsBody(body);
-    } catch {
-      patterns = null;
-    }
-
+    const patterns = parseAutoViewedPatternsBody(req.body);
     if (!patterns) {
       res.status(400).json({ error: 'Expected { patterns: string[] }' });
       return;
@@ -1887,100 +2001,89 @@ export async function startServer(options: ServerOptions): Promise<{
     }
   }
 
-  if (options.shipIt) {
-    app.get('/api/approval', async (req, res) => {
-      const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
-      await revokeApprovalIfDiffChanged(selection);
-      res.setHeader('Cache-Control', 'no-store');
-      res.json(
-        conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection)) ?? {},
-      );
-    });
+  type VerdictRefusal = { status: 400 | 409; body: { error: string } & Record<string, unknown> };
 
-    function reportVerdict(
-      selection: DiffSelection,
-      previous: ReviewApproval | undefined,
-      approval: ReviewApproval,
-    ): void {
-      approvals.set(getDiffSelectionKey(selection), approval);
-      if (previous?.cursor === approval.cursor && previous?.verdict === approval.verdict) return;
-      humanLog(
-        `Verdict: ${approval.verdict ? VERDICT_LOG_NAMES[approval.verdict] : 'cleared'} (${selection.targetCommitish})`,
-      );
-      fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
+  function reportVerdict(
+    selection: DiffSelection,
+    previous: ReviewApproval | undefined,
+    approval: ReviewApproval,
+  ): void {
+    approvals.set(getDiffSelectionKey(selection), approval);
+    if (previous?.cursor === approval.cursor && previous?.verdict === approval.verdict) return;
+    humanLog(
+      `Verdict: ${approval.verdict ? VERDICT_LOG_NAMES[approval.verdict] : 'cleared'} (${selection.targetCommitish})`,
+    );
+    fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
+  }
+
+  /**
+   * Checks the verdict a PUT /api/approval body or a verdict.set op names, and returns the
+   * function that sets it. A verdict is bound to the capture or diff the reviewer saw; approvals
+   * also to the summary.
+   */
+  async function checkVerdict(
+    selection: DiffSelection,
+    input: {
+      verdict?: unknown;
+      summaryVersion?: unknown;
+      captureVersion?: unknown;
+      patchDigest?: unknown;
+      diffDigest?: unknown;
+    } | null,
+  ): Promise<VerdictRefusal | (() => ReviewApproval)> {
+    const verdict = input?.verdict;
+    if (!input || (verdict !== 'as-is' && verdict !== 'after-comments' && verdict !== 'reject'))
+      return { status: 400, body: { error: 'Expected verdict: as-is, after-comments, or reject' } };
+    if (verdict === 'after-comments' && !conversation)
+      return { status: 400, body: { error: 'Approval after comments requires conversations' } };
+    if (
+      input.summaryVersion !== undefined &&
+      (typeof input.summaryVersion !== 'number' ||
+        !Number.isSafeInteger(input.summaryVersion) ||
+        input.summaryVersion < 0)
+    )
+      return { status: 400, body: { error: 'Expected a non-negative integer summaryVersion' } };
+    // Reject does not endorse the proposed message, so it ignores the summary.
+    const approving = verdict !== 'reject';
+    // Read Git first: a summary edit during the await must still fail the check below.
+    const diffDigest = isLiveWorkingTreeSelection(selection)
+      ? await getCurrentDiffDigest(selection)
+      : undefined;
+    if (diffDigest !== undefined && input.diffDigest !== diffDigest) {
+      // Without a file watcher the cached diff is stale; drop it so a reload shows the change.
+      invalidateCache();
+      return {
+        status: 409,
+        body: { error: 'Diff changed; reload it before choosing a verdict', diffDigest },
+      };
     }
-
-    // A verdict is bound to the capture or diff the reviewer saw; approvals also to the summary.
-    app.put('/api/approval', async (req, res) => {
-      if (!req.is('application/json')) {
-        res.status(415).json({ error: 'Approval requires application/json' });
-        return;
-      }
-      const input = req.body as {
-        verdict?: unknown;
-        summaryVersion?: unknown;
-        captureVersion?: unknown;
-        patchDigest?: unknown;
-        diffDigest?: unknown;
-      } | null;
-      const verdict = input?.verdict;
-      if (!input || (verdict !== 'as-is' && verdict !== 'after-comments' && verdict !== 'reject')) {
-        res.status(400).json({ error: 'Expected verdict: as-is, after-comments, or reject' });
-        return;
-      }
-      if (verdict === 'after-comments' && !conversation) {
-        res.status(400).json({ error: 'Approval after comments requires conversations' });
-        return;
-      }
-      if (
-        input.summaryVersion !== undefined &&
-        (typeof input.summaryVersion !== 'number' ||
-          !Number.isSafeInteger(input.summaryVersion) ||
-          input.summaryVersion < 0)
-      ) {
-        res.status(400).json({ error: 'Expected a non-negative integer summaryVersion' });
-        return;
-      }
-      // Reject does not endorse the proposed message, so it ignores the summary.
-      const approving = verdict !== 'reject';
-      const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
-      // Read Git first: a summary edit during the await must still fail the check below.
-      const diffDigest = isLiveWorkingTreeSelection(selection)
-        ? await getCurrentDiffDigest(selection)
-        : undefined;
-      if (diffDigest !== undefined && input.diffDigest !== diffDigest) {
-        // Without a file watcher the cached diff is stale; drop it so a reload shows the change.
-        invalidateCache();
-        res.status(409).json({
-          error: 'Diff changed; reload it before choosing a verdict',
-          diffDigest,
-        });
-        return;
-      }
-      const summary = getReviewSummary(selection);
-      const capture = selection.reviewName
-        ? namedReviews.get(selection.reviewName)?.metadata
-        : undefined;
-      if (
-        capture &&
-        (input.captureVersion !== capture.version ||
-          input.patchDigest !== capture.patchDigest ||
-          (approving && input.summaryVersion !== summary.version))
-      ) {
-        res.status(409).json({
+    const summary = getReviewSummary(selection);
+    const capture = selection.reviewName
+      ? namedReviews.get(selection.reviewName)?.metadata
+      : undefined;
+    if (
+      capture &&
+      (input.captureVersion !== capture.version ||
+        input.patchDigest !== capture.patchDigest ||
+        (approving && input.summaryVersion !== summary.version))
+    )
+      return {
+        status: 409,
+        body: {
           error: 'Review capture or summary changed; reload before choosing a verdict',
           current: capture,
           summary,
-        });
-        return;
-      }
-      if (approving && (input.summaryVersion ?? 0) !== summary.version) {
-        res.status(409).json({
+        },
+      };
+    if (approving && (input.summaryVersion ?? 0) !== summary.version)
+      return {
+        status: 409,
+        body: {
           error: 'Review summary changed; read its latest version before approving',
           summary,
-        });
-        return;
-      }
+        },
+      };
+    return () => {
       const previous =
         conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
       const approval =
@@ -1993,21 +2096,46 @@ export async function startServer(options: ServerOptions): Promise<{
               updatedAt: new Date().toISOString(),
             });
       reportVerdict(selection, previous, approval);
-      res.json(approval);
+      return approval;
+    };
+  }
+
+  // Clearing needs no matching versions: the reviewer may clear a verdict on a stale view.
+  function clearVerdict(selection: DiffSelection): ReviewApproval {
+    const previous =
+      conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
+    const approval =
+      conversation?.clearVerdict(selection, 'user') ??
+      (previous?.verdict === undefined
+        ? (previous ?? {})
+        : { updatedAt: new Date().toISOString() });
+    reportVerdict(selection, previous, approval);
+    return approval;
+  }
+
+  if (options.shipIt) {
+    app.get('/api/approval', async (req, res) => {
+      const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
+      await revokeApprovalIfDiffChanged(selection);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(
+        conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection)) ?? {},
+      );
     });
 
-    // Clearing needs no matching versions: the reviewer may clear a verdict on a stale view.
-    app.delete('/api/approval', (req, res) => {
+    app.put('/api/approval', async (req, res) => {
+      if (!req.is('application/json')) {
+        res.status(415).json({ error: 'Approval requires application/json' });
+        return;
+      }
       const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
-      const previous =
-        conversation?.getApproval(selection) ?? approvals.get(getDiffSelectionKey(selection));
-      const approval =
-        conversation?.clearVerdict(selection, 'user') ??
-        (previous?.verdict === undefined
-          ? (previous ?? {})
-          : { updatedAt: new Date().toISOString() });
-      reportVerdict(selection, previous, approval);
-      res.json(approval);
+      const verdict = await checkVerdict(selection, req.body as Parameters<typeof checkVerdict>[1]);
+      if (typeof verdict === 'function') res.json(verdict());
+      else res.status(verdict.status).json(verdict.body);
+    });
+
+    app.delete('/api/approval', (req, res) => {
+      res.json(clearVerdict(getCommentSelectionFromQuery(req.query as Record<string, unknown>)));
     });
 
     // Compatibility for older clients. The toggle UI never calls this route.
@@ -2129,7 +2257,6 @@ export async function startServer(options: ServerOptions): Promise<{
     if (options.inbox) inbox.setDefaultOwner(options.inbox);
   }
   // Live connections are WebSocket upgrades, which Express routes never see.
-  const liveServerId = randomUUID();
   const liveSockets = new WebSocketServer({ noServer: true });
   server.on('upgrade', (request, socket, head) => {
     // Express handles errors only for its own routes; an unhandled socket error crashes Node.

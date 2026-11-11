@@ -56,57 +56,11 @@ describe('StorageService - Repository Isolation', () => {
     localStorage.clear();
   });
 
+  const viewed = (filePath: string) => [
+    { filePath, viewedAt: '2024-01-01T00:00:00Z', diffContentHash: `hash-${filePath}` },
+  ];
+
   describe('Repository ID in storage keys', () => {
-    it('should isolate comments between different repositories', () => {
-      const comments1 = [
-        {
-          id: 'comment-1',
-          filePath: 'test.ts',
-          body: 'Comment in repo 1',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-          position: { side: 'new' as const, line: 10 },
-        },
-      ];
-
-      const comments2 = [
-        {
-          id: 'comment-2',
-          filePath: 'test.ts',
-          body: 'Comment in repo 2',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-          position: { side: 'new' as const, line: 10 },
-        },
-      ];
-
-      // Save comments to different repositories
-      service.saveComments('base', 'target', comments1, undefined, undefined, 'repo-1');
-      service.saveComments('base', 'target', comments2, undefined, undefined, 'repo-2');
-
-      // Retrieve comments for each repository
-      const retrievedComments1 = service.getComments(
-        'base',
-        'target',
-        undefined,
-        undefined,
-        'repo-1',
-      );
-      const retrievedComments2 = service.getComments(
-        'base',
-        'target',
-        undefined,
-        undefined,
-        'repo-2',
-      );
-
-      // Each repository should only see its own comments
-      expect(retrievedComments1.length).toBe(1);
-      expect(retrievedComments1[0]?.id).toBe('comment-1');
-      expect(retrievedComments2.length).toBe(1);
-      expect(retrievedComments2[0]?.id).toBe('comment-2');
-    });
-
     it('should isolate viewed files between different repositories', () => {
       const viewedFiles1 = [
         {
@@ -152,120 +106,95 @@ describe('StorageService - Repository Isolation', () => {
     });
 
     it('should work without repositoryId (backward compatibility)', () => {
-      const comments = [
-        {
-          id: 'comment-1',
-          filePath: 'test.ts',
-          body: 'Test comment',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-          position: { side: 'new' as const, line: 10 },
-        },
-      ];
+      service.saveViewedFiles('base', 'target', viewed('test.ts'));
 
-      // Save without repositoryId
-      service.saveComments('base', 'target', comments);
-
-      // Should be able to retrieve without repositoryId
-      const retrieved = service.getComments('base', 'target');
-      expect(retrieved.length).toBe(1);
-      expect(retrieved[0]?.id).toBe('comment-1');
+      expect(service.getViewedFiles('base', 'target')).toEqual(viewed('test.ts'));
     });
 
     it('should isolate working diff data between repositories', () => {
-      const comments = [
-        {
-          id: 'working-comment',
-          filePath: 'test.ts',
-          body: 'Working diff comment',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-          position: { side: 'new' as const, line: 10 },
-        },
-      ];
+      service.saveViewedFiles('HEAD', 'working', viewed('test.ts'), 'abc123', undefined, 'repo-1');
 
-      // Save comments for working diff in repo 1
-      service.saveComments('HEAD', 'working', comments, 'abc123', undefined, 'repo-1');
-
-      // Try to retrieve from repo 2 - should get empty array
-      const retrieved = service.getComments('HEAD', 'working', 'abc123', undefined, 'repo-2');
-      expect(retrieved.length).toBe(0);
-
-      // Retrieve from repo 1 - should get the comment
-      const retrieved1 = service.getComments('HEAD', 'working', 'abc123', undefined, 'repo-1');
-      expect(retrieved1.length).toBe(1);
-      expect(retrieved1[0]?.id).toBe('working-comment');
-    });
-
-    it('preserves applied import ids when saving viewed files', () => {
-      service.saveDiffContextData('base', 'target', {
-        version: 2,
-        baseCommitish: 'base',
-        targetCommitish: 'target',
-        createdAt: '2024-01-01T00:00:00Z',
-        lastModifiedAt: '2024-01-01T00:00:00Z',
-        threads: [],
-        viewedFiles: [],
-        appliedCommentImportIds: ['import-bundle-1'],
-      });
-
-      service.saveViewedFiles('base', 'target', [
-        {
-          filePath: 'file.ts',
-          viewedAt: '2024-01-01T00:00:00Z',
-          diffContentHash: 'hash',
-        },
-      ]);
-
-      const data = service.getDiffContextData('base', 'target');
-      expect(data?.appliedCommentImportIds).toEqual(['import-bundle-1']);
+      expect(service.getViewedFiles('HEAD', 'working', 'abc123', undefined, 'repo-2')).toEqual([]);
+      expect(service.getViewedFiles('HEAD', 'working', 'abc123', undefined, 'repo-1')).toEqual(
+        viewed('test.ts'),
+      );
     });
 
     it('separates direct and merge-base diff contexts', () => {
-      const directComments = [
-        {
-          id: 'direct-comment',
-          filePath: 'test.ts',
-          body: 'Direct diff comment',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-          position: { side: 'new' as const, line: 10 },
-        },
-      ];
-      const mergeBaseComments = [
-        {
-          id: 'merge-base-comment',
-          filePath: 'test.ts',
-          body: 'Merge-base diff comment',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-          position: { side: 'new' as const, line: 12 },
-        },
-      ];
-
-      service.saveComments('origin/main', '.', directComments, 'abc123', undefined, 'repo-1');
-      service.saveComments(
+      service.saveViewedFiles(
         'origin/main',
         '.',
-        mergeBaseComments,
+        viewed('direct.ts'),
+        'abc123',
+        undefined,
+        'repo-1',
+      );
+      service.saveViewedFiles(
+        'origin/main',
+        '.',
+        viewed('merge-base.ts'),
         'abc123',
         undefined,
         'repo-1',
         'merge-base',
       );
 
-      expect(service.getComments('origin/main', '.', 'abc123', undefined, 'repo-1')).toEqual(
-        directComments,
+      expect(service.getViewedFiles('origin/main', '.', 'abc123', undefined, 'repo-1')).toEqual(
+        viewed('direct.ts'),
       );
       expect(
-        service.getComments('origin/main', '.', 'abc123', undefined, 'repo-1', 'merge-base'),
-      ).toEqual(mergeBaseComments);
+        service.getViewedFiles('origin/main', '.', 'abc123', undefined, 'repo-1', 'merge-base'),
+      ).toEqual(viewed('merge-base.ts'));
 
       const keys = (localStorage as any)._keys;
       expect(keys).toContain('gavel-storage-v1/repo-1/abc123-WORKING');
       expect(keys).toContain('gavel-storage-v1/repo-1/abc123-WORKING-merge-base');
       expect(keys.some((key: string) => key.endsWith('-direct'))).toBe(false);
     });
+  });
+
+  it('reads and removes the sent threads earlier versions kept, and keeps viewed files', () => {
+    const thread = {
+      id: 'kept',
+      scope: 'review' as const,
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+      messages: [
+        {
+          id: 'kept',
+          body: 'Sent',
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
+        },
+      ],
+    };
+    localStorage.setItem(
+      'gavel-storage-v1/repo-1/base-target',
+      JSON.stringify({
+        version: 2,
+        baseCommitish: 'base',
+        targetCommitish: 'target',
+        createdAt: '2024-01-01T00:00:00Z',
+        lastModifiedAt: '2024-01-01T00:00:00Z',
+        threads: [thread],
+        deletedComments: [{ thread, followingIds: [], precedingIds: [] }],
+        viewedFiles: viewed('file.ts'),
+        appliedCommentImportIds: [],
+      }),
+    );
+
+    expect(service.getCommentThreads('base', 'target', undefined, undefined, 'repo-1')).toEqual([
+      thread,
+    ]);
+    service.removeCommentThreads('base', 'target', undefined, undefined, 'repo-1');
+
+    const record = JSON.parse(localStorage.getItem('gavel-storage-v1/repo-1/base-target')!);
+    expect(record).not.toHaveProperty('threads');
+    expect(record).not.toHaveProperty('deletedComments');
+    expect(service.getCommentThreads('base', 'target', undefined, undefined, 'repo-1')).toEqual([]);
+    expect(service.getViewedFiles('base', 'target', undefined, undefined, 'repo-1')).toEqual(
+      viewed('file.ts'),
+    );
   });
 });
 

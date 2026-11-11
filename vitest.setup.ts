@@ -43,11 +43,35 @@ export const mockFetch = (response: any, revisionsResponse?: any) => {
         json: async () => ({ commitMessage: '', rationale: '', version: 0 }),
       });
     }
+    // Verdicts are keyed by the review's query, which /api/approval and /api/review-ops share.
+    const query = url.slice(url.indexOf('?'));
+    if (url.startsWith('/api/review-ops')) {
+      const { ops } = JSON.parse(String(init?.body)) as {
+        ops: Array<{ id: string; type: string; verdict?: string }>;
+      };
+      for (const op of ops) {
+        if (op.type !== 'verdict.set') continue;
+        if (op.verdict === 'clear') verdicts.delete(query);
+        else verdicts.set(query, op.verdict!);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          version: 1,
+          cursor: 'test:1',
+          results: ops.map(({ id }) => ({ id, status: 'applied' })),
+          threads: [],
+        }),
+      });
+    }
+    if (url.startsWith('/api/comments-json')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ version: 1, cursor: 'test:1', threads: [] }),
+      });
+    }
     if (url.startsWith('/api/approval')) {
-      if (init?.method === 'PUT')
-        verdicts.set(url, (JSON.parse(String(init.body)) as { verdict: string }).verdict);
-      if (init?.method === 'DELETE') verdicts.delete(url);
-      const verdict = verdicts.get(url);
+      const verdict = verdicts.get(query);
       return Promise.resolve({
         ok: true,
         json: async () => (verdict ? { verdict } : {}),

@@ -103,7 +103,9 @@ describe('navigating unseen agent replies', () => {
           }),
         );
       if (url.pathname === '/api/comments-json' && url.searchParams.get('review') === 'other')
-        return Promise.resolve(Response.json({ version: 1, threads: otherThreads }));
+        return Promise.resolve(
+          Response.json({ version: 1, cursor: 'test:1', threads: otherThreads }),
+        );
       if (url.pathname === '/api/diff')
         return Promise.resolve(
           Response.json({
@@ -140,7 +142,7 @@ describe('navigating unseen agent replies', () => {
           }),
         );
       if (url.pathname === '/api/comments-json')
-        return Promise.resolve(Response.json({ version: 1, threads }));
+        return Promise.resolve(Response.json({ version: 1, cursor: 'test:1', threads }));
       if (url.pathname === '/api/comments')
         return Promise.resolve(Response.json({ success: true, version: 1, threads }));
       if (url.pathname === '/api/conversation/snapshot')

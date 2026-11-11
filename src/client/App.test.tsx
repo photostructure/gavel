@@ -38,24 +38,15 @@ vi.mock('./hooks/useDiffComments', () => ({
   useDiffComments: vi.fn(() => ({
     deletedComments: [],
     restoreComment: vi.fn(),
-    hasLoadedComments: true,
-    comments: [],
     threads: mockComments,
-    replaceThreads: mockReplaceThreads,
-    addComment: vi.fn(),
     addThread: vi.fn(),
     addReviewThread: vi.fn(),
     toggleThreadResolved: vi.fn(),
-    removeComment: vi.fn(),
     removeThread: vi.fn(),
     removeMessage: vi.fn(),
     replyToThread: vi.fn(),
-    updateComment: vi.fn(),
     updateMessage: vi.fn(),
-    setThreadQuestion: vi.fn(),
     clearAllComments: mockClearAllComments,
-    applyCommentImports: mockApplyCommentImports,
-    generatePrompt: vi.fn(),
     generateThreadPrompt: vi.fn(),
     generateAllCommentsPrompt: mockGenerateAllCommentsPrompt,
   })),
@@ -121,9 +112,7 @@ Object.defineProperty(window, 'confirm', {
 Object.defineProperty(window, 'WebSocket', { writable: true, value: MockWebSocket });
 
 let mockComments: DiffCommentThread[] = [];
-const mockReplaceThreads = vi.fn();
 const mockClearAllComments = vi.fn();
-const mockApplyCommentImports = vi.fn(() => []);
 const mockGenerateAllCommentsPrompt = vi.fn(() => 'formatted prompt');
 
 function createMockThread({
@@ -158,6 +147,25 @@ function createMockThread({
   };
 }
 
+/** The review ops the page sent, each with the URL that carried it. */
+const sentOps = () =>
+  vi
+    .mocked(global.fetch)
+    .mock.calls.filter(([url]) => String(url).startsWith('/api/review-ops'))
+    .flatMap(([url, init]) =>
+      (JSON.parse(String(init?.body)) as { ops: object[] }).ops.map((op) => ({
+        url: String(url),
+        ...op,
+      })),
+    );
+
+/** The base, target and base mode of the review whose comments the page shows. */
+function commentContext(): string[] {
+  const scope = vi.mocked(useDiffComments).mock.calls.at(-1)?.[0];
+  const [, selection] = JSON.parse(scope ?? '[]') as string[];
+  return selection?.split(':') ?? [];
+}
+
 // Helper to render App with HotkeysProvider
 const renderApp = () => {
   return render(
@@ -176,7 +184,6 @@ beforeEach(() => {
   mockViewedFiles = new Set<string>();
   mockChangedSinceViewedFiles = new Set<string>();
   mockHasLoadedInitialViewedFiles = true;
-  mockReplaceThreads.mockReset();
   mockGenerateAllCommentsPrompt.mockClear();
 });
 
@@ -365,8 +372,6 @@ describe('App Component - Clear Comments Functionality', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockComments = [];
-    mockApplyCommentImports.mockReset();
-    mockApplyCommentImports.mockReturnValue([]);
     mockConfirm.mockReturnValue(false);
     mockFetch(mockDiffResponse);
   });
@@ -497,6 +502,39 @@ describe('App Component - Clear Comments Functionality', () => {
     }
   });
 
+  it('shows author badges in the comments modal when the diff has multiple authors', async () => {
+    mockComments = [
+      createMockThread({ id: 'test-1', filePath: 'test.ts', line: 10, body: 'User comment' }),
+      createMockThread({
+        id: 'test-2',
+        filePath: 'other.ts',
+        line: 20,
+        body: 'Reviewer comment',
+        author: 'Reviewer',
+      }),
+    ];
+    mockFetch({
+      ...mockDiffResponse,
+      files: [
+        ...mockDiffResponse.files,
+        {
+          path: 'other.ts',
+          status: 'modified',
+          additions: 1,
+          deletions: 1,
+          chunks: [],
+        },
+      ],
+    });
+
+    renderApp();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Conversation' }));
+
+    expect(await screen.findByText('User')).toBeInTheDocument();
+    expect(screen.getByText('Reviewer')).toBeInTheDocument();
+  });
+
   describe('Copy All Prompt Button', () => {
     it('should generate Copy All Prompt with requested and resolved diff context', async () => {
       mockComments = [
@@ -585,21 +623,13 @@ describe('App Component - Clear Comments Functionality', () => {
   });
 
   describe('Clean flag on Startup', () => {
-    it('should clear existing comments when clearComments flag is true in response', async () => {
-      const responseWithClearFlag: DiffResponse = {
-        ...mockDiffResponse,
-        clearComments: true,
-      };
-
-      mockFetch(responseWithClearFlag);
+    it('leaves clearing comments to the server when clearComments flag is true', async () => {
+      mockFetch({ ...mockDiffResponse, clearComments: true });
 
       renderApp();
 
-      await waitFor(() => {
-        expect(mockClearAllComments).toHaveBeenCalledWith({
-          resetAppliedCommentImportIds: true,
-        });
-      });
+      await waitFor(() => expect(mockClearViewedFiles).toHaveBeenCalled());
+      expect(mockClearAllComments).not.toHaveBeenCalled();
     });
 
     it('should clear viewed files when clearComments flag is true in response', async () => {
@@ -684,7 +714,7 @@ describe('App Component - Clear Comments Functionality', () => {
         if (url.startsWith('/api/comments-json')) {
           return Promise.resolve({
             ok: true,
-            json: async () => ({ threads: serverThreads }),
+            json: async () => ({ version: 1, cursor: 'test:1', threads: serverThreads }),
           } as Response);
         }
 
@@ -712,80 +742,12 @@ describe('App Component - Clear Comments Functionality', () => {
       renderApp();
 
       await waitFor(() => {
-        expect(mockReplaceThreads).toHaveBeenCalledWith(serverThreads);
+        expect(vi.mocked(useDiffComments).mock.lastCall?.[1]).toEqual(serverThreads);
       });
 
       expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
         '/api/comments-json?base=HEAD%5E&target=HEAD',
       );
-    });
-
-    it('preserves server-provided comments after clearing local comments on startup', async () => {
-      mockComments = [
-        createMockThread({
-          id: 'stale-local-thread',
-          filePath: 'test.ts',
-          line: 5,
-          body: 'Stale local comment',
-        }),
-      ];
-      const serverThreads = [
-        createMockThread({
-          id: 'imported-thread',
-          filePath: 'test.ts',
-          line: 10,
-          body: 'Imported comment',
-        }),
-      ];
-      const responseWithClearFlag: DiffResponse = {
-        ...mockDiffResponse,
-        clearComments: true,
-      };
-
-      vi.mocked(global.fetch).mockImplementation((input) => {
-        const url = String(input);
-
-        if (url.startsWith('/api/comments-json')) {
-          return Promise.resolve({
-            ok: true,
-            json: async () => ({ threads: serverThreads }),
-          } as Response);
-        }
-
-        if (url.startsWith('/api/comments')) {
-          return Promise.resolve({
-            ok: true,
-            json: async () => ({ success: true }),
-          } as Response);
-        }
-
-        if (url === '/api/revisions') {
-          return Promise.resolve({
-            ok: true,
-            json: async () => null,
-          } as Response);
-        }
-
-        return Promise.resolve({
-          ok: true,
-          json: async () => responseWithClearFlag,
-          blob: async () => ({ size: 1024 }),
-        } as Response);
-      });
-
-      renderApp();
-
-      await waitFor(() => {
-        expect(mockClearAllComments).toHaveBeenCalledWith({
-          resetAppliedCommentImportIds: true,
-        });
-      });
-
-      await waitFor(() => {
-        expect(mockReplaceThreads).toHaveBeenCalledWith(serverThreads);
-      });
-
-      expect(mockReplaceThreads).not.toHaveBeenCalledWith([...serverThreads, ...mockComments]);
     });
   });
 });
@@ -1033,11 +995,14 @@ describe('App Component - Ship it', () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/approval?base=HEAD%5E&target=HEAD', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verdict: 'as-is', summaryVersion: 0 }),
-      });
+      expect(sentOps()).toEqual([
+        expect.objectContaining({
+          url: '/api/review-ops?base=HEAD%5E&target=HEAD',
+          type: 'verdict.set',
+          verdict: 'as-is',
+          summaryVersion: 0,
+        }),
+      ]);
     });
     await waitFor(() => expect(button).toHaveTextContent(/^Approved as-is$/));
     expect(button).toBeEnabled();
@@ -1051,9 +1016,7 @@ describe('App Component - Ship it', () => {
     expect(button).toHaveAttribute('title', 'Approve the reviewed patch as-is');
     expect(button).toBeEnabled();
     expect(button.querySelector('img')).toBeNull();
-    expect(global.fetch).toHaveBeenCalledWith('/api/approval?base=HEAD%5E&target=HEAD', {
-      method: 'DELETE',
-    });
+    expect(sentOps()[1]).toMatchObject({ type: 'verdict.set', verdict: 'clear' });
   });
 
   it('shows the agent’s proposal read-only and approves the version it shows', async () => {
@@ -1084,11 +1047,9 @@ describe('App Component - Ship it', () => {
     expect(screen.queryByRole('button', { name: 'Save summary' })).toBeNull();
     fireEvent.click(approval);
     await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith('/api/approval?base=HEAD%5E&target=HEAD', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verdict: 'as-is', summaryVersion: 3 }),
-      }),
+      expect(sentOps()).toEqual([
+        expect.objectContaining({ type: 'verdict.set', verdict: 'as-is', summaryVersion: 3 }),
+      ]),
     );
     expect(
       vi
@@ -1105,12 +1066,15 @@ describe('App Component - Approval celebration', () => {
   let bursts = 0;
   /** While set, verdict PUTs wait for this promise before the server answers. */
   let approvalPostGate: Promise<void> | null = null;
+  /** While set, the next approval read after a verdict waits for this promise. */
+  let approvalReadGate: Promise<void> | null = null;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockComments = [];
     bursts = 0;
     approvalPostGate = null;
+    approvalReadGate = null;
     // happy-dom has no 2D context; a stand-in lets each burst get past that check so it can be counted.
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
       bursts++;
@@ -1131,20 +1095,28 @@ describe('App Component - Approval celebration', () => {
       if (url.startsWith('/api/review-summary')) {
         return Promise.resolve(Response.json({ commitMessage: '', rationale: '', version: 0 }));
       }
-      if (url.startsWith('/api/approval')) {
-        if (init?.method === 'PUT') {
-          const { verdict } = JSON.parse(String(init.body)) as { verdict: string };
-          return (approvalPostGate ?? Promise.resolve()).then(() => {
-            verdicts.set(url, verdict);
-            return Response.json({ verdict });
+      const query = url.slice(url.indexOf('?'));
+      if (url.startsWith('/api/review-ops')) {
+        const [op] = (
+          JSON.parse(String(init?.body)) as { ops: Array<{ id: string; verdict: string }> }
+        ).ops;
+        return (approvalPostGate ?? Promise.resolve()).then(() => {
+          if (op!.verdict === 'clear') verdicts.delete(query);
+          else verdicts.set(query, op!.verdict);
+          return Response.json({
+            cursor: 'test:1',
+            results: [{ id: op!.id, status: 'applied' }],
+            threads: [],
           });
-        }
-        if (init?.method === 'DELETE') {
-          verdicts.delete(url);
-          return Promise.resolve(Response.json({}));
-        }
-        const verdict = verdicts.get(url);
-        return Promise.resolve(Response.json(verdict ? { verdict } : {}));
+        });
+      }
+      if (url.startsWith('/api/comments-json'))
+        return Promise.resolve(Response.json({ version: 1, cursor: 'test:1', threads: [] }));
+      if (url.startsWith('/api/approval')) {
+        const verdict = verdicts.get(query);
+        const gate = verdict ? approvalReadGate : null;
+        approvalReadGate = verdict ? null : approvalReadGate;
+        return (gate ?? Promise.resolve()).then(() => Response.json(verdict ? { verdict } : {}));
       }
       if (url.includes('/api/revisions')) {
         return Promise.resolve(new Response(null, { status: 404 }));
@@ -1205,6 +1177,26 @@ describe('App Component - Approval celebration', () => {
     expect(bursts).toBe(1);
   });
 
+  it('does not celebrate on another review when the approval read after a verdict finishes late', async () => {
+    let releaseRead = () => {};
+    approvalReadGate = new Promise((resolve) => {
+      releaseRead = resolve;
+    });
+    renderApp();
+    await waitFor(() => expect(approveButton()).toBeEnabled());
+    fireEvent.click(approveButton());
+    await waitFor(() => expect(sentOps()).toEqual([expect.objectContaining({ verdict: 'as-is' })]));
+    await waitFor(() => expect(approvalReadGate).toBeNull());
+
+    navigate('?base=main&target=feature');
+    await waitFor(() => expect(window.location.search).toContain('base=main'));
+    await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approve as-is$/));
+    await act(async () => releaseRead());
+
+    await waitFor(() => expect(approveButton()).toBeEnabled());
+    expect(bursts).toBe(0);
+  });
+
   it('does not celebrate on another review when an earlier approval finishes late', async () => {
     let releaseApprovalPost = () => {};
     approvalPostGate = new Promise((resolve) => {
@@ -1213,12 +1205,7 @@ describe('App Component - Approval celebration', () => {
     renderApp();
     await waitFor(() => expect(approveButton()).toBeEnabled());
     fireEvent.click(approveButton());
-    await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/approval?base=HEAD%5E&target=HEAD',
-        expect.objectContaining({ method: 'PUT' }),
-      ),
-    );
+    await waitFor(() => expect(sentOps()).toEqual([expect.objectContaining({ verdict: 'as-is' })]));
 
     navigate('?base=main&target=feature');
     await waitFor(() => expect(window.location.search).toContain('base=main'));
@@ -1257,81 +1244,67 @@ describe('App Component - Ship it delivery', () => {
     ).toBeDisabled();
   });
 
-  it('waits for a final comment save and approves the displayed selection', async () => {
+  it('approves the displayed selection', async () => {
     mockFetch({
       ...mockDiffResponse,
       baseCommitish: 'def4567',
       targetCommitish: 'abc1234',
       shipIt: true,
     });
-    const fallback = vi.mocked(global.fetch).getMockImplementation()!;
-    let finishSave: ((response: Response) => void) | undefined;
-    vi.mocked(global.fetch).mockImplementation((input, init) => {
-      if (String(input).startsWith('/api/comments?')) {
-        return new Promise<Response>((resolve) => {
-          finishSave = resolve;
-        });
-      }
-      return fallback(input, init);
-    });
 
     renderApp();
     const button = await screen.findByRole('button', { name: /^(Approve as-is|Approved as-is)$/ });
     await waitFor(() => expect(button).toBeEnabled());
     fireEvent.click(button);
 
-    await waitFor(() => expect(finishSave).toBeTypeOf('function'));
-    expect(global.fetch).not.toHaveBeenCalledWith(
-      expect.stringContaining('/api/approval'),
-      expect.objectContaining({ method: 'PUT' }),
+    await waitFor(() =>
+      expect(sentOps()).toEqual([
+        expect.objectContaining({
+          url: '/api/review-ops?base=def4567&target=abc1234',
+          verdict: 'as-is',
+          summaryVersion: 0,
+        }),
+      ]),
     );
-    expect(button).toBeDisabled();
-
-    await act(async () => {
-      finishSave?.({ ok: true, json: async () => ({}) } as Response);
-    });
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/approval?base=def4567&target=abc1234', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verdict: 'as-is', summaryVersion: 0 }),
-      });
-    });
   });
 
-  it('keeps approval pending when the final comment save fails', async () => {
-    mockFetch({ ...mockDiffResponse, shipIt: true });
-    const fallback = vi.mocked(global.fetch).getMockImplementation()!;
-    vi.mocked(global.fetch).mockImplementation((input, init) => {
-      if (String(input).startsWith('/api/comments?')) {
-        return Promise.resolve({ ok: false, status: 500 } as Response);
-      }
-      return fallback(input, init);
-    });
+  it('sends the displayed diff digest with a verdict, and no summary version with Reject', async () => {
+    mockFetch({ ...mockDiffResponse, shipIt: true, diffDigest: 'digest-shown' });
 
     renderApp();
-    const button = await screen.findByRole('button', { name: /^(Approve as-is|Approved as-is)$/ });
-    await waitFor(() => expect(button).toBeEnabled());
-    fireEvent.click(button);
+    const approve = await screen.findByRole('button', { name: /^(Approve as-is|Approved as-is)$/ });
+    await waitFor(() => expect(approve).toBeEnabled());
+    fireEvent.click(approve);
+    await waitFor(() => expect(approve).toHaveTextContent(/^Approved as-is$/));
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save the verdict');
-    expect(global.fetch).not.toHaveBeenCalledWith(
-      expect.stringContaining('/api/approval'),
-      expect.objectContaining({ method: 'PUT' }),
-    );
-    expect(screen.getByRole('button', { name: /^(Approve as-is|Approved as-is)$/ })).toBeEnabled();
+    await waitFor(() => expect(sentOps()).toHaveLength(2));
+    expect(sentOps()).toEqual([
+      expect.objectContaining({ verdict: 'as-is', summaryVersion: 0, diffDigest: 'digest-shown' }),
+      expect.not.objectContaining({ summaryVersion: expect.anything() }),
+    ]);
+    expect(sentOps()[1]).toMatchObject({ verdict: 'reject', diffDigest: 'digest-shown' });
   });
 
-  it('reloads the diff when approval is refused because the diff changed', async () => {
+  it('reloads the diff when the server rejects a verdict because the diff changed', async () => {
     mockFetch({ ...mockDiffResponse, shipIt: true });
     const fallback = vi.mocked(global.fetch).getMockImplementation()!;
     vi.mocked(global.fetch).mockImplementation((input, init) => {
-      if (String(input).startsWith('/api/approval') && init?.method === 'PUT') {
-        return Promise.resolve({
-          ok: false,
-          status: 409,
-          json: async () => ({ error: 'Diff changed', diffDigest: 'f'.repeat(64) }),
-        } as Response);
+      if (String(input).startsWith('/api/review-ops')) {
+        const [op] = (JSON.parse(String(init?.body)) as { ops: Array<{ id: string }> }).ops;
+        return Promise.resolve(
+          Response.json({
+            cursor: 'test:1',
+            results: [
+              {
+                id: op!.id,
+                status: 'rejected',
+                error: 'Diff changed; reload it before choosing a verdict',
+              },
+            ],
+            threads: [],
+          }),
+        );
       }
       return fallback(input, init);
     });
@@ -1345,22 +1318,24 @@ describe('App Component - Ship it delivery', () => {
     const before = diffRequests();
     fireEvent.click(button);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('The diff changed');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Diff changed; reload it before choosing a verdict',
+    );
     await waitFor(() => expect(diffRequests()).toBeGreaterThan(before));
     // Like Reload, re-check viewed files so a viewed file whose diff changed is flagged.
     await waitFor(() => expect(vi.mocked(useViewedFiles).mock.lastCall?.[9]).toBe(1));
   });
 
   it.each([{ failure: 'http' }, { failure: 'network' }])(
-    'allows retry after a $failure approval failure',
+    'keeps a verdict that failed to send over $failure and allows another',
     async ({ failure }) => {
       mockFetch({ ...mockDiffResponse, shipIt: true });
       const fallback = vi.mocked(global.fetch).getMockImplementation()!;
       vi.mocked(global.fetch).mockImplementation((input, init) => {
-        if (String(input).startsWith('/api/approval') && init?.method === 'PUT') {
+        if (String(input).startsWith('/api/review-ops')) {
           return failure === 'network'
             ? Promise.reject(new Error('Connection refused'))
-            : Promise.resolve({ ok: false, status: 500 } as Response);
+            : Promise.resolve({ ok: false, status: 500, statusText: 'Server Error' } as Response);
         }
         return fallback(input, init);
       });
@@ -1372,7 +1347,9 @@ describe('App Component - Ship it delivery', () => {
       await waitFor(() => expect(button).toBeEnabled());
       fireEvent.click(button);
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('Could not save the verdict');
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        '1 change is not saved to the server',
+      );
       expect(
         screen.getByRole('button', { name: /^(Approve as-is|Approved as-is)$/ }),
       ).toBeEnabled();
@@ -1538,9 +1515,9 @@ describe('App Component - Initial file collapsing', () => {
       const refresh = vi.mocked(useFileWatch).mock.calls.at(-1)?.[0];
       await act(async () => refresh?.());
       await waitFor(() => {
-        const current = vi.mocked(useDiffComments).mock.calls.at(-1);
-        if (context === 'capture') expect(current?.[6]?.version).toBe(2);
-        else expect(current?.[2]).toBe('different-commit');
+        if (context === 'capture')
+          expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.[3]?.version).toBe(2);
+        else expect(vi.mocked(useViewedFiles).mock.lastCall?.[2]).toBe('different-commit');
       });
       act(() => {
         mockViewedFiles = new Set(['test.ts']);
@@ -1698,125 +1675,6 @@ describe('App Component - Review progress', () => {
 
     expect(await screen.findByText('All files viewed')).toBeInTheDocument();
     expect(screen.queryAllByText('✨')).toHaveLength(0);
-  });
-});
-
-describe('App Component - Comment sync', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockConfirm.mockReturnValue(false);
-    mockFetch(mockDiffResponse);
-  });
-
-  it('syncs an empty comment list after the last comment is deleted', async () => {
-    mockComments = [
-      createMockThread({ id: 'test-1', filePath: 'test.ts', line: 10, body: 'Test comment' }),
-    ];
-
-    const mockGlobalFetch = vi.mocked(global.fetch);
-    const { rerender } = renderApp();
-
-    await waitFor(() => {
-      const commentCalls = mockGlobalFetch.mock.calls.filter(([url]) =>
-        String(url).startsWith('/api/comments?'),
-      );
-      expect(commentCalls).toHaveLength(1);
-
-      const [url, request] = commentCalls[0] as [string, RequestInit];
-      expect(url).toBe('/api/comments?base=HEAD%5E&target=HEAD');
-      expect(request.method).toBe('POST');
-      expect(JSON.parse(String(request.body))).toEqual({
-        threads: [
-          expect.objectContaining({
-            id: 'test-1',
-            filePath: 'test.ts',
-            position: { side: 'new', line: 10 },
-            messages: [
-              expect.objectContaining({
-                id: 'test-1',
-                body: 'Test comment',
-                author: 'User',
-              }),
-            ],
-          }),
-        ],
-      });
-    });
-
-    mockComments = [];
-    rerender(
-      <HotkeysProvider initiallyActiveScopes={['navigation']}>
-        <App />
-      </HotkeysProvider>,
-    );
-
-    await waitFor(() => {
-      const commentCalls = mockGlobalFetch.mock.calls.filter(([url]) =>
-        String(url).startsWith('/api/comments?'),
-      );
-      expect(commentCalls).toHaveLength(2);
-
-      const [url, request] = commentCalls[1] as [string, RequestInit];
-      expect(url).toBe('/api/comments?base=HEAD%5E&target=HEAD');
-      expect(request.method).toBe('POST');
-      expect(JSON.parse(String(request.body))).toEqual({ threads: [] });
-    });
-  });
-
-  it('sends an empty comment list on unload when no comments remain', async () => {
-    mockComments = [];
-    const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
-
-    renderApp();
-
-    await waitFor(() => {
-      expect(addEventListenerSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
-    });
-
-    const beforeUnloadHandler = addEventListenerSpy.mock.calls.find(
-      ([eventName]) => eventName === 'beforeunload',
-    )?.[1] as (() => void) | undefined;
-    expect(beforeUnloadHandler).toBeDefined();
-    beforeUnloadHandler?.();
-
-    expect(navigator.sendBeacon).toHaveBeenCalledWith(
-      '/api/comments?base=HEAD%5E&target=HEAD',
-      JSON.stringify({ threads: [] }),
-    );
-    addEventListenerSpy.mockRestore();
-  });
-
-  it('shows author badges in the comments modal when the diff has multiple authors', async () => {
-    mockComments = [
-      createMockThread({ id: 'test-1', filePath: 'test.ts', line: 10, body: 'User comment' }),
-      createMockThread({
-        id: 'test-2',
-        filePath: 'other.ts',
-        line: 20,
-        body: 'Reviewer comment',
-        author: 'Reviewer',
-      }),
-    ];
-    mockFetch({
-      ...mockDiffResponse,
-      files: [
-        ...mockDiffResponse.files,
-        {
-          path: 'other.ts',
-          status: 'modified',
-          additions: 1,
-          deletions: 1,
-          chunks: [],
-        },
-      ],
-    });
-
-    renderApp();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Conversation' }));
-
-    expect(await screen.findByText('User')).toBeInTheDocument();
-    expect(screen.getByText('Reviewer')).toBeInTheDocument();
   });
 });
 
@@ -1990,15 +1848,7 @@ describe('App Component - Merge-base selection', () => {
     renderApp();
 
     await waitFor(() => {
-      expect(vi.mocked(useDiffComments)).toHaveBeenCalledWith(
-        '1234567',
-        '98664e1',
-        'abc123',
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-      );
+      expect(commentContext()).toEqual(['1234567', '98664e1', 'direct']);
     });
 
     expect(vi.mocked(useViewedFiles)).toHaveBeenCalledWith(
@@ -2318,26 +2168,16 @@ describe('App Component - Review navigation', () => {
       } else if (url.pathname === '/api/revisions') {
         payload = { specialOptions: [], branches: [], commits: [] };
       } else if (url.pathname === '/api/comments-json') {
-        payload = { version: 1, threads: [] };
+        payload = { version: 1, cursor: 'test:1', threads: [] };
       }
       return Promise.resolve({ ok: true, json: async () => payload } as Response);
     });
     const firstVisit = renderApp();
-    await waitFor(() =>
-      expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-        'before-commit',
-        '.',
-      ]),
-    );
+    await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['before-commit', '.']));
     firstVisit.unmount();
     resolvedBase = 'after-commit';
     renderApp();
-    await waitFor(() =>
-      expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-        'after-commit',
-        '.',
-      ]),
-    );
+    await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['after-commit', '.']));
     expect(new URLSearchParams(window.location.search).get('base')).toBe(base);
     expect(new URLSearchParams(window.location.search).get('baseMode')).toBe(mode ?? null);
   });
@@ -2359,18 +2199,16 @@ describe('App Component - Review navigation', () => {
       } else if (url.pathname === '/api/revisions') {
         payload = { specialOptions: [], branches: [], commits: [] };
       } else if (url.pathname === '/api/comments-json') {
-        payload = { version: 1, threads: [] };
+        payload = { version: 1, cursor: 'test:1', threads: [] };
       }
       return Promise.resolve({ ok: true, json: async () => payload } as Response);
     });
     renderApp();
-    await waitFor(() =>
-      expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual(['base-a', '.']),
-    );
+    await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-a', '.']));
     defaultTarget = 'other-client-tip';
     const refresh = vi.mocked(useFileWatch).mock.calls.at(-1)?.[0];
     await act(async () => refresh?.());
-    expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual(['base-a', '.']);
+    expect(commentContext().slice(0, 2)).toEqual(['base-a', '.']);
   });
 
   it('restores the earlier comment context with browser Back and Forward', async () => {
@@ -2398,30 +2236,18 @@ describe('App Component - Review navigation', () => {
       } else if (url.pathname === '/api/revisions') {
         payload = { specialOptions: [], branches: [], commits: [] };
       } else if (url.pathname === '/api/comments-json') {
-        payload = { version: 0, threads: [] };
+        payload = { version: 0, cursor: 'test:0', threads: [] };
       }
       return Promise.resolve({ ok: true, json: async () => payload } as Response);
     });
     renderApp();
     fireEvent.click(await screen.findByRole('button', { name: /Revision menu:/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'HEAD' }));
-    await waitFor(() =>
-      expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-        'base-b',
-        'tip-b',
-      ]),
-    );
+    await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-b', 'tip-b']));
     await act(async () => window.history.back());
-    await waitFor(() =>
-      expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual(['base-a', '.']),
-    );
+    await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-a', '.']));
     await act(async () => window.history.forward());
-    await waitFor(() =>
-      expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-        'base-b',
-        'tip-b',
-      ]),
-    );
+    await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-b', 'tip-b']));
   });
 
   it.each([undefined, 'merge-base'] as const)(
@@ -2466,32 +2292,20 @@ describe('App Component - Review navigation', () => {
         } else if (url.pathname === '/api/revisions') {
           payload = { specialOptions: [], branches: [], commits: [] };
         } else if (url.pathname === '/api/comments-json') {
-          payload = { version: 0, threads: [] };
+          payload = { version: 0, cursor: 'test:0', threads: [] };
         }
         return Promise.resolve({ ok: true, json: async () => payload } as Response);
       });
       renderApp();
       fireEvent.click(await screen.findByRole('button', { name: /Revision menu:/ }));
       fireEvent.click(await screen.findByRole('button', { name: 'HEAD' }));
-      await waitFor(() =>
-        expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-          'base-b',
-          'tip-b',
-        ]),
-      );
+      await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-b', 'tip-b']));
       refsMoved = true;
       await act(async () => window.history.back());
-      await waitFor(() =>
-        expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual(['base-a', '.']),
-      );
+      await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-a', '.']));
       expect(new URLSearchParams(window.location.search).get('base')).toBe('HEAD');
       await act(async () => window.history.forward());
-      await waitFor(() =>
-        expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-          'base-b',
-          'tip-b',
-        ]),
-      );
+      await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-b', 'tip-b']));
     },
   );
 
@@ -2537,24 +2351,17 @@ describe('App Component - Review navigation', () => {
         } else if (url.pathname === '/api/revisions') {
           payload = { specialOptions: [], branches: [], commits: [] };
         } else if (url.pathname === '/api/comments-json') {
-          payload = { version: 0, threads: [] };
+          payload = { version: 0, cursor: 'test:0', threads: [] };
         }
         return Promise.resolve({ ok: true, json: async () => payload } as Response);
       });
       const view = renderApp();
       fireEvent.click(await screen.findByRole('button', { name: /Revision menu:/ }));
       fireEvent.click(await screen.findByRole('button', { name: 'HEAD' }));
-      await waitFor(() =>
-        expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-          'base-b',
-          'tip-b',
-        ]),
-      );
+      await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-b', 'tip-b']));
       refsMoved = true;
       await act(async () => window.history.back());
-      await waitFor(() =>
-        expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual(['base-a', '.']),
-      );
+      await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-a', '.']));
       expect(new URLSearchParams(window.location.search).get('base')).toBe('HEAD');
       await openViewMenu();
       fireEvent.click(screen.getByRole('checkbox', { name: 'Ignore Whitespace' }));
@@ -2568,18 +2375,11 @@ describe('App Component - Review navigation', () => {
           ),
         ).toBe('false');
       });
-      await waitFor(() =>
-        expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual(['base-a', '.']),
-      );
+      await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-a', '.']));
       expect(new URLSearchParams(window.location.search).get('base')).toBe('HEAD');
       view.unmount();
       renderApp();
-      await waitFor(() =>
-        expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-          'moved-base',
-          '.',
-        ]),
-      );
+      await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['moved-base', '.']));
     },
   );
 });
@@ -2637,6 +2437,7 @@ describe('App Component - Retained conversation contexts', () => {
       } else if (url.pathname === '/api/comments-json') {
         payload = {
           version: 1,
+          cursor: 'test:1',
           threads:
             url.searchParams.get('base') === 'saved-base' &&
             url.searchParams.get('baseMode') === 'merge-base'
@@ -2651,24 +2452,14 @@ describe('App Component - Retained conversation contexts', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: /Return to Archived branch review/ }),
     );
-    await waitFor(() =>
-      expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-        'saved-base',
-        '.',
-      ]),
-    );
-    expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.[5]).toBe('merge-base');
-    await waitFor(() => expect(mockReplaceThreads).toHaveBeenCalledWith(archived));
+    await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['saved-base', '.']));
+    expect(commentContext()[2]).toBe('merge-base');
+    await waitFor(() => expect(vi.mocked(useDiffComments).mock.lastCall?.[1]).toEqual(archived));
     expect(new URLSearchParams(window.location.search).get('retainedReview')).toBe('1');
     firstVisit.unmount();
     renderApp();
-    await waitFor(() =>
-      expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-        'saved-base',
-        '.',
-      ]),
-    );
-    expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.[5]).toBe('merge-base');
+    await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['saved-base', '.']));
+    expect(commentContext()[2]).toBe('merge-base');
     const request = vi
       .mocked(global.fetch)
       .mock.calls.filter(([url]) => String(url).startsWith('/api/diff'))
@@ -2764,12 +2555,13 @@ describe('App Component - Retained conversation contexts', () => {
               completeRefresh = resolve;
             });
           }
-          payload = { version: 1, threads: [] };
+          payload = { version: 7, cursor: 'test:7', threads: [] };
         }
         return Promise.resolve({ ok: true, json: async () => payload } as Response);
       });
       renderApp();
-      await waitFor(() => expect(mockReplaceThreads).toHaveBeenCalled());
+      await screen.findByRole('button', { name: /Revision menu:/ });
+      await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-a', '.']));
       const refresh = vi.mocked(useFileWatch).mock.calls.at(-1)?.[1];
       if (!refresh) throw new Error('Missing comment refresh handler');
       delayRefresh = true;
@@ -2779,112 +2571,83 @@ describe('App Component - Retained conversation contexts', () => {
       });
       fireEvent.click(screen.getByRole('button', { name: /Revision menu:/ }));
       fireEvent.click(await screen.findByRole('button', { name: 'HEAD' }));
-      await waitFor(() =>
-        expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-          'base-b',
-          'tip-b',
-        ]),
-      );
+      await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-b', 'tip-b']));
       if (returnToOriginal) {
         await act(async () => window.history.back());
-        await waitFor(() =>
-          expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-            'base-a',
-            '.',
-          ]),
-        );
+        await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-a', '.']));
       }
-      mockReplaceThreads.mockClear();
+      vi.mocked(useDiffComments).mockClear();
       await act(async () => {
         completeRefresh?.({
           ok: true,
-          json: async () => ({ version: 99, threads: oldThreads }),
+          // The server's versions only grow, so a read that started earlier carries a lower one.
+          json: async () => ({ version: 1, cursor: 'test:1', threads: oldThreads }),
         } as Response);
         await pending;
       });
-      expect(mockReplaceThreads).not.toHaveBeenCalledWith(oldThreads);
+      expect(
+        vi.mocked(useDiffComments).mock.calls.map(([, threads]) => threads),
+      ).not.toContainEqual(oldThreads);
     },
   );
 
-  it.each([false, true])(
-    'ignores a delayed comment save after switching reviews (return=%s)',
-    async (returnToOriginal) => {
-      const oldThreads = [
-        createMockThread({ id: 'old-save', filePath: 'test.ts', line: 1, body: 'Old save' }),
-      ];
-      mockComments = oldThreads;
-      let completeSave: ((response: Response) => void) | undefined;
-      const posts: Array<{ target: string | null; baseVersion?: number }> = [];
-      vi.mocked(global.fetch).mockImplementation((input, init) => {
-        const url = new URL(String(input), window.location.origin);
-        let payload: unknown = {};
-        if (url.pathname === '/api/diff') {
-          const other = ['HEAD', 'tip-b'].includes(url.searchParams.get('target') ?? '');
-          payload = {
-            ...mockDiffResponse,
-            baseCommitish: other ? 'base-b' : 'base-a',
-            targetCommitish: other ? 'tip-b' : '.',
-            requestedBaseCommitish: other ? 'HEAD^' : 'HEAD',
-            requestedTargetCommitish: other ? 'HEAD' : '.',
-          };
-        } else if (url.pathname === '/api/revisions') {
-          payload = { specialOptions: [], branches: [], commits: [] };
-        } else if (url.pathname === '/api/comments-json') {
-          payload = { version: 7, threads: [] };
-        } else if (url.pathname === '/api/comments' && init?.method === 'POST') {
-          const body = JSON.parse(String(init.body)) as { baseVersion?: number };
-          posts.push({ target: url.searchParams.get('target'), ...body });
-          if (!completeSave) {
-            return new Promise<Response>((resolve) => {
-              completeSave = resolve;
-            });
-          }
-          payload = { version: 8, threads: [] };
-        }
-        return Promise.resolve({ ok: true, json: async () => payload } as Response);
-      });
-      const view = renderApp();
-      await waitFor(() => expect(completeSave).toBeDefined());
-      mockComments = [];
-      fireEvent.click(screen.getByRole('button', { name: /Revision menu:/ }));
-      fireEvent.click(await screen.findByRole('button', { name: 'HEAD' }));
-      await waitFor(() =>
-        expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-          'base-b',
-          'tip-b',
-        ]),
-      );
-      if (returnToOriginal) {
-        await act(async () => window.history.back());
-        await waitFor(() =>
-          expect(vi.mocked(useDiffComments).mock.calls.at(-1)?.slice(0, 2)).toEqual([
-            'base-a',
-            '.',
-          ]),
+  it('ignores a review-ops answer for the previous review after switching reviews', async () => {
+    const oldThreads = [
+      createMockThread({ id: 'old-save', filePath: 'test.ts', line: 1, body: 'Old save' }),
+    ];
+    let completeSave: ((response: Response) => void) | undefined;
+    let sentIds: string[] = [];
+    vi.mocked(global.fetch).mockImplementation((input, init) => {
+      const url = new URL(String(input), window.location.origin);
+      let payload: unknown = {};
+      if (url.pathname === '/api/diff') {
+        const other = ['HEAD', 'tip-b'].includes(url.searchParams.get('target') ?? '');
+        payload = {
+          ...mockDiffResponse,
+          baseCommitish: other ? 'base-b' : 'base-a',
+          targetCommitish: other ? 'tip-b' : '.',
+          requestedBaseCommitish: other ? 'HEAD^' : 'HEAD',
+          requestedTargetCommitish: other ? 'HEAD' : '.',
+        };
+      } else if (url.pathname === '/api/revisions') {
+        payload = { specialOptions: [], branches: [], commits: [] };
+      } else if (url.pathname === '/api/comments-json') {
+        payload = { version: 7, cursor: 'test:7', threads: [] };
+      } else if (url.pathname === '/api/review-ops') {
+        sentIds = (JSON.parse(String(init?.body)) as { ops: Array<{ id: string }> }).ops.map(
+          ({ id }) => id,
         );
+        return new Promise<Response>((resolve) => {
+          completeSave = resolve;
+        });
       }
-      mockReplaceThreads.mockClear();
-      await act(async () => {
-        completeSave?.({
-          ok: true,
-          json: async () => ({ merged: true, version: 99, threads: oldThreads }),
-        } as Response);
-      });
-      expect(mockReplaceThreads).not.toHaveBeenCalledWith(oldThreads);
-      posts.length = 0;
-      mockComments = [
-        createMockThread({ id: 'new', filePath: 'test.ts', line: 2, body: 'Current review' }),
-      ];
-      view.rerender(
-        <HotkeysProvider initiallyActiveScopes={['navigation']}>
-          <App />
-        </HotkeysProvider>,
+      return Promise.resolve({ ok: true, json: async () => payload } as Response);
+    });
+    renderApp();
+    await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-a', '.']));
+    const enqueue = vi.mocked(useDiffComments).mock.lastCall![2];
+    act(() => void enqueue({ type: 'thread.add', thread: oldThreads[0]! }));
+    await waitFor(() => expect(completeSave).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: /Revision menu:/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'HEAD' }));
+    await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-b', 'tip-b']));
+
+    vi.mocked(useDiffComments).mockClear();
+    await act(async () => {
+      completeSave?.(
+        Response.json({
+          version: 99,
+          cursor: 'test:99',
+          results: sentIds.map((id) => ({ id, status: 'applied' })),
+          threads: oldThreads,
+        }),
       );
-      await waitFor(() => expect(posts.length).toBeGreaterThan(0));
-      expect(posts.at(-1)?.target).toBe(returnToOriginal ? '.' : 'tip-b');
-      expect(posts.at(-1)?.baseVersion).toBe(7);
-    },
-  );
+    });
+
+    expect(vi.mocked(useDiffComments).mock.calls.map(([, threads]) => threads)).not.toContainEqual(
+      oldThreads,
+    );
+  });
 });
 
 describe('App Component - Custom tab title', () => {

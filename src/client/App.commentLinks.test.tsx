@@ -124,7 +124,7 @@ function fixture({ git = false } = {}) {
       const tour = git
         ? [tourStart, tourNext].map(({ capture: _capture, ...rest }) => rest)
         : [tourStart, tourNext];
-      payload = { version: 1, threads: reviewName === 'task-a' ? tour : [] };
+      payload = { version: 1, cursor: 'test:1', threads: reviewName === 'task-a' ? tour : [] };
     } else if (url.pathname === '/api/review-summary') {
       payload = {
         version: 1,

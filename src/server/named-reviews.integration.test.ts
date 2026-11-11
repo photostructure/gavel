@@ -639,7 +639,7 @@ describe('named review HTTP integration', () => {
     expect(ordinary?.threads[0]?.capture).toBeUndefined();
   });
 
-  it('keeps ordinary JSON and beacon body limits unchanged', async () => {
+  it('keeps ordinary JSON body limits unchanged', async () => {
     await running?.shutdown('closed');
     running = await startServer({
       stdinDiff: initialCapture.patch,
@@ -654,7 +654,6 @@ describe('named review HTTP integration', () => {
     for (const [path, method, contentType] of [
       ['/api/comments', 'POST', 'application/json'],
       ['/api/auto-viewed-patterns', 'PUT', 'application/json'],
-      ['/api/comments', 'POST', 'text/plain'],
     ] as const) {
       const response = await fetch(`${running.url}${path}`, {
         method,
@@ -664,7 +663,7 @@ describe('named review HTTP integration', () => {
       statuses.push(response.status);
       await response.text();
     }
-    expect(statuses).toEqual([413, 413, 413]);
+    expect(statuses).toEqual([413, 413]);
   });
 
   it('accepts named JSON bodies above the ordinary default budget', async () => {
