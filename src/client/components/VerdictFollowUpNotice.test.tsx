@@ -61,6 +61,28 @@ describe('verdict follow-up notice', () => {
     expect(onProceed).toHaveBeenCalledOnce();
   });
 
+  it('explains the Codex handoff without a countdown, and exposes copy errors', () => {
+    const onProceed = vi.fn();
+    const props = { anchor: anchor(), onCancel: vi.fn(), onProceed };
+    const { rerender } = render(
+      <VerdictFollowUpNotice {...props} step={{ kind: 'resume', reviews: 2, status: 'ready' }} />,
+    );
+    expect(status()).toHaveTextContent('All 2 reviews have a verdict.');
+    expect(status()).toHaveTextContent('paste it into the Codex chat that opened this review');
+    expect(status().querySelector('.verdict-countdown-bar')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt and close' }));
+    expect(onProceed).toHaveBeenCalledOnce();
+    rerender(
+      <VerdictFollowUpNotice {...props} step={{ kind: 'resume', reviews: 2, status: 'copying' }} />,
+    );
+    expect(screen.getByRole('button', { name: 'Copying…' })).toBeDisabled();
+    rerender(
+      <VerdictFollowUpNotice {...props} step={{ kind: 'resume', reviews: 2, status: 'error' }} />,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('This tab will stay open; try again.');
+    expect(screen.getByRole('button', { name: 'Copy resume prompt and close' })).toBeEnabled();
+  });
+
   // Green means approval on the verdict buttons beside it; moving on is navigation.
   it('colors the notice and its default button blue, not the approval green', () => {
     render(

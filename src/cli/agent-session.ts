@@ -60,9 +60,10 @@ export async function detectAgentSession(env: NodeJS.ProcessEnv): Promise<AgentS
       codexThread,
     );
     return {
-      ...(originator === undefined
-        ? {}
-        : { agent: CODEX_ORIGINATORS[originator] ?? `Codex (${originator})` }),
+      agent:
+        originator === undefined
+          ? 'Codex'
+          : (CODEX_ORIGINATORS[originator] ?? `Codex (${originator})`),
       agentSessionId: codexThread,
     };
   }

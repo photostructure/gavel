@@ -4,8 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReviewApproval } from '../../types/conversation';
 import type { DiffSelection } from '../../types/diff';
 import { createDiffSelection } from '../../utils/diffSelection';
+import { copyTextToClipboard } from '../utils/clipboard';
 
 import { useVerdictFollowUp } from './useVerdictFollowUp';
+
+vi.mock('../utils/clipboard', () => ({ copyTextToClipboard: vi.fn() }));
 
 const review = (name: string, approval: ReviewApproval = {}) => ({
   selection: createDiffSelection('base', '.', undefined, name),
@@ -14,11 +17,20 @@ const review = (name: string, approval: ReviewApproval = {}) => ({
 });
 const approved: ReviewApproval = { verdict: 'as-is' };
 
+function pendingCopy() {
+  let resolve = () => {};
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 type Props = {
   reviews: ReturnType<typeof review>[];
   current: DiffSelection | null;
   // Omitted: the open review has a verdict, as it does right after one saves.
   currentHasVerdict?: boolean;
+  requiresResume?: boolean;
 };
 
 describe('verdict follow-up', () => {
@@ -27,6 +39,7 @@ describe('verdict follow-up', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.mocked(copyTextToClipboard).mockReset().mockResolvedValue(undefined);
     onSwitch = vi.fn<(selection: DiffSelection) => void>();
     close = vi.fn<() => void>();
     vi.spyOn(window, 'close').mockImplementation(close);
@@ -39,8 +52,8 @@ describe('verdict follow-up', () => {
 
   const render = (initial: Props) =>
     renderHook(
-      ({ reviews, current, currentHasVerdict = true }: Props) =>
-        useVerdictFollowUp({ reviews, current, currentHasVerdict, onSwitch }),
+      ({ reviews, current, currentHasVerdict = true, requiresResume = false }: Props) =>
+        useVerdictFollowUp({ reviews, current, currentHasVerdict, requiresResume, onSwitch }),
       { initialProps: initial },
     );
 
@@ -106,6 +119,81 @@ describe('verdict follow-up', () => {
     expect(result.current.step).toEqual({ kind: 'closable', reviews: 1 });
     act(() => void vi.advanceTimersByTime(20_000));
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('waits for an explicit resume copy and closes only after the clipboard succeeds', async () => {
+    const queue = [review('a')];
+    const copied = pendingCopy();
+    vi.mocked(copyTextToClipboard).mockReturnValueOnce(copied.promise);
+    const { result } = render({
+      reviews: queue,
+      current: queue[0]!.selection,
+      requiresResume: true,
+    });
+    act(() => result.current.start());
+    expect(result.current.step).toEqual({ kind: 'resume', reviews: 1, status: 'ready' });
+    act(() => void vi.advanceTimersByTime(60_000));
+    expect(close).not.toHaveBeenCalled();
+    expect(copyTextToClipboard).not.toHaveBeenCalled();
+    act(() => result.current.proceed());
+    expect(result.current.step).toMatchObject({ kind: 'resume', status: 'copying' });
+    expect(close).not.toHaveBeenCalled();
+    await act(async () => copied.resolve());
+    expect(close).toHaveBeenCalledOnce();
+    expect(result.current.step).toEqual({ kind: 'closable', reviews: 1, promptCopied: true });
+    expect(copyTextToClipboard).toHaveBeenCalledWith(
+      expect.stringContaining('Please read my latest gavel comments and verdicts'),
+    );
+  });
+
+  it('keeps the tab open on clipboard failure and allows retry', async () => {
+    vi.mocked(copyTextToClipboard).mockRejectedValueOnce(new Error('denied'));
+    const queue = [review('a')];
+    const { result } = render({
+      reviews: queue,
+      current: queue[0]!.selection,
+      requiresResume: true,
+    });
+    act(() => result.current.start());
+    await act(async () => result.current.proceed());
+    expect(result.current.step).toMatchObject({ kind: 'resume', status: 'error' });
+    expect(close).not.toHaveBeenCalled();
+    await act(async () => result.current.proceed());
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it.each(['cancel', 'new review', 'recapture', 'navigation', 'unmount'] as const)(
+    'does not close after a pending copy is superseded by %s',
+    async (change) => {
+      const copied = pendingCopy();
+      vi.mocked(copyTextToClipboard).mockReturnValueOnce(copied.promise);
+      const queue = [review('a')];
+      const props = { reviews: queue, current: queue[0]!.selection, requiresResume: true };
+      const { result, rerender, unmount } = render(props);
+      act(() => result.current.start());
+      act(() => result.current.proceed());
+      if (change === 'cancel') act(() => result.current.cancel());
+      else if (change === 'new review') {
+        rerender({ ...props, reviews: [...queue, review('b')] });
+        expect(result.current.step).toMatchObject({ kind: 'switch', name: 'b' });
+      } else if (change === 'recapture') rerender({ ...props, currentHasVerdict: false });
+      else if (change === 'navigation') rerender({ ...props, current: review('b').selection });
+      else unmount();
+      await act(async () => copied.resolve());
+      expect(close).not.toHaveBeenCalled();
+    },
+  );
+
+  it('hands off to Codex when the next review receives a verdict elsewhere', () => {
+    const queue = [review('a'), review('b')];
+    const props = { reviews: queue, current: queue[0]!.selection, requiresResume: true };
+    const { result, rerender } = render(props);
+    act(() => result.current.start());
+    expect(result.current.step).toMatchObject({ kind: 'switch', name: 'b' });
+    rerender({ ...props, reviews: [queue[0]!, review('b', approved)] });
+    expect(result.current.step).toMatchObject({ kind: 'resume', status: 'ready' });
+    act(() => void vi.advanceTimersByTime(20_000));
+    expect(close).not.toHaveBeenCalled();
   });
 
   it('cancels the countdown', () => {

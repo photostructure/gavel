@@ -1503,10 +1503,13 @@ function App() {
     [openReviewFromTab],
   );
   const clearThreadToFocus = useCallback(() => setThreadToFocus(null), []);
+  // A listener subscription cannot start a new turn in the owning Codex chat.
+  const requiresResume = /^codex\b/i.test(diffData?.reviewContext?.agent ?? '');
   const verdictFollowUp = useVerdictFollowUp({
     reviews: approvalRequests,
     current: resolvedSelection,
     currentHasVerdict: approval.verdict !== undefined,
+    requiresResume,
     onSwitch: openReviewFromTab,
   });
 
@@ -2389,7 +2392,7 @@ function App() {
           }}
           headerActions={
             <>
-              <ReviewPresenceIndicator presence={reviewPresence} />
+              <ReviewPresenceIndicator presence={reviewPresence} requiresResume={requiresResume} />
               {threads.length > 0 && (
                 <CommentsDropdown
                   commentsCount={threads.length}

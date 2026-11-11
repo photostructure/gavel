@@ -64,8 +64,12 @@ export function VerdictFollowUpNotice({
           style={{
             ...floatingStyles,
             visibility: middlewareData.hide?.referenceHidden ? 'hidden' : 'visible',
+            maxWidth:
+              step.kind === 'resume' || (step.kind === 'closable' && step.promptCopied)
+                ? 'min(36rem, calc(100vw - 16px))'
+                : 'calc(100vw - 16px)',
           }}
-          className="z-40 flex items-center gap-3 overflow-hidden rounded-md border border-blue-600 bg-[color-mix(in_srgb,var(--color-blue-600)_14%,var(--color-github-bg-secondary))] [[data-theme=dark]_&]:bg-[color-mix(in_srgb,var(--color-blue-600)_20%,var(--color-github-bg-secondary))] pt-3 pr-4 pb-3.5 pl-5 text-sm text-github-text-primary shadow-2xl"
+          className="z-40 flex flex-wrap items-center gap-3 overflow-hidden rounded-md border border-blue-600 bg-[color-mix(in_srgb,var(--color-blue-600)_14%,var(--color-github-bg-secondary))] [[data-theme=dark]_&]:bg-[color-mix(in_srgb,var(--color-blue-600)_20%,var(--color-github-bg-secondary))] pt-3 pr-4 pb-3.5 pl-5 text-sm text-github-text-primary shadow-2xl"
         >
           <span className="min-w-0">
             {step.kind === 'switch' ? (
@@ -74,6 +78,18 @@ export function VerdictFollowUpNotice({
               </>
             ) : step.kind === 'close' ? (
               `${allDone} Closing this tab in ${step.seconds}s`
+            ) : step.kind === 'resume' ? (
+              <>
+                {allDone} Copy the resume prompt, then paste it into the Codex chat that opened this
+                review to continue.
+                {step.status === 'error' && (
+                  <span role="alert" className="mt-1 block text-github-danger">
+                    Could not copy the prompt. This tab will stay open; try again.
+                  </span>
+                )}
+              </>
+            ) : step.promptCopied ? (
+              'Resume prompt copied. Paste it into the Codex chat that opened this review to continue. You can close this tab.'
             ) : (
               `${allDone} You can close this tab.`
             )}
@@ -83,9 +99,16 @@ export function VerdictFollowUpNotice({
             <button
               type="button"
               onClick={onProceed}
+              disabled={step.kind === 'resume' && step.status === 'copying'}
               className={`${verdictButtonClasses} shrink-0 border-blue-600 bg-blue-600 text-white hover:opacity-90`}
             >
-              {step.kind === 'switch' ? 'Switch now' : 'Close now'}
+              {step.kind === 'switch'
+                ? 'Switch now'
+                : step.kind === 'resume'
+                  ? step.status === 'copying'
+                    ? 'Copying…'
+                    : 'Copy resume prompt and close'
+                  : 'Close now'}
             </button>
           )}
           <button
@@ -93,11 +116,11 @@ export function VerdictFollowUpNotice({
             onClick={onCancel}
             className={`${verdictButtonClasses} shrink-0 border-github-text-secondary bg-github-bg-primary text-github-text-primary hover:bg-github-bg-tertiary`}
           >
-            {step.kind === 'closable' ? 'Dismiss' : 'Cancel'}
+            {step.kind === 'closable' ? 'Dismiss' : step.kind === 'resume' ? 'Keep open' : 'Cancel'}
           </button>
           {/* A CSS animation, so it runs smoothly between the once-a-second renders. The key
               restarts it for a new countdown. */}
-          {step.kind !== 'closable' && (
+          {(step.kind === 'switch' || step.kind === 'close') && (
             <div
               key={step.deadline}
               aria-hidden="true"

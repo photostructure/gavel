@@ -58,14 +58,14 @@ describe('detectAgentSession', () => {
     },
   );
 
-  it('leaves the agent unset when the Codex thread has no rollout, even with AI_AGENT', async () => {
+  it('identifies Codex without a rollout, without guessing its host from AI_AGENT', async () => {
     expect(
       await detectAgentSession({
         CODEX_THREAD_ID: threadId,
         CODEX_HOME: codexHome,
         AI_AGENT: 'github-copilot',
       }),
-    ).toEqual({ agentSessionId: threadId });
+    ).toEqual({ agent: 'Codex', agentSessionId: threadId });
   });
 
   it('leaves the agent unset when Claude Code exports no entrypoint, even with AI_AGENT', async () => {

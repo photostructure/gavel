@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReviewApproval } from '../../types/conversation';
 import type { DiffSelection } from '../../types/diff';
 import { getDiffSelectionKey } from '../../utils/diffSelection';
+import { copyTextToClipboard } from '../utils/clipboard';
+import { buildResumePrompt } from '../utils/resumePrompt';
 import { nextReviewNeedingVerdict } from '../utils/verdict';
 
 // Long enough to read the notice and reach Cancel, before switching reviews or closing the tab.
@@ -10,9 +12,14 @@ export const COUNTDOWN_SECONDS = 10;
 // The length of the verdict-pulse animation in global.css: 4 iterations of 1.6s.
 const PULSE_MS = 6400;
 
+type CopyStatus = 'ready' | 'copying' | 'error';
 // review: the key of the review that was open when the phase began.
 type Phase =
-  | (({ kind: 'switch' | 'close'; deadline: number } | { kind: 'closable' }) & {
+  | ((
+      | { kind: 'switch' | 'close'; deadline: number }
+      | { kind: 'resume'; status: CopyStatus }
+      | { kind: 'closable'; promptCopied?: boolean }
+    ) & {
       review: string | null;
     })
   | null;
@@ -22,11 +29,13 @@ export type VerdictFollowUpStep =
   | { kind: 'switch'; name: string; seconds: number; deadline: number }
   | { kind: 'close'; reviews: number; seconds: number; deadline: number }
   // The browser ignored close(): it closes only tabs a script opened or with one history entry.
-  | { kind: 'closable'; reviews: number };
+  | { kind: 'closable'; reviews: number; promptCopied?: boolean }
+  | { kind: 'resume'; reviews: number; status: CopyStatus };
 
 /**
  * After a verdict, counts down to the next review without one, or to closing the tab when
- * every review has one. A review that arrives in the meantime takes over the countdown.
+ * every review has one. Codex waits for an explicit copy-and-close handoff instead.
+ * A review that arrives in the meantime takes over the follow-up.
  */
 export function useVerdictFollowUp<
   T extends { selection: DiffSelection; name: string; approval: ReviewApproval },
@@ -34,6 +43,7 @@ export function useVerdictFollowUp<
   reviews,
   current,
   currentHasVerdict,
+  requiresResume = false,
   onSwitch,
 }: {
   // In the order the server created them.
@@ -41,6 +51,7 @@ export function useVerdictFollowUp<
   current: DiffSelection | null;
   // From the open review's own approval state, which is fresher than its entry in reviews.
   currentHasVerdict: boolean;
+  requiresResume?: boolean;
   onSwitch: (selection: DiffSelection) => void;
 }) {
   const [storedPhase, setPhase] = useState<Phase>(null);
@@ -51,6 +62,10 @@ export function useVerdictFollowUp<
   // render, before any effect sees it; a later effect cannot turn it into a close countdown
   // over a review that still needs a verdict.
   const phase = storedPhase?.review === currentKey ? storedPhase : null;
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const requiresResumeRef = useRef(requiresResume);
+  requiresResumeRef.current = requiresResume;
   const [now, setNow] = useState(() => Date.now());
   // Bumped to replay the pulse on the tabs of reviews without a verdict; reported as 0 once the
   // animation has ended, so a tab bar that remounts later does not replay it.
@@ -63,7 +78,17 @@ export function useVerdictFollowUp<
   onSwitchRef.current = onSwitch;
 
   // Stable, so a listener that calls them is not re-registered on every render.
-  const cancel = useCallback(() => setPhase(null), []);
+  const cancel = useCallback(() => {
+    phaseRef.current = null;
+    setPhase(null);
+  }, []);
+  // A clipboard request may finish after this page has unmounted.
+  useEffect(
+    () => () => {
+      phaseRef.current = null;
+    },
+    [],
+  );
   const pulseNow = useCallback(() => {
     setPulse((value) => value + 1);
     setPulsing(true);
@@ -75,13 +100,17 @@ export function useVerdictFollowUp<
       const time = Date.now();
       setNow(time);
       if (next) pulseNow();
+      if (!next && requiresResume) {
+        setPhase({ kind: 'resume', status: 'ready', review: currentKeyRef.current });
+        return;
+      }
       setPhase({
         kind: next ? 'switch' : 'close',
         deadline: time + COUNTDOWN_SECONDS * 1000,
         review: currentKeyRef.current,
       });
     },
-    [pulseNow],
+    [pulseNow, requiresResume],
   );
 
   // Opening another review ends the follow-up, including the switch it made itself.
@@ -119,6 +148,8 @@ export function useVerdictFollowUp<
     if (kind === 'switch' && next) {
       setPhase(null);
       onSwitchRef.current(next.selection);
+    } else if (requiresResumeRef.current) {
+      setPhase({ kind: 'resume', status: 'ready', review: currentKeyRef.current });
     } else {
       window.close();
       setPhase({ kind: 'closable', review: currentKeyRef.current });
@@ -126,7 +157,7 @@ export function useVerdictFollowUp<
   }, []);
 
   useEffect(() => {
-    if (!phase || phase.kind === 'closable') return;
+    if (!phase || (phase.kind !== 'switch' && phase.kind !== 'close')) return;
     const { kind } = phase;
     const expire = setTimeout(() => runNextStep(kind), phase.deadline - Date.now());
     // App runs this hook, so each tick re-renders the page: tick only when the shown whole
@@ -149,6 +180,22 @@ export function useVerdictFollowUp<
     };
   }, [phase, runNextStep]);
 
+  const copyAndClose = async () => {
+    if (phase?.kind !== 'resume' || phase.status === 'copying') return;
+    const copying: Phase = { ...phase, status: 'copying' };
+    phaseRef.current = copying;
+    setPhase(copying);
+    try {
+      await copyTextToClipboard(buildResumePrompt());
+      // A new review, recapture, navigation, or Cancel supersedes this handoff.
+      if (phaseRef.current !== copying) return;
+      window.close();
+      setPhase({ kind: 'closable', promptCopied: true, review: currentKeyRef.current });
+    } catch {
+      if (phaseRef.current === copying) setPhase({ ...copying, status: 'error' });
+    }
+  };
+
   const count = Math.max(reviews.length, 1);
   const remaining = (deadline: number) => ({
     deadline,
@@ -157,19 +204,22 @@ export function useVerdictFollowUp<
   const step: VerdictFollowUpStep | null = !phase
     ? null
     : phase.kind === 'closable'
-      ? { kind: 'closable', reviews: count }
-      : phase.kind === 'switch' && target
-        ? { kind: 'switch', name: target.name, ...remaining(phase.deadline) }
-        : { kind: 'close', reviews: count, ...remaining(phase.deadline) };
+      ? { kind: 'closable', reviews: count, ...(phase.promptCopied ? { promptCopied: true } : {}) }
+      : phase.kind === 'resume'
+        ? { kind: 'resume', reviews: count, status: phase.status }
+        : phase.kind === 'switch' && target
+          ? { kind: 'switch', name: target.name, ...remaining(phase.deadline) }
+          : { kind: 'close', reviews: count, ...remaining(phase.deadline) };
 
   return {
     step,
     pulse: pulsing ? pulse : 0,
     start: () => countdown(target),
     cancel,
-    // Skips the rest of a countdown and takes its next step now.
+    // Takes the next step now, copying the resume prompt before closing for Codex.
     proceed: () => {
-      if (phase && phase.kind !== 'closable') runNextStep(phase.kind);
+      if (phase?.kind === 'resume') void copyAndClose();
+      else if (phase && phase.kind !== 'closable') runNextStep(phase.kind);
     },
     pulseNow,
   };

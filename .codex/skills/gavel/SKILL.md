@@ -15,7 +15,9 @@ process does not establish delivery into an idle Codex chat.
 
 - Serve the review with gavel's `--background` option. Share the review URL and
   end the turn when the current feedback batch is handled. Leave the server
-  running. The user resumes the owning chat with feedback or **Copy resume prompt**.
+  running. After the last verdict, tell the user to choose **Copy resume prompt and
+  close**, then paste into this chat. Before then, **Conversation → Copy resume
+  prompt** lets them send feedback. Copying or closing alone does not resume Codex.
 - Do not call `gavel wait`, long-poll HTTP, sleep, inspect process output repeatedly,
   or write a polling script to keep the model waiting for the user. A tool yield,
   empty result, timeout, cache expiry, or browser presence change is not feedback.

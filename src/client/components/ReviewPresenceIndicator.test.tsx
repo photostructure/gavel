@@ -28,7 +28,7 @@ describe('review listener indicator', () => {
       'comment snapshot --host 10.1.1.24 --port 4966',
     );
     expect(vi.mocked(copyTextToClipboard).mock.lastCall?.[0]).toContain(
-      'End the turn when caught up',
+      'When caught up, end your turn; do not poll',
     );
     expect(vi.mocked(copyTextToClipboard).mock.lastCall?.[0]).not.toContain('/home/mrm/');
   });
@@ -46,6 +46,16 @@ describe('review listener indicator', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it('keeps the resume prompt available for Codex even with an attached listener', () => {
+    render(
+      <ReviewPresenceIndicator
+        presence={{ reviewers: { connected: 1, visible: 1 }, listeners: 1 }}
+        requiresResume
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Copy resume prompt' })).toBeEnabled();
+  });
+
   it('preserves HTTPS instead of suggesting an HTTP request to the TLS port', async () => {
     vi.stubEnv('VITE_GAVEL_API_URL', 'https://review.local');
     render(<ReviewPresenceIndicator presence={null} />);
@@ -55,5 +65,22 @@ describe('review listener indicator', () => {
       'https://review.local/api/conversation/snapshot over HTTPS',
     );
     expect(vi.mocked(copyTextToClipboard).mock.lastCall?.[0]).not.toContain('--port 443');
+  });
+
+  it('omits the editor-session fragment and retains the named review URL', async () => {
+    const previous = window.location.href;
+    window.history.replaceState(null, '', '/?review=task-a#editor-session=secret');
+    try {
+      render(<ReviewPresenceIndicator presence={null} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt' }));
+      await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalled());
+      const prompt = vi.mocked(copyTextToClipboard).mock.lastCall?.[0];
+      expect(prompt).toContain('/?review=task-a');
+      expect(prompt).not.toContain('secret');
+      expect(prompt).not.toContain('#');
+      expect(prompt).toContain('existing permissions');
+    } finally {
+      window.history.replaceState(null, '', previous);
+    }
   });
 });

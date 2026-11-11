@@ -1254,6 +1254,33 @@ describe('after a verdict', () => {
     expect(nextStep()).toHaveTextContent('This review has a verdict. You can close this tab.');
   });
 
+  it.each(['Approve as-is', 'Reject'])(
+    'requires a resume prompt before closing a Codex review after %s',
+    async (verdict) => {
+      const state = fixture();
+      state.verdictB = 'as-is';
+      state.reviewContext = {
+        source: 'git',
+        workingDirectory: '/repo',
+        hostname: 'host',
+        agent: 'Codex desktop',
+      };
+      const close = vi.spyOn(window, 'close').mockImplementation(() => {});
+      vi.mocked(copyTextToClipboard).mockClear();
+      renderApp();
+      await waitFor(() => expect(verdictButton(verdict)).toBeEnabled());
+      fireEvent.click(verdictButton(verdict));
+      await waitFor(() => expect(nextStep()).toHaveTextContent('All 2 reviews have a verdict.'));
+      await act(async () => void (await vi.advanceTimersByTimeAsync(20_000)));
+      expect(close).not.toHaveBeenCalled();
+      expect(copyTextToClipboard).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt and close' }));
+      await waitFor(() => expect(close).toHaveBeenCalledOnce());
+      expect(copyTextToClipboard).toHaveBeenCalledWith(expect.stringContaining('comment snapshot'));
+      expect(nextStep()).toHaveTextContent('Resume prompt copied. Paste it into the Codex chat');
+    },
+  );
+
   it('asks before leaving while a review has no verdict, and pulses its tab', async () => {
     const state = fixture();
     renderApp();

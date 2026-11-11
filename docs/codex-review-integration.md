@@ -30,10 +30,17 @@ external event controller is already configured:
    named review when the patch must remain frozen.
 2. Send any explicit receipts only after recording the corresponding work. Give
    the reviewer the URL and end the Codex turn. Leave the detached server running.
-3. After leaving feedback, the reviewer uses **Conversation → Copy resume prompt**
-   and pastes it into the owning Codex chat. The button also works when the browser
+3. After the last verdict, the tab stays open with **Copy resume prompt and close**.
+   The reviewer clicks it, then pastes the prompt into the owning Codex chat.
+   Closing requires a successful copy; a failed copy leaves the tab open for retry.
+   **Keep open** dismisses the notice. To resume before the last verdict or after
+   dismissing the notice, use **Conversation → Copy resume prompt**. That button also works when the browser
    cannot determine listener presence. It copies a snapshot command and the
-   review URL, with the editor-session fragment removed.
+   review URL, with the editor-session fragment removed. The final-verdict handoff
+   applies to Codex even when a listener is attached: a subscription does not
+   establish delivery into the owning chat. Codex's Conversation panel also keeps
+   its copy button available with a listener attached. Other agents retain the
+   close countdown.
 4. Codex reads one `comment snapshot --host <host> --port <actual-port>`, reconciles queued
    messages and its saved pending work, and handles the feedback within the
    existing authorization. Preserve exact message revision cursors for receipts
