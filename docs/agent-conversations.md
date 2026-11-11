@@ -86,8 +86,11 @@ or `review update` exits with an error when stdin is a pipe, socket, or file; ad
 
 `GET /api/reviews/:name` returns current metadata and the file/hunk catalogue with
 `reviewId`; add `?version=<n>` to read a retained capture catalogue.
-`POST /api/reviews` accepts `{name,capture}` and returns the same response shape
-as update with `updated:true`.
+`POST /api/reviews` accepts `{name,capture,inbox?}` and returns the same response
+shape as update with `updated:true`. `inbox` is the creating Claude Code session's
+`{sessionId,socket,token?}`, or `null` for a creator without one; omitted, the
+launching session owns the review. See
+[waiting for review](waiting-for-review.md#claude-code-the-server-sends-feedback-to-the-session).
 `POST /api/reviews/:name/capture` accepts `{expectedVersion,capture}` and returns
 `{reviewId,name,version,patchDigest,baseCommit,repositoryId,updated}`. A stale
 expected version returns HTTP 409 with `{error,current}`; inspect `current` and
@@ -505,6 +508,8 @@ Reserve `pnpm dev` for UI development, where source changes reload the page.
 
 The HTTP equivalents are `GET /api/conversation/snapshot` (returns
 `{reviews,cursor}`) and `POST /api/conversation/reply` (JSON body as above).
+`GET /api/inbox` and `POST /api/inbox/attach` report and redirect delivery to
+Claude Code sessions.
 `GET /api/conversation/events?after=<cursor>&wait=<ms>` returns `{events,cursor}`. Conversation APIs require
 `--conversation`, which is enabled by default. Responses include 400 for invalid
 input, 409 for stale message cursors, capture versions/digests, or summary versions, 404 for unknown

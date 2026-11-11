@@ -65,8 +65,10 @@ The agent must run the required checks before committing. See
 
 ### Agent handoff
 
-gavel works with your existing agent; it does not start one. Claude Code can
-receive feedback automatically when its host supports background waiting.
+gavel works with your existing agent; it does not start one. A review opened
+from Claude Code sends your verdicts and comments to that session, which starts
+a turn even when it is idle; a bot icon left of the review name in the header
+shows whether the latest one was sent.
 Codex ends its turn while you review: use **Conversation → Copy resume prompt**
 and paste it into the owning chat to continue. See
 [waiting for review](docs/waiting-for-review.md) for host requirements.

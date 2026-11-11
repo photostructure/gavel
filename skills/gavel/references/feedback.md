@@ -1,30 +1,38 @@
 # Feedback and snapshots
 
-Use the launch record's host and API port for every command. Read a filtered
-snapshot on resume, after missed output or HTTP 409, and before acting on a
-verdict. Reuse the batch's snapshot unless new human feedback, a version conflict,
-or the final pre-commit check requires another. Repeated recovery without new
-state ends the turn. Use this filter even when a resume prompt names a raw snapshot:
+Use the launch record's host and API port for every command. Read the snapshot
+on resume, after missed output or HTTP 409, and before acting on a verdict. An
+inbox message from gavel carries only the human events since its last message:
+each new or edited comment with its IDs and revision `cursor`, plus `code`, the
+excerpt the reviewer saw, when the thread saved one; and each verdict change.
+Answer comments from those events; read the snapshot for a thread's earlier
+messages, and a fresh one before acting on a verdict. Reuse a snapshot
+unless new human feedback, a version conflict, a verdict, or the final
+pre-commit check requires another. Repeated recovery without new state ends the
+turn.
 
 ```sh
-set -o pipefail; <gavel-command> comment snapshot --host <host> --port <api-port> | jq -c '{cursor, connected: .presence.reviewers.connected, storeError: (.store.error // null), reviews: [.reviews[] as $r | {id: $r.id, selection: $r.selection, capture: ($r.capture | if . then {version, patchDigest} else null end), approval: ($r.approval | {verdict: (.verdict // null), cursor}), commitMessage: $r.summary.commitMessage, fromCommit: ($r.summary.fromCommit // false), summaryVersion: $r.summary.version, pending: [$r.threads[] as $t | $t.messages[] | select(.progress and (.progress.status | IN("replied","noted") | not)) | {threadId: $t.id, messageId: .id, cursor: .progress.cursor, confirmed: (($t.resolution.resolved // false) and $t.resolution.updatedAt >= .updatedAt), filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}], comments: [if $r.approval.verdict == "after-comments" then ($r.threads[] as $t | select(($t.resolution.resolved // false) | not) | $t.messages[] | select((.origin // "user") == "user") | {threadId: $t.id, messageId: .id, filePath: $t.filePath, position: $t.position, code: $t.codeSnapshot.content, intent, body}) else empty end]}]}'
+<gavel-command> comment snapshot --host <host> --port <api-port>
 ```
 
-The top-level `cursor` is a stream checkpoint for `wait --after`; each pending
-message's `cursor` is its exact revision for receipts and replies. Do not swap
-them or use a progress event's stream cursor as a message revision.
+The top-level `cursor` is a stream checkpoint; each message's `progress.cursor` is
+its exact revision for receipts and replies. Do not swap them or use a progress
+event's stream cursor as a message revision.
 
-- `storeError`: tell the user why review changes are not being saved.
+- `store.error`: tell the user why review changes are not being saved.
 - `approval`: inspect every review before reporting missing approval.
-- `comments`: with Approve after comments, every unresolved comment in gavel,
-  including ones already replied to. Act on all of them.
-- `confirmed: true`: the reviewer resolved the thread after its latest edit.
-  Mark the pending message Noted; do not redo confirmed work. A later edit makes
-  it unconfirmed and requires normal handling.
-- `fromCommit: true`: the server copied the browsed commit's message; it is not
-  a proposal and does not create a review tab.
-- `code`: the excerpt the reviewer commented on. A thread's original capture
-  anchor may predate the current capture.
+- Awaiting an answer: every message in `threads[].messages` that has a
+  `progress` whose `status` is neither `replied` nor `noted`. Agent messages
+  have no `progress`.
+- Approve after comments: act on every user message (`origin` absent or `user`)
+  in an unresolved thread, including ones already replied to.
+- A thread with `resolution.resolved` and `resolution.updatedAt` at or after a
+  message's `updatedAt` confirms that message's work: mark it Noted; do not redo
+  it. A later edit makes it unconfirmed and requires normal handling.
+- `summary.fromCommit: true`: the server copied the browsed commit's message; it
+  is not a proposal and does not create a review tab.
+- `codeSnapshot.content`: the excerpt the reviewer commented on. A thread's
+  original capture anchor may predate the current capture.
 
 ## Reply or acknowledge
 
@@ -41,16 +49,14 @@ Reply requires `reviewId`, `threadId`, `inReplyTo` (the message ID), `cursor`, a
 `body`. Replies mark Replied. Neither action resolves a thread.
 Summary and approval events need no comment receipt.
 
-When a message continues an earlier exchange, read only that thread:
-
-```sh
-set -o pipefail; <gavel-command> comment snapshot --host <host> --port <api-port> | jq -c --arg t <threadId> '.reviews[].threads[] | select(.id == $t) | {filePath, position, resolved: (.resolution.resolved // false), code: .codeSnapshot.content, messages: [.messages[] | {id, origin: (.origin // "user"), body}]}'
-```
+When a message continues an earlier exchange, read that thread's earlier messages
+in the snapshot.
 
 ## Read the version the reviewer saw
 
 For named frozen captures or `stdin` selections (including PR patches), start
-with `code`; the working file may differ and the selection may name no commit.
+with the inbox event's `code` or the thread's `codeSnapshot.content`; the
+working file may differ and the selection may name no commit.
 For other selections, use:
 
 | Selection | New side                       | Old side                     |

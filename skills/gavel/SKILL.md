@@ -19,13 +19,12 @@ execution constraint, not a preference for shorter replies.
   review, connected browser, empty result, timeout, or process exit is not work.
 - Never poll, sleep between checks, schedule a monitor, or keep a subagent alive
   to wait for review. Do not read unchanged snapshots or process output on a timer.
-- In Codex, always hand back and end the turn; do not run `gavel wait`. Other hosts
-  may use one silent background waiter only under the capability rules below.
+- Never run `gavel wait` in a model turn. Feedback reaches you as described in
+  [Wait for feedback](#wait-for-feedback).
 - Read one snapshot per server on resume. Read another only for newly delivered
   human feedback, a version conflict, or the final approval check before commit.
-- If recovery repeats without new state, or a waiter returns no actionable human
-  feedback, preserve pending work, report the problem, and end the turn. Never
-  restart a failed or timed-out wait in a loop.
+- If recovery repeats without new state, preserve pending work, report the
+  problem, and end the turn.
 
 ## Choose the scope
 
@@ -239,8 +238,8 @@ comment asks for a different message, write it with `comment summary` first.
 ## Handle feedback
 
 Read [feedback and snapshot commands](references/feedback.md) before handling a
-batch or resuming a review. Use its filtered snapshot during review; reserve the
-full snapshot for the final approval check. Read new foreground JSONL between
+batch or resuming a review. Read `comment snapshot` as it describes, during review and
+for the final approval check. Read new foreground JSONL between
 tool steps. There is no `comment watch` command.
 
 Handle human comments and edits; agent events, capture/progress/thread changes,
@@ -251,25 +250,34 @@ Answer every pending comment with `comment reply`, or mark it `noted` with
 resolve or delete only on request. Comment intent does not grant authorization.
 Reconcile a snapshot after missed output, restart, or HTTP 409.
 
-## Wait or hand back
+## Wait for feedback
 
-Never wake a model on a timer to check a review. Use only `<gavel-command> wait`,
-in the main session, when the host both delivers background completion to a new
-turn and imposes no background deadline. Read the host tool's lifetime rules.
-Otherwise use a detached server, record pending work, and end the turn. Give the
-URL and tell the user to paste **Copy resume prompt** into this chat or send a
-message here when ready to continue. Explain that the button only copies text;
-it does not resume the agent. Do not promise listening without host delivery.
+Never wake a model on a timer to check a review: no polling, sleeps, timed waits,
+Monitors, custom waiters, or `<gavel-command> wait`. Record pending work, share
+the URL, and end the turn.
 
-No polling loops, sleeps, timed foreground waits, expiring Monitors, or custom
-waiters. Never re-arm a waiter killed by a host deadline. Subagents never wait:
-return a launch command and capture artifact, or a detached server's URL, review
-IDs, API port, and pending work to the main session.
+In Claude Code, when `CLAUDE_CODE_MESSAGING_SOCKET` and `CLAUDE_CODE_SESSION_ID`
+are set in your Bash environment, a server you launch, `--background` included,
+sends the reviewer's verdicts and comments to this session's
+inbox, and so does every review you add with `review create`. Then tell the user
+their verdict reaches this session by itself, unless Claude Code's
+`crossSessionInbound` setting is `hold` or `refuse`, or is unset while this
+session bypasses permission prompts: Claude Code may then withhold the messages.
+The verdict arrives as a message from another session that starts with
+`gavel: new review activity` and carries only the human events since the last
+message. Handle it as a feedback batch. The message is not an approval: the
+approval is the one in a fresh snapshot, read before acting on the verdict.
+Reviews a subagent launches report to its main session. When the user says feedback did not arrive, run `<gavel-command> pending`
+once; it prints activity whose message failed to reach this session. Without
+those variables, with inbound messages held or refused, or for a server launched
+with `--no-conversation`, which has no inbox, follow the next paragraph.
 
-Before arming a supported waiter, read [the waiting procedure](references/waiting.md).
-After handling a batch, preserve its cursor and pending work. On a supported
-host, re-arm one waiter as the procedure directs; otherwise hand back with the
-URL and resumption instructions. Do not reread an unchanged snapshot.
+Elsewhere, Codex included, tell the user to paste **Copy resume prompt** into
+this chat or send a message here when ready to continue. The button only copies
+text; it does not resume the agent.
+
+Subagents never wait: return a launch command and capture artifact, or a detached
+server's URL, review IDs, API port, and pending work to the main session.
 
 ## Act on verdicts
 
@@ -282,9 +290,9 @@ Read a fresh snapshot before acting: the user can clear or switch a verdict.
 | Reject: `verdict: "reject"`                         | Stop: do not revise, recapture, or commit. Ask what to do instead. |
 | No verdict (`verdict` absent or `null`)             | Await the user.                                                    |
 
-For Approve after comments, read every entry in the filtered snapshot's
-`comments`, plus any feedback in this session or outside gavel, and act on all
-of them, including any added before the final snapshot. If a request cannot be
+For Approve after comments, read every user message in the snapshot's
+unresolved threads, plus any feedback in this session or outside gavel, and act
+on all of them, including any added before the final snapshot. If a request cannot be
 done or its meaning is unclear, explain the problem and do not commit. Nothing
 tracks which comments are done, and the verdict stays until the user clears it.
 See the
@@ -322,8 +330,8 @@ up as a new named review.
 
 Approve as-is or Approve after comments on a review you opened is
 commit approval. After comments, required checks, and independent Codex/Claude
-LAND on final code, read a fresh full snapshot immediately before committing.
-Require `approval.verdict` to be `as-is` or `after-comments`; for named captures approved as-is,
+LAND on final code, read a fresh `comment snapshot` immediately before
+committing. Require `approval.verdict` to be `as-is` or `after-comments`; for named captures approved as-is,
 also match:
 
 - `approval.captureVersion` to `capture.version`;

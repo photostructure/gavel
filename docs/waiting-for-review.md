@@ -1,13 +1,97 @@
 # Waiting for human review
 
+## Claude Code: the server sends feedback to the session
+
+Claude Code exports its session's cross-session inbox to Bash commands as
+`CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_MESSAGING_SOCKET` and
+`CLAUDE_CODE_MESSAGING_TOKEN`. A server launched with those variables, including a
+`--background` one, owns its reviews on behalf of that session; `review create`
+sends the creating session's inbox for its own review, or `null` when the
+creating process has none. The token stays in the server's memory; no file or
+API response contains it. Commands a user types with `!` in Claude Code, and
+commands run in a separate terminal, do not receive these variables: a server
+they launch has no owning session, and the page offers **Copy resume prompt**.
+A server launched with `--no-conversation` has no inbox and sends nothing,
+whatever its environment.
+
+The server sends human verdicts, comments, and comment edits to
+the owning session. Agent activity never sends anything. A verdict sends after
+2 seconds; comments alone wait until 5 seconds pass without
+more of them. One message covers every review of that session with unsent
+activity: a line per review with its current verdict and the number of messages
+awaiting an answer, then only the human events no message has carried yet (above
+50,000 characters, the snapshot command instead). Each event carries only the
+fields an agent acts on. A comment has `type` (`comment.created` or
+`comment.updated`), `review` (the review's name, or `base..target`), `reviewId`,
+`threadId`, `messageId`, `cursor`, and `body`; `intent` when the reviewer set
+one; for a comment on lines, `file`, `side`, and `line`; and `code`, the excerpt
+the reviewer saw, when the thread saved one. A general comment in
+**Conversation** has no location, and a thread imported without code has no
+`code`. A verdict has `type` (`review.approval`),
+`review`, `reviewId`, and `verdict` (`null` when the reviewer cleared it).
+A newer edit of a queued comment, or a newer verdict, replaces the queued one.
+The agent reads a fresh snapshot before acting on a verdict. An idle session
+starts a turn with the message. The agent ends its turn after sharing the URL;
+it runs no waiter.
+
+Claude Code sends no reply on its inbox, so the server knows only that the inbox
+accepted the message. With `crossSessionInbound` set to `hold` or `refuse`, Claude
+Code accepts the bytes but withholds the message, and the page still shows it as
+sent; `gavel pending` cannot recover it. Left unset, it also holds them while the
+session bypasses permission prompts, because gavel's messages declare no
+permission mode, unless the server still descends from the session's Claude Code
+process. A `--background` server does not: it detaches from its launcher. Set it
+to `accept` for gavel's messages to start turns in every permission mode.
+
+`GET /api/inbox` reports, for each review, `ready`, `pending`, `sent`
+(`via: "inbox"` or `"prompt"`), `failed` with the error, or
+`unavailable` when the review has no owning session. On wider screens a bot icon
+left of the review name in the header shows this state, and **Copy resume prompt** appears beside
+it when delivery failed or no session owns the review. Phones have no room for the
+icon: there a failed delivery shows an alert with **Copy resume prompt** under the
+header, and a review no session owns shows **Copy resume prompt** in the
+**Conversation** panel.
+
+The socket changes when Claude Code restarts. Each server lists its owning
+sessions under `$XDG_RUNTIME_DIR/gavel/sessions/<session-id>/<host>_<port>.json`;
+without `XDG_RUNTIME_DIR`, under `gavel-<uid>` in the system temporary directory.
+Both the server and `gavel pending` refuse a `gavel` directory that another user
+owns or can write. `gavel pending`
+reads that list for its session, sends the session's current inbox to each
+server with `POST /api/inbox/attach` (accepted only from this machine), and
+prints activity whose message failed. It prints nothing otherwise and removes
+entries of servers that have exited. Run it from Claude Code hooks so a restarted
+session catches up on its next prompt:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "gavel pending" }] }],
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "gavel pending" }] }]
+  }
+}
+```
+
+Use the gavel launcher your checkout prescribes in place of `gavel`. A message
+from gavel is not an approval; the agent still reads a fresh snapshot before
+committing.
+
+`/clear` starts a new session with a new session ID and socket, so reviews
+opened before it no longer reach the session, and `gavel pending` cannot find
+them: the registry lists them under the old session ID. In the desktop app the
+session's process exits at `/clear`, so the next send fails and the status icon
+shows it; use **Copy resume prompt** and paste the prompt into the cleared
+session. In the terminal this has not been tested.
+
+## Other hosts
+
 For Codex, use the [chat handoff](codex-review-integration.md): end the turn
 and resume on human feedback. Do not run `gavel wait` in a Codex model turn.
 
-Other hosts may use `gavel wait` only when a background command can wait without
-a time limit and its completion resumes the owning agent. Check the host's tool
-contract; see the [Claude waiting workflow](https://github.com/photostructure/gavel/blob/main/skills/gavel/SKILL.md).
-Otherwise, end the turn and let the reviewer resume through chat. Never replace
-this handoff with a model polling loop, timed Monitor, or repeated empty snapshots.
+A custom integration may use `gavel wait` when a background command can wait
+without a time limit and its completion resumes the owning agent. Otherwise, end
+the turn and let the reviewer resume through chat. Never replace this handoff
+with a model polling loop, timed Monitor, or repeated empty snapshots.
 
 ```sh
 gavel wait --port 4966
@@ -95,7 +179,8 @@ disconnecting the tab. Closing one of several tabs does not shut down the server
 Connected hidden tabs count as connected; visibility does not prove attention.
 An interrupted browser connection is not approval or evidence that review is done.
 
-The browser shows whether an agent listener is attached. `gavel wait` supplies a
+For a review without an owning session, the browser shows whether an agent
+listener is attached. `gavel wait` supplies a
 stable listener ID on its requests; a one-second grace period covers renewals.
 This reports a subscription, not a model reading or answering messages. Existing
 explicit receipts remain authoritative for message progress. Presence changes

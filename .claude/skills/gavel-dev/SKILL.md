@@ -64,5 +64,6 @@ The API URL serves a development placeholder. Use the Vite UI origin printed on
 stderr, preserving the query and editor-session fragment from `launchUrl` when
 composing a URL.
 
-For human review, follow the shared skill's host-capability check before waiting.
-A foreground process handle alone does not provide delivery into an idle chat.
+For human review, follow the shared skill's "Wait for feedback" section. A server
+launched from a Claude Code session with `node dist/cli/index.js` sends verdicts
+and comments to that session as an installed gavel would.
