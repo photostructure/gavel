@@ -101,6 +101,34 @@ name and `reviewId`. Approval is revalidated under the
 [capture-update rules](approval-modes.md#approval-invalidation). Earlier inline anchors retain their original
 capture version/digest and appear outdated after the capture changes.
 
+Rename or delete a named review without restarting the server:
+
+```sh
+gavel review rename parser-fix parser-recovery --port 4966
+gavel review delete docs-update --port 4966
+```
+
+`review rename` (`POST /api/reviews/:name/rename` with `{name}`) keeps the review's
+`reviewId`, capture history, conversation, proposal and verdict under the new name,
+and the server saves it under that name. It returns
+`{reviewId,name,version,patchDigest,baseCommit,repositoryId}`, or HTTP 409 when the
+new name is taken, including by a review an earlier server saved with the same patch. Comment links that name the old review stop resolving, and the
+browser forgets which files the reviewer marked viewed in it. An open browser tab on the
+server moves the reviewer's changes the server had not yet confirmed to the new name and
+sends them there, and a tab showing the review follows it.
+
+`review delete` (`DELETE /api/reviews/:name`) returns `{reviewId,name,deleted:true}`.
+The review leaves the tabs and the snapshot's `reviews`; its threads move to the
+snapshot's `deletedReviews`, which **Conversation** lists as "(deleted)", and its
+`reviewId` no longer takes status, replies or summaries. A new review may reuse the
+name and starts empty, except that a comment or verdict the reviewer made on the deleted
+review that the server had not yet confirmed is sent to it. The server deletes the review's saved state, so its threads
+last only until the server stops. A review that another running server saves (the
+snapshot's `store.error` lists those) keeps that server's saved copy. Comments and
+verdicts on the review that had not yet reached the agent's session inbox are dropped,
+since the agent can no longer answer them. A browser showing a deleted review switches to the
+uncommitted changes.
+
 ## Discover payloads
 
 Run `gavel --help` for commands and `gavel comment <command> --help` for companion
@@ -154,8 +182,9 @@ digest. The code snapshot records the excerpt the commenter saw. Unnamed
 working-tree selections can change on reload; use a named capture to retain a
 fixed patch.
 
-The stream also carries `review.capture`, `review.approval`, `review.summary`, `comment.progress`,
-`comment.deleted`, `thread.resolved`, `thread.reopened`, and `thread.deleted`.
+The stream also carries `review.capture`, `review.renamed`, `review.deleted`, `review.approval`,
+`review.summary`, `comment.progress`, `comment.deleted`, `thread.resolved`, `thread.reopened`,
+and `thread.deleted`.
 Progress events include review, thread, and message IDs, `selection`, agent `origin`, stream
 `cursor`, `progress`, and `timestamp`. Their `progress.cursor` identifies the
 comment revision; their outer `cursor` identifies the progress event. Thread
@@ -163,7 +192,9 @@ events include review/thread IDs, `selection`, `origin`, `cursor`, and `timestam
 `comment.deleted` additionally identifies `messageId` and contains no body.
 These state changes are not new work requests. `review.capture` has agent origin,
 `reviewId`, `selection`, current `capture` metadata, `cursor`, and `timestamp`.
-Named `review.summary` and `review.approval` events also include current capture
+`review.renamed` has the same fields plus `previousName`; its `selection` and
+`capture` carry the new name. `review.deleted` has agent origin, `reviewId`, the
+deleted review's `selection`, `cursor`, and `timestamp`. Named `review.summary` and `review.approval` events also include current capture
 metadata. A snapshot includes each named review's current `capture` and each
 thread's original `capture` version/digest.
 
@@ -465,7 +496,10 @@ saved. A later server restores a review when it opens the same one:
   commits.
 
 An unnamed stdin patch, and a server started with `--no-conversation`, save
-nothing.
+nothing. `review delete` removes a named review's saved state, so a later server does
+not restore it, `approval status` no longer finds its verdict, and `review unapply` and
+`review reapply` no longer find it by name, unless another running server saves that
+review: its saved copy stays. After a rename they find it under the new name.
 
 A restored review keeps its approval until the usual rules revoke it: a changed
 capture, summary, or `staged`/`.` diff revokes an Approve as-is, and only the

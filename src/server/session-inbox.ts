@@ -288,7 +288,13 @@ export class SessionInbox {
   }
 
   handle(event: ConversationStreamEvent): void {
-    if (this.disposed || event.origin !== 'user') return;
+    if (this.disposed) return;
+    // An agent deleted the review; its comments now take no replies or receipts.
+    if (event.type === 'review.deleted') {
+      if (this.activity.delete(event.reviewId)) this.options.onDeliveryChange?.();
+      return;
+    }
+    if (event.origin !== 'user') return;
     if (event.type === 'comment.deleted' || event.type === 'thread.deleted') {
       this.withdraw(event);
       return;

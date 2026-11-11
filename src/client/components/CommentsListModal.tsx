@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import {
+  useContext,
   useEffect,
   useState,
   useRef,
@@ -12,6 +13,7 @@ import {
 import { useHotkeys, useHotkeysContext } from 'react-hotkeys-hook';
 
 import type { CommentIntent, CommentThread, DiffSelection } from '../../types/diff';
+import { CommentLinkContext, type FollowCommentLink } from '../contexts/CommentLinkContext';
 import { hasActiveTextSelection } from '../utils/domUtils';
 import { useDraftAnchors } from '../hooks/useCommentDrafts';
 import type { AgentUpdate } from '../hooks/useAgentUpdates';
@@ -28,6 +30,8 @@ export interface OtherReviewConversation {
   selection: DiffSelection;
   threads: CommentThread[];
   showAuthorBadges: boolean;
+  /** An agent deleted this named review; its threads stay readable but open nothing. */
+  deleted?: true;
 }
 
 interface CommentsListModalProps {
@@ -72,6 +76,21 @@ interface CommentsListModalProps {
 
 const EMPTY_UPDATES: AgentUpdate[] = [];
 const EMPTY_REVIEWS: OtherReviewConversation[] = [];
+
+/** Marks the links in a deleted review's comments, which have no review left to point into. */
+function DeletedReviewLinks({ deleted, children }: { deleted: boolean; children: ReactNode }) {
+  const follow = useContext(CommentLinkContext);
+  const marked = useMemo<FollowCommentLink | null>(
+    () =>
+      follow && ((href, source) => follow(href, source && { ...source, deleted: true as const })),
+    [follow],
+  );
+  return deleted ? (
+    <CommentLinkContext.Provider value={marked}>{children}</CommentLinkContext.Provider>
+  ) : (
+    children
+  );
+}
 
 function compareThreadsByPosition(a: CommentThread, b: CommentThread): number {
   const fileCompare = (a.file ?? '').localeCompare(b.file ?? '');
@@ -230,7 +249,7 @@ export function CommentsListModal({
     (thread: CommentThread) => {
       const otherReview = otherReviewByThread.get(thread.id);
       if (otherReview) {
-        onOpenOtherReviewThread?.(otherReview, thread.id);
+        if (!otherReview.deleted) onOpenOtherReviewThread?.(otherReview, thread.id);
         return;
       }
       if (thread.scope === 'review') return;
@@ -549,76 +568,79 @@ export function CommentsListModal({
                         {showReviewHeadings && (
                           <h3 className="text-sm ui-heading">
                             <code>{group.review?.name ?? currentReviewName ?? 'This review'}</code>
+                            {group.review?.deleted && ' (deleted)'}
                           </h3>
                         )}
-                        {group.threads.map((thread, threadIndex) => {
-                          const index = firstIndex + threadIndex;
-                          return (
-                            <div
-                              key={thread.id}
-                              ref={(el) => {
-                                commentRefs.current[index] = el;
-                              }}
-                              className={
-                                selectedIndex === index ? 'rounded ring-2 ring-blue-500' : ''
-                              }
-                            >
-                              <CommentThreadCard
-                                readOnly={group.review !== null}
-                                linkReview={group.review?.selection}
-                                onEscapeKeepingDraft={onClose}
-                                unreadCount={unreadByThread.get(thread.id)?.length ?? 0}
-                                onReadUnread={() => {
-                                  const unreadIds = new Set(
-                                    unreadByThread
-                                      .get(thread.id)
-                                      ?.map((update) => update.message.id),
-                                  );
-                                  const message = thread.messages.find((item) =>
-                                    unreadIds.has(item.id),
-                                  );
-                                  if (!message) return;
-                                  setFocus((previous) => ({
-                                    scope: readScope,
-                                    threadId: thread.id,
-                                    messageId: message.id,
-                                    request: (previous?.request ?? 0) + 1,
-                                  }));
+                        <DeletedReviewLinks deleted={Boolean(group.review?.deleted)}>
+                          {group.threads.map((thread, threadIndex) => {
+                            const index = firstIndex + threadIndex;
+                            return (
+                              <div
+                                key={thread.id}
+                                ref={(el) => {
+                                  commentRefs.current[index] = el;
                                 }}
-                                focusedMessageId={
-                                  focusedMessage?.threadId === thread.id
-                                    ? focusedMessage.messageId
-                                    : undefined
+                                className={
+                                  selectedIndex === index ? 'rounded ring-2 ring-blue-500' : ''
                                 }
-                                focusRequest={
-                                  focusedMessage?.threadId === thread.id
-                                    ? focusedMessage.request
-                                    : undefined
-                                }
-                                thread={thread}
-                                showAuthorBadges={
-                                  group.review?.showAuthorBadges ?? showAuthorBadges
-                                }
-                                onGeneratePrompt={onGenerateThreadPrompt}
-                                onRemoveThread={onRemoveThread ? handleRemoveThread : undefined}
-                                onRestoreComment={onRestoreComment}
-                                onToggleThreadResolved={onToggleThreadResolved}
-                                onReplyToThread={onReplyToThread}
-                                onRemoveMessage={onRemoveMessage}
-                                onUpdateMessage={onUpdateMessage}
-                                syntaxTheme={syntaxTheme}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  // Selecting text inside a card fires a click as well; do not
-                                  // treat it as a request to navigate and close the modal.
-                                  if (hasActiveTextSelection()) return;
-                                  setSelectedIndex(index);
-                                  handleThreadClick(thread);
-                                }}
-                              />
-                            </div>
-                          );
-                        })}
+                              >
+                                <CommentThreadCard
+                                  readOnly={group.review !== null}
+                                  linkReview={group.review?.selection}
+                                  onEscapeKeepingDraft={onClose}
+                                  unreadCount={unreadByThread.get(thread.id)?.length ?? 0}
+                                  onReadUnread={() => {
+                                    const unreadIds = new Set(
+                                      unreadByThread
+                                        .get(thread.id)
+                                        ?.map((update) => update.message.id),
+                                    );
+                                    const message = thread.messages.find((item) =>
+                                      unreadIds.has(item.id),
+                                    );
+                                    if (!message) return;
+                                    setFocus((previous) => ({
+                                      scope: readScope,
+                                      threadId: thread.id,
+                                      messageId: message.id,
+                                      request: (previous?.request ?? 0) + 1,
+                                    }));
+                                  }}
+                                  focusedMessageId={
+                                    focusedMessage?.threadId === thread.id
+                                      ? focusedMessage.messageId
+                                      : undefined
+                                  }
+                                  focusRequest={
+                                    focusedMessage?.threadId === thread.id
+                                      ? focusedMessage.request
+                                      : undefined
+                                  }
+                                  thread={thread}
+                                  showAuthorBadges={
+                                    group.review?.showAuthorBadges ?? showAuthorBadges
+                                  }
+                                  onGeneratePrompt={onGenerateThreadPrompt}
+                                  onRemoveThread={onRemoveThread ? handleRemoveThread : undefined}
+                                  onRestoreComment={onRestoreComment}
+                                  onToggleThreadResolved={onToggleThreadResolved}
+                                  onReplyToThread={onReplyToThread}
+                                  onRemoveMessage={onRemoveMessage}
+                                  onUpdateMessage={onUpdateMessage}
+                                  syntaxTheme={syntaxTheme}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Selecting text inside a card fires a click as well; do not
+                                    // treat it as a request to navigate and close the modal.
+                                    if (hasActiveTextSelection()) return;
+                                    setSelectedIndex(index);
+                                    handleThreadClick(thread);
+                                  }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </DeletedReviewLinks>
                       </section>
                     );
                   })}

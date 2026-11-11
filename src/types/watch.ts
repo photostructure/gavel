@@ -60,6 +60,21 @@ interface ReviewCaptureChangedWatchEvent {
   timestamp: string;
 }
 
+/** An agent renamed a named review; a page showing it moves to the new name. */
+interface ReviewRenamedWatchEvent {
+  type: 'reviewRenamed';
+  previousName: string;
+  reviewName: string;
+  timestamp: string;
+}
+
+/** An agent deleted a named review; a page showing it moves to another review. */
+interface ReviewDeletedWatchEvent {
+  type: 'reviewDeleted';
+  reviewName: string;
+  timestamp: string;
+}
+
 export type WatchEvent =
   | ConnectedWatchEvent
   | ReloadWatchEvent
@@ -68,7 +83,9 @@ export type WatchEvent =
   | ApprovalChangedWatchEvent
   | ReviewSummaryChangedWatchEvent
   | ReviewCaptureChangedWatchEvent
-  | InboxDeliveryChangedWatchEvent;
+  | InboxDeliveryChangedWatchEvent
+  | ReviewRenamedWatchEvent
+  | ReviewDeletedWatchEvent;
 
 export interface ClientWatchState {
   isWatchEnabled: boolean;

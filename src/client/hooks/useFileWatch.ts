@@ -18,6 +18,8 @@ export function useFileWatch(
   onSummaryChanged?: () => Promise<void>,
   onCaptureChanged?: (reviewName?: string) => Promise<void>,
   onInboxChanged?: () => Promise<void>,
+  // An agent renamed or deleted a named review.
+  onReviewsChanged?: () => Promise<void>,
 ): FileWatchHook {
   const callbacksRef = useRef({
     onCommentsChanged,
@@ -25,6 +27,7 @@ export function useFileWatch(
     onSummaryChanged,
     onCaptureChanged,
     onInboxChanged,
+    onReviewsChanged,
   });
   callbacksRef.current = {
     onCommentsChanged,
@@ -32,6 +35,7 @@ export function useFileWatch(
     onSummaryChanged,
     onCaptureChanged,
     onInboxChanged,
+    onReviewsChanged,
   };
   const [watchState, setWatchState] = useState<ClientWatchState>({
     isWatchEnabled: false,
@@ -100,6 +104,10 @@ export function useFileWatch(
               break;
             case 'inboxDeliveryChanged':
               void callbacksRef.current.onInboxChanged?.();
+              break;
+            case 'reviewRenamed':
+            case 'reviewDeleted':
+              void callbacksRef.current.onReviewsChanged?.();
               break;
           }
         },

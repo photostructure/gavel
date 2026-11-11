@@ -6,6 +6,8 @@ import type { DiffSelection } from '../../types/diff';
 export interface CommentLinkSource {
   threadId: string;
   review?: DiffSelection;
+  /** The thread belongs to a review an agent deleted, so its relative links point nowhere. */
+  deleted?: true;
 }
 
 export type FollowCommentLink = (href: string, source?: CommentLinkSource) => void;

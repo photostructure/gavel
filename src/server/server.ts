@@ -601,7 +601,9 @@ export async function startServer(options: ServerOptions): Promise<{
   const resolvedWorkingTreeSelections = new Map<string, DiffSelection>();
   const workingTreeTracking = new Map<string, Promise<void>>();
   // Resolved commits, so the launched diff stays put when HEAD moves and matches its review.
-  const launch = initialNamedReview || options.explicitTarget ? currentCommentSelection : undefined;
+  let launch = initialNamedReview || options.explicitTarget ? currentCommentSelection : undefined;
+  // The review the launch's --comment imports belong to; a rename or delete moves or drops it.
+  let commentImportSelection: DiffSelection | undefined = initialSelection;
   if (options.clearComments) cleanKey = reviewKey(currentCommentSelection);
   // The diff of that review alone tells the page not to send an old browser copy of its comments.
   const cleanSelection = options.clearComments ? currentCommentSelection : undefined;
@@ -832,6 +834,107 @@ export async function startServer(options: ServerOptions): Promise<{
     }
   });
 
+  /**
+   * Points the server's own references to a renamed named review at its new selection, or drops
+   * them after a delete. The delete route replaces the default view itself.
+   */
+  function retargetNamedReview(name: string, to: DiffSelection | undefined): void {
+    if (to && currentCommentSelection.reviewName === name) {
+      currentSelection = to;
+      currentCommentSelection = to;
+    }
+    if (launch?.reviewName === name) launch = to;
+    if (commentImportSelection?.reviewName === name) commentImportSelection = to;
+    const sessionKey = createCommentSessionKey(createDiffSelection('', '', undefined, name));
+    const session = commentSessions.get(sessionKey);
+    commentSessions.delete(sessionKey);
+    if (to && session) commentSessions.set(createCommentSessionKey(to), session);
+  }
+
+  app.post('/api/reviews/:name/rename', (req, res) => {
+    try {
+      const input = req.body as { name?: unknown } | null;
+      if (!input || typeof input.name !== 'string')
+        throw new NamedReviewError('Expected the new review name', 400);
+      const previous = namedReviews.get(req.params.name);
+      if (!previous || !conversation)
+        throw new NamedReviewError(`Review "${req.params.name}" does not exist`, 404);
+      // A review an earlier server saved under the new name and this patch would be overwritten.
+      const target = savedReviewKey(
+        repositoryId,
+        { ...previous.selection, reviewName: input.name },
+        previous.metadata,
+      );
+      if (target && reviewStore?.has(target))
+        throw new NamedReviewError(`Review "${input.name}" already exists`, 409);
+      const review = namedReviews.rename(previous.metadata.name, input.name);
+      // The review.renamed event saves the review under its new name and removes the old file.
+      conversation.rename(previous.metadata.name, review.selection, review.metadata);
+      retargetNamedReview(previous.metadata.name, review.selection);
+      res.json(describeNamedReview(review));
+      fileWatcher.broadcast({
+        type: 'reviewRenamed',
+        previousName: previous.metadata.name,
+        reviewName: review.metadata.name,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      reviewError(res, error);
+    }
+  });
+
+  // The default view after deleting the review it showed: the uncommitted changes, resolved the
+  // way /api/diff resolves them, or a stdin server's own patch. A repository with no commits has
+  // no HEAD to resolve, so its view stays unresolved.
+  async function defaultSelectionAfterDelete(): Promise<{
+    selection: DiffSelection;
+    commentSelection: DiffSelection;
+  }> {
+    const selection = options.stdinDiff ? initialSelection : createDiffSelection('HEAD', '.');
+    if (!options.stdinDiff && !(await parser.validateCommit('HEAD')))
+      return { selection, commentSelection: selection };
+    const diff = options.stdinDiff
+      ? initialDiffData
+      : await parser.parseDiff(selection, false, options.contextLines);
+    return {
+      selection,
+      commentSelection: createResolvedCommentSelection(diff, selection, Boolean(options.stdinDiff)),
+    };
+  }
+
+  app.delete('/api/reviews/:name', async (req, res) => {
+    try {
+      const shown = currentCommentSelection.reviewName === req.params.name;
+      const fallback = shown ? await defaultSelectionAfterDelete() : undefined;
+      const review = namedReviews.get(req.params.name);
+      if (!review || !conversation)
+        throw new NamedReviewError(`Review "${req.params.name}" does not exist`, 404);
+      const { name } = review.metadata;
+      // A recapture whose save failed leaves the previous capture's file; both go.
+      const savedKey = reviewKey(review.selection);
+      namedReviews.delete(name);
+      const reviewId = conversation.delete(review.selection);
+      const savedKeys = new Set([savedKey, savedReviewKeys.get(reviewId)]);
+      retargetNamedReview(name, undefined);
+      if (fallback && currentCommentSelection.reviewName === name) {
+        currentSelection = fallback.selection;
+        currentCommentSelection = fallback.commentSelection;
+      }
+      savedReviewKeys.delete(reviewId);
+      unsavedReviews.delete(reviewId);
+      if (reviewStore && storeServer)
+        for (const key of savedKeys) if (key) reviewStore.remove(key, storeServer.owner);
+      res.json({ reviewId, name, deleted: true });
+      fileWatcher.broadcast({
+        type: 'reviewDeleted',
+        reviewName: name,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      reviewError(res, error);
+    }
+  });
+
   function getOrCreateCommentSession(selection: DiffSelection): CommentSessionState {
     const key = createCommentSessionKey(selection);
     const existing = commentSessions.get(key);
@@ -874,7 +977,8 @@ export async function startServer(options: ServerOptions): Promise<{
       );
     const shouldIncludeCommentImports =
       initialCommentImports.length > 0 &&
-      (Boolean(options.stdinDiff) || diffSelectionsEqual(requestedSelection, initialSelection));
+      (Boolean(options.stdinDiff) ||
+        diffSelectionsEqual(requestedSelection, commentImportSelection));
 
     let responseDiffData = initialDiffData;
     if (namedReview) {

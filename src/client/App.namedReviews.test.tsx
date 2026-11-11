@@ -22,6 +22,7 @@ vi.mock('./utils/clipboard', () => ({
 const watch = vi.hoisted(() => ({
   approvalChanged: undefined as (() => Promise<void>) | undefined,
   captureChanged: undefined as ((reviewName?: string) => Promise<void>) | undefined,
+  reviewsChanged: undefined as (() => Promise<void>) | undefined,
   commentsChanged: undefined as (() => Promise<void>) | undefined,
   inboxChanged: undefined as (() => Promise<void>) | undefined,
   reload: undefined as (() => Promise<void>) | undefined,
@@ -34,7 +35,9 @@ vi.mock('./hooks/useFileWatch', () => ({
     _onSummaryChanged?: () => Promise<void>,
     onCaptureChanged?: (reviewName?: string) => Promise<void>,
     onInboxChanged?: () => Promise<void>,
+    onReviewsChanged?: () => Promise<void>,
   ) => {
+    watch.reviewsChanged = onReviewsChanged;
     watch.approvalChanged = onApprovalChanged;
     watch.inboxChanged = onInboxChanged;
     watch.captureChanged = onCaptureChanged;
@@ -85,6 +88,10 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     // task-b's verdict; verdict belongs to task-a.
     verdictB: undefined as ReviewVerdict | undefined,
     showReviewB: true,
+    // An agent renamed task-a to this name, keeping its ID, or deleted it.
+    renamedA: undefined as string | undefined,
+    renamedB: undefined as string | undefined,
+    deletedA: false,
     showNamedReviews: true,
     addedLine: 'const stable = true;',
     hideFiles: false,
@@ -99,7 +106,9 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     let payload: unknown = {};
     if (url.pathname === '/api/diff') {
       const capture =
-        reviewName === 'task-b' ? { ...state.capture, name: 'task-b' } : state.capture;
+        reviewName && reviewName !== state.capture.name
+          ? { ...state.capture, name: reviewName }
+          : state.capture;
       const diff = {
         capture,
         repositoryId: capture.repositoryId,
@@ -179,15 +188,30 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
         reviews: [
           {
             id: 'review-a',
-            selection: { baseCommitish: 'base-one', targetCommitish: '.', reviewName: 'task-a' },
+            selection: {
+              baseCommitish: 'base-one',
+              targetCommitish: '.',
+              reviewName: state.renamedA ?? 'task-a',
+            },
             delivery: state.inbox,
           },
         ],
       };
     } else if (url.pathname === '/api/conversation/snapshot') {
+      const named = state.showNamedReviews ? namedReviews() : [];
       payload = {
         cursor: 'stream:1',
-        reviews: [...(state.showNamedReviews ? namedReviews() : []), ...state.otherReviews],
+        reviews: [
+          ...named.filter((review) => !state.deletedA || review.id !== 'review-a'),
+          ...state.otherReviews,
+        ],
+        ...(state.deletedA
+          ? {
+              deletedReviews: named
+                .filter((review) => review.id === 'review-a')
+                .map((review) => ({ ...review, deletedAt: '2026-11-10T00:00:00Z' })),
+            }
+          : {}),
       } satisfies ConversationSnapshot;
     }
     return new Response(JSON.stringify(payload));
@@ -196,11 +220,15 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     return [
       {
         id: 'review-a',
-        selection: { baseCommitish: 'base-one', targetCommitish: '.', reviewName: 'task-a' },
+        selection: {
+          baseCommitish: 'base-one',
+          targetCommitish: '.',
+          reviewName: state.renamedA ?? 'task-a',
+        },
         threads: [],
         summary: { commitMessage: 'fix: preserve review context', rationale: '', version: 2 },
         approval: state.verdict ? { verdict: state.verdict } : {},
-        capture: { ...state.capture },
+        capture: { ...state.capture, name: state.renamedA ?? state.capture.name },
       },
       ...(state.showReviewB
         ? [
@@ -209,12 +237,12 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
               selection: {
                 baseCommitish: 'base-one',
                 targetCommitish: '.',
-                reviewName: 'task-b',
+                reviewName: state.renamedB ?? 'task-b',
               },
               threads: [],
               summary: { commitMessage: '', rationale: '', version: 0 },
               approval: state.verdictB ? { verdict: state.verdictB } : {},
-              capture: { ...state.capture, name: 'task-b' },
+              capture: { ...state.capture, name: state.renamedB ?? 'task-b' },
             },
           ]
         : []),
@@ -250,6 +278,7 @@ describe('named captures in the browser', () => {
     vi.mocked(fetch).mockReset();
     watch.approvalChanged = undefined;
     watch.captureChanged = undefined;
+    watch.reviewsChanged = undefined;
     watch.commentsChanged = undefined;
     watch.reload = undefined;
     vi.stubGlobal('WebSocket', MockWebSocket);
@@ -985,6 +1014,268 @@ describe('named captures in the browser', () => {
     expect(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' })).toBeVisible();
     expect(diffRequests()).toHaveLength(before);
     expect(window.location.search).toBe('?review=task-a');
+  });
+
+  // A page that missed the event while disconnected follows the review by its ID.
+  it.each([
+    ['the live event', () => watch.reviewsChanged?.()],
+    ['a reconnect', () => watch.captureChanged?.()],
+  ])(
+    'follows a rename of the open review after %s without reloading the page',
+    async (_, notify) => {
+      const state = fixture();
+      renderApp();
+      await screen.findByRole('navigation', { name: 'Reviews on this server' });
+      const entries = window.history.length;
+      state.renamedA = 'task-renamed';
+      await act(async () => notify());
+      await waitFor(() => expect(window.location.search).toBe('?review=task-renamed'));
+      expect(window.history.length).toBe(entries);
+      const latest = diffRequests().at(-1);
+      expect(new URL(String(latest?.[0]), window.location.origin).searchParams.get('review')).toBe(
+        'task-renamed',
+      );
+    },
+  );
+
+  // The server sends no inboxDeliveryChanged for a rename: the session inbox ignores agent events.
+  it('keeps showing where verdicts go after following a rename', async () => {
+    const state = fixture();
+    state.inbox = { status: 'ready' };
+    renderApp();
+    const status = { name: 'Your verdicts and comments go to the agent session' };
+    expect(await screen.findByRole('status', status)).toBeInTheDocument();
+    state.renamedA = 'task-renamed';
+    await act(async () => watch.reviewsChanged?.());
+    await waitFor(() => expect(window.location.search).toBe('?review=task-renamed'));
+    expect(await screen.findByRole('status', status)).toBeInTheDocument();
+  });
+
+  // A change waits in localStorage under the review's name until the server confirms it.
+  it('sends a change the server had not confirmed to the review under its new name', async () => {
+    const verdictButton = (name: string) =>
+      within(screen.getByRole('group', { name: 'Verdict' })).getByRole('button', { name });
+    const state = fixture();
+    renderApp();
+    await waitFor(() => expect(verdictButton('Reject')).toBeEnabled());
+    const baseFetch = vi.mocked(fetch).getMockImplementation()!;
+    let opsDown = true;
+    vi.mocked(fetch).mockImplementation(async (input, init) =>
+      opsDown && String(input).startsWith('/api/review-ops')
+        ? new Response('{}', { status: 503 })
+        : baseFetch(input, init),
+    );
+    fireEvent.click(verdictButton('Reject'));
+    await waitFor(() => expect(opPosts('task-a').length).toBeGreaterThan(0));
+    opsDown = false;
+    state.renamedA = 'task-renamed';
+    await act(async () => watch.reviewsChanged?.());
+    await waitFor(() => expect(window.location.search).toBe('?review=task-renamed'));
+    await waitFor(() =>
+      expect(
+        opPosts('task-renamed').some(([, init]) => String(init?.body).includes('"reject"')),
+      ).toBe(true),
+    );
+    expect(state.verdict).toBe('reject');
+    expect(Object.keys(localStorage).filter((key) => key.startsWith('gavel:review-ops:'))).toEqual(
+      [],
+    );
+  });
+
+  // Every renamed review's waiting changes move, whichever review the page shows meanwhile.
+  describe('a change the server had not confirmed when its review was renamed', () => {
+    const verdictButton = (name: string) =>
+      within(screen.getByRole('group', { name: 'Verdict' })).getByRole('button', { name });
+    const rejectWhileOpsFail = async () => {
+      const state = fixture();
+      renderApp();
+      await waitFor(() => expect(verdictButton('Reject')).toBeEnabled());
+      const baseFetch = vi.mocked(fetch).getMockImplementation()!;
+      const control = { opsDown: true, holdDiff: undefined as string | undefined };
+      let releaseDiff = () => {};
+      const held = new Promise<void>((resolve) => (releaseDiff = resolve));
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (control.opsDown && url.startsWith('/api/review-ops'))
+          return new Response('{}', { status: 503 });
+        if (control.holdDiff && url.startsWith('/api/diff?') && url.includes(control.holdDiff))
+          await held;
+        return baseFetch(input, init);
+      });
+      fireEvent.click(verdictButton('Reject'));
+      await waitFor(() => expect(opPosts('task-a').length).toBeGreaterThan(0));
+      return { state, control, releaseDiff };
+    };
+    const rejectReaches = (reviewName: string) =>
+      waitFor(() =>
+        expect(
+          opPosts(reviewName).some(([, init]) => String(init?.body).includes('"reject"')),
+        ).toBe(true),
+      );
+
+    it("follows two renames made before the first one's diff loads", async () => {
+      const { state, control, releaseDiff } = await rejectWhileOpsFail();
+      control.opsDown = false;
+      control.holdDiff = 'review=task-middle';
+      state.renamedA = 'task-middle';
+      await act(async () => watch.reviewsChanged?.());
+      state.renamedA = 'task-final';
+      await act(async () => watch.reviewsChanged?.());
+      releaseDiff();
+      await waitFor(() => expect(window.location.search).toBe('?review=task-final'));
+      await rejectReaches('task-final');
+      expect(state.verdict).toBe('reject');
+    });
+
+    it('moves them for a review renamed while the page shows another', async () => {
+      const { state, control } = await rejectWhileOpsFail();
+      control.opsDown = false;
+      const bar = screen.getByRole('navigation', { name: 'Reviews on this server' });
+      fireEvent.click(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' }));
+      await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
+      state.renamedA = 'task-renamed';
+      await act(async () => watch.reviewsChanged?.());
+      const renamedTab = await waitFor(() =>
+        within(screen.getByRole('navigation', { name: 'Reviews on this server' })).getByRole(
+          'button',
+          { name: /^task-renamed,/ },
+        ),
+      );
+      fireEvent.click(renamedTab);
+      await waitFor(() => expect(window.location.search).toBe('?review=task-renamed'));
+      await rejectReaches('task-renamed');
+      expect(state.verdict).toBe('reject');
+    });
+  });
+
+  it('follows a second rename and then a delete of the review it already followed', async () => {
+    const state = fixture();
+    renderApp();
+    await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    state.renamedA = 'task-middle';
+    await act(async () => watch.reviewsChanged?.());
+    await waitFor(() => expect(window.location.search).toBe('?review=task-middle'));
+    state.renamedA = 'task-final';
+    await act(async () => watch.reviewsChanged?.());
+    await waitFor(() => expect(window.location.search).toBe('?review=task-final'));
+    const before = diffRequests().length;
+    state.deletedA = true;
+    await act(async () => watch.reviewsChanged?.());
+    await waitFor(() => expect(diffRequests().length).toBeGreaterThan(before));
+    const latest = new URL(String(diffRequests().at(-1)?.[0]), window.location.origin);
+    expect(latest.searchParams.get('review')).toBeNull();
+  });
+
+  it('follows a rename of a review opened from its tab', async () => {
+    const state = fixture();
+    renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    fireEvent.click(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' }));
+    await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
+    state.renamedB = 'task-b-renamed';
+    await act(async () => watch.reviewsChanged?.());
+    await waitFor(() => expect(window.location.search).toBe('?review=task-b-renamed'));
+  });
+
+  it('follows the open review by its ID when a new review reuses its name', async () => {
+    const state = fixture();
+    renderApp();
+    await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    state.renamedA = 'task-renamed';
+    state.otherReviews = [
+      {
+        id: 'new-task-a',
+        selection: { baseCommitish: 'base-one', targetCommitish: '.', reviewName: 'task-a' },
+        threads: [],
+        summary: { commitMessage: '', rationale: '', version: 0 },
+        approval: {},
+        capture: { ...state.capture },
+      },
+    ];
+    await act(async () => watch.captureChanged?.());
+    await waitFor(() => expect(window.location.search).toBe('?review=task-renamed'));
+  });
+
+  it('leaves a deleted open review for the uncommitted changes, and ignores another review', async () => {
+    const state = fixture();
+    renderApp();
+    await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    const before = diffRequests().length;
+    state.showReviewB = false;
+    await act(async () => watch.reviewsChanged?.());
+    expect(diffRequests()).toHaveLength(before);
+    expect(window.location.search).toBe('?review=task-a');
+
+    state.deletedA = true;
+    await act(async () => watch.reviewsChanged?.());
+    await waitFor(() => expect(diffRequests().length).toBeGreaterThan(before));
+    const latest = new URL(String(diffRequests().at(-1)?.[0]), window.location.origin);
+    expect(latest.searchParams.get('review')).toBeNull();
+    expect(latest.searchParams.get('base')).toBe('HEAD');
+    expect(latest.searchParams.get('target')).toBe('.');
+  });
+
+  it("lists a deleted review's threads in Conversation as deleted", async () => {
+    const state = fixture();
+    state.otherReviews = [];
+    const baseFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) !== '/api/conversation/snapshot') return baseFetch(input, init);
+      const snapshot = (await (await baseFetch(input, init)).json()) as ConversationSnapshot;
+      return new Response(
+        JSON.stringify({
+          ...snapshot,
+          deletedReviews: [
+            {
+              id: 'gone-id',
+              selection: { baseCommitish: 'base-one', targetCommitish: '.', reviewName: 'gone' },
+              threads: [{ ...originalThread, id: 'gone-thread' }],
+              summary: { commitMessage: '', rationale: '', version: 0 },
+              approval: {},
+              capture: { ...state.capture, name: 'gone' },
+              deletedAt: '2026-11-10T00:00:00Z',
+            },
+          ],
+        } satisfies ConversationSnapshot),
+      );
+    });
+    renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    expect(within(bar).queryByRole('button', { name: /gone/ })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /Conversation/ }));
+    fireEvent.click(await screen.findByRole('radio', { name: 'All reviews' }));
+    expect(await screen.findByRole('heading', { name: 'gone (deleted)' })).toBeVisible();
+  });
+
+  it("keeps a deleted review's threads in Conversation while a new review reuses its name", async () => {
+    const state = fixture();
+    state.otherReviews = [];
+    const baseFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) !== '/api/conversation/snapshot') return baseFetch(input, init);
+      const snapshot = (await (await baseFetch(input, init)).json()) as ConversationSnapshot;
+      return new Response(
+        JSON.stringify({
+          ...snapshot,
+          deletedReviews: [
+            {
+              id: 'gone-id',
+              selection: { baseCommitish: 'base-one', targetCommitish: '.', reviewName: 'task-a' },
+              threads: [{ ...originalThread, id: 'gone-thread' }],
+              summary: { commitMessage: '', rationale: '', version: 0 },
+              approval: {},
+              capture: { ...state.capture, name: 'task-a' },
+              deletedAt: '2026-11-10T00:00:00Z',
+            },
+          ],
+        } satisfies ConversationSnapshot),
+      );
+    });
+    renderApp();
+    await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    fireEvent.click(await screen.findByRole('button', { name: /Conversation/ }));
+    fireEvent.click(await screen.findByRole('radio', { name: 'All reviews' }));
+    expect(await screen.findByRole('heading', { name: 'task-a (deleted)' })).toBeVisible();
   });
 
   it('shows the other reviews on the server and navigates by their stable names', async () => {

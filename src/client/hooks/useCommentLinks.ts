@@ -140,6 +140,10 @@ export function useCommentLinks(options: UseCommentLinksOptions) {
         setNotice(link.error);
         return;
       }
+      if (source?.deleted && link.review === undefined) {
+        setNotice('This comment belongs to a deleted review, so its links point nowhere.');
+        return;
+      }
       const { currentSelection, reviews, ready, switchReview } = latest.current;
       let target = source?.review ?? currentSelection;
       if (link.review !== undefined) {

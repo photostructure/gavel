@@ -295,6 +295,60 @@ describe('named review CLI', () => {
     );
   });
 
+  it('renames a named review on a running server without capturing', async () => {
+    const result = { reviewId: 'id', name: 'better', version: 2 };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(result)));
+    await run('rename', 'task', 'better', '--host', '10.1.1.24', '--port', '4983');
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      'http://10.1.1.24:4983/api/reviews/task/rename',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'better' }),
+      }),
+    );
+    expect(captureWorkingTree).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledExactlyOnceWith(JSON.stringify(result));
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('deletes a named review on a running server', async () => {
+    const result = { reviewId: 'id', name: 'task', deleted: true };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(result)));
+    await run('delete', 'task', '--port', '4983');
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      'http://localhost:4983/api/reviews/task',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(log).toHaveBeenCalledExactlyOnceWith(JSON.stringify(result));
+  });
+
+  it.each([
+    ['rename', 'task', 'bad name'],
+    ['rename', 'bad name', 'task'],
+    ['delete', 'bad name'],
+  ])('rejects an invalid name for review %s before contacting the server', async (...args) => {
+    await run(...args, '--port', '4983');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('Review name'));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('reports a taken name from rename with the server message', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Review "better" already exists' }), { status: 409 }),
+    );
+    await run('rename', 'task', 'better', '--port', '4983');
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('Error: Review "better" already exists'),
+    );
+    // An earlier server's saved review also takes a name, and GET /api/reviews cannot show it.
+    expect(error).not.toHaveBeenCalledWith(expect.stringContaining('/api/reviews'));
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('Choose another name'));
+    expect(log).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
   it('updates the native uncommitted capture at the expected version', async () => {
     const result = { name: 'task', version: 4, patchDigest: capture.patchDigest, updated: true };
     fetchMock.mockResolvedValue(new Response(JSON.stringify(result)));

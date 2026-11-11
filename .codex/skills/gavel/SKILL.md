@@ -136,7 +136,13 @@ sending it a status, a reply or a summary, and use its summary `version` as
 server stopped. When the snapshot's `store.error` is set, tell the user that review
 changes are not being saved, and why
 ([saved reviews](https://github.com/photostructure/gavel/blob/main/docs/agent-conversations.md#saved-reviews)).
-Do not stop or replace another session's reviews.
+To fix a review's name, run `review rename <name> <new-name> --host <host> --port <port>`;
+its `reviewId`, comments, proposal and verdict stay. To drop a review you created and
+no longer want, run `review delete <name> --host <host> --port <port>` instead of
+restarting the server, which would drop every review's comments from the page. Its
+comments stay readable in **Conversation** until the server stops, and its name is
+free again.
+Do not stop, replace, rename, or delete another session's reviews.
 
 For overlapping files, use `review capture --output <artifact>` and its printed
 file/hunk IDs with `--capture` and `--select`. Pathspecs alone can include another

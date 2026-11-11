@@ -96,19 +96,31 @@ export interface ReviewStoreStatus {
   error?: string;
 }
 
+export interface ConversationSnapshotReview {
+  id: string;
+  selection: DiffSelection;
+  threads: DiffCommentThread[];
+  approval: ReviewApproval;
+  summary: ReviewSummary;
+  capture?: NamedReviewMetadata;
+}
+
+/**
+ * A named review an agent deleted from this server. Its conversation stays readable here until
+ * the server stops; it takes no new comments, and a new review may reuse its name.
+ */
+interface DeletedReview extends ConversationSnapshotReview {
+  deletedAt: string;
+}
+
 export interface ConversationSnapshot {
   presence?: ReviewPresenceSnapshot;
   /** Absent for a server that saves nothing: outside Git, or with --no-conversation. */
   store?: ReviewStoreStatus;
   cursor: string;
-  reviews: {
-    id: string;
-    selection: DiffSelection;
-    threads: DiffCommentThread[];
-    approval: ReviewApproval;
-    summary: ReviewSummary;
-    capture?: NamedReviewMetadata;
-  }[];
+  reviews: ConversationSnapshotReview[];
+  /** Present once an agent deletes a named review on this server. */
+  deletedReviews?: DeletedReview[];
 }
 
 /** progress.cursor identifies the comment revision; cursor identifies this stream event. */
@@ -155,8 +167,32 @@ interface ReviewCaptureEvent {
   timestamp: string;
 }
 
+/** An agent renamed a named review; its ID, conversation, proposal and verdict stay. */
+interface ReviewRenamedEvent {
+  type: 'review.renamed';
+  origin: 'agent';
+  cursor: string;
+  reviewId: string;
+  previousName: string;
+  selection: DiffSelection;
+  capture: NamedReviewMetadata;
+  timestamp: string;
+}
+
+/** An agent deleted a named review; snapshot.deletedReviews keeps its conversation. */
+interface ReviewDeletedEvent {
+  type: 'review.deleted';
+  origin: 'agent';
+  cursor: string;
+  reviewId: string;
+  selection: DiffSelection;
+  timestamp: string;
+}
+
 export type ConversationStreamEvent =
   | ReviewCaptureEvent
+  | ReviewRenamedEvent
+  | ReviewDeletedEvent
   | ConversationEvent
   | CommentDeletedEvent
   | ReviewApprovalEvent

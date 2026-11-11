@@ -287,6 +287,23 @@ describe('SessionInbox', () => {
     expect(send.mock.calls[0]![1]).toContain('Review changes are not being saved: lock held');
   });
 
+  // The deleted review takes no replies or receipts, so its comments are not the agent's to answer.
+  it('drops a review’s unsent activity, failed sends included, when an agent deletes it', async () => {
+    inbox.setOwner('r1', owner);
+    inbox.setOwner('r2', owner);
+    send.mockRejectedValueOnce(new Error('connect ENOENT'));
+    inbox.handle(approvalEvent('r2'));
+    await vi.advanceTimersByTimeAsync(INBOX_SETTLE_MS);
+    expect(inbox.delivery('r2').status).toBe('failed');
+    inbox.handle(commentEvent('r1'));
+    const deleted = { ...approvalEvent('r1', 'agent'), type: 'review.deleted' } as never;
+    inbox.handle(deleted);
+    inbox.handle({ ...approvalEvent('r2', 'agent'), type: 'review.deleted' } as never);
+    expect(inbox.attach(owner)).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(INBOX_QUIET_MS * 2);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it('never sends for agent-origin events', async () => {
     inbox.setOwner('r1', owner);
     inbox.handle(approvalEvent('r1', 'agent'));

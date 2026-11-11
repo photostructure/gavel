@@ -252,4 +252,46 @@ describe('NamedReviewStore', () => {
     expect(reviews.get('task', 1)).toEqual(expectedFirst);
     expect(reviews.get('task')).toEqual(expectedSecond);
   });
+
+  it('renames a review with its whole capture history', () => {
+    const reviews = store();
+    reviews.create('task', capture());
+    reviews.update('task', 1, capture('updated'));
+
+    const renamed = reviews.rename('task', 'better-name');
+
+    expect(renamed.metadata).toMatchObject({ name: 'better-name', version: 2 });
+    expect(renamed.selection.reviewName).toBe('better-name');
+    expect(reviews.get('task')).toBeUndefined();
+    expect(reviews.history('better-name').map((review) => review.metadata)).toEqual([
+      expect.objectContaining({ name: 'better-name', version: 1 }),
+      expect.objectContaining({ name: 'better-name', version: 2 }),
+    ]);
+    expect(reviews.get('better-name', 1)?.selection.reviewName).toBe('better-name');
+    expect(reviews.update('better-name', 2, capture('again')).review.metadata.version).toBe(3);
+  });
+
+  it('refuses to rename onto a taken or invalid name, or from a missing one', () => {
+    const reviews = store();
+    reviews.create('task', capture());
+    reviews.create('other', capture());
+
+    failure(() => reviews.rename('task', 'other'), 409);
+    failure(() => reviews.rename('task', 'not a name'), 400);
+    failure(() => reviews.rename('missing', 'fresh'), 404);
+    expect(reviews.get('task')?.metadata.name).toBe('task');
+    expect(reviews.get('other')?.metadata.name).toBe('other');
+  });
+
+  it('deletes a review so its name can start a new one', () => {
+    const reviews = store();
+    reviews.create('task', capture());
+    reviews.update('task', 1, capture('updated'));
+
+    expect(reviews.delete('task').metadata).toMatchObject({ name: 'task', version: 2 });
+    expect(reviews.get('task')).toBeUndefined();
+    expect(reviews.history('task')).toEqual([]);
+    failure(() => reviews.delete('task'), 404);
+    expect(reviews.create('task', capture()).metadata.version).toBe(1);
+  });
 });

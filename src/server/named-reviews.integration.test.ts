@@ -471,6 +471,128 @@ describe('named review HTTP integration', () => {
     );
   });
 
+  it('renames a review with its conversation, proposal and verdict, and saves under the new name', async () => {
+    const before = await review();
+    await post(`/api/comments${query}`, { threads: [lineThread()] });
+    const summary = await proposeSummary({
+      commitMessage: 'fix: renamed task',
+      rationale: 'Follows the rename.',
+      baseVersion: 0,
+    });
+    await put(`/api/approval${query}`, binding(initialCapture, 1, summary.version));
+    await post('/api/reviews', { name: 'taken', capture: initialCapture });
+    await post(`/api/reviews/${name}/rename`, { name: 'taken' }, 409);
+    await post('/api/reviews/missing/rename', { name: 'fresh' }, 404);
+    await post(`/api/reviews/${name}/rename`, { name: 'not a name' }, 400);
+    const eventStart = events.length;
+
+    const renamed = await post<ReviewResponse>(`/api/reviews/${name}/rename`, {
+      name: 'renamed-task',
+    });
+
+    expect(renamed).toMatchObject({ reviewId: before.reviewId, name: 'renamed-task', version: 1 });
+    await request(`/api/reviews/${name}`, 'GET', undefined, 404);
+    const renamedQuery = '?review=renamed-task';
+    expect(
+      (await get<CommentsResponse>(`/api/comments-json${renamedQuery}`)).threads.map(
+        (thread) => thread.id,
+      ),
+    ).toEqual(['question']);
+    expect(await get<ReviewSummary>(`/api/review-summary${renamedQuery}`)).toEqual(summary);
+    expect(await get<ReviewApproval>(`/api/approval${renamedQuery}`)).toMatchObject({
+      verdict: 'as-is',
+    });
+    // The launched review was the current one, so the default diff and revisions follow it.
+    expect((await get<DiffResponse>('/api/diff')).capture?.name).toBe('renamed-task');
+    expect((await get<RevisionsResponse>('/api/revisions')).launch?.reviewName).toBe(
+      'renamed-task',
+    );
+    expect(events.slice(eventStart)).toEqual([
+      expect.objectContaining({
+        type: 'review.renamed',
+        reviewId: before.reviewId,
+        previousName: name,
+        capture: expect.objectContaining({ name: 'renamed-task' }),
+      }),
+    ]);
+    const names = (await snapshot()).reviews.map((entry) => entry.selection.reviewName);
+    expect(names).toHaveLength(2);
+    expect(names).toEqual(expect.arrayContaining(['renamed-task', 'taken']));
+  });
+
+  it('deletes a review, keeps its threads in deletedReviews, and frees its name', async () => {
+    const before = await review();
+    await post(`/api/comments${query}`, { threads: [lineThread()] });
+    await request('/api/reviews/missing', 'DELETE', undefined, 404);
+    const eventStart = events.length;
+
+    expect(await request(`/api/reviews/${name}`, 'DELETE')).toEqual({
+      reviewId: before.reviewId,
+      name,
+      deleted: true,
+    });
+
+    await request(`/api/reviews/${name}`, 'GET', undefined, 404);
+    await request(`/api/comments-json${query}`, 'GET', undefined, 404);
+    // The default diff no longer names the deleted review, and reading it recreates nothing.
+    expect((await get<DiffResponse>('/api/diff')).capture).toBeUndefined();
+    const after = await snapshot();
+    expect(after.reviews.some((entry) => entry.selection.reviewName === name)).toBe(false);
+    expect(after.deletedReviews).toEqual([
+      expect.objectContaining({
+        id: before.reviewId,
+        selection: expect.objectContaining({ reviewName: name }),
+        threads: [expect.objectContaining({ id: 'question' })],
+      }),
+    ]);
+    expect((await get<RevisionsResponse>('/api/revisions')).launch).toBeUndefined();
+    expect(events.slice(eventStart)).toEqual([
+      expect.objectContaining({ type: 'review.deleted', reviewId: before.reviewId }),
+    ]);
+    await post(
+      '/api/conversation/reply',
+      { reviewId: before.reviewId, threadId: 'question', inReplyTo: 'question-message', body: 'x' },
+      404,
+    );
+
+    const recreated = await post<ReviewResponse>('/api/reviews', {
+      name,
+      capture: initialCapture,
+    });
+    expect(recreated.reviewId).not.toBe(before.reviewId);
+    expect((await get<CommentsResponse>(`/api/comments-json${query}`)).threads).toEqual([]);
+  });
+
+  it('files a default-selection comment after a delete under the diff the default view shows', async () => {
+    await request(`/api/reviews/${name}`, 'DELETE');
+    await post('/api/comments', { threads: [lineThread()] });
+    await get<DiffResponse>('/api/diff');
+    expect(
+      (await get<CommentsResponse>('/api/comments-json')).threads.map((thread) => thread.id),
+    ).toEqual(['question']);
+  });
+
+  it('deletes the shown review in a repository with no commits yet', async () => {
+    await running?.shutdown('closed');
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'gavel-named-unborn-')));
+    cleanupDirectories.push(root);
+    git('init', '--quiet');
+    writeFileSync(join(root, 'first.txt'), 'first\n');
+    git('add', 'first.txt');
+    const capture = await captureWorkingTree({ cwd: root, pathspecs: ['first.txt'] });
+    expect(capture.baseCommit).toBe('unborn');
+    running = await startServer({
+      namedReview: { name, capture },
+      repoPath: root,
+      preferredPort: 0,
+      openBrowser: false,
+      keepAlive: true,
+      conversation: true,
+    });
+
+    expect(await request(`/api/reviews/${name}`, 'DELETE')).toMatchObject({ deleted: true });
+  });
+
   it('rejects foreign and tampered captures without changing either review state or working files', async () => {
     const before = await review();
     const foreignRoot = realpathSync(mkdtempSync(join(tmpdir(), 'gavel-named-foreign-')));

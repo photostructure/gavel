@@ -57,6 +57,16 @@ line or a lone `}`; the stash holds the files as they were.
 Unapply refuses while any of the capture's paths are staged (`refused`, exit 1), so a
 rejected change is never left staged, and it does not change what is staged.
 
+### Rename or delete a named review
+
+`gavel review rename <name> <new-name> --port <port>` renames a review on a running
+server and keeps its comments, proposal and verdict. `gavel review delete <name> --port
+<port>` removes a review's tab; its comments stay in **Conversation**, marked
+"(deleted)", until the server stops. A delete also removes the saved review that
+`review unapply` and `review reapply` read, so undo a change before deleting its review.
+See the
+[conversation protocol](agent-conversations.md#named-captures-for-uncommitted-work).
+
 ## GitHub pull requests
 
 ```bash

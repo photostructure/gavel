@@ -193,6 +193,23 @@ export function useReviewOps(
     }
   }, [scope, query, showSnapshot]);
 
+  /**
+   * Moves a review's waiting changes from `fromScope` to `toScope`, as when an agent renames it,
+   * so they are sent to it under its new name. They keep their IDs, so the server answers one it
+   * already applied as a duplicate.
+   */
+  const retarget = useCallback((fromScope: string, toScope: string) => {
+    for (const op of readQueue(fromScope)) {
+      const key = opKey(toScope, op);
+      localStorage.setItem(key, JSON.stringify(op));
+      localStorage.removeItem(opKey(fromScope, op));
+      const waiter = waiting.current.get(op.id);
+      if (waiter) waiter.key = key;
+    }
+    const shown = activeScope.current;
+    if (shown === fromScope || shown === toScope) setQueue(readQueue(shown));
+  }, []);
+
   /** Resends what waits and reads the review again, as when it loads or the connection reopens. */
   const retry = useCallback(async () => {
     void flush();
@@ -221,5 +238,5 @@ export function useReviewOps(
           ? `Could not load comments: ${loadError}`
           : null;
 
-  return { loaded, threads, waiting: queue.length > 0, enqueue, refresh, retry, alert };
+  return { loaded, threads, waiting: queue.length > 0, enqueue, refresh, retry, retarget, alert };
 }

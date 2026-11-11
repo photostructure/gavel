@@ -229,6 +229,41 @@ describe('saved review state across server restarts', () => {
     expect(await reviewOf('second')).toMatchObject({ threads: [{ id: 'later' }] });
   });
 
+  it('restores a renamed review under its new name only', async () => {
+    await startNamed('task');
+    await request('/api/comments?review=task', { threads: [thread()] });
+    await request('/api/reviews/task/rename', { name: 'renamed' });
+
+    await restart(() => startNamed('renamed'));
+    expect((await reviewOf('renamed'))?.threads.map((entry) => entry.id)).toEqual(['question']);
+    await restart(() => startNamed('task'));
+    expect(await reviewOf('task')).toMatchObject({ threads: [] });
+  });
+
+  it('refuses to rename onto a name an earlier server saved with the same patch', async () => {
+    await startNamed('other');
+    await request('/api/comments?review=other', { threads: [thread()] });
+    await restart(() => startNamed('task'));
+    await request('/api/reviews/task/rename', { name: 'other' }, 409);
+
+    await restart(() => startNamed('other'));
+    expect((await reviewOf('other'))?.threads.map((entry) => entry.id)).toEqual(['question']);
+  });
+
+  it('forgets a deleted review once the server stops', async () => {
+    await startNamed('first');
+    await request('/api/reviews', { name: 'second', capture });
+    await request('/api/comments?review=second', { threads: [thread('later')] });
+    await request('/api/reviews/second', undefined, 200, 'DELETE');
+
+    await restart(() => startNamed('first'));
+    await request('/api/reviews', { name: 'second', capture });
+    expect(await reviewOf('second')).toMatchObject({ threads: [] });
+    expect(
+      (await request<ConversationSnapshot>('/api/conversation/snapshot')).deletedReviews,
+    ).toBeUndefined();
+  });
+
   it('leaves a review alone while another running server owns it', async () => {
     await startNamed('task');
     await request('/api/comments?review=task', { threads: [thread()] });

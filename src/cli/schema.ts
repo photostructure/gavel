@@ -71,6 +71,15 @@ const streamFields = {
   selection: ref('DiffSelection'),
   timestamp,
 };
+const snapshotReviewFields = {
+  id: string,
+  selection: ref('DiffSelection'),
+  threads: array(ref('CommentThread')),
+  approval: ref('ReviewApproval'),
+  summary: ref('ReviewSummary'),
+  capture: ref('NamedReviewMetadata'),
+};
+const snapshotReviewRequired = ['id', 'selection', 'threads', 'approval', 'summary'];
 const importFields = {
   type: enumeration('thread', 'reply'),
   id: string,
@@ -447,6 +456,22 @@ const definitions: Record<string, Schema> = {
     origin: { const: 'agent' },
     capture: ref('NamedReviewMetadata'),
   }),
+  ReviewRenamedEvent: {
+    ...object({
+      ...streamFields,
+      type: { const: 'review.renamed' },
+      origin: { const: 'agent' },
+      previousName: ref('ReviewName'),
+      capture: ref('NamedReviewMetadata'),
+    }),
+    description:
+      'An agent renamed a named review. reviewId, threads, proposal, and verdict stay; selection and capture carry the new name.',
+  },
+  ReviewDeletedEvent: {
+    ...object({ ...streamFields, type: { const: 'review.deleted' }, origin: { const: 'agent' } }),
+    description:
+      'An agent deleted a named review. Its threads move to snapshot deletedReviews; the reviewId no longer accepts status, replies, or summaries.',
+  },
   ConversationEvent: {
     oneOf: [
       'CommentEvent',
@@ -456,6 +481,8 @@ const definitions: Record<string, Schema> = {
       'ReviewSummaryEvent',
       'ReviewApprovalEvent',
       'ReviewCaptureEvent',
+      'ReviewRenamedEvent',
+      'ReviewDeletedEvent',
     ].map(ref),
   },
   ReviewPresence: object({
@@ -553,19 +580,17 @@ const definitions: Record<string, Schema> = {
         description:
           'Opaque stream checkpoint captured with this snapshot. Use it as --after only after reconciling current state; it does not acknowledge queued messages. Do not decode, sort, or use it as a message revision guard. Replay is bounded and process-local.',
       },
-      reviews: array(
-        object(
-          {
-            id: string,
-            selection: ref('DiffSelection'),
-            threads: array(ref('CommentThread')),
-            approval: ref('ReviewApproval'),
-            summary: ref('ReviewSummary'),
-            capture: ref('NamedReviewMetadata'),
-          },
-          ['id', 'selection', 'threads', 'approval', 'summary'],
+      reviews: array(object(snapshotReviewFields, snapshotReviewRequired)),
+      deletedReviews: {
+        ...array(
+          object({ ...snapshotReviewFields, deletedAt: timestamp }, [
+            ...snapshotReviewRequired,
+            'deletedAt',
+          ]),
         ),
-      ),
+        description:
+          'Named reviews an agent deleted on this server, present once there is one. Their threads stay readable until the server stops; they take no new comments, status, or replies, and a new review may reuse the name.',
+      },
     },
     ['cursor', 'reviews'],
   ),

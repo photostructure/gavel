@@ -251,6 +251,42 @@ describe('schema command', () => {
     });
   });
 
+  it('describes rename and delete events and the deleted reviews a snapshot keeps', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await createSchemaCommand().parseAsync(['node', 'gavel']);
+    const { $defs } = readOutput(log);
+    expect($defs.ReviewRenamedEvent).toMatchObject({
+      required: expect.arrayContaining(['reviewId', 'previousName', 'capture', 'type']),
+      properties: {
+        type: { const: 'review.renamed' },
+        origin: { const: 'agent' },
+        previousName: { $ref: '#/$defs/ReviewName' },
+        capture: { $ref: '#/$defs/NamedReviewMetadata' },
+      },
+    });
+    expect($defs.ReviewDeletedEvent).toMatchObject({
+      required: expect.arrayContaining(['reviewId', 'selection', 'type']),
+      properties: { type: { const: 'review.deleted' }, origin: { const: 'agent' } },
+    });
+    expect($defs.ConversationEvent).toMatchObject({
+      oneOf: expect.arrayContaining([
+        { $ref: '#/$defs/ReviewRenamedEvent' },
+        { $ref: '#/$defs/ReviewDeletedEvent' },
+      ]),
+    });
+    expect($defs.SnapshotResponse).toMatchObject({
+      required: ['cursor', 'reviews'],
+      properties: {
+        deletedReviews: {
+          items: {
+            required: ['id', 'selection', 'threads', 'approval', 'summary', 'deletedAt'],
+            properties: { threads: { items: { $ref: '#/$defs/CommentThread' } } },
+          },
+        },
+      },
+    });
+  });
+
   it('documents the capture and proposal guards on approval requests and saved approval', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     await createSchemaCommand().parseAsync(['node', 'gavel', 'approval']);

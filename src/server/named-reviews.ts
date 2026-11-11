@@ -108,6 +108,35 @@ export class NamedReviewStore {
     return { review: structuredClone(review), changed: true };
   }
 
+  /** Moves a review and every capture version to a new name; the capture versions stay. */
+  rename(name: string, newName: string): NamedReviewState {
+    const reviewName = this.validateName(name);
+    const nextName = this.validateName(newName);
+    const history = this.reviews.get(reviewName);
+    if (!history) throw new NamedReviewError(`Review "${reviewName}" does not exist`, 404);
+    if (this.reviews.has(nextName)) {
+      throw new NamedReviewError(`Review "${nextName}" already exists`, 409);
+    }
+    const renamed = (review: NamedReviewState) =>
+      this.createState(nextName, review.metadata.version, review.capture);
+    const versions = new Map(
+      [...history.versions].map(([version, review]) => [version, renamed(review)]),
+    );
+    const current = renamed(history.current);
+    this.reviews.delete(reviewName);
+    this.reviews.set(nextName, { current, versions });
+    return structuredClone(current);
+  }
+
+  /** Forgets a review and its capture history; the name is free for a new review. */
+  delete(name: string): NamedReviewState {
+    const reviewName = this.validateName(name);
+    const history = this.reviews.get(reviewName);
+    if (!history) throw new NamedReviewError(`Review "${reviewName}" does not exist`, 404);
+    this.reviews.delete(reviewName);
+    return structuredClone(history.current);
+  }
+
   private validateName(name: unknown): string {
     try {
       return validateReviewName(name);

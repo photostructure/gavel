@@ -162,6 +162,17 @@ describe('useCommentLinks', () => {
     expect(calls.switchReview).toHaveBeenCalledWith(other);
   });
 
+  it('follows no relative link written in a deleted review, and says why', () => {
+    const { result, calls } = setup();
+    act(() =>
+      result.current.follow('#thread=t5', { threadId: 't4', review: other, deleted: true }),
+    );
+    expect(calls.switchReview).not.toHaveBeenCalled();
+    expect(calls.jumpToThread).not.toHaveBeenCalled();
+    expect(result.current.notice).toMatch(/deleted/);
+    expect(window.location.search).toBe('?review=here');
+  });
+
   it('follows the page URL on load and on Back or Forward', async () => {
     window.history.replaceState(null, '', '/?review=here#thread=t2');
     const { calls } = setup();

@@ -56,6 +56,7 @@ export class Conversation {
   private readonly streamId = randomUUID();
   private sequence = 0;
   private readonly reviews = new Map<string, Review>();
+  private readonly deletedReviews: (Review & { deletedAt: string })[] = [];
   private readonly events: ConversationStreamEvent[] = [];
   private readonly listeners = new Set<() => void>();
   constructor(
@@ -212,6 +213,53 @@ export class Conversation {
       capture: { ...capture },
       timestamp: new Date().toISOString(),
     });
+  }
+
+  /** Moves a named review to a new name; its ID, threads, progress, proposal and verdict stay. */
+  rename(previousName: string, to: DiffSelection, capture: NamedReviewMetadata): void {
+    const from = { ...to, reviewName: previousName };
+    const review = this.getReview(from);
+    review.selection = { ...to };
+    review.capture = { ...capture };
+    // Re-key in place: the snapshot lists reviews in creation order, which tabs follow.
+    const fromKey = getDiffSelectionKey(from);
+    const entries = [...this.reviews].map(([key, entry]) =>
+      key === fromKey ? ([getDiffSelectionKey(to), entry] as const) : ([key, entry] as const),
+    );
+    this.reviews.clear();
+    for (const [key, entry] of entries) this.reviews.set(key, entry);
+    this.sequence += 1;
+    this.emit({
+      type: 'review.renamed',
+      origin: 'agent',
+      cursor: this.cursor,
+      reviewId: review.id,
+      previousName,
+      selection: { ...to },
+      capture: { ...capture },
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Retires a named review: the snapshot lists it under deletedReviews, findReview no longer
+   * finds it, and a later review with the same name starts empty. Returns its ID.
+   */
+  delete(selection: DiffSelection): string {
+    const review = this.getReview(selection);
+    this.reviews.delete(getDiffSelectionKey(selection));
+    const deletedAt = new Date().toISOString();
+    this.deletedReviews.push({ ...review, deletedAt });
+    this.sequence += 1;
+    this.emit({
+      type: 'review.deleted',
+      origin: 'agent',
+      cursor: this.cursor,
+      reviewId: review.id,
+      selection: { ...review.selection },
+      timestamp: deletedAt,
+    });
+    return review.id;
   }
 
   getSummary(selection: DiffSelection): ReviewSummary {
@@ -432,21 +480,36 @@ export class Conversation {
   }
 
   snapshot(): ConversationSnapshot {
+    const describe = (review: Review) => ({
+      id: review.id,
+      selection: { ...review.selection },
+      threads: structuredClone(this.threadsWithProgress(review, review.threads)),
+      approval: { ...structuredClone(review.approval), conditionalSupported: true as const },
+      summary: { ...review.summary },
+      ...(review.capture ? { capture: { ...review.capture } } : {}),
+    });
     return {
       cursor: this.cursor,
-      reviews: [...this.reviews.values()].map((review) => ({
-        id: review.id,
-        selection: { ...review.selection },
-        threads: structuredClone(this.withProgress(review.selection, review.threads)),
-        approval: this.getApproval(review.selection),
-        summary: { ...review.summary },
-        ...(review.capture ? { capture: { ...review.capture } } : {}),
-      })),
+      reviews: [...this.reviews.values()].map(describe),
+      ...(this.deletedReviews.length
+        ? {
+            deletedReviews: this.deletedReviews.map((review) => ({
+              ...describe(review),
+              deletedAt: review.deletedAt,
+            })),
+          }
+        : {}),
     };
   }
 
   withProgress(selection: DiffSelection, threads: DiffCommentThread[]): DiffCommentThread[] {
-    const review = this.reviews.get(getDiffSelectionKey(selection));
+    return this.threadsWithProgress(this.reviews.get(getDiffSelectionKey(selection)), threads);
+  }
+
+  private threadsWithProgress(
+    review: Review | undefined,
+    threads: DiffCommentThread[],
+  ): DiffCommentThread[] {
     return threads.map((thread) => ({
       ...thread,
       messages: thread.messages.map((message) => {

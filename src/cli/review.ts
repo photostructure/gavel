@@ -34,11 +34,14 @@ interface CaptureOptions {
   output?: string;
 }
 
-interface SourceOptions extends CaptureOptions {
+interface ServerOptions {
   host: string;
+  port: number;
+}
+
+interface SourceOptions extends CaptureOptions, ServerOptions {
   capture?: string;
   select?: string[];
-  port: number;
 }
 
 interface UpdateOptions extends SourceOptions {
@@ -135,20 +138,26 @@ function addCaptureOptions(command: Command): Command {
     .option('--include-untracked', 'include untracked files without changing the Git index');
 }
 
-function addSourceOptions(command: Command): Command {
-  return addCaptureOptions(command)
+function addServerOptions(command: Command): Command {
+  return command
     .option('--host <host>', 'server hostname or IP address', 'localhost')
-    .argument('[patch-source]', 'use - to read a unified diff from stdin')
-    .option('--capture <file>', 'load a saved capture artifact')
-    .option(
-      '--select <file-or-hunk-id>',
-      'select IDs from the capture catalogue; repeatable',
-      collect,
-      [],
-    )
     .requiredOption('--port <port>', 'port of the running gavel server', (value: string) =>
       integerInRange(value, 1, 65535),
     );
+}
+
+function addSourceOptions(command: Command): Command {
+  return addServerOptions(
+    addCaptureOptions(command)
+      .argument('[patch-source]', 'use - to read a unified diff from stdin')
+      .option('--capture <file>', 'load a saved capture artifact')
+      .option(
+        '--select <file-or-hunk-id>',
+        'select IDs from the capture catalogue; repeatable',
+        collect,
+        [],
+      ),
+  );
 }
 
 async function resolveCommandReview(
@@ -213,7 +222,11 @@ function serializeReviewRequest(
   return serialized;
 }
 
-async function readResponse(response: Response, name: string): Promise<unknown> {
+async function readResponse(
+  response: Response,
+  name: string,
+  conflictHint = `Read /api/reviews/${encodeURIComponent(name)} before retrying`,
+): Promise<unknown> {
   if (response.ok) {
     const body: unknown = await response.json();
     return body;
@@ -227,7 +240,7 @@ async function readResponse(response: Response, name: string): Promise<unknown> 
         ? `; current version ${current.version}, digest ${current.patchDigest}`
         : '';
     throw new Error(
-      `${message ?? `Named review ${name} already exists or changed`}${identity}. Read /api/reviews/${encodeURIComponent(name)} before retrying`,
+      `${message ?? `Named review ${name} already exists or changed`}${identity}. ${conflictHint}`,
     );
   }
   throw new Error(message ?? `Named review request failed (${response.status})`);
@@ -425,6 +438,60 @@ fallback, rejected, stash, stat}.
           }
         },
       );
+
+  addServerOptions(
+    review
+      .command('rename')
+      .description(
+        'Rename a named review on a running server; its comments, proposal and verdict stay',
+      )
+      .argument('<name>')
+      .argument('<new-name>'),
+  ).action(async (name: string, newName: string, options: ServerOptions) => {
+    try {
+      const response = await fetch(
+        serverUrl(
+          options.host,
+          options.port,
+          `/api/reviews/${encodeURIComponent(validateReviewName(name))}/rename`,
+        ),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: validateReviewName(newName) }),
+          signal: AbortSignal.timeout(30000),
+        },
+      );
+      // A review an earlier server saved also takes the name, and GET /api/reviews shows only
+      // the reviews open on this server.
+      console.log(JSON.stringify(await readResponse(response, newName, 'Choose another name')));
+    } catch (error) {
+      reportError(error, options.port, options.host);
+    }
+  });
+
+  addServerOptions(
+    review
+      .command('delete')
+      .description(
+        'Delete a named review on a running server; its comments stay readable in Conversation until the server stops',
+      )
+      .argument('<name>'),
+  ).action(async (name: string, options: ServerOptions) => {
+    try {
+      const response = await fetch(
+        serverUrl(
+          options.host,
+          options.port,
+          `/api/reviews/${encodeURIComponent(validateReviewName(name))}`,
+        ),
+        { method: 'DELETE', signal: AbortSignal.timeout(30000) },
+      );
+      console.log(JSON.stringify(await readResponse(response, name)));
+    } catch (error) {
+      reportError(error, options.port, options.host);
+    }
+  });
 
   return review;
 }

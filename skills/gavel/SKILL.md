@@ -192,6 +192,15 @@ it does not reuse the original options. Reconcile HTTP 409 before retrying. An i
 approval; a changed patch advances the version and invalidates as-is approval.
 Do not recapture while idle.
 
+To fix a review's name, run `review rename <name> <new-name> --host <host> --port <port>`;
+its `reviewId`, comments, proposal and verdict stay. To drop a review you created and
+no longer want, run `review delete <name> --host <host> --port <port>` instead of
+restarting the server, which would drop every review's comments from the page. Its
+comments stay readable in **Conversation** until the server stops, and its name is
+free again. A deleted review's saved review file is gone, so `review unapply` and
+`review reapply` cannot find it: don't delete a review you may still unapply or reapply.
+Never rename or delete another session's review.
+
 Reopening the same named patch or commits restores saved conversations, proposals,
 and approval, but review IDs and event cursors change. Snapshot before sending
 status, replies, or summaries. Report `store.error`: review changes are not being

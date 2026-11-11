@@ -1,7 +1,11 @@
 import { Info, GitBranch, MessageSquare, PanelLeftClose, PanelLeft, Settings } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
-import type { ConversationSnapshot, ReviewVerdict } from '../types/conversation';
+import type {
+  ConversationSnapshot,
+  ConversationSnapshotReview,
+  ReviewVerdict,
+} from '../types/conversation';
 import {
   type DiffFile,
   type DiffResponse,
@@ -219,6 +223,11 @@ function App() {
   const [hasLoadedReviews, setHasLoadedReviews] = useState(false);
   const recentReviewsRequestRef = useRef(0);
   const loadRecentReviewsRef = useRef<(() => Promise<void>) | null>(null);
+  // Each named review's ID in the latest snapshot. A rename keeps the ID; a delete moves it to
+  // deletedReviews.
+  const reviewIdsRef = useRef(new Map<string, string>());
+  // Switches the open review in place, as a review tab does; set once handleRevisionChange exists.
+  const switchReviewRef = useRef<((selection: ReviewSelection) => void) | null>(null);
   const [selectedRevision, setSelectedRevision] = useState<ReviewSelection>(
     () => readReviewLocation() ?? createDiffSelection('', ''),
   );
@@ -323,6 +332,14 @@ function App() {
     [diffData?.repositoryId, resolvedSelectionKey],
   );
   const reviewOps = useReviewOps(reviewScope, commentSessionQueryString, diffData?.repositoryId);
+  // Moves a renamed review's waiting changes to its new name; scoped as reviewScope is.
+  const retargetOpsRef = useRef<(from: string, to: string) => void>(() => {});
+  const namedScope = (name: string) =>
+    JSON.stringify([
+      diffData?.repositoryId ?? 'default',
+      getDiffSelectionKey(createDiffSelection('', '', undefined, name)),
+    ]);
+  retargetOpsRef.current = (from, to) => reviewOps.retarget(namedScope(from), namedScope(to));
   const { enqueue, loaded: hasLoadedComments } = reviewOps;
   const {
     threads,
@@ -794,10 +811,16 @@ function App() {
       })),
     [threads, deletedComments, fileLineIndexByPath, diffData?.capture],
   );
+  // Comment links name a review; a deleted one has nothing left to show.
+  const liveReviewConversations = useMemo(
+    () => reviewConversations.filter((review) => !review.deleted),
+    [reviewConversations],
+  );
   const otherReviews = useMemo(
     () =>
       reviewConversations.filter(
-        (review) => !diffSelectionsEqual(review.selection, resolvedSelection),
+        // A deleted review may share its name with the open one.
+        (review) => review.deleted || !diffSelectionsEqual(review.selection, resolvedSelection),
       ),
     [reviewConversations, resolvedSelection],
   );
@@ -944,6 +967,13 @@ function App() {
 
   const inboxDelivery = useInboxDelivery(resolvedSelection);
 
+  // An agent renamed or deleted a named review; loadRecentReviews moves the open one. The inbox
+  // list names reviews, and the server sends no inbox event for an agent's rename.
+  const refreshInboxDelivery = inboxDelivery.refresh;
+  const handleReviewsChanged = useCallback(async () => {
+    await Promise.all([loadRecentReviewsRef.current?.(), refreshInboxDelivery()]);
+  }, [refreshInboxDelivery]);
+
   // File watch for reload functionality - initialize with callback
   const { shouldReload, reload, watchState, isConnected } = useFileWatch(
     handleWatchReload,
@@ -951,7 +981,8 @@ function App() {
     handleApprovalChanged,
     handleSummaryChanged,
     handleCaptureChanged,
-    inboxDelivery.refresh,
+    refreshInboxDelivery,
+    handleReviewsChanged,
   );
   // Changes that failed to reach the server go again once the live connection opens, after a
   // drop or while changes wait. A first connect with nothing waiting follows the load, which
@@ -1317,6 +1348,29 @@ function App() {
       if (!response.ok) return;
       const snapshot = (await response.json()) as ConversationSnapshot;
       if (requestId !== recentReviewsRequestRef.current) return;
+      // Follow the open named review by its ID, which also covers a rename or delete this page
+      // missed while disconnected, even when a new review has since taken the name. After a
+      // delete the page shows the uncommitted changes, as the server's default view then does.
+      const shown = selectedRevisionRef.current;
+      const id =
+        shown.reviewName === undefined ? undefined : reviewIdsRef.current.get(shown.reviewName);
+      const known = snapshot.reviews.find((review) => review.id === id);
+      // Every renamed review's waiting changes follow it, whichever review the page shows.
+      const previousNames = new Map([...reviewIdsRef.current].map(([name, key]) => [key, name]));
+      for (const review of snapshot.reviews) {
+        const before = previousNames.get(review.id);
+        if (review.capture && before !== undefined && before !== review.capture.name)
+          retargetOpsRef.current(before, review.capture.name);
+      }
+      reviewIdsRef.current = new Map(
+        snapshot.reviews.flatMap((review) =>
+          review.capture ? [[review.capture.name, review.id]] : [],
+        ),
+      );
+      if (known?.capture && known.capture.name !== shown.reviewName)
+        switchReviewRef.current?.({ ...shown, reviewName: known.capture.name, retained: true });
+      else if (snapshot.deletedReviews?.some((review) => review.id === id))
+        switchReviewRef.current?.(createDiffSelection('HEAD', '.'));
       const reviews = snapshot.reviews.map((review) => ({
         review,
         selection: review.capture
@@ -1377,22 +1431,34 @@ function App() {
         approval: review.approval,
       }));
       setApprovalRequests(requests);
-      setReviewConversations(
-        reviews
+      const toConversation = (
+        review: ConversationSnapshotReview,
+        selection: DiffSelection,
+      ): OtherReviewConversation => {
+        const conversationThreads = review.threads.map(toCommentThread);
+        return {
+          key: getDiffSelectionKey(selection),
+          name: formatReviewSelection(selection),
+          selection,
+          threads: conversationThreads,
+          showAuthorBadges: hasMultipleCommentAuthors(
+            conversationThreads.flatMap((thread) => thread.messages),
+          ),
+        };
+      };
+      setReviewConversations([
+        ...reviews
           .filter((entry) => entry.review.threads.length > 0 || tabbedReviews.includes(entry))
-          .map(({ review, selection }) => {
-            const conversationThreads = review.threads.map(toCommentThread);
-            return {
-              key: getDiffSelectionKey(selection),
-              name: formatReviewSelection(selection),
-              selection,
-              threads: conversationThreads,
-              showAuthorBadges: hasMultipleCommentAuthors(
-                conversationThreads.flatMap((thread) => thread.messages),
-              ),
-            };
-          }),
-      );
+          .map(({ review, selection }) => toConversation(review, selection)),
+        // A new review may reuse a deleted one's name, so a deleted review is keyed by its ID.
+        ...(snapshot.deletedReviews ?? [])
+          .filter((review) => review.threads.length > 0)
+          .map((review) => ({
+            ...toConversation(review, review.selection),
+            key: `deleted:${review.id}`,
+            deleted: true as const,
+          })),
+      ]);
       setHasLoadedReviews(true);
       // The picker is gone while an agent asks for approval; so is a dialog it opened.
       if (requests.length > 0) setIsRevisionModalOpen(false);
@@ -1451,6 +1517,7 @@ function App() {
 
   // Replace, not push: a page whose history holds one entry may close itself once every
   // review has a verdict.
+  switchReviewRef.current = (selection) => void handleRevisionChange(selection, 'replace');
   const openReviewFromTab = useCallback(
     (selection: DiffSelection) =>
       void handleRevisionChange({ ...selection, retained: true }, 'replace'),
@@ -1691,7 +1758,7 @@ function App() {
   const commentLinks = useCommentLinks({
     ready: !loading && hasLoadedComments,
     currentSelection: resolvedSelection,
-    reviews: reviewConversations,
+    reviews: liveReviewConversations,
     threads: normalizedThreads,
     filePaths: linkedFilePaths,
     switchReview: openReviewFromTab,

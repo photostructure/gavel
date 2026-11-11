@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CommentThread } from '../../types/diff';
 import { createDiffSelection } from '../../utils/diffSelection';
 import { AgentUpdatesContext } from '../contexts/AgentUpdatesContext';
+import { CommentLinkContext } from '../contexts/CommentLinkContext';
 import { agentMessageRevision, type AgentUpdate } from '../hooks/useAgentUpdates';
 
 import { CommentsListModal, type OtherReviewConversation } from './CommentsListModal';
@@ -166,6 +167,43 @@ describe('conversations across reviews', () => {
     expect(onToggleThreadResolved).not.toHaveBeenCalled();
     fireEvent.keyDown(document.body, { key: 'Enter', code: 'Enter' });
     expect(onOpenOtherReviewThread).toHaveBeenCalledWith(others[0], 'elsewhere');
+  });
+
+  it("marks links in a deleted review's comments as coming from a deleted review", () => {
+    const follow = vi.fn();
+    const linked = {
+      ...thread('linked'),
+      messages: [{ ...thread('linked').messages[0]!, body: '[next](#thread=t9)' }],
+    };
+    const deleted = { ...otherReview('gone', [linked]), deleted: true as const };
+    render(
+      <HotkeysProvider initiallyActiveScopes={['navigation']}>
+        <AgentUpdatesContext.Provider value={readContext}>
+          <CommentLinkContext.Provider value={follow}>
+            <CommentsListModal {...baseProps} otherReviews={[deleted]} />
+          </CommentLinkContext.Provider>
+        </AgentUpdatesContext.Provider>
+      </HotkeysProvider>,
+    );
+    fireEvent.click(screen.getByRole('radio', { name: 'All reviews' }));
+    fireEvent.click(screen.getByRole('link', { name: 'next' }));
+    expect(follow).toHaveBeenCalledWith(
+      '#thread=t9',
+      expect.objectContaining({ threadId: 'linked', deleted: true }),
+    );
+  });
+
+  it("labels a deleted review's threads and does not open them", () => {
+    const onOpenOtherReviewThread = vi.fn();
+    const deleted = { ...otherReview('gone', [elsewhere]), deleted: true as const };
+    renderPanel({ otherReviews: [deleted], onOpenOtherReviewThread });
+    fireEvent.click(screen.getByRole('radio', { name: 'All reviews' }));
+    expect(screen.getByRole('heading', { name: 'gone (deleted)' })).toBeVisible();
+    fireEvent.click(
+      screen.getByText('Root elsewhere').closest<HTMLElement>('[data-comment-thread-id]')!,
+    );
+    fireEvent.keyDown(document.body, { key: 'Enter', code: 'Enter' });
+    expect(onOpenOtherReviewThread).not.toHaveBeenCalled();
   });
 
   it('marks one review or every review read with separate buttons', () => {
