@@ -434,7 +434,7 @@ export function CommentsListModal({
             </div>
           )}
           <fieldset role="radiogroup" aria-label="Conversation filter">
-            <legend className="mb-2 text-xs ui-heading">Show conversations</legend>
+            <legend className="mb-2 text-sm ui-heading">Show conversations</legend>
             <div className="flex flex-wrap gap-2">
               {(
                 [
@@ -547,7 +547,7 @@ export function CommentsListModal({
                     return (
                       <section key={group.review?.key ?? 'current'} className="space-y-2">
                         {showReviewHeadings && (
-                          <h3 className="text-xs ui-heading">
+                          <h3 className="text-sm ui-heading">
                             <code>{group.review?.name ?? currentReviewName ?? 'This review'}</code>
                           </h3>
                         )}
