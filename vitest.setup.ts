@@ -13,6 +13,11 @@ setGlobalDispatcher(new Agent({ pipelining: 0 }));
 // creates this directory; tests that save settings point GAVEL_CONFIG_DIR at their own.
 process.env.GAVEL_CONFIG_DIR = join(tmpdir(), `gavel-test-config-${process.pid}`);
 
+// Tests often run inside a Claude Code session. Without these, servers and CLIs under test
+// cannot register with that session or send its inbox their test reviews' activity.
+delete process.env.CLAUDE_CODE_MESSAGING_SOCKET;
+delete process.env.CLAUDE_CODE_MESSAGING_TOKEN;
+
 // Mock fetch globally for component tests, but not for server integration tests
 if (!process.env.VITEST_SERVER_TEST) {
   global.fetch = vi.fn();

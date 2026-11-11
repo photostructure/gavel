@@ -13,6 +13,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 
 import type {
   ReviewApproval,
+  ReviewStoreStatus,
   ReviewSummary,
   ReviewVerdict,
   ConversationStreamEvent,
@@ -55,6 +56,13 @@ import { getFileExtension } from '../utils/fileUtils.js';
 import { FileWatcherService } from './file-watcher.js';
 import { Conversation, onRevision, registerConversationRoutes } from './conversation.js';
 import { ReviewPresence } from './review-presence.js';
+import {
+  SessionInbox,
+  inboxRuntimeDir,
+  isThisHost,
+  parseInboxTarget,
+  type InboxTarget,
+} from './session-inbox.js';
 import { emptyReviewSummary, parseReviewSummaryInput } from './review-summary.js';
 import { GitDiffParser } from './git-diff.js';
 import {
@@ -112,6 +120,8 @@ export interface ServerOptions {
   agent?: string;
   agentSessionName?: string;
   agentSessionId?: string;
+  /** The launching Claude Code session's inbox: human review activity is sent there. */
+  inbox?: InboxTarget;
 }
 
 const GENERATED_STATUS_CACHE_TTL_MS = 60_000;
@@ -357,6 +367,8 @@ export async function startServer(options: ServerOptions): Promise<{
   let reviewerDisconnectTimer: NodeJS.Timeout | undefined;
   const pendingEvents: ConversationStreamEvent[] = [];
   let ready = false;
+  // Created once the port is known; human events cannot arrive before the server listens.
+  let inbox: SessionInbox | undefined;
   const emit = (event: ServerEvent) => {
     if (options.jsonl) writeJsonl(event);
     options.onEvent?.(event);
@@ -365,6 +377,7 @@ export async function startServer(options: ServerOptions): Promise<{
     ? new Conversation(
         (event) => {
           scheduleSave(event.reviewId);
+          inbox?.handle(event);
           if (ready) emit(event);
           else pendingEvents.push(event);
         },
@@ -730,14 +743,28 @@ export async function startServer(options: ServerOptions): Promise<{
   app.post('/api/reviews', (req, res) => {
     try {
       if (!conversation) throw new NamedReviewError('Named reviews require conversation mode', 400);
-      const input = req.body as { name?: unknown; capture?: unknown } | null;
+      const input = req.body as { name?: unknown; capture?: unknown; inbox?: unknown } | null;
       if (!input || typeof input.name !== 'string')
         throw new NamedReviewError('Expected review name and capture', 400);
+      // null: the creator has no inbox, so the launching session must not receive this review.
+      const owner =
+        input.inbox === undefined || input.inbox === null
+          ? input.inbox
+          : parseInboxTarget(input.inbox);
+      if (owner === undefined && input.inbox !== undefined)
+        throw new NamedReviewError(
+          'Expected inbox with sessionId, socket, and optional token',
+          400,
+        );
+      if (owner && !isThisHost(req.socket.remoteAddress))
+        throw new NamedReviewError('Only a process on this machine can name an inbox', 403);
       const capture = validateCapture(input.capture);
       parser.parseStdinDiff(capture.patch);
       const review = createNamedReview(input.name, capture);
       conversation.setCapture(review.selection, review.metadata);
-      res.json({ ...describeNamedReview(review), updated: true });
+      const described = describeNamedReview(review);
+      if (owner !== undefined && described.reviewId) inbox?.setOwner(described.reviewId, owner);
+      res.json({ ...described, updated: true });
       fileWatcher.broadcast({
         type: 'reviewCaptureChanged',
         reviewName: review.metadata.name,
@@ -1348,28 +1375,30 @@ export async function startServer(options: ServerOptions): Promise<{
         for (const review of conversation.snapshot().reviews)
           await revokeApprovalIfDiffChanged(review.selection);
       },
-      () => {
-        if (!reviewStore) return undefined;
-        // Only reviews whose current key another server holds: a recapture can free one.
-        const memoryOnly = (conversation?.snapshot().reviews ?? [])
-          .filter((review) => {
-            const key = reviewKey(review.selection);
-            return key !== undefined && ownedElsewhere.has(key);
-          })
-          .map((review) => reviewLabel(review.selection));
-        const error = [
-          saveError,
-          reviewStore.heartbeatError,
-          cleanupError,
-          memoryOnly.length
-            ? `kept in memory only because another running gavel server saves them: ${memoryOnly.join(', ')}`
-            : undefined,
-        ]
-          .filter(Boolean)
-          .join('; ');
-        return { directory: reviewStore.directory, ...(error ? { error } : {}) };
-      },
+      storeStatus,
     );
+  }
+
+  function storeStatus(): ReviewStoreStatus | undefined {
+    if (!reviewStore) return undefined;
+    // Only reviews whose current key another server holds: a recapture can free one.
+    const memoryOnly = (conversation?.snapshot().reviews ?? [])
+      .filter((review) => {
+        const key = reviewKey(review.selection);
+        return key !== undefined && ownedElsewhere.has(key);
+      })
+      .map((review) => reviewLabel(review.selection));
+    const error = [
+      saveError,
+      reviewStore.heartbeatError,
+      cleanupError,
+      memoryOnly.length
+        ? `kept in memory only because another running gavel server saves them: ${memoryOnly.join(', ')}`
+        : undefined,
+    ]
+      .filter(Boolean)
+      .join('; ');
+    return { directory: reviewStore.directory, ...(error ? { error } : {}) };
   }
 
   function getReviewSummary(selection: DiffSelection): ReviewSummary {
@@ -1993,6 +2022,31 @@ export async function startServer(options: ServerOptions): Promise<{
     });
   }
 
+  // gavel pending, run from the owning session's prompt hooks, re-points that session's reviews
+  // at its current inbox and collects the activity no message carried.
+  app.post('/api/inbox/attach', (req, res) => {
+    if (!isThisHost(req.socket.remoteAddress)) {
+      res.status(403).json({ error: 'Only a process on this machine can name an inbox' });
+      return;
+    }
+    const target = parseInboxTarget(req.body);
+    if (!target) {
+      res.status(400).json({ error: 'Expected sessionId, socket, and optional token' });
+      return;
+    }
+    res.json({ pending: inbox?.attach(target) ?? null });
+  });
+
+  app.get('/api/inbox', (_req, res) => {
+    res.json({
+      reviews: (conversation?.snapshot().reviews ?? []).map((review) => ({
+        id: review.id,
+        selection: review.selection,
+        delivery: inbox?.delivery(review.id) ?? { status: 'unavailable' },
+      })),
+    });
+  });
+
   app.get('/api/presence', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json(presence.snapshot());
@@ -2030,6 +2084,29 @@ export async function startServer(options: ServerOptions): Promise<{
     options.preferredPort ?? 4966,
     options.host || 'localhost',
   );
+  if (conversation) {
+    const host = new URL(url).hostname.replace(/^\[(.*)\]$/, '$1');
+    inbox = new SessionInbox({
+      // The snapshot endpoint's fields, so the message reports unsaved reviews too. It skips the
+      // endpoint's revocation of approvals whose diff changed; agents read a fresh snapshot to commit.
+      snapshot: () => {
+        const store = storeStatus();
+        return {
+          ...conversation.snapshot(),
+          presence: presence.snapshot(),
+          ...(store ? { store } : {}),
+        };
+      },
+      server: { host, port, pid: process.pid },
+      runtimeDir: inboxRuntimeDir(process.env),
+      onDeliveryChange: () =>
+        fileWatcher.broadcast({
+          type: 'inboxDeliveryChanged',
+          timestamp: new Date().toISOString(),
+        }),
+    });
+    if (options.inbox) inbox.setDefaultOwner(options.inbox);
+  }
   // Live connections are WebSocket upgrades, which Express routes never see.
   const liveServerId = randomUUID();
   const liveSockets = new WebSocketServer({ noServer: true });
@@ -2116,6 +2193,7 @@ export async function startServer(options: ServerOptions): Promise<{
         reviewerDisconnectTimer = setTimeout(async () => {
           if (presence.snapshot().reviewers.connected > 0) return;
           console.error('Client disconnected, shutting down server...');
+          await inbox?.drain();
           await fileWatcher.stop();
           outputFinalComments();
           outputShutdown('client-disconnected');
@@ -2144,6 +2222,8 @@ export async function startServer(options: ServerOptions): Promise<{
       closing = true;
       clearTimeout(reviewerDisconnectTimer);
       presence.dispose();
+      await inbox?.drain();
+      inbox?.dispose();
       await fileWatcher.stop();
       outputShutdown(reason);
       for (const live of liveSockets.clients) live.terminate();
@@ -2161,6 +2241,7 @@ export async function startServer(options: ServerOptions): Promise<{
     closing = true;
     clearTimeout(reviewerDisconnectTimer);
     presence.dispose();
+    inbox?.dispose();
     outputShutdown('closed');
     void fileWatcher.stop();
   });

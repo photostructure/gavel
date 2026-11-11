@@ -9,6 +9,7 @@ import {
   selectCapture,
   validateCapture,
 } from '../server/review-capture.js';
+import { inboxTargetFromEnv, type InboxTarget } from '../server/session-inbox.js';
 import type { NamedReviewStart, ReviewCapture, ReviewCaptureUpdate } from '../types/review.js';
 import { validateReviewName } from '../utils/review-name.js';
 
@@ -200,7 +201,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function serializeReviewRequest(body: NamedReviewStart | ReviewCaptureUpdate): string {
+function serializeReviewRequest(
+  body: (NamedReviewStart & { inbox: InboxTarget | null }) | ReviewCaptureUpdate,
+): string {
   const serialized = JSON.stringify(body);
   if (Buffer.byteLength(serialized, 'utf8') > 16 * 1024 * 1024) {
     throw new Error(
@@ -291,7 +294,11 @@ export function createReviewCommand(): Command {
       const response = await fetch(serverUrl(options.host, options.port, '/api/reviews'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: serializeReviewRequest(namedReview),
+        // The review's feedback goes to this session's inbox, or, with null, to no session.
+        body: serializeReviewRequest({
+          ...namedReview,
+          inbox: inboxTargetFromEnv(process.env) ?? null,
+        }),
         signal: AbortSignal.timeout(30000),
       });
       console.log(JSON.stringify(await readResponse(response, namedReview.name)));

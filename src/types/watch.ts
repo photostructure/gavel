@@ -48,6 +48,12 @@ interface ReviewSummaryChangedWatchEvent {
   timestamp: string;
 }
 
+// Whether review activity reached its agent session changed; read /api/inbox.
+interface InboxDeliveryChangedWatchEvent {
+  type: 'inboxDeliveryChanged';
+  timestamp: string;
+}
+
 interface ReviewCaptureChangedWatchEvent {
   type: 'reviewCaptureChanged';
   reviewName?: string;
@@ -61,7 +67,8 @@ export type WatchEvent =
   | CommentsChangedWatchEvent
   | ApprovalChangedWatchEvent
   | ReviewSummaryChangedWatchEvent
-  | ReviewCaptureChangedWatchEvent;
+  | ReviewCaptureChangedWatchEvent
+  | InboxDeliveryChangedWatchEvent;
 
 export interface ClientWatchState {
   isWatchEnabled: boolean;

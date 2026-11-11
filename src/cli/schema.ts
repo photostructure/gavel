@@ -149,7 +149,28 @@ const definitions: Record<string, Schema> = {
       'Capture in which the thread was first saved; retained when the named review advances. Only inline threads become outdated when this anchor differs from the current capture.',
   },
   NamedReviewStart: {
-    ...object({ name: ref('ReviewName'), capture: ref('ReviewCapture') }),
+    ...object(
+      {
+        name: ref('ReviewName'),
+        capture: ref('ReviewCapture'),
+        inbox: {
+          oneOf: [
+            { type: 'null' },
+            object(
+              {
+                sessionId: { type: 'string', pattern: '^[\\w-]{1,100}$' },
+                socket: { type: 'string', description: 'Absolute path of the Unix socket.' },
+                token: { type: 'string' },
+              },
+              ['sessionId', 'socket'],
+            ),
+          ],
+          description:
+            "The creating Claude Code session's inbox, which receives this review's human activity; null when the creator has none. Accepted only from this machine. Omitted, the launching session receives it.",
+        },
+      },
+      ['name', 'capture'],
+    ),
     description: 'POST /api/reviews creates a named review at capture version 1.',
   },
   ReviewCaptureUpdate: {

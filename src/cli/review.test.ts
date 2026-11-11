@@ -94,6 +94,7 @@ describe('named review CLI', () => {
     process.exitCode = 0;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.resetAllMocks();
   });
 
@@ -251,16 +252,31 @@ describe('named review CLI', () => {
     const result = { name: 'task-b', version: 1, patchDigest: capture.patchDigest, updated: true };
     fetchMock.mockResolvedValue(new Response(JSON.stringify(result)));
     await run('create', 'task-b', '--port', '4983');
+    // null: without an inbox of its own, the review must not go to the launching session.
     expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
       'http://localhost:4983/api/reviews',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'task-b', capture }),
+        body: JSON.stringify({ name: 'task-b', capture, inbox: null }),
       }),
     );
     expect(log).toHaveBeenCalledExactlyOnceWith(JSON.stringify(result));
     expect(error).not.toHaveBeenCalled();
+  });
+
+  it("names the creating Claude Code session's inbox so its feedback goes there", async () => {
+    vi.stubEnv('CLAUDE_CODE_SESSION_ID', 'session-b');
+    vi.stubEnv('CLAUDE_CODE_MESSAGING_SOCKET', '/run/user/1000/cc-socks/7.sock');
+    vi.stubEnv('CLAUDE_CODE_MESSAGING_TOKEN', 'tok');
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ updated: true })));
+    await run('create', 'task-b', '--port', '4983');
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { inbox: unknown };
+    expect(body.inbox).toEqual({
+      sessionId: 'session-b',
+      socket: '/run/user/1000/cc-socks/7.sock',
+      token: 'tok',
+    });
   });
 
   it.each(['create', 'update'])('uses a selected interface for review %s', async (action) => {
@@ -334,7 +350,7 @@ describe('named review CLI', () => {
           body: JSON.stringify(
             action === 'update'
               ? { expectedVersion: 1, capture: selectedCapture }
-              : { name: 'task', capture: selectedCapture },
+              : { name: 'task', capture: selectedCapture, inbox: null },
           ),
         }),
       );

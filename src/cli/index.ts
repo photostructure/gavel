@@ -20,10 +20,12 @@ import {
   getGitRoot,
   readStdin,
 } from './utils.js';
+import { inboxTargetFromEnv } from '../server/session-inbox.js';
 import { detectAgentSession } from './agent-session.js';
 import { createCommentCommand } from './comment.js';
 import { createApprovalCommand } from './approval.js';
 import { createIdleCommand } from './idle.js';
+import { createPendingCommand } from './pending.js';
 import { createSchemaCommand } from './schema.js';
 import { serverUrl } from './server-url.js';
 import { createWaitCommand } from './wait.js';
@@ -124,6 +126,7 @@ program
   .addCommand(createReviewCommand())
   .addCommand(createWaitCommand())
   .addCommand(createIdleCommand())
+  .addCommand(createPendingCommand())
   .addCommand(createApprovalCommand())
   .argument(
     '[commit-ish]',
@@ -311,6 +314,8 @@ Editor configuration (set before starting gavel):
       const detectedAgent = await detectAgentSession(process.env);
       options.agent ??= detectedAgent.agent;
       options.agentSessionId ??= detectedAgent.agentSessionId;
+      // A detached --background server inherits this environment and still reaches the session.
+      const inbox = inboxTargetFromEnv(process.env);
 
       if (options.pr) {
         if (commitish !== 'HEAD' || compareWith) {
@@ -364,6 +369,7 @@ Editor configuration (set before starting gavel):
           agent: options.agent,
           agentSessionName: options.agentSessionName,
           agentSessionId: options.agentSessionId,
+          ...(inbox ? { inbox } : {}),
           repoPath: namedReview.capture.repositoryRoot,
           preferredPort: options.port,
           host: options.host,
@@ -432,6 +438,7 @@ Editor configuration (set before starting gavel):
           agent: options.agent,
           agentSessionName: options.agentSessionName,
           agentSessionId: options.agentSessionId,
+          ...(inbox ? { inbox } : {}),
           ...(commentImports.length > 0 ? { commentImports } : {}),
         });
 
@@ -508,6 +515,7 @@ Editor configuration (set before starting gavel):
         agent: options.agent,
         agentSessionName: options.agentSessionName,
         agentSessionId: options.agentSessionId,
+        ...(inbox ? { inbox } : {}),
         ...(commentImports.length > 0 ? { commentImports } : {}),
       });
 

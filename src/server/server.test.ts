@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs';
+import { promises as fs, mkdtempSync, rmSync } from 'fs';
 import { connect, createServer } from 'node:net';
 import { hostname, tmpdir } from 'os';
 import { join, resolve } from 'path';
@@ -2428,6 +2428,47 @@ describe('Server Integration Tests', () => {
         first.live.terminate();
         second.live.terminate();
         await result.shutdown('closed');
+      }
+    });
+
+    it('sends a verdict to the agent session before exiting when its tab closes', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'gavel-inbox-exit-'));
+      vi.stubEnv('XDG_RUNTIME_DIR', dir);
+      const socket = join(dir, 'inbox.sock');
+      const received: string[] = [];
+      const inboxServer = createServer((connection) => {
+        let data = '';
+        connection.on('data', (chunk) => (data += chunk.toString()));
+        connection.on('end', () => received.push(data));
+      });
+      await new Promise<void>((resolve) => inboxServer.listen(socket, resolve));
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+      const result = await startServer({
+        preferredPort: 0,
+        keepAlive: false,
+        conversation: true,
+        shipIt: true,
+        inbox: { sessionId: 'session-a', socket },
+      });
+      servers.push(result.server);
+      try {
+        const approval = await fetch(`${result.url}/api/approval`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ verdict: 'as-is' }),
+        });
+        expect(approval.status).toBe(200);
+        const { live } = await openLive(result.url);
+        await closeLive(live);
+        await vi.waitFor(() => expect(process.exit).toHaveBeenCalledWith(0), { timeout: 5000 });
+        expect(received).toHaveLength(1);
+        expect(received[0]).toContain('Approve as-is');
+      } finally {
+        await result.shutdown('closed');
+        await new Promise((resolve) => inboxServer.close(resolve));
+        rmSync(dir, { recursive: true, force: true });
+        vi.unstubAllEnvs();
       }
     });
 
