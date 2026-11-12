@@ -9,8 +9,10 @@ section: Approval
 
 With several reviews on one server, the maintainer kept missing every review after
 the first, and the only way to decline one was to close the window, which agents
-could not tell from leaving. Every review now gets one of three verdicts in the
-header: **Approve as-is**, **Approve after comments**, or **Not yet**. After a
+could not tell from leaving. Every review now gets one of two verdicts in the
+header: **Approve** or **Reject**. (It shipped with three: **Approve as-is**,
+**Approve after comments**, and **Not yet**; Not yet became Reject, and the two
+approvals became one Approve that follows the agent's revisions.) After a
 verdict the page counts down to the next review without one, or to closing the
 tab once every review has one.
 
@@ -33,7 +35,7 @@ test Firefox.
 ## Required reading
 
 - **AGENTS.md**
-- **docs/approval-modes.md**: the three verdicts and what clears each
+- **docs/approval-modes.md**: the verdicts and what ends each
 - `src/client/hooks/useVerdictFollowUp.ts`: the countdown's state machine
 
 ## Interfaces other work may collide with
@@ -43,10 +45,16 @@ Check these before merging work that touches approval, the header, or review tab
 - Not yet is now Reject, recorded as `ReviewApproval.verdict: 'reject'` through
   `PUT /api/approval`, and only the reviewer clears it; see
   [2026-11-10-reject-verdict.md](../_done/2026-11-10-reject-verdict.md).
+- Approve as-is and Approve after comments are now one Approve
+  (`ReviewApproval.verdict: 'approve'`), which follows recaptures, summary edits, and
+  diff changes, and which comments do not revoke. `ReviewVerdict` is
+  `'approve' | 'reject'`; `conditionalSupported` and `ReviewApproval.diffDigest` are
+  gone (requests still send `diffDigest`), and `useReviewApproval` takes only its URL.
 - `ApprovalSplitButton.tsx` is renamed (`git mv`) to `VerdictControl.tsx`;
   `describeApproval` moved with it. Any branch importing the old path breaks.
 - `App.tsx`: `handleShipIt(mode, revoke)` became `handleVerdict('as-is' |
-  'after-comments' | 'not-yet' | 'revoke')`, now `handleVerdict(ReviewVerdict | 'clear')`. `handleRevisionChange`'s second
+  'after-comments' | 'not-yet' | 'revoke')`, now `handleVerdict(ReviewVerdict | 'clear')`
+  with `ReviewVerdict` `'approve' | 'reject'`. `handleRevisionChange`'s second
   argument changed from `addHistory: boolean` to `'push' | 'replace' | null`.
   `approvalControlRef` is now set through the `setVerdictControl` callback ref,
   which also anchors the notice.
@@ -63,16 +71,18 @@ Check these before merging work that touches approval, the header, or review tab
 ## Lore
 
 - Decisions the maintainer made in conversation: Not yet (now Reject) is one click and needs no
-  comment; three separate buttons from 1280px (at 1024px the header needs about
-  1198px for them, measured in the browser pane), one menu below; idle buttons
+  comment; separate buttons from 1280px, one menu below (with three buttons the
+  header needed about 1198px at 1024px, measured in the browser pane; not
+  re-measured for two); idle buttons
   are neutral, because a red-tinted idle Not yet "looks like I've already pushed
-  not yet"; hover tints only the border (green, yellow for after comments, violet),
+  not yet"; hover tints only the border (green, violet; the yellow after-comments
+  button is gone),
   because tinted text was too faint in dark mode; clicking the pressed button
   clears the verdict; the countdown notice sits under the verdict buttons, "where
   I'm looking"; auto-close, accepting that Back no longer moves between reviews;
   a 10 s countdown (it was 3 s to switch, 5 s to close) and a 1.6 s pulse beat
   (it was 0.8 s), both lengthened at their request; a chosen button is filled in
-  its verdict's color (green, yellow, violet) and Reject stays violet; **Switch now** /
+  its verdict's color (green, violet); **Switch now** /
   **Close now** beside **Cancel** skip the wait; the notice and its default button
   are blue, because green beside the verdict buttons reads as approval.
 - The countdown notice renders through `FloatingPortal` because the header group
@@ -93,8 +103,9 @@ Check these before merging work that touches approval, the header, or review tab
 - The hook ticks once per displayed second, not every 250 ms: it runs in `App`,
   so each tick re-renders the whole page.
 - The open review's own approval hook (`currentHasVerdict`) is fresher than its
-  entry in the tab list; a recapture that clears its verdict stops any countdown,
-  so the tab never closes over a review that needs a verdict again.
+  entry in the tab list; a verdict cleared from another tab stops any countdown,
+  so the tab never closes over a review that needs a verdict again. A recapture
+  no longer clears a verdict, so it leaves the countdown running.
 - With `--no-conversation`, a verdict lives in the server's `approvals` map; no test
   covers that path.
 
