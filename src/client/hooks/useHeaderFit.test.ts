@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { fitHeader } from './useHeaderFit';
 
@@ -134,6 +134,29 @@ describe('fitHeader', () => {
       'data-hide-review-name',
       'data-hide-logo',
     ]);
+  });
+
+  // FloatingPortal leaves 1 px position: fixed focus guards where it renders, inside the header
+  // for the verdict follow-up notice; their offsetTop is measured from the viewport.
+  it('does not count fixed-position elements as wrapped controls', () => {
+    const { header, box, logo } = layOut({ width: 700 });
+    const guard = document.createElement('span');
+    Object.defineProperty(guard, 'offsetWidth', { get: () => 1 });
+    Object.defineProperty(guard, 'offsetTop', { get: () => -8 });
+    header.append(guard);
+    // happy-dom computes no position, so report the guard's inline style the way a browser does.
+    const computed = window.getComputedStyle.bind(window);
+    const spy = vi
+      .spyOn(window, 'getComputedStyle')
+      .mockImplementation((el) =>
+        el === guard ? ({ position: 'fixed' } as CSSStyleDeclaration) : computed(el),
+      );
+    try {
+      fitHeader(header, box, logo);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(applied(header)).toEqual([]);
   });
 
   it('does not count a full-width alert row as a wrapped control', () => {

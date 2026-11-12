@@ -11,14 +11,15 @@ const STEPS = [
   'data-hide-labels',
 ] as const;
 
-// The header's controls: not its full-width alert rows or screen-reader-only text.
+// The header's controls: not its full-width alert rows, and nothing out of the flow, such as
+// screen-reader-only text or the fixed focus guards FloatingPortal leaves behind.
 function rowItems(header: HTMLElement): HTMLElement[] {
   return [...header.children].filter(
     (el): el is HTMLElement =>
       el instanceof HTMLElement &&
       el.offsetWidth > 0 &&
       !el.classList.contains('w-full') &&
-      getComputedStyle(el).position !== 'absolute',
+      !['absolute', 'fixed'].includes(getComputedStyle(el).position),
   );
 }
 
