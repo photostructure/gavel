@@ -1,6 +1,6 @@
 import { AlignLeft, Columns, Settings, X } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import { useHotkeysContext } from 'react-hotkeys-hook';
+import { useHotkeys, useHotkeysContext } from 'react-hotkeys-hook';
 
 import type { DiffViewMode } from '../../types/diff';
 import { DEFAULT_DIFF_VIEW_MODE } from '../../utils/diffMode';
@@ -135,6 +135,10 @@ export function SettingsModal({
     };
   }, [isOpen]);
 
+  // Escape closes Settings as it does About, Help and Conversation. The hotkey skips form fields,
+  // so the panel also listens for Escape from its own slider, select and textarea.
+  useHotkeys('escape', onClose, { enabled: isOpen }, [onClose, isOpen]);
+
   // Manage scopes when modal opens/closes
   useEffect(() => {
     if (isOpen) {
@@ -221,13 +225,45 @@ export function SettingsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+    <div className="fixed inset-0 flex items-center justify-center z-50">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
         ref={panel}
         tabIndex={-1}
         role="dialog"
+        aria-modal="true"
         aria-label="Settings"
-        className="flex flex-col max-h-[calc(100dvh-2rem)] bg-github-bg-secondary border border-github-border rounded-lg w-full max-w-3xl mx-4 pointer-events-auto overflow-hidden"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation();
+            onClose();
+            return;
+          }
+          // Settings is modal, so Tab wraps around its controls instead of reaching the page
+          // behind the scrim, as in Conversation.
+          if (event.key !== 'Tab') return;
+          const controls = [
+            ...event.currentTarget.querySelectorAll<HTMLElement>(
+              'button, a[href], input, select, textarea, [tabindex]',
+            ),
+          ].filter((element) => element.tabIndex >= 0 && !element.hasAttribute('disabled'));
+          const first = controls[0],
+            last = controls.at(-1);
+          if (
+            event.shiftKey &&
+            (document.activeElement === first || document.activeElement === panel.current)
+          ) {
+            event.preventDefault();
+            last?.focus();
+          } else if (
+            !event.shiftKey &&
+            (document.activeElement === last || document.activeElement === panel.current)
+          ) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }}
+        className="relative flex flex-col max-h-[calc(100dvh-2rem)] bg-github-bg-secondary border border-github-border rounded-lg w-full max-w-3xl mx-4 overflow-hidden"
       >
         <div className="shrink-0 flex items-center justify-between p-4 border-b border-github-border">
           <h2 className="text-lg ui-heading flex items-center gap-2">

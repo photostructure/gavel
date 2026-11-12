@@ -909,6 +909,52 @@ describe('App Component - Settings the browser refuses to keep', () => {
     expect(button).toHaveFocus();
   });
 
+  // Like About, Help and Conversation: a scrim over the page, and a click on it or Escape closes.
+  it('dims the page behind Settings and closes it on a click outside', async () => {
+    mockFetch(mockDiffResponse);
+    renderApp();
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    const scrim = dialog.previousElementSibling;
+    expect(scrim).toHaveClass('bg-black/50');
+    fireEvent.click(scrim as Element);
+    expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
+  });
+
+  it('closes Settings on Escape, from the page or from its own fields', async () => {
+    mockFetch(mockDiffResponse);
+    renderApp();
+    const button = await screen.findByRole('button', { name: 'Settings' });
+    fireEvent.click(button);
+    fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
+
+    fireEvent.click(button);
+    const slider = within(screen.getByRole('dialog', { name: 'Settings' })).getByRole('slider');
+    slider.focus();
+    fireEvent.keyDown(slider, { key: 'Escape', code: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
+  });
+
+  // R462-A: Settings declares aria-modal, so Tab must not reach the page behind its scrim.
+  it('keeps Tab inside Settings while it is open', async () => {
+    mockFetch(mockDiffResponse);
+    renderApp();
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    const closeX = within(dialog).getByRole('button', { name: 'Close settings' });
+    const closeFooter = within(dialog).getByRole('button', { name: 'Close' });
+
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(closeFooter).toHaveFocus();
+    fireEvent.keyDown(closeFooter, { key: 'Tab' });
+    expect(closeX).toHaveFocus();
+    fireEvent.keyDown(closeX, { key: 'Tab', shiftKey: true });
+    expect(closeFooter).toHaveFocus();
+  });
+
   it('says so in the header and keeps the page', async () => {
     mockFetch(mockDiffResponse);
     // As Chromium does in a cross-site frame, or with cookies blocked.

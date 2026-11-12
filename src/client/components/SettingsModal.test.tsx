@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { SettingsModal } from './SettingsModal';
 
 vi.mock('react-hotkeys-hook', () => ({
+  useHotkeys: vi.fn(),
   useHotkeysContext: vi.fn(() => ({
     enableScope: vi.fn(),
     disableScope: vi.fn(),
