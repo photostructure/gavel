@@ -122,6 +122,7 @@ export function VerdictControl({
             onClick={() => onVerdict('approve')}
             className="w-full rounded p-2 text-left hover:bg-github-bg-tertiary disabled:opacity-60"
           >
+            <Check size={14} aria-hidden="true" className="mr-1 inline text-github-accent-text" />
             Approve
             <span className="block text-xs text-github-text-secondary">{approveDescription}</span>
           </button>

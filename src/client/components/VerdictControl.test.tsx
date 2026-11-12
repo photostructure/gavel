@@ -125,6 +125,13 @@ describe('verdict control', () => {
     expect(onVerdict).not.toHaveBeenCalled();
   });
 
+  it('marks the menu Approve item with a green check, as Reject has its violet X', () => {
+    render(<VerdictControl {...props} />);
+    openMenu();
+    const item = screen.getByRole('button', { name: /^Approve The agent addresses/ });
+    expect(item.querySelector('svg')).toHaveClass('text-github-accent-text');
+  });
+
   // Violet text measures 3.75:1 on the dark menu, the faintness rejected on the buttons; the icon
   // carries the color instead.
   it('keeps the menu Reject label at full contrast, violet only in its icon', () => {
