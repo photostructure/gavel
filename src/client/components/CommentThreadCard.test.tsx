@@ -348,6 +348,29 @@ describe('CommentThreadCard', () => {
     expect(screen.queryByLabelText('Outdated comment')).not.toBeInTheDocument();
   });
 
+  // The diff table sets font-mono; the card must not inherit it for comment prose.
+  it('sets the sans-serif font on the card and keeps inline code monospace', () => {
+    const thread: CommentThread = {
+      ...mockThread,
+      messages: [{ ...mockThread.messages[0]!, body: 'Rename `value` here' }],
+    };
+    const { container } = render(
+      <div className="font-mono">
+        <CommentThreadCard
+          thread={thread}
+          onGeneratePrompt={() => 'thread prompt'}
+          onToggleThreadResolved={vi.fn()}
+          onReplyToThread={vi.fn().mockResolvedValue(undefined)}
+          onRemoveMessage={vi.fn()}
+          onUpdateMessage={vi.fn()}
+        />
+      </div>,
+    );
+
+    expect(container.querySelector('[data-comment-thread-id="thread-1"]')).toHaveClass('font-sans');
+    expect(screen.getByText('value', { selector: 'code' })).toHaveClass('font-mono');
+  });
+
   it('deletes a user-authored reply on the first click', async () => {
     const user = userEvent.setup();
     const onRemoveMessage = vi.fn();

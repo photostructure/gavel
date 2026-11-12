@@ -45,6 +45,16 @@ describe('CommentForm', () => {
     expect(screen.getAllByRole('radio', { name: 'Comment' })[1]).toBeChecked();
   });
 
+  // The new-comment box renders inside the font-mono diff table, like the thread cards.
+  it('sets the sans-serif font on the new-comment box', () => {
+    const { container } = render(
+      <div className="font-mono">
+        <CommentForm onSubmit={vi.fn()} onCancel={vi.fn()} />
+      </div>,
+    );
+    expect(container.querySelector('form')).toHaveClass('font-sans');
+  });
+
   it('dismisses an empty form on reset', () => {
     const onCancel = vi.fn();
     const { container } = render(<CommentForm onSubmit={vi.fn()} onCancel={onCancel} />);
