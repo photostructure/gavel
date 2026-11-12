@@ -23,7 +23,6 @@ const DARK_THEME_VALUES = {
   '--color-github-accent-text': '#3fb950',
   '--color-github-danger': '#da3633',
   '--color-github-warning': '#d29922',
-  '--color-verdict-after-comments': '#fdc700',
   // Violet rather than the danger red that error messages use.
   '--color-verdict-reject': '#8957e5',
   '--color-diff-addition-bg': '#0d4429',
@@ -57,8 +56,6 @@ const LIGHT_THEME_VALUES = {
   '--color-github-accent-text': '#1f883d',
   '--color-github-danger': '#cf222e',
   '--color-github-warning': '#bf8700',
-  // The dark theme's #fdc700 measures 1.47:1 on a light review tab.
-  '--color-verdict-after-comments': '#a16207',
   '--color-verdict-reject': '#8250df',
   '--color-diff-addition-bg': '#d1f4cd',
   '--color-diff-addition-border': '#1f883d',
@@ -157,9 +154,7 @@ const DEUTERANOPIA_DARK_OVERRIDES: Record<string, string> = {
   '--color-github-accent': '#58a6ff',
   '--color-github-accent-text': '#58a6ff',
   '--color-github-danger': '#d29922',
-  // Violet, because yellow is too close to this mode's orange Reject.
-  '--color-verdict-after-comments': '#a371f7',
-  // Orange, because this mode spends blue on Approve and violet on Approve after comments.
+  // Orange, because this mode spends blue on Approve.
   '--color-verdict-reject': '#d29922',
   '--color-diff-addition-bg': '#0c2d6b',
   '--color-diff-addition-border': '#388bfd',
@@ -171,7 +166,6 @@ const DEUTERANOPIA_LIGHT_OVERRIDES: Record<string, string> = {
   '--color-github-accent': '#0969da',
   '--color-github-accent-text': '#0969da',
   '--color-github-danger': '#bf8700',
-  '--color-verdict-after-comments': '#8250df',
   '--color-verdict-reject': '#bf8700',
   '--color-diff-addition-bg': '#ddf4ff',
   '--color-diff-addition-border': '#0969da',

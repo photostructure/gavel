@@ -118,9 +118,9 @@ approve() {
     jq -e --arg r "$REVIEW" '[.reviews[] | select(.selection.reviewName == $r) | .summary.version] |
       if length == 1 then .[0] else error("expected one review named \($r)") end') || return 1
   jq -nc --argjson cap "$cap" --argjson sv "$summary" \
-    '{verdict: "as-is", summaryVersion: $sv, captureVersion: $cap.version, patchDigest: $cap.patchDigest}' |
+    '{verdict: "approve", summaryVersion: $sv, captureVersion: $cap.version, patchDigest: $cap.patchDigest}' |
     curl -sf -X PUT -H 'Content-Type: application/json' --data @- \
-      "http://$HOST:$PORT/api/approval?review=$REVIEW" | jq -e '.verdict == "as-is"' > /dev/null
+      "http://$HOST:$PORT/api/approval?review=$REVIEW" | jq -e '.verdict == "approve"' > /dev/null
 }
 
 progress() { # <message-id>
@@ -207,7 +207,7 @@ if [ "$MODE" = selftest ]; then
   approve || fail "approving the selftest review failed"
   for _ in $(seq 30); do [ -f "$WORK/wait2.rc" ] && break; sleep 1; done
   [ "$(cat "$WORK/wait2.rc" 2>/dev/null)" = 0 ] || fail "gavel wait did not exit 0 on approval"
-  jq -e '.events[] | select(.type == "review.approval" and .approval.verdict == "as-is")' "$WORK/wait2.json" > /dev/null ||
+  jq -e '.events[] | select(.type == "review.approval" and .approval.verdict == "approve")' "$WORK/wait2.json" > /dev/null ||
     fail "second wait did not report the approval: $(cat "$WORK/wait2.json")"
   # Closing the reviewer's connection must end a wait with exit 4 (--end absent).
   kill "$HEARTBEAT"

@@ -123,10 +123,9 @@ function unsent(review: ReviewActivity): QueuedEvent[] {
 
 function verdictLabel(review: SnapshotReview): string {
   switch (review.approval.verdict) {
-    case 'as-is':
-      return 'Approve as-is';
-    case 'after-comments':
-      return 'Approve after comments';
+    // The receiving agent may not have the gavel skill loaded, so say what Approve asks for.
+    case 'approve':
+      return 'Approve: address every current comment, then commit once the required checks and reviews pass';
     case 'reject':
       return 'Reject';
     case undefined:

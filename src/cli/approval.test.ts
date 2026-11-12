@@ -49,7 +49,7 @@ describe('findApprovals', () => {
       selection: createDiffSelection('a'.repeat(40), 'b'.repeat(40)),
       threads: [],
       progress: [],
-      approval: { verdict: 'as-is' },
+      approval: { verdict: 'approve' },
       summary: { commitMessage: 'fix: one', rationale: '', version: 1 },
       updatedAt: '2026-11-07T12:00:00.000Z',
       ...overrides,
@@ -115,7 +115,7 @@ describe('findApprovals', () => {
       })),
     ).toEqual(
       expect.arrayContaining([
-        { match: 'commit', name: undefined, verdict: 'as-is' },
+        { match: 'commit', name: undefined, verdict: 'approve' },
         { match: 'patch', name: 'c2', verdict: undefined },
       ]),
     );
@@ -138,7 +138,7 @@ describe('findApprovals', () => {
       {
         match: 'patch',
         selection: { reviewName: 'task' },
-        approval: { verdict: 'as-is' },
+        approval: { verdict: 'approve' },
         commitMessage: 'fix: one',
       },
     ]);

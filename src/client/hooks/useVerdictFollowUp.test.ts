@@ -15,7 +15,7 @@ const review = (name: string, approval: ReviewApproval = {}) => ({
   name,
   approval,
 });
-const approved: ReviewApproval = { verdict: 'as-is' };
+const approved: ReviewApproval = { verdict: 'approve' };
 
 function pendingCopy() {
   let resolve = () => {};
@@ -266,7 +266,7 @@ describe('verdict follow-up', () => {
     const { result, rerender } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
     expect(result.current.step?.kind).toBe('close');
-    // The agent recaptured the review, which clears its as-is approval.
+    // The reviewer cleared the verdict from another tab.
     rerender({ reviews: queue, current: queue[0]!.selection, currentHasVerdict: false });
     expect(result.current.step).toBeNull();
     act(() => void vi.advanceTimersByTime(20_000));

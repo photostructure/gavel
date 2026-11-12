@@ -7,7 +7,7 @@ import type { NamedReviewMetadata } from '../types/review.js';
 import { Conversation } from './conversation.js';
 
 describe('capture-bound conversations', () => {
-  it('keeps identity, proposal and original anchors across base changes and emits a bound revocation', () => {
+  it('keeps identity, proposal and original anchors across base changes and moves the approval to the new capture', () => {
     const events: ConversationStreamEvent[] = [];
     const conversation = new Conversation((event) => events.push(event));
     const selection = { baseCommitish: 'a'.repeat(40), targetCommitish: '.', reviewName: 'task' };
@@ -42,8 +42,8 @@ describe('capture-bound conversations', () => {
       rationale: 'Preserve task discussion.',
       version: 1,
     });
-    expect(conversation.setVerdict(selection, 'as-is')).toMatchObject({
-      verdict: 'as-is',
+    expect(conversation.setVerdict(selection, 'approve')).toMatchObject({
+      verdict: 'approve',
       captureVersion: 1,
       patchDigest: capture.patchDigest,
       summaryVersion: 1,
@@ -62,8 +62,8 @@ describe('capture-bound conversations', () => {
     expect(current.selection).toEqual(nextSelection);
     expect(current.threads[0]?.capture).toEqual(thread.capture);
     expect(current.summary.commitMessage).toBe('fix: retain context');
-    expect(current.approval.verdict).toBeUndefined();
     expect(current.approval).toMatchObject({
+      verdict: 'approve',
       captureVersion: 2,
       patchDigest: nextCapture.patchDigest,
       summaryVersion: 1,
@@ -73,7 +73,7 @@ describe('capture-bound conversations', () => {
         type: 'review.approval',
         origin: 'agent',
         reviewId: original.id,
-        approval: expect.not.objectContaining({ verdict: expect.anything() }),
+        approval: expect.objectContaining({ verdict: 'approve' }),
         capture: nextCapture,
         summaryVersion: 1,
       }),

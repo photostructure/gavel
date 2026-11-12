@@ -30,18 +30,15 @@ interface Review {
 }
 
 /**
- * What a recapture, a proposal edit, a changed staged or worktree diff, or new human feedback
- * does to a verdict. The agent acts on the comments and commits under after-comments, so it
- * follows the revision; as-is covered only what the reviewer saw; a rejected change is done with,
- * so only the reviewer ends it. No default branch: a new verdict fails to compile until it is
- * given a case here.
+ * What a recapture or a proposal edit does to a verdict. The agent acts on the comments and
+ * commits under approve, so it follows the revision; a rejected change is done with, so it keeps
+ * the versions it rejected. No default branch: a new verdict fails to compile until it is given a
+ * case here.
  */
-export function onRevision(verdict: ReviewVerdict | undefined): 'follow' | 'clear' | 'keep' {
+export function onRevision(verdict: ReviewVerdict | undefined): 'follow' | 'keep' {
   switch (verdict) {
-    case 'after-comments':
+    case 'approve':
       return 'follow';
-    case 'as-is':
-      return 'clear';
     case 'reject':
     case undefined:
       return 'keep';
@@ -173,7 +170,7 @@ export class Conversation {
   }
 
   getApproval(selection: DiffSelection): ReviewApproval {
-    return { ...structuredClone(this.getReview(selection).approval), conditionalSupported: true };
+    return structuredClone(this.getReview(selection).approval);
   }
 
   setCapture(selection: DiffSelection, capture: NamedReviewMetadata): void {
@@ -196,9 +193,6 @@ export class Conversation {
             },
             'agent',
           );
-          break;
-        case 'clear':
-          this.clearVerdict(selection, 'agent');
           break;
         case 'keep':
           break;
@@ -289,20 +283,13 @@ export class Conversation {
           'agent',
         );
         break;
-      case 'clear':
-        this.clearVerdict(selection, 'agent');
-        break;
       case 'keep':
         break;
     }
   }
 
   /** Records the reviewer's verdict on the displayed capture or diff, replacing any other. */
-  setVerdict(
-    selection: DiffSelection,
-    verdict: ReviewVerdict,
-    diffDigest?: string,
-  ): ReviewApproval {
+  setVerdict(selection: DiffSelection, verdict: ReviewVerdict): ReviewApproval {
     const review = this.getReview(selection);
     if (review.approval.verdict === verdict) return this.getApproval(selection);
     return this.recordApproval(
@@ -310,7 +297,6 @@ export class Conversation {
       {
         verdict,
         summaryVersion: review.summary.version,
-        ...(diffDigest !== undefined ? { diffDigest } : {}),
         ...(review.capture
           ? { captureVersion: review.capture.version, patchDigest: review.capture.patchDigest }
           : {}),
@@ -319,7 +305,7 @@ export class Conversation {
     );
   }
 
-  clearVerdict(selection: DiffSelection, origin: 'user' | 'agent'): ReviewApproval {
+  clearVerdict(selection: DiffSelection): ReviewApproval {
     const review = this.getReview(selection);
     if (review.approval.verdict === undefined) return this.getApproval(selection);
     return this.recordApproval(
@@ -331,7 +317,7 @@ export class Conversation {
             summaryVersion: review.summary.version,
           }
         : {},
-      origin,
+      'user',
     );
   }
 
@@ -462,13 +448,8 @@ export class Conversation {
         });
       }
     }
+    // New feedback leaves the verdict alone: the agent acts on it before committing.
     for (const event of pending) this.emit(event);
-    // New feedback leaves after-comments alone: the agent acts on it before committing.
-    if (
-      onRevision(review.approval.verdict) === 'clear' &&
-      pending.some((event) => event.origin === 'user' && event.type !== 'thread.resolved')
-    )
-      this.clearVerdict(selection, 'user');
   }
 
   get cursor(): string {
@@ -484,7 +465,7 @@ export class Conversation {
       id: review.id,
       selection: { ...review.selection },
       threads: structuredClone(this.threadsWithProgress(review, review.threads)),
-      approval: { ...structuredClone(review.approval), conditionalSupported: true as const },
+      approval: structuredClone(review.approval),
       summary: { ...review.summary },
       ...(review.capture ? { capture: { ...review.capture } } : {}),
     });
@@ -577,11 +558,9 @@ export function registerConversationRoutes(
   update: (selection: DiffSelection, threads: DiffCommentThread[]) => void,
   progressChanged: (selection: DiffSelection) => void,
   presence?: ReviewPresence,
-  beforeSnapshot?: () => Promise<void>,
   storeStatus?: () => ReviewStoreStatus | undefined,
 ): void {
-  app.get('/api/conversation/snapshot', async (_req, res) => {
-    await beforeSnapshot?.();
+  app.get('/api/conversation/snapshot', (_req, res) => {
     const store = storeStatus?.();
     res.json({
       ...conversation.snapshot(),

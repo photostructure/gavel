@@ -122,8 +122,8 @@ export function useVerdictFollowUp<
     setPulsing(false);
   }, [currentKey]);
 
-  // A recapture or summary change clears the open review's verdict; it needs one again, so
-  // neither move on from it nor close over it.
+  // A verdict cleared from another tab leaves the open review needing one again, so neither move
+  // on from it nor close over it.
   useEffect(() => {
     if (!currentHasVerdict) setPhase(null);
   }, [currentHasVerdict]);

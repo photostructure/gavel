@@ -9,12 +9,11 @@ const review = (name: string, approval: ReviewApproval = {}) => ({
   selection: createDiffSelection('base', '.', undefined, name),
   approval,
 });
-const approved: ReviewApproval = { verdict: 'as-is' };
+const approved: ReviewApproval = { verdict: 'approve' };
 
 describe('hasVerdict', () => {
-  it('counts approval, approval after comments, and reject as verdicts', () => {
+  it('counts approval and reject as verdicts', () => {
     expect(hasVerdict(approved)).toBe(true);
-    expect(hasVerdict({ verdict: 'after-comments' })).toBe(true);
     expect(hasVerdict({ verdict: 'reject' })).toBe(true);
     expect(hasVerdict({})).toBe(false);
   });

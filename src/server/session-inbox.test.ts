@@ -35,7 +35,7 @@ function review(
     id,
     selection: { baseCommitish: 'HEAD', targetCommitish: 'capture', reviewName: name },
     threads: [],
-    approval: approved ? { verdict: 'as-is' } : {},
+    approval: approved ? { verdict: 'approve' } : {},
     summary: { commitMessage: `fix: ${name}`, rationale: '', version: 1 },
   };
 }
@@ -50,7 +50,7 @@ function approvalEvent(
     cursor: 's:1',
     reviewId,
     selection: { baseCommitish: 'HEAD', targetCommitish: 'capture' },
-    approval: { verdict: 'as-is' },
+    approval: { verdict: 'approve' },
     timestamp: 't',
   };
 }
@@ -104,7 +104,10 @@ describe('SessionInbox', () => {
     expect(send).toHaveBeenCalledTimes(1);
     const [target, content] = send.mock.calls[0]!;
     expect(target).toEqual(owner);
-    expect(content).toContain('one: Approve as-is');
+    // The agent may not have the gavel skill loaded, so the line says what Approve asks for.
+    expect(content).toContain(
+      '- one: Approve: address every current comment, then commit once the required checks and reviews pass\n',
+    );
     expect(content).toContain('gavel comment snapshot --host localhost --port 4966');
     expect(content).toContain('"reviewId":"r1"');
     expect(content).not.toContain('"reviewId":"r2"');
@@ -141,7 +144,7 @@ describe('SessionInbox', () => {
     inbox.handle(approvalEvent('r1'));
     await vi.advanceTimersByTimeAsync(INBOX_SETTLE_MS);
     const content = send.mock.calls[0]![1];
-    expect(content).toContain('- abc1234..staged: Approve as-is');
+    expect(content).toContain('- abc1234..staged: Approve');
     expect(content).toContain('too large to include');
     expect(content).not.toContain('x'.repeat(100));
   });
@@ -196,7 +199,7 @@ describe('SessionInbox', () => {
         // feedback.md: on a frozen capture, start from the excerpt the reviewer saw.
         code: 'const a = 1;',
       },
-      { type: 'review.approval', review: 'one', reviewId: 'r1', verdict: 'as-is' },
+      { type: 'review.approval', review: 'one', reviewId: 'r1', verdict: 'approve' },
       { type: 'review.approval', review: 'two', reviewId: 'r2', verdict: null },
       {
         type: 'comment.created',
@@ -378,7 +381,7 @@ describe('SessionInbox', () => {
     });
     const moved = { sessionId: 'session-a', socket: '/run/a2.sock', token: 'secret-2' };
     const pending = inbox.attach(moved);
-    expect(pending).toContain('one: Approve as-is');
+    expect(pending).toContain('one: Approve');
     expect(pending).toContain('"type":"review.approval"');
     expect(inbox.delivery('r1')).toMatchObject({ status: 'sent', via: 'prompt' });
     expect(inbox.attach(moved)).toBeUndefined();
@@ -613,7 +616,7 @@ describe('SessionInbox with sends that overlap or fail', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(inbox.delivery('r1')).toMatchObject({ status: 'sent' });
     expect(inbox.delivery('r2')).toMatchObject({ status: 'failed' });
-    expect(inbox.attach(owner)).toContain('- two: Approve as-is');
+    expect(inbox.attach(owner)).toContain('- two: Approve');
   });
 
   it('keeps newer activity pending when a retried review was in the finished send', async () => {
@@ -623,7 +626,7 @@ describe('SessionInbox with sends that overlap or fail', () => {
     await vi.advanceTimersByTimeAsync(0);
     inbox.handle(approvalEvent('r2'));
     await vi.advanceTimersByTimeAsync(INBOX_SETTLE_MS);
-    expect(sends[1]!.content).toContain('- one: Approve as-is');
+    expect(sends[1]!.content).toContain('- one: Approve');
     inbox.handle(commentEvent('r1'));
     sends[1]!.resolve();
     await vi.advanceTimersByTimeAsync(0);

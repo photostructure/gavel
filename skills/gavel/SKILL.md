@@ -85,7 +85,7 @@ tab name. Make separate commits when parts build and pass tests independently.
 Otherwise use one commit across reviews, the same proposed message on each, and
 commit exactly their captured union after every part is approved. When a comment
 asks for a different message on one part, write it to that part only with
-`comment summary`: copying it to the others would revoke their Approve as-is.
+`comment summary`; the other parts keep the message their reviewer saw.
 
 ## Prepare and launch
 
@@ -189,7 +189,7 @@ patch, repeat the native `--pathspec` and `--include-untracked` options, or use
 `--capture` with selectors.
 Without a patch source or filters, update captures the whole uncommitted tree;
 it does not reuse the original options. Reconcile HTTP 409 before retrying. An identical patch preserves version and
-approval; a changed patch advances the version and invalidates as-is approval.
+approval; a changed patch advances the version, and an Approve moves to it.
 Do not recapture while idle.
 
 To fix a review's name, run `review rename <name> <new-name> --host <host> --port <port>`;
@@ -241,7 +241,7 @@ sentences explaining the problem and solution. For others' work, identify inferr
 intent. For added reviews, send `comment summary` JSON on stdin:
 `{reviewId,commitMessage,rationale,baseVersion}`. Read `summary.version` from a
 snapshot for `baseVersion`; do not assume 0 because saved proposals may exist.
-Changed summaries revoke Approve as-is. Commit with the saved summary; when a
+Commit with the saved summary; when a
 comment asks for a different message, write it with `comment summary` first.
 
 ## Handle feedback
@@ -292,14 +292,13 @@ server's URL, review IDs, API port, and pending work to the main session.
 
 Read a fresh snapshot before acting: the user can clear or switch a verdict.
 
-| Verdict                                             | Action                                                             |
-| --------------------------------------------------- | ------------------------------------------------------------------ |
-| Approve as-is: `verdict: "as-is"`                   | Verify final scope and commit prerequisites below.                 |
-| Approve after comments: `verdict: "after-comments"` | Act on all current comments, then commit.                          |
-| Reject: `verdict: "reject"`                         | Stop: do not revise, recapture, or commit. Ask what to do instead. |
-| No verdict (`verdict` absent or `null`)             | Await the user.                                                    |
+| Verdict                                 | Action                                                             |
+| --------------------------------------- | ------------------------------------------------------------------ |
+| Approve: `verdict: "approve"`           | Act on all current comments, then commit.                          |
+| Reject: `verdict: "reject"`             | Stop: do not revise, recapture, or commit. Ask what to do instead. |
+| No verdict (`verdict` absent or `null`) | Await the user.                                                    |
 
-For Approve after comments, read every user message in the snapshot's
+For Approve, read every user message in the snapshot's
 unresolved threads, plus any feedback in this session or outside gavel, and act
 on all of them, including any added before the final snapshot. If a request cannot be
 done or its meaning is unclear, explain the problem and do not commit. Nothing
@@ -337,20 +336,16 @@ undo, then act on the user's answer without asking again:
 Only the user clears a Reject. Never recapture a rejected review; put a new attempt
 up as a new named review.
 
-Approve as-is or Approve after comments on a review you opened is
-commit approval. After comments, required checks, and independent Codex/Claude
-LAND on final code, read a fresh `comment snapshot` immediately before
-committing. Require `approval.verdict` to be `as-is` or `after-comments`; for named captures approved as-is,
-also match:
-
-- `approval.captureVersion` to `capture.version`;
-- `approval.patchDigest` to `capture.patchDigest`;
-- `approval.summaryVersion` to `summary.version`.
+Approve on a review you opened is commit approval. Once you have addressed the
+comments, the required checks pass, and independent Codex/Claude reviewers LAND the
+final code, read a fresh `comment snapshot` immediately before committing and
+require `approval.verdict` to be `approve`. The approval follows recaptures and
+summary edits, and hunks another session stages do not end it.
 
 Commit only the approved capture and requested fixes, using the saved message.
 Shared-tree edits gain no approval. Commit approved parts in dependency order;
 parts that must land together require every approval before their single commit.
-Revocation invalidates button approval; after restart, only fresh state counts.
+A cleared verdict ends button approval; after restart, only fresh state counts.
 Separate chat approval is independent. Silence or tab closure is not approval.
 Approval never authorizes pushing or publishing.
 

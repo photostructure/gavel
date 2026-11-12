@@ -133,8 +133,8 @@ describe('conversation event HTTP subscription', () => {
     for (const query of ['wait=-1', 'wait=25001', 'wait=1.5', 'wait=1&wait=2', 'after=x&after=y'])
       expect((await fetch(`${url}/api/conversation/events?${query}`)).status).toBe(400);
     const cursor = conversation.cursor;
-    conversation.setVerdict(selection, 'as-is');
-    conversation.clearVerdict(selection, 'user');
+    conversation.setVerdict(selection, 'approve');
+    conversation.clearVerdict(selection);
     for (const after of [cursor, new Conversation().cursor, `${conversation.cursor}:extra`])
       expect(
         (await fetch(`${url}/api/conversation/events?wait=0&after=${encodeURIComponent(after)}`))

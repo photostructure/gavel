@@ -366,9 +366,6 @@ function App() {
   const refreshSummary = summary.refresh;
   const approval = useReviewApproval(
     diffData?.shipIt && commentSessionQueryString ? getCommentApiUrl('/api/approval') : null,
-    diffData?.capture,
-    summary.version,
-    diffData?.diffDigest,
   );
   const refreshApproval = approval.refresh;
   const commentsCaptureKey = diffData?.capture
@@ -427,10 +424,10 @@ function App() {
       verdictFollowUp.cancel();
       return;
     }
-    // A change applied after it, such as a new comment, can end the verdict on the server.
+    // Another tab or reviewer may have changed or cleared the verdict before this read.
     const stillGiven = () => latest() && approval.servedVerdict() === verdict;
     if (!stillGiven()) return;
-    if (verdict === 'as-is' && shownVerdict !== 'as-is' && approvalControlRef.current) {
+    if (verdict === 'approve' && shownVerdict !== 'approve' && approvalControlRef.current) {
       celebrateApproval(approvalControlRef.current, settings.approvalAnimations);
     }
     // The next step depends on the other reviews' verdicts. start() sees the list from the
@@ -442,7 +439,7 @@ function App() {
   finishVerdictRef.current = finishVerdict;
 
   const handleVerdict = async (verdict: ReviewVerdict | 'clear') => {
-    const approving = verdict === 'as-is' || verdict === 'after-comments';
+    const approving = verdict === 'approve';
     if (
       !approval.ready ||
       isShipping ||
@@ -2060,7 +2057,6 @@ function App() {
                   key={commentsContextKey}
                   containerRef={setVerdictControl}
                   verdict={approval.verdict}
-                  conditionalSupported={approval.conditionalSupported}
                   busy={isShipping || captureReloading}
                   disabled={!approval.ready || !hasLoadedComments}
                   approveDisabled={!summary.ready}

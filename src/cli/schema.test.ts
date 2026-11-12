@@ -306,7 +306,7 @@ describe('schema command', () => {
       properties: { ...approvalFields, verdict: { $ref: '#/$defs/ReviewVerdict' } },
     });
     expect($defs.ReviewApproval).not.toHaveProperty('properties.approved');
-    expect($defs.ReviewVerdict).toMatchObject({ enum: ['as-is', 'after-comments', 'reject'] });
+    expect($defs.ReviewVerdict).toMatchObject({ enum: ['approve', 'reject'] });
   });
 
   it('declares excerpt fields only on thread forms that preserve them', async () => {

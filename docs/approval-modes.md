@@ -1,16 +1,16 @@
 # Approval modes
 
-The verdict buttons have three actions. **Approve as-is** approves the displayed
-patch. **Approve after comments** tells the agent to act on all the current
-comments and then commit. **Reject** says the change is done with: the agent stops
+The verdict buttons have two actions. **Approve** tells the agent to act on all
+the current comments, run the required checks and reviews, and then commit.
+**Reject** says the change is done with: the agent stops
 and asks the user what to do instead. None of them authorizes a push, publication,
 or unrelated changes.
 
 Approval snapshots and `review.approval` events carry the reviewer's `verdict`,
 which is absent until there is one:
 
-- `verdict: "as-is"`: the reviewed patch is approved.
-- `verdict: "after-comments"`: act on the current comments, then commit.
+- `verdict: "approve"`: act on the current comments, then commit once the required
+  checks and reviews pass.
 - `verdict: "reject"`: do not revise, recapture, or commit. See
   [acting on Reject](#acting-on-reject).
 - No `verdict`: there is no verdict.
@@ -18,13 +18,11 @@ which is absent until there is one:
 The nested `approval` object on approval events has the same fields as snapshots.
 `PUT /api/approval` sets a verdict with `{"verdict": ...}` and the displayed
 `captureVersion` and `patchDigest`, or the `diffDigest`; it returns HTTP 409 when
-they are stale. The two approvals also require the displayed `summaryVersion`;
-Reject does not endorse the proposed message, so it ignores the summary.
-`DELETE /api/approval` clears the verdict and requires no matching versions. The
-browser checks `conditionalSupported` before offering **Approve after comments**,
-which needs conversations.
+they are stale. Approve also requires the displayed `summaryVersion`; Reject does
+not endorse the proposed message, so it ignores the summary.
+`DELETE /api/approval` clears the verdict and requires no matching versions.
 
-## Acting on Approve after comments
+## Acting on Approve
 
 1. Read every unresolved comment in `comment snapshot`, including ones already
    replied to, plus any feedback the reviewer gave in the session or outside gavel.
@@ -80,23 +78,21 @@ in a shared working tree.
 4. Put a new attempt up as a new named review. Only the reviewer clears a Reject,
    so a recapture of the rejected review would still show it rejected.
 
-## Approval invalidation
+## When a verdict ends
 
-**Approve after comments** and **Reject** end only when the reviewer clears them or
-chooses another verdict. New, edited, resolved, or reopened comments leave them in
+**Approve** and **Reject** end only when the reviewer clears them or chooses
+another verdict. New, edited, resolved, or reopened comments leave them in
 place, and so do capture updates, diff changes, and the agent's summary edits
-(only the agent writes the summary; the browser shows it read-only). Under Approve
-after comments, the approval's `captureVersion`, `patchDigest`, and `summaryVersion`
+(only the agent writes the summary; the browser shows it read-only). Under Approve,
+the approval's `captureVersion`, `patchDigest`, and `summaryVersion`
 follow the current capture and summary, so a commit does not need them to match the
 capture the reviewer first saw. A Reject keeps the versions of the capture it
 rejected.
 
-**Approve as-is** covers exactly what the reviewer saw. New or edited human feedback,
-deletion, a reopened thread, an agent's change to the summary, or a changed named capture revokes
-it. A `staged`, `working`, or `.` review records the digest of the diff the reviewer
-approved, so a different current diff, such as more staged hunks, also revokes it.
-`comment snapshot` and `GET /api/approval` check the current diff before they report
-approval.
+Because Approve follows the agent's revisions, the server does not check that the
+committed change is the one the reviewer saw. For a `staged`, `working`, or `.`
+review, hunks another session stages after the verdict do not end it either. The
+agent commits only the reviewed scope and the fixes the comments asked for.
 
 A restarted server that opens the same review restores its approval
 ([saved reviews](agent-conversations.md#saved-reviews)). Presence and browser

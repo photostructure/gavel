@@ -94,8 +94,6 @@ function server(initialThreads: DiffCommentThread[] = []) {
         if (state.staleVerdict) return { id: op.id, status: 'rejected', error: state.staleVerdict };
         state.verdict = op.verdict === 'clear' ? undefined : op.verdict;
       } else {
-        // A new user comment ends an as-is approval, as the server's conversation does.
-        if (op.type === 'thread.add' && state.verdict === 'as-is') state.verdict = undefined;
         const outcome = applyReviewOp(state.threads, op, time);
         if ('error' in outcome) return { id: op.id, status: 'rejected', error: outcome.error };
         state.threads = outcome.threads;
@@ -182,8 +180,7 @@ const mount = () =>
   );
 
 // The verdict buttons stay disabled until the page has the server's threads.
-const approveButton = () =>
-  screen.getByRole('button', { name: /^(Approve as-is|Approved as-is)$/ });
+const approveButton = () => screen.getByRole('button', { name: /^(Approve|Approved)$/ });
 const waitForServerThreads = () => waitFor(() => expect(approveButton()).toBeEnabled());
 
 /** Every op this browser holds for the server, in order. */
@@ -423,10 +420,10 @@ describe('comment and verdict changes the server has not confirmed', () => {
 
     await waitFor(() => expect(notSavedAlert()).toBeNull());
     expect(state.applied.map(({ type }) => type)).toEqual(['thread.add', 'verdict.set']);
-    expect(state.verdict).toBe('as-is');
+    expect(state.verdict).toBe('approve');
     // The server announces the verdict it applied.
     await act(async () => watch.approvalChanged?.());
-    await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approved as-is$/));
+    await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approved$/));
   });
 
   it('shows the next step for a verdict that a retry gets confirmed', async () => {
@@ -468,9 +465,9 @@ describe('comment and verdict changes the server has not confirmed', () => {
 
   it('does not start the next step for a waiting Reject that a later clear replaced', async () => {
     const state = server();
-    state.verdict = 'as-is';
+    state.verdict = 'approve';
     mount();
-    await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approved as-is$/));
+    await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approved$/));
     state.fail = 'status';
     await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
     await findNotSavedAlert();
@@ -487,7 +484,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
     // The Reject's next step waits on the list of reviews until the clear has shown.
     reconnect();
     await waitFor(() => expect(queued()).toEqual([]));
-    await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approve as-is$/));
+    await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approve$/));
     await act(async () => releaseReviews());
 
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -518,7 +515,31 @@ describe('comment and verdict changes the server has not confirmed', () => {
     expect(bursts).toBe(1);
   });
 
-  it('does not celebrate or move on for an approval that a later comment revoked', async () => {
+  it('does not celebrate or move on for an approval another tab cleared before it was read back', async () => {
+    let bursts = 0;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
+      bursts++;
+      return null;
+    });
+    const state = server();
+    mount();
+    await waitForServerThreads();
+    state.holdApprovalReads = true;
+    await userEvent.click(approveButton());
+    await waitFor(() => expect(state.heldApprovalReads).toHaveLength(1));
+    expect(state.verdict).toBe('approve');
+    // Another tab clears the verdict before this tab reads its own approval back.
+    state.verdict = undefined;
+    state.holdApprovalReads = false;
+
+    await act(async () => state.heldApprovalReads.shift()!());
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole('status', { name: 'Next step' })).toBeNull();
+    expect(bursts).toBe(0);
+  });
+
+  it('does not celebrate an approval that a later Reject replaced', async () => {
     let bursts = 0;
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
       bursts++;
@@ -530,7 +551,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
     state.fail = 'status';
     await userEvent.click(approveButton());
     await findNotSavedAlert();
-    await sendGeneralComment('Second thoughts');
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
     await waitFor(() => expect(queued()).toHaveLength(2));
     state.fail = false;
 
@@ -538,8 +559,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
 
     await waitFor(() => expect(queued()).toEqual([]));
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(state.verdict).toBeUndefined();
-    expect(screen.queryByRole('status', { name: 'Next step' })).toBeNull();
+    expect(state.verdict).toBe('reject');
     expect(bursts).toBe(0);
   });
 
@@ -618,7 +638,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
     ).toBeVisible();
     expect(queued()).toEqual([]);
     expect(state.verdict).toBeUndefined();
-    expect(approveButton()).toHaveTextContent(/^Approve as-is$/);
+    expect(approveButton()).toHaveTextContent(/^Approve$/);
   });
 
   it('keeps an op queued after an earlier answer arrives without confirming it', async () => {

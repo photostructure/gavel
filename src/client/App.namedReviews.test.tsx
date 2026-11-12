@@ -603,9 +603,7 @@ describe('named captures in the browser', () => {
       window.history.replaceState(null, '', `/?review=${reviewName}`);
       renderApp();
       await waitFor(() =>
-        expect(
-          screen.getByRole('button', { name: /^(Approve as-is|Approved as-is)$/ }),
-        ).toBeEnabled(),
+        expect(screen.getByRole('button', { name: /^(Approve|Approved)$/ })).toBeEnabled(),
       );
       expect(
         opPosts(reviewName).some(([, init]) =>
@@ -670,7 +668,7 @@ describe('named captures in the browser', () => {
     const state = fixture();
     const content = '  const stable = false;  ';
     state.addedLine = content;
-    state.verdict = 'as-is';
+    state.verdict = 'approve';
     renderApp();
     const capture = await screen.findByRole('status', { name: 'Named review capture' });
     const identity = capture.textContent;
@@ -704,7 +702,7 @@ describe('named captures in the browser', () => {
       'Mark as not reviewed',
     );
     expect(JSON.stringify(localStorage)).toBe(saved);
-    expect(state.verdict).toBe('as-is');
+    expect(state.verdict).toBe('approve');
     expect(diffRequests()).toHaveLength(requestCount);
     fireEvent.click(toggle);
     await screen.findByText('Whitespace-only changes hidden');
@@ -715,9 +713,7 @@ describe('named captures in the browser', () => {
     const state = fixture([originalThread]);
     renderApp();
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: /^(Approve as-is|Approved as-is)$/ }),
-      ).toBeEnabled(),
+      expect(screen.getByRole('button', { name: /^(Approve|Approved)$/ })).toBeEnabled(),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Conversation' }));
     const baseFetch = vi.mocked(fetch).getMockImplementation()!;
@@ -776,9 +772,7 @@ describe('named captures in the browser', () => {
     const state = fixture([originalThread]);
     renderApp();
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: /^(Approve as-is|Approved as-is)$/ }),
-      ).toBeEnabled(),
+      expect(screen.getByRole('button', { name: /^(Approve|Approved)$/ })).toBeEnabled(),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Conversation' }));
     const baseFetch = vi.mocked(fetch).getMockImplementation()!;
@@ -846,17 +840,17 @@ describe('named captures in the browser', () => {
     expect(identity).toHaveTextContent(initialCapture.patchDigest.slice(0, 12));
     expect(screen.queryByRole('button', { name: /Expand.*hidden lines/ })).not.toBeInTheDocument();
     expect(screen.getByText('1 line outside this patch')).toBeVisible();
-    const approve = screen.getByRole('button', { name: /^(Approve as-is|Approved as-is)$/ });
+    const approve = screen.getByRole('button', { name: /^(Approve|Approved)$/ });
     await waitFor(() => expect(approve).toBeEnabled());
     fireEvent.click(approve);
-    await waitFor(() => expect(approve).toHaveTextContent(/^Approved as-is$/));
+    await waitFor(() => expect(approve).toHaveTextContent(/^Approved$/));
     const init = opPosts('task-a')[0]?.[1];
     expect(JSON.parse(String(init?.body))).toEqual({
       repositoryId: initialCapture.repositoryId,
       ops: [
         {
           type: 'verdict.set',
-          verdict: 'as-is',
+          verdict: 'approve',
           summaryVersion: 2,
           captureVersion: 1,
           patchDigest: initialCapture.patchDigest,
@@ -1444,11 +1438,9 @@ describe('named captures in the browser', () => {
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
     expect(bar).toHaveTextContent('2 need a verdict');
-    state.verdict = 'as-is';
+    state.verdict = 'approve';
     await act(async () => watch.approvalChanged?.());
-    expect(
-      await within(bar).findByRole('button', { name: 'task-a, Approved as-is' }),
-    ).toBeVisible();
+    expect(await within(bar).findByRole('button', { name: 'task-a, Approved' })).toBeVisible();
     expect(bar).toHaveTextContent('1 needs a verdict');
   });
 });
@@ -1483,26 +1475,26 @@ describe('after a verdict', () => {
       const state = fixture();
       renderApp();
       const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
-      await waitFor(() => expect(verdictButton('Approve as-is')).toBeEnabled());
+      await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
       expect(bar).toHaveTextContent('2 need a verdict');
       expect(openTabMark()).toHaveClass('lucide-circle');
-      fireEvent.click(verdictButton('Approve as-is'));
+      fireEvent.click(verdictButton('Approve'));
       await waitFor(() => expect(nextStep()).toHaveTextContent('Switching to task-b in 10s'));
       return { bar, state };
     }
 
     it('shows its own verdict', async () => {
       const { bar } = await approveOpenReview();
-      expect(within(bar).getByRole('button', { name: 'task-a, Approved as-is' })).toBeVisible();
+      expect(within(bar).getByRole('button', { name: 'task-a, Approved' })).toBeVisible();
       expect(openTabMark()).toHaveClass('lucide-check');
       expect(bar).toHaveTextContent('1 needs a verdict');
     });
 
     it('needs a verdict again once the reviewer clears it', async () => {
       const { bar } = await approveOpenReview();
-      await waitFor(() => expect(verdictButton('Approved as-is')).toBeEnabled());
-      fireEvent.click(verdictButton('Approved as-is'));
-      await waitFor(() => expect(verdictButton('Approve as-is')).toBeVisible());
+      await waitFor(() => expect(verdictButton('Approved')).toBeEnabled());
+      fireEvent.click(verdictButton('Approved'));
+      await waitFor(() => expect(verdictButton('Approve')).toBeVisible());
       // The server broadcasts this when the approval changes.
       await act(async () => watch.approvalChanged?.());
       expect(
@@ -1512,25 +1504,24 @@ describe('after a verdict', () => {
       expect(bar).toHaveTextContent('2 need a verdict');
     });
 
-    it('needs a verdict again once a recapture clears it', async () => {
+    // The agent recaptures to address the comments, so the countdown must outlive it.
+    it('keeps its verdict and its next step through a recapture, which the approval follows', async () => {
       const { bar, state } = await approveOpenReview();
-      // A new capture revokes the approval on the server before it broadcasts the capture.
-      state.verdict = undefined;
       state.capture = { ...state.capture, version: 2, patchDigest: 'b'.repeat(64) };
+      // Resolves once the page has read the new capture.
       await act(async () => watch.captureChanged?.('task-a'));
-      expect(
-        await within(bar).findByRole('button', { name: 'task-a, Needs a verdict' }),
-      ).toBeVisible();
-      expect(openTabMark()).toHaveClass('lucide-circle');
-      expect(bar).toHaveTextContent('2 need a verdict');
+      expect(await within(bar).findByRole('button', { name: 'task-a, Approved' })).toBeVisible();
+      expect(openTabMark()).toHaveClass('lucide-check');
+      expect(bar).toHaveTextContent('1 needs a verdict');
+      expect(nextStep()).toHaveTextContent('Switching to task-b');
     });
   });
 
   it('counts down and opens the next review without a verdict', async () => {
     fixture();
     renderApp();
-    await waitFor(() => expect(verdictButton('Approve as-is')).toBeEnabled());
-    fireEvent.click(verdictButton('Approve as-is'));
+    await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve'));
     await waitFor(() => expect(nextStep()).toHaveTextContent('Switching to task-b in 10s'));
     const bar = screen.getByRole('navigation', { name: 'Reviews on this server' });
     expect(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' })).toHaveClass(
@@ -1548,14 +1539,14 @@ describe('after a verdict', () => {
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
     fireEvent.click(await within(bar).findByRole('button', { name: 'task-b, Needs a verdict' }));
     await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
-    await waitFor(() => expect(verdictButton('Approve as-is')).toBeEnabled());
-    fireEvent.click(verdictButton('Approve as-is'));
+    await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve'));
     await waitFor(() => expect(nextStep()).toHaveTextContent('Switching to task-a in 10s'));
     // The bar remounts on every review switch.
     const barNow = screen.getByRole('navigation', { name: 'Reviews on this server' });
     fireEvent.click(within(barNow).getByRole('button', { name: 'task-a, Needs a verdict' }));
     await waitFor(() => expect(window.location.search).toBe('?review=task-a'));
-    await waitFor(() => expect(verdictButton('Approve as-is')).toBeEnabled());
+    await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
     expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
     await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
     expect(close).not.toHaveBeenCalled();
@@ -1581,11 +1572,11 @@ describe('after a verdict', () => {
     expect(nextStep()).toHaveTextContent('This review has a verdict. You can close this tab.');
   });
 
-  it.each(['Approve as-is', 'Reject'])(
+  it.each(['Approve', 'Reject'])(
     'requires a resume prompt before closing a Codex review after %s',
     async (verdict) => {
       const state = fixture();
-      state.verdictB = 'as-is';
+      state.verdictB = 'approve';
       state.reviewContext = {
         source: 'git',
         workingDirectory: '/repo',
@@ -1616,8 +1607,8 @@ describe('after a verdict', () => {
     const close = vi.spyOn(window, 'close').mockImplementation(() => {});
     vi.mocked(copyTextToClipboard).mockClear();
     renderApp();
-    await waitFor(() => expect(verdictButton('Approve as-is')).toBeEnabled());
-    fireEvent.click(verdictButton('Approve as-is'));
+    await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve'));
     await waitFor(() =>
       expect(nextStep()).toHaveTextContent('This review has a verdict. Closing this tab in 10s'),
     );
@@ -1647,7 +1638,7 @@ describe('after a verdict', () => {
     );
 
     state.showReviewB = false;
-    state.verdict = 'as-is';
+    state.verdict = 'approve';
     await act(async () => watch.approvalChanged?.());
     await waitFor(() =>
       expect(screen.queryByRole('navigation', { name: 'Reviews on this server' })).toBeNull(),

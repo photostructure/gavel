@@ -86,7 +86,7 @@ describe('pushing review activity to the owning session', () => {
   const approve = (diff: DiffResponse) =>
     call(
       `/api/approval?${new URLSearchParams({ base: diff.baseCommitish!, target: diff.targetCommitish! })}`,
-      { verdict: 'as-is', diffDigest: diff.diffDigest },
+      { verdict: 'approve', diffDigest: diff.diffDigest },
       200,
       'PUT',
     );
@@ -145,7 +145,9 @@ describe('pushing review activity to the owning session', () => {
       .map((line) => JSON.parse(line));
     expect(auth).toEqual({ type: 'auth', token: 'secret-token' });
     expect(message).toMatchObject({ type: 'user', from: 'gavel', session_id: 'session-a' });
-    expect(message.message.content).toContain('Approve as-is');
+    expect(message.message.content).toMatch(
+      /: Approve: address every current comment, then commit once the required checks and reviews pass$/m,
+    );
     expect(message.message.content).not.toContain('secret-token');
     expect(await deliveries()).toEqual([expect.objectContaining({ status: 'sent', via: 'inbox' })]);
   });
@@ -162,7 +164,9 @@ describe('pushing review activity to the owning session', () => {
       sessionId: 'session-a',
       socket: join(runtimeDir, 'restarted.sock'),
     });
-    expect(pending).toContain('Approve as-is');
+    expect(pending).toMatch(
+      /: Approve: address every current comment, then commit once the required checks and reviews pass$/m,
+    );
     expect(await deliveries()).toEqual([
       expect.objectContaining({ status: 'sent', via: 'prompt' }),
     ]);
@@ -198,7 +202,7 @@ describe('pushing review activity to the owning session', () => {
       await call(
         `/api/approval?review=${name}`,
         {
-          verdict: 'as-is',
+          verdict: 'approve',
           captureVersion: 1,
           patchDigest: capture.patchDigest,
           summaryVersion: 0,

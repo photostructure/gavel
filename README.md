@@ -63,8 +63,8 @@ discuss the whole review. The agent replies in those threads.
 
 Give each proposed commit a verdict:
 
-- **Approve as-is** permits the agent to commit the reviewed change.
-- **Approve after comments** permits it to commit once your feedback is addressed.
+- **Approve** permits the agent to commit once it has addressed your comments and
+  the required checks and reviews pass.
 - **Reject** stops the agent, which asks you what to do instead and whether to revert.
 
 The agent must run the required checks before committing. See

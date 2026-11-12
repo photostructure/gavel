@@ -2,7 +2,7 @@ import type { ReviewApproval } from '../../types/conversation';
 import type { DiffSelection } from '../../types/diff';
 import { diffSelectionsEqual } from '../../utils/diffSelection';
 
-/** The reviewer has given this review a verdict: approved as-is, approved after comments, or rejected. */
+/** The reviewer has given this review a verdict: approved or rejected. */
 export const hasVerdict = (approval: ReviewApproval) => approval.verdict !== undefined;
 
 /**

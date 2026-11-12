@@ -47,13 +47,13 @@ function setup() {
   return { conversation, reviewId: review.id };
 }
 
-describe('approval after comments', () => {
+describe('approval', () => {
   const resolved = { ...thread, resolution: { resolved: true, updatedAt: time } };
 
   it('is ready to commit as soon as the reviewer chooses it', () => {
     const { conversation } = setup();
-    const approval = conversation.setVerdict(selection, 'after-comments');
-    expect(approval).toMatchObject({ verdict: 'after-comments', captureVersion: 1 });
+    const approval = conversation.setVerdict(selection, 'approve');
+    expect(approval).toMatchObject({ verdict: 'approve', captureVersion: 1 });
     expect(approval).not.toHaveProperty('approved');
     expect(approval).not.toHaveProperty('conditions');
     expect(approval).not.toHaveProperty('baselineCapture');
@@ -61,7 +61,7 @@ describe('approval after comments', () => {
 
   it('does not change when comments are added, edited, resolved, or reopened', () => {
     const { conversation } = setup();
-    const approval = conversation.setVerdict(selection, 'after-comments');
+    const approval = conversation.setVerdict(selection, 'approve');
     const edited = structuredClone(thread);
     edited.messages[0]!.body = 'Actually, fix this other bug';
     conversation.update(selection, [thread], [edited], 'user');
@@ -72,7 +72,7 @@ describe('approval after comments', () => {
 
   it('follows the capture and summary as the agent revises them', () => {
     const { conversation } = setup();
-    conversation.setVerdict(selection, 'after-comments');
+    conversation.setVerdict(selection, 'approve');
     conversation.setCapture(selection, { ...capture, version: 2, patchDigest: 'c'.repeat(64) });
     conversation.setSummary(selection, {
       commitMessage: 'revised message',
@@ -80,7 +80,7 @@ describe('approval after comments', () => {
       version: 3,
     });
     expect(conversation.getApproval(selection)).toMatchObject({
-      verdict: 'after-comments',
+      verdict: 'approve',
       captureVersion: 2,
       patchDigest: 'c'.repeat(64),
       summaryVersion: 3,
@@ -89,33 +89,11 @@ describe('approval after comments', () => {
 
   it('ends when the reviewer clears or replaces it', () => {
     const { conversation } = setup();
-    conversation.setVerdict(selection, 'after-comments');
-    conversation.clearVerdict(selection, 'user');
+    conversation.setVerdict(selection, 'approve');
+    conversation.clearVerdict(selection);
     expect(conversation.getApproval(selection).verdict).toBeUndefined();
-    conversation.setVerdict(selection, 'after-comments');
+    conversation.setVerdict(selection, 'approve');
     expect(conversation.setVerdict(selection, 'reject')).toMatchObject({ verdict: 'reject' });
-  });
-});
-
-describe('as-is approval', () => {
-  it('survives resolving a thread and ends when it is reopened', () => {
-    const { conversation } = setup();
-    const resolved = { ...thread, resolution: { resolved: true, updatedAt: time } };
-    conversation.setVerdict(selection, 'as-is');
-    conversation.update(selection, [thread], [resolved], 'user');
-    expect(conversation.getApproval(selection).verdict).toBe('as-is');
-    conversation.update(selection, [resolved], [thread], 'user');
-    expect(conversation.getApproval(selection).verdict).toBeUndefined();
-  });
-
-  it('ends when the capture or summary changes', () => {
-    const { conversation } = setup();
-    conversation.setVerdict(selection, 'as-is');
-    conversation.setCapture(selection, { ...capture, version: 2 });
-    expect(conversation.getApproval(selection).verdict).toBeUndefined();
-    conversation.setVerdict(selection, 'as-is');
-    conversation.setSummary(selection, { commitMessage: 'new message', rationale: '', version: 1 });
-    expect(conversation.getApproval(selection).verdict).toBeUndefined();
   });
 });
 
@@ -170,24 +148,23 @@ describe('reject verdict', () => {
   it('replaces an approval, and an approval replaces it', () => {
     const { conversation } = setup();
     conversation.setVerdict(selection, 'reject');
-    expect(conversation.setVerdict(selection, 'as-is')).toMatchObject({ verdict: 'as-is' });
+    expect(conversation.setVerdict(selection, 'approve')).toMatchObject({ verdict: 'approve' });
     expect(conversation.setVerdict(selection, 'reject')).toMatchObject({ verdict: 'reject' });
   });
 
   it('ends when the reviewer clears it', () => {
     const { conversation } = setup();
     conversation.setVerdict(selection, 'reject');
-    conversation.clearVerdict(selection, 'user');
+    conversation.clearVerdict(selection);
     expect(conversation.getApproval(selection).verdict).toBeUndefined();
   });
 });
 
-// A recapture, a proposal edit, or a changed diff: after-comments follows the agent's revision,
-// as-is covered only what the reviewer saw, and a rejection stays until the reviewer clears it.
+// A recapture or a proposal edit: approve follows the agent's revision, and a rejection stays until
+// the reviewer clears it.
 describe('onRevision', () => {
   it.each([
-    ['after-comments', 'follow'],
-    ['as-is', 'clear'],
+    ['approve', 'follow'],
     ['reject', 'keep'],
     [undefined, 'keep'],
   ] as const)('%s → %s', (verdict, outcome) => {

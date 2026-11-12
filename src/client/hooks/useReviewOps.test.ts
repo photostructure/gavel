@@ -285,7 +285,7 @@ describe('useReviewOps', () => {
     act(() => void result.current.enqueue(add('first')));
     let answer: Promise<unknown> | undefined;
     act(() => {
-      answer = result.current.enqueue({ type: 'verdict.set', verdict: 'as-is' }).answer;
+      answer = result.current.enqueue({ type: 'verdict.set', verdict: 'approve' }).answer;
     });
     const verdictId = stored().find(({ type }) => type === 'verdict.set')!.id;
 
@@ -305,7 +305,7 @@ describe('useReviewOps', () => {
     act(() => void result.current.enqueue(add('first')));
     let answer: Promise<unknown> | undefined;
     act(() => {
-      answer = result.current.enqueue({ type: 'verdict.set', verdict: 'as-is' }).answer;
+      answer = result.current.enqueue({ type: 'verdict.set', verdict: 'approve' }).answer;
     });
     const verdictId = stored().find(({ type }) => type === 'verdict.set')!.id;
 

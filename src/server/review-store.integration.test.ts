@@ -136,7 +136,7 @@ describe('saved review state across server restarts', () => {
     return request<ReviewApproval>(
       `/api/approval?review=${name}`,
       {
-        verdict: 'as-is',
+        verdict: 'approve',
         captureVersion: review.version,
         patchDigest: review.patchDigest,
         summaryVersion,
@@ -178,11 +178,11 @@ describe('saved review state across server restarts', () => {
     const restored = await reviewOf('task');
     expect(restored).toMatchObject({
       summary: { commitMessage: message, version: summary.version },
-      approval: { verdict: 'as-is', patchDigest: capture.patchDigest },
+      approval: { verdict: 'approve', patchDigest: capture.patchDigest },
       threads: [{ id: 'question', messages: [{ body: 'Keep this comment.' }] }],
     });
     expect(await request<ReviewApproval>('/api/approval?review=task')).toMatchObject({
-      verdict: 'as-is',
+      verdict: 'approve',
     });
     const comments = await request<{ threads: DiffCommentThread[] }>(
       '/api/comments-json?review=task',
@@ -190,17 +190,17 @@ describe('saved review state across server restarts', () => {
     expect(comments.threads.map((entry) => entry.id)).toEqual(['question']);
   });
 
-  it('keeps an approval when the relaunch proposes the same message, and revokes it for another', async () => {
+  it('keeps an approval across relaunches, moving it to a changed proposal', async () => {
     await startNamed('task', { commitMessage: message, why: 'Same TLDR.' });
     await approveNamed('task', 1);
 
     await restart(() => startNamed('task', { commitMessage: message, why: 'Same TLDR.' }));
-    expect(await reviewOf('task')).toMatchObject({ approval: { verdict: 'as-is' } });
+    expect(await reviewOf('task')).toMatchObject({ approval: { verdict: 'approve' } });
 
     await restart(() => startNamed('task', { commitMessage: 'fix: something else', why: '' }));
     expect(await reviewOf('task')).toMatchObject({
-      summary: { commitMessage: 'fix: something else' },
-      approval: expect.not.objectContaining({ verdict: expect.anything() }),
+      summary: { commitMessage: 'fix: something else', version: 2 },
+      approval: { verdict: 'approve', summaryVersion: 2 },
     });
   });
 
@@ -304,16 +304,16 @@ describe('saved review state across server restarts', () => {
     await start();
     await request<ReviewApproval>(
       '/api/approval',
-      { verdict: 'as-is', summaryVersion: 1 },
+      { verdict: 'approve', summaryVersion: 1 },
       200,
       'PUT',
     );
     await restart(start);
-    expect(await request<ReviewApproval>('/api/approval')).toMatchObject({ verdict: 'as-is' });
+    expect(await request<ReviewApproval>('/api/approval')).toMatchObject({ verdict: 'approve' });
     await running?.shutdown('closed');
     running = undefined;
     expect(await findApprovals(root, { commit: 'HEAD' })).toMatchObject([
-      { match: 'commit', approval: { verdict: 'as-is' }, commitMessage: message },
+      { match: 'commit', approval: { verdict: 'approve' }, commitMessage: message },
     ]);
   });
 
@@ -352,7 +352,7 @@ describe('saved review state across server restarts', () => {
     }
   });
 
-  it('never saves a changed proposal together with the approval it revokes', async () => {
+  it('never saves a changed proposal together with an approval of the earlier one', async () => {
     const save = ReviewStore.prototype.save;
     const saves: SavedReview[] = [];
     const spy = vi.spyOn(ReviewStore.prototype, 'save').mockImplementation(function (
@@ -372,12 +372,14 @@ describe('saved review state across server restarts', () => {
         rationale: '',
         baseVersion: 1,
       });
-      expect(saves.some((review) => review.summary.version === 2 && review.approval.verdict)).toBe(
-        false,
-      );
+      expect(
+        saves.some(
+          (review) => review.summary.version === 2 && review.approval.summaryVersion !== 2,
+        ),
+      ).toBe(false);
       expect(saves.at(-1)).toMatchObject({
         summary: { version: 2 },
-        approval: expect.not.objectContaining({ verdict: expect.anything() }),
+        approval: { verdict: 'approve', summaryVersion: 2 },
       });
     } finally {
       spy.mockRestore();
@@ -398,7 +400,7 @@ describe('saved review state across server restarts', () => {
 
     expect(await reviewOf('task')).toMatchObject({
       capture: { version: 2, patchDigest: next.patchDigest },
-      approval: { verdict: 'as-is' },
+      approval: { verdict: 'approve' },
       threads: [{ id: 'question', capture: { version: 1, patchDigest: original.patchDigest } }],
     });
     expect(await request<{ version: number }>('/api/reviews/task?version=1')).toMatchObject({

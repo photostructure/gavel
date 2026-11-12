@@ -48,8 +48,8 @@ describe('Conversation state and events', () => {
     const journal = new Conversation(undefined, 2);
     const before = journal.cursor;
     journal.update(selection, [], [thread], 'user');
-    journal.setVerdict(selection, 'as-is');
-    journal.clearVerdict(selection, 'user');
+    journal.setVerdict(selection, 'approve');
+    journal.clearVerdict(selection);
     expect(() => journal.read(before)).toThrow('expired');
     expect(journal.read(`${before.split(':')[0]}:1`).events).toHaveLength(2);
     for (const cursor of [
@@ -71,7 +71,7 @@ describe('Conversation state and events', () => {
     const first = journal.wait(journal.cursor, 25000, abort.signal);
     const second = journal.wait(journal.cursor, 25000, abort.signal);
     expect(vi.getTimerCount()).toBe(2);
-    journal.setVerdict(selection, 'as-is');
+    journal.setVerdict(selection, 'approve');
     expect((await first).events).toHaveLength(1);
     expect((await second).events).toHaveLength(1);
     expect(vi.getTimerCount()).toBe(0);
@@ -127,16 +127,16 @@ describe('Conversation state and events', () => {
 
   it('emits approval changes and treats repeated state as idempotent', () => {
     const { journal, events } = observedConversation();
-    journal.setVerdict(selection, 'as-is');
+    journal.setVerdict(selection, 'approve');
     expect(events).toEqual([
       expect.objectContaining({
         type: 'review.approval',
-        approval: expect.objectContaining({ verdict: 'as-is' }),
+        approval: expect.objectContaining({ verdict: 'approve' }),
       }),
     ]);
-    journal.setVerdict(selection, 'as-is');
+    journal.setVerdict(selection, 'approve');
     expect(events).toHaveLength(1);
-    journal.clearVerdict(selection, 'user');
+    journal.clearVerdict(selection);
     expect(journal.snapshot().reviews[0]?.approval.verdict).toBeUndefined();
     expect(events.slice(1)).toEqual([
       expect.objectContaining({
@@ -144,7 +144,7 @@ describe('Conversation state and events', () => {
         approval: expect.not.objectContaining({ verdict: expect.anything() }),
       }),
     ]);
-    journal.clearVerdict(selection, 'user');
+    journal.clearVerdict(selection);
     expect(events).toHaveLength(2);
     expect(new Conversation().getApproval(selection).verdict).toBeUndefined();
   });

@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Circle, MessageSquareMore, X } from 'lucide-react';
+import { Check, ChevronDown, Circle, X } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 
 import type { ReviewApproval } from '../../types/conversation';
@@ -25,17 +25,14 @@ const isDone = (review: ApprovalRequest) => hasVerdict(review.approval);
 // The inset focus outline keeps the tab row's overflow from clipping it.
 const tabClasses =
   'inline-flex items-center gap-1 rounded-t-md border px-3 py-1.5 focus-visible:-outline-offset-2';
-// Each verdict's color, the same hue as its chosen button in VerdictControl, except that in
-// deuteranopia mode after-comments is violet here while its chosen button stays yellow.
+// Each verdict's color, the same hue as its chosen button in VerdictControl.
 const verdictColor = ({ verdict }: ReviewApproval) =>
   verdict === 'reject'
     ? { text: 'text-verdict-reject', topBorder: 'border-t-verdict-reject' }
-    : verdict === 'after-comments'
-      ? { text: 'text-verdict-after-comments', topBorder: 'border-t-verdict-after-comments' }
-      : verdict === 'as-is'
-        ? { text: 'text-github-accent', topBorder: 'border-t-github-accent' }
-        : // No verdict yet: neutral, since green would read as approval.
-          { text: 'text-github-text-muted', topBorder: 'border-t-github-text-secondary' };
+    : verdict === 'approve'
+      ? { text: 'text-github-accent', topBorder: 'border-t-github-accent' }
+      : // No verdict yet: neutral, since green would read as approval.
+        { text: 'text-github-text-muted', topBorder: 'border-t-github-text-secondary' };
 
 // The open tab overlaps the bar's bottom border and shares the secondary background of the
 // file list and the Change summary below it, so it reads as attached to the review. Its top
@@ -44,15 +41,10 @@ const openTabClasses = (approval: ReviewApproval | undefined, approvals: boolean
   `border-github-border border-t-2 ${approvals && approval ? verdictColor(approval).topBorder : 'border-t-github-accent'} border-b-github-bg-secondary bg-github-bg-secondary font-semibold text-github-text-primary`;
 
 const verdictKind = ({ verdict }: ReviewApproval) =>
-  verdict === 'as-is' ? 'approved' : (verdict ?? 'needs-verdict');
+  verdict === 'approve' ? 'approved' : (verdict ?? 'needs-verdict');
 
 const VERDICT_SEGMENTS = [
   ['approved', 'bg-github-accent', (count: number) => `${count} approved`],
-  [
-    'after-comments',
-    'bg-verdict-after-comments',
-    (count: number) => `${count} approved after comments`,
-  ],
   ['reject', 'bg-verdict-reject', (count: number) => `${count} rejected`],
   [
     'needs-verdict',
@@ -70,9 +62,7 @@ function ApprovalMark({ approval }: { approval: ReviewApproval }) {
       data-verdict="reject"
       className={`verdict-mark shrink-0 ${text}`}
     />
-  ) : approval.verdict === 'after-comments' ? (
-    <MessageSquareMore size={12} aria-hidden="true" className={`shrink-0 ${text}`} />
-  ) : approval.verdict === 'as-is' ? (
+  ) : approval.verdict === 'approve' ? (
     <Check size={12} aria-hidden="true" className={`verdict-mark shrink-0 ${text}`} />
   ) : (
     <Circle size={10} aria-hidden="true" className={`verdict-mark shrink-0 ${text}`} />

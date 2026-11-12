@@ -24,7 +24,7 @@ event's stream cursor as a message revision.
 - Awaiting an answer: every message in `threads[].messages` that has a
   `progress` whose `status` is neither `replied` nor `noted`. Agent messages
   have no `progress`.
-- Approve after comments: act on every user message (`origin` absent or `user`)
+- Approve: act on every user message (`origin` absent or `user`)
   in an unresolved thread, including ones already replied to.
 - A thread with `resolution.resolved` and `resolution.updatedAt` at or after a
   message's `updatedAt` confirms that message's work: mark it Noted; do not redo

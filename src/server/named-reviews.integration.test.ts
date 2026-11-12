@@ -112,7 +112,7 @@ describe('named review HTTP integration', () => {
       reviewId: (await review()).reviewId,
     });
   const binding = (capture: ReviewCapture, version: number, summaryVersion = 0) => ({
-    verdict: 'as-is',
+    verdict: 'approve',
     captureVersion: version,
     patchDigest: capture.patchDigest,
     summaryVersion,
@@ -252,7 +252,8 @@ describe('named review HTTP integration', () => {
       updated: true,
     });
     expect(await get<ReviewSummary>(`/api/review-summary${query}`)).toEqual(summary);
-    expect((await approval()).verdict).toBeUndefined();
+    const followed = { verdict: 'approve', captureVersion: 2, patchDigest: next.patchDigest };
+    expect(await approval()).toMatchObject(followed);
     const comments = await get<CommentsResponse>(`/api/comments-json${query}`);
     expect(comments.threads).toHaveLength(1);
     expect(comments.threads[0]).toMatchObject({
@@ -266,7 +267,7 @@ describe('named review HTTP integration', () => {
       selection: { reviewName: name },
       summary,
       capture: { version: 2, patchDigest: next.patchDigest },
-      approval: expect.not.objectContaining({ verdict: expect.anything() }),
+      approval: followed,
       threads: [{ capture: anchor }],
     });
     expect(events.slice(eventStart)).toEqual(
@@ -279,7 +280,7 @@ describe('named review HTTP integration', () => {
         expect.objectContaining({
           type: 'review.approval',
           reviewId: before.reviewId,
-          approval: expect.not.objectContaining({ verdict: expect.anything() }),
+          approval: expect.objectContaining(followed),
         }),
       ]),
     );
@@ -456,10 +457,10 @@ describe('named review HTTP integration', () => {
       version: 0,
     });
     expect(await get<ReviewApproval>(`/api/approval${otherQuery}`)).toMatchObject({
-      verdict: 'as-is',
+      verdict: 'approve',
       captureVersion: 1,
     });
-    expect((await approval()).verdict).toBeUndefined();
+    expect(await approval()).toMatchObject({ verdict: 'approve', captureVersion: 2 });
     expect(await get<ReviewResponse>(`/api/reviews/${otherName}`)).toMatchObject({
       reviewId: other.reviewId,
       version: 1,
@@ -500,7 +501,7 @@ describe('named review HTTP integration', () => {
     ).toEqual(['question']);
     expect(await get<ReviewSummary>(`/api/review-summary${renamedQuery}`)).toEqual(summary);
     expect(await get<ReviewApproval>(`/api/approval${renamedQuery}`)).toMatchObject({
-      verdict: 'as-is',
+      verdict: 'approve',
     });
     // The launched review was the current one, so the default diff and revisions follow it.
     expect((await get<DiffResponse>('/api/diff')).capture?.name).toBe('renamed-task');

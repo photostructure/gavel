@@ -112,13 +112,18 @@ describe('approval of a staged review', () => {
     if (root) rmSync(root, { recursive: true, force: true });
   });
 
-  it('records the digest of the approved diff', async () => {
+  // The digest only checks that the verdict answers the displayed diff; the approval keeps none,
+  // since Approve follows the agent's later changes to it.
+  it('accepts an approval of the displayed diff without recording its digest', async () => {
     const diff = await startDiff();
     expect(diff.diffDigest).toMatch(/^[0-9a-f]{64}$/);
-    const approval = await putVerdict(diff, { verdict: 'as-is', diffDigest: diff.diffDigest });
-    expect(approval).toMatchObject({ verdict: 'as-is', diffDigest: diff.diffDigest });
+    const approval = await putVerdict(diff, { verdict: 'approve', diffDigest: diff.diffDigest });
+    expect(approval).toMatchObject({ verdict: 'approve' });
     expect(approval).not.toHaveProperty('approved');
-    expect(await approvalOf(diff)).toMatchObject({ verdict: 'as-is' });
+    expect(approval).not.toHaveProperty('diffDigest');
+    expect(await call<ReviewApproval>(approvalPath(diff))).not.toHaveProperty('diffDigest');
+    expect(await approvalOf(diff)).toMatchObject({ verdict: 'approve' });
+    expect(await approvalOf(diff)).not.toHaveProperty('diffDigest');
   });
 
   it('keeps whitespace in the digest when the diff hides it', async () => {
@@ -134,17 +139,8 @@ describe('approval of a staged review', () => {
     const diff = await startDiff();
     writeFileSync(join(root, 'b.txt'), 'two changed\n');
     git('add', 'b.txt');
-    await putVerdict(diff, { verdict: 'as-is', diffDigest: diff.diffDigest }, 409);
-    await putVerdict(diff, { verdict: 'as-is' }, 409);
-    expect((await approvalOf(diff))?.verdict).toBeUndefined();
-  });
-
-  it('revokes an approval when more changes are staged', async () => {
-    const diff = await startDiff();
-    await putVerdict(diff, { verdict: 'as-is', diffDigest: diff.diffDigest });
-    writeFileSync(join(root, 'b.txt'), 'two changed\n');
-    git('add', 'b.txt');
-    expect((await call<ReviewApproval>(approvalPath(diff))).verdict).toBeUndefined();
+    await putVerdict(diff, { verdict: 'approve', diffDigest: diff.diffDigest }, 409);
+    await putVerdict(diff, { verdict: 'approve' }, 409);
     expect((await approvalOf(diff))?.verdict).toBeUndefined();
   });
 
@@ -160,7 +156,7 @@ describe('approval of a staged review', () => {
     const diff = await startDiff();
     expect(
       await putVerdict(diff, { verdict: 'reject', diffDigest: diff.diffDigest }),
-    ).toMatchObject({ verdict: 'reject', diffDigest: diff.diffDigest });
+    ).toMatchObject({ verdict: 'reject' });
     writeFileSync(join(root, 'b.txt'), 'two changed\n');
     git('add', 'b.txt');
     expect((await call<ReviewApproval>(approvalPath(diff))).verdict).toBe('reject');
@@ -196,13 +192,13 @@ describe('approval of a staged review', () => {
     expect((await approvalOf(diff))?.verdict).toBeUndefined();
   });
 
-  it('revokes an approval when a binary staged file changes', async () => {
+  it('refuses an approval when a binary staged file has since changed', async () => {
     writeFileSync(join(root, 'c.bin'), Buffer.from([0, 1, 2, 3]));
     git('add', 'c.bin');
     const diff = await startDiff();
-    await putVerdict(diff, { verdict: 'as-is', diffDigest: diff.diffDigest });
     writeFileSync(join(root, 'c.bin'), Buffer.from([0, 1, 2, 4]));
     git('add', 'c.bin');
+    await putVerdict(diff, { verdict: 'approve', diffDigest: diff.diffDigest }, 409);
     expect((await approvalOf(diff))?.verdict).toBeUndefined();
   });
 
@@ -210,12 +206,12 @@ describe('approval of a staged review', () => {
     const diff = await startDiff();
     writeFileSync(join(root, 'b.txt'), 'two changed\n');
     git('add', 'b.txt');
-    await putVerdict(diff, { verdict: 'as-is', diffDigest: diff.diffDigest }, 409);
+    await putVerdict(diff, { verdict: 'approve', diffDigest: diff.diffDigest }, 409);
     const reloaded = await call<DiffResponse>('/api/diff');
     expect(reloaded.files.map((file) => file.path)).toEqual(['a.txt', 'b.txt']);
     expect(
-      await putVerdict(reloaded, { verdict: 'as-is', diffDigest: reloaded.diffDigest }),
-    ).toMatchObject({ verdict: 'as-is' });
+      await putVerdict(reloaded, { verdict: 'approve', diffDigest: reloaded.diffDigest }),
+    ).toMatchObject({ verdict: 'approve' });
   });
 
   it('refuses an approval when the summary changes while the digest is computed', async () => {
@@ -240,7 +236,7 @@ describe('approval of a staged review', () => {
     });
     await putVerdict(
       diff,
-      { verdict: 'as-is', summaryVersion: 0, diffDigest: diff.diffDigest },
+      { verdict: 'approve', summaryVersion: 0, diffDigest: diff.diffDigest },
       409,
     );
     expect((await approvalOf(diff))?.verdict).toBeUndefined();
@@ -253,7 +249,7 @@ describe('approval of a staged review', () => {
     expect(exit).not.toHaveBeenCalled();
   });
 
-  it('keeps an approval after comments when the agent changes the diff to address them', async () => {
+  it('keeps an approval when the agent changes the diff to address the comments', async () => {
     const diff = await startDiff();
     const time = '2026-11-05T00:00:00Z';
     const thread = {
@@ -279,32 +275,32 @@ describe('approval of a staged review', () => {
       },
     );
     const requested = await putVerdict(diff, {
-      verdict: 'after-comments',
+      verdict: 'approve',
       diffDigest: diff.diffDigest,
     });
-    expect(requested).toMatchObject({ verdict: 'after-comments' });
+    expect(requested).toMatchObject({ verdict: 'approve' });
     await call(
       `/api/comments?${new URLSearchParams({ base: diff.baseCommitish!, target: 'staged' })}`,
       {
         threads: [{ ...thread, resolution: { resolved: true, updatedAt: time } }],
       },
     );
-    expect(await approvalOf(diff)).toMatchObject({ verdict: 'after-comments' });
+    expect(await approvalOf(diff)).toMatchObject({ verdict: 'approve' });
 
     writeFileSync(join(root, 'b.txt'), 'two fixed\n');
     git('add', 'b.txt');
-    expect(await approvalOf(diff)).toMatchObject({ verdict: 'after-comments' });
+    expect(await approvalOf(diff)).toMatchObject({ verdict: 'approve' });
   });
 
-  it('keeps an approval after comments with no comments when the diff changes', async () => {
+  it('keeps an approval with no comments when the diff changes', async () => {
     const diff = await startDiff();
     const approved = await putVerdict(diff, {
-      verdict: 'after-comments',
+      verdict: 'approve',
       diffDigest: diff.diffDigest,
     });
-    expect(approved).toMatchObject({ verdict: 'after-comments' });
+    expect(approved).toMatchObject({ verdict: 'approve' });
     writeFileSync(join(root, 'b.txt'), 'two changed\n');
     git('add', 'b.txt');
-    expect(await approvalOf(diff)).toMatchObject({ verdict: 'after-comments' });
+    expect(await approvalOf(diff)).toMatchObject({ verdict: 'approve' });
   });
 });

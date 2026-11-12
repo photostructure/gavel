@@ -121,10 +121,10 @@ For a stack of commits that already exist, launch the first as
 `<sha>` with `--commit-message <its message>`, add each later one with
 `git diff --full-index <sha>^ <sha> | <launcher> review create <name> - --host <host> --port <port>`
 (without the `-`, `review create` exits with an error), and
-give each its own message with `comment summary`. Approve as-is on an existing
-commit approves it for landing, with nothing to commit. Fixes that Approve
-after comments asks for go in a new commit on top of the branch, reviewed like
-any other; never amend or rebase the reviewed commits without asking.
+give each its own message with `comment summary`. Approve on an existing commit
+with no open comments approves it for landing, with nothing to commit. Fixes its
+comments ask for go in a new commit on top of the branch, reviewed like any
+other; never amend or rebase the reviewed commits without asking.
 Before reporting that the user has not approved, read `approval` for every
 review in the snapshot.
 A relaunched server restores a saved review when the same name and patch, or the
@@ -207,8 +207,8 @@ can only land together, such as a signature change and its callers, they are one
 commit across several reviews: give each the same `--commit-message`, commit
 once every part is approved, and commit exactly the union of their captures. If
 a comment on one part asks for a different message, write it to that part with
-`comment summary`, commit with it, and don't copy it to the others, because a
-changed summary revokes Approve as-is.
+`comment summary`, commit with it, and don't copy it to the others: their
+reviewers saw their own message.
 
 To split a commit, branch, or PR that already exists (fetch a PR's head first),
 give each part its own patch. For a branch or PR, `<base>` below is
@@ -254,8 +254,8 @@ only for an operation not covered here, rather than loading every guide on resum
 
 ## Approval and completion
 
-Read and honor the saved summary before committing. For Approve after comments
-(`verdict: "after-comments"`), read every human message (`origin` is `user` or
+Read and honor the saved summary before committing. For Approve
+(`verdict: "approve"`), read every human message (`origin` is `user` or
 absent) in threads without `resolution.resolved: true`, including ones already
 Replied or Noted, plus any feedback in this session or outside gavel. Act on all
 of them, run checks and independent Codex/Claude review, and commit. If a request
@@ -269,9 +269,9 @@ step would undo, then act on the answer; the approval guide lists the revert ste
 Only the user clears a Reject; put a new attempt up as a new named review.
 
 Button approval is commit approval. Immediately before committing, read a fresh snapshot.
-Require `approval.verdict` to be `as-is` or `after-comments`; for named reviews approved
-as-is, also match capture version, patch digest, and summary version. Compare the actual
-commit scope with the approved patch and feedback; later shared-tree changes do not
+Require `approval.verdict` to be `approve`; it follows recaptures and summary edits, and
+hunks another session stages do not end it. Compare the actual commit scope with the
+approved patch and feedback; later shared-tree changes do not
 acquire permission.
 Then commit without asking again. Approval does not authorize a push.
 See the [approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md)

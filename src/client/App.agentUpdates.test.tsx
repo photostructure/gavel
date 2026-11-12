@@ -318,16 +318,14 @@ describe('navigating unseen agent replies', () => {
   });
 
   it('clears the approval label when an approval-change notification arrives', async () => {
-    approvalState = { verdict: 'after-comments', conditionalSupported: true };
+    approvalState = { verdict: 'approve' };
     mount();
-    expect(await screen.findByRole('button', { name: 'Approved after comments' })).toBeVisible();
-    approvalState = { conditionalSupported: true };
+    expect(await screen.findByRole('button', { name: 'Approved' })).toBeVisible();
+    approvalState = {};
     await act(async () => {
       await callbacks.approval?.();
     });
-    expect(screen.getByRole('button', { name: 'Approve as-is' })).toHaveClass(
-      'bg-github-bg-tertiary',
-    );
+    expect(screen.getByRole('button', { name: 'Approve' })).toHaveClass('bg-github-bg-tertiary');
   });
 
   it('keeps an inline agent reply unseen while About covers it', async () => {

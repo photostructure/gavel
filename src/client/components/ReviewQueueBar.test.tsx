@@ -13,7 +13,7 @@ const request = (name: string, approval: ReviewApproval = {}): ApprovalRequest =
   title: `fix: ${name}`,
   approval,
 });
-const asIs: ReviewApproval = { verdict: 'as-is' };
+const approved: ReviewApproval = { verdict: 'approve' };
 const reviews = [request('parser'), request('tests'), request('docs')];
 
 const bar = () => screen.getByRole('navigation', { name: 'Reviews on this server' });
@@ -84,8 +84,8 @@ describe('review queue bar', () => {
 
   it('shows each review approval state next to its name', () => {
     const listed = [
-      request('parser', asIs),
-      request('tests', { verdict: 'after-comments' }),
+      request('parser', approved),
+      request('tests', { verdict: 'reject' }),
       request('docs'),
     ];
     render(
@@ -96,8 +96,8 @@ describe('review queue bar', () => {
         onSelect={vi.fn()}
       />,
     );
-    expect(screen.getByRole('button', { name: 'parser, Approved as-is' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'tests, Approved after comments' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'parser, Approved' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'tests, Rejected' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'docs, Needs a verdict' })).toHaveAttribute(
       'title',
       'fix: docs\nNeeds a verdict',
@@ -106,7 +106,7 @@ describe('review queue bar', () => {
 
   it('pulses only the tabs of reviews without a verdict, replaying on each new pulse', () => {
     const queue = [
-      request('parser', asIs),
+      request('parser', approved),
       request('tests', { verdict: 'reject' }),
       request('docs'),
     ];
@@ -120,7 +120,7 @@ describe('review queue bar', () => {
     expect(screen.getByRole('button', { name: 'tests, Rejected' }).className).not.toMatch(
       /verdict-pulse/,
     );
-    expect(screen.getByRole('button', { name: 'parser, Approved as-is' }).className).not.toMatch(
+    expect(screen.getByRole('button', { name: 'parser, Approved' }).className).not.toMatch(
       /verdict-pulse/,
     );
 
@@ -130,40 +130,27 @@ describe('review queue bar', () => {
     expect(docs).toHaveClass('verdict-pulse-0');
   });
 
-  // The same hue as the chosen verdict button: green as-is, yellow after comments, violet reject.
+  // The same hue as the chosen verdict button: green approve, violet reject.
   it('colors each tab mark, and the open tab, like its verdict button', () => {
-    const afterComments: ReviewApproval = { verdict: 'after-comments' };
     const queue = [
-      request('parser', asIs),
-      request('tests', afterComments),
+      request('parser', approved),
       request('docs', { verdict: 'reject' }),
       request('none'),
-      request('addressed', afterComments),
     ];
     const mark = (name: string) =>
       screen.getByRole('button', { name: new RegExp(`^${name},`) }).querySelector('svg');
     const { rerender } = render(
-      <ReviewQueueBar reviews={queue} current={queue[1]!.selection} approvals onSelect={vi.fn()} />,
+      <ReviewQueueBar reviews={queue} current={queue[0]!.selection} approvals onSelect={vi.fn()} />,
     );
-    expect(mark('parser')).toHaveClass('text-github-accent');
-    expect(mark('tests')).toHaveClass('text-verdict-after-comments', 'lucide-message-square-more');
-    // The dark-theme brightness filter turns #fdc700 into #fff900, off the button's yellow:
-    // node -e 'console.log([253, 199, 0].map((v) => Math.min(255, Math.round(v * 1.25))))'
-    expect(mark('tests')).not.toHaveClass('verdict-mark');
-    expect(mark('addressed')).toHaveClass(
-      'text-verdict-after-comments',
-      'lucide-message-square-more',
-    );
+    expect(mark('parser')).toHaveClass('text-github-accent', 'lucide-check');
     expect(mark('docs')).toHaveClass('text-verdict-reject');
     expect(mark('none')).toHaveClass('text-github-text-muted');
     const open = () => screen.getByRole('button', { current: 'page' });
-    expect(open()).toHaveClass('border-t-verdict-after-comments');
     for (const [index, border] of [
       [0, 'border-t-github-accent'],
-      [2, 'border-t-verdict-reject'],
+      [1, 'border-t-verdict-reject'],
       // No verdict yet: neutral, since green would read as approval.
-      [3, 'border-t-github-text-secondary'],
-      [4, 'border-t-verdict-after-comments'],
+      [2, 'border-t-github-text-secondary'],
     ] as const) {
       rerender(
         <ReviewQueueBar
@@ -179,7 +166,7 @@ describe('review queue bar', () => {
 
   it('counts reject as a verdict and marks it with an X', () => {
     const queue = [
-      request('parser', asIs),
+      request('parser', approved),
       request('tests', { verdict: 'reject' }),
       request('docs'),
     ];
@@ -193,8 +180,11 @@ describe('review queue bar', () => {
   });
 
   it('draws a bar segment for each verdict some review has, sized by its count', () => {
-    const pending: ReviewApproval = { verdict: 'after-comments' };
-    const queue = [request('parser', asIs), request('tests', pending), request('docs')];
+    const queue = [
+      request('parser', approved),
+      request('tests', { verdict: 'reject' }),
+      request('docs'),
+    ];
     const segments = () =>
       Array.from(
         within(bar())
@@ -204,17 +194,17 @@ describe('review queue bar', () => {
     const { rerender } = render(
       <ReviewQueueBar reviews={queue} current={queue[0]!.selection} approvals onSelect={vi.fn()} />,
     );
-    const summary = 'All reviews 1 approved, 1 approved after comments, 1 needs a verdict';
+    const summary = 'All reviews 1 approved, 1 rejected, 1 needs a verdict';
     expect(allReviews(summary)).toHaveAttribute(
       'title',
-      '1 approved, 1 approved after comments, 1 needs a verdict',
+      '1 approved, 1 rejected, 1 needs a verdict',
     );
     expect(segments().map((segment) => segment.style.flexGrow)).toEqual(['1', '1', '1']);
     expect(segments()[0]).toHaveClass('bg-github-accent');
-    expect(segments()[1]).toHaveClass('bg-verdict-after-comments');
+    expect(segments()[1]).toHaveClass('bg-verdict-reject');
     expect(segments()[2]).toHaveClass('bg-github-text-muted');
 
-    const done = [request('parser', asIs), request('tests', asIs)];
+    const done = [request('parser', approved), request('tests', approved)];
     rerender(
       <ReviewQueueBar reviews={done} current={done[0]!.selection} approvals onSelect={vi.fn()} />,
     );
@@ -260,7 +250,7 @@ describe('review queue bar', () => {
 
   it('always offers a menu listing every review', () => {
     const onSelect = vi.fn();
-    const listed = [request('parser', asIs), request('tests'), request('docs')];
+    const listed = [request('parser', approved), request('tests'), request('docs')];
     render(
       <ReviewQueueBar
         reviews={listed}
@@ -274,7 +264,7 @@ describe('review queue bar', () => {
     expect(items).toHaveLength(3);
     expect(items[0]).toHaveTextContent('parser');
     expect(items[0]).toHaveTextContent('fix: parser');
-    expect(items[0]).toHaveTextContent('Approved as-is');
+    expect(items[0]).toHaveTextContent('Approved');
     expect(within(items[1]!).getByRole('button')).toHaveAttribute('aria-current', 'page');
     expect(items[2]).toHaveTextContent('Needs a verdict');
 

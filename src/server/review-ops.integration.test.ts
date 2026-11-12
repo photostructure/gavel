@@ -168,7 +168,7 @@ describe('POST /api/review-ops', () => {
     return request<ReviewApproval>(
       `/api/approval?review=${NAME}`,
       {
-        verdict: 'as-is',
+        verdict: 'approve',
         captureVersion: review.version,
         patchDigest: review.patchDigest,
         summaryVersion: 0,
@@ -484,13 +484,13 @@ describe('POST /api/review-ops', () => {
       );
     });
 
-    it('revokes approval on a new user comment', async () => {
+    it('keeps approval on a new user comment, which the agent addresses before committing', async () => {
       await startNamed();
-      expect((await approve()).verdict).toBe('as-is');
+      expect((await approve()).verdict).toBe('approve');
 
       await send([addThread('t1')]);
 
-      expect((await approval()).verdict).toBeUndefined();
+      expect((await approval()).verdict).toBe('approve');
     });
   });
 
@@ -513,26 +513,26 @@ describe('POST /api/review-ops', () => {
     it('sets a verdict with the bindings PUT /api/approval checks', async () => {
       await startNamed();
 
-      const { results } = await send([await setVerdict('as-is')]);
+      const { results } = await send([await setVerdict('approve')]);
 
       expect(results.map(({ status }) => status)).toEqual(['applied']);
-      expect((await approval()).verdict).toBe('as-is');
+      expect((await approval()).verdict).toBe('approve');
     });
 
     it('applies a verdict after the comments before it in the batch', async () => {
       await startNamed();
 
-      // The new comment would end an approval given before it.
-      const { results } = await send([addThread('t1'), await setVerdict('as-is')]);
+      // Ops apply in batch order, so the verdict lands after the comment.
+      const { results } = await send([addThread('t1'), await setVerdict('approve')]);
 
       expect(results.map(({ status }) => status)).toEqual(['applied', 'applied']);
-      expect((await approval()).verdict).toBe('as-is');
+      expect((await approval()).verdict).toBe('approve');
     });
 
     it('rejects a verdict given on a stale capture with the endpoint error', async () => {
       await startNamed();
 
-      const { results } = await send([await setVerdict('as-is', { captureVersion: 99 })]);
+      const { results } = await send([await setVerdict('approve', { captureVersion: 99 })]);
 
       expect(results).toEqual([
         {
@@ -573,7 +573,7 @@ describe('POST /api/review-ops', () => {
       const op = {
         id: 'twice',
         type: 'verdict.set',
-        verdict: 'as-is',
+        verdict: 'approve',
         summaryVersion: 0,
         diffDigest,
       };
@@ -596,10 +596,10 @@ describe('POST /api/review-ops', () => {
         return save.apply(this, args);
       });
 
-      const op = await setVerdict('as-is');
+      const op = await setVerdict('approve');
       await send([op]);
 
-      const withVerdict = saves.filter(({ approval }) => approval.verdict === 'as-is');
+      const withVerdict = saves.filter(({ approval }) => approval.verdict === 'approve');
       expect(withVerdict.length).toBeGreaterThan(0);
       for (const saved of withVerdict) expect(saved.appliedOps).toContain(op.id);
     });
@@ -616,7 +616,7 @@ describe('POST /api/review-ops', () => {
         return save.apply(this, args);
       });
 
-      await send([addThread('t1'), await setVerdict('as-is')]);
+      await send([addThread('t1'), await setVerdict('approve')]);
 
       const withThread = saves.filter(({ threads }) => threads.length > 0);
       expect(withThread.length).toBeGreaterThan(0);
@@ -627,7 +627,7 @@ describe('POST /api/review-ops', () => {
       const query = '?base=HEAD&target=.';
       const { diffDigest } = await request<{ diffDigest: string }>(`/api/diff${query}`);
       vi.spyOn(GitDiffParser.prototype, 'parseDiff').mockRejectedValueOnce(new Error('git failed'));
-      const verdict = { id: 'verdict', type: 'verdict.set', verdict: 'as-is', summaryVersion: 0 };
+      const verdict = { id: 'verdict', type: 'verdict.set', verdict: 'approve', summaryVersion: 0 };
       const response = await fetch(url(`/api/review-ops${query}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -663,7 +663,7 @@ describe('POST /api/review-ops', () => {
     it('rejects a verdict on a server started without verdicts', async () => {
       await startNamed({ shipIt: false });
 
-      const { results } = await send([await setVerdict('as-is')]);
+      const { results } = await send([await setVerdict('approve')]);
 
       expect(results[0]?.status).toBe('rejected');
     });
@@ -673,7 +673,7 @@ describe('POST /api/review-ops', () => {
     it('answers a replayed op with duplicate, no events and no approval revocation', async () => {
       await startNamed();
       await send([addThread('t1')]);
-      expect((await approve()).verdict).toBe('as-is');
+      expect((await approve()).verdict).toBe('approve');
       const before = await cursor();
 
       const { results, threads } = await send([addThread('t1')]);
@@ -681,7 +681,7 @@ describe('POST /api/review-ops', () => {
       expect(results).toEqual([{ id: 'add-t1', status: 'duplicate' }]);
       expect(threads).toHaveLength(1);
       expect(await eventsAfter(before)).toEqual([]);
-      expect((await approval()).verdict).toBe('as-is');
+      expect((await approval()).verdict).toBe('approve');
     });
 
     it('treats the same id twice in one batch as a duplicate', async () => {
@@ -699,7 +699,7 @@ describe('POST /api/review-ops', () => {
         addThread('t1'),
         { id: 'reply', type: 'message.add', threadId: 't1', message: reply('m2') },
       ]);
-      expect((await approve()).verdict).toBe('as-is');
+      expect((await approve()).verdict).toBe('approve');
 
       await restart();
       const before = await cursor();
@@ -712,7 +712,7 @@ describe('POST /api/review-ops', () => {
       expect(threads[0]?.messages.map(({ id }) => id)).toEqual(['t1', 'm2']);
       expect(version).toBe(1);
       expect(await eventsAfter(before)).toEqual([]);
-      expect((await approval()).verdict).toBe('as-is');
+      expect((await approval()).verdict).toBe('approve');
     });
 
     it('does not bring back a deleted thread when its add is replayed', async () => {

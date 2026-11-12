@@ -31,23 +31,17 @@ export interface ConversationEvent {
 }
 
 /**
- * The reviewer's decision on a review. as-is and after-comments approve it; reject is final for
- * those diffs: the agent stops and asks the user what to do instead.
+ * The reviewer's decision on a review. approve lets the agent commit once it has addressed every
+ * comment and the required checks and reviews pass; reject is final for those diffs: the agent
+ * stops and asks the user what to do instead.
  */
-export type ReviewVerdict = 'as-is' | 'after-comments' | 'reject';
+export type ReviewVerdict = 'approve' | 'reject';
 
 export interface ReviewApproval {
-  /** Present when the server has conversations, which after-comments needs. */
-  conditionalSupported?: boolean;
-  /**
-   * Absent until the reviewer gives one. New human feedback, a recapture, a summary change, or a
-   * changed staged or worktree diff ends as-is. Only the reviewer ends after-comments or reject.
-   */
+  /** Absent until the reviewer gives one. Only the reviewer ends a verdict. */
   verdict?: ReviewVerdict;
   captureVersion?: number;
   patchDigest?: string;
-  /** The staged or worktree diff the verdict was given on. */
-  diffDigest?: string;
   summaryVersion?: number;
   updatedAt?: string;
   cursor?: string;

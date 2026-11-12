@@ -186,7 +186,7 @@ const definitions: Record<string, Schema> = {
   ReviewCaptureUpdate: {
     ...object({ expectedVersion: captureVersion, capture: ref('ReviewCapture') }),
     description:
-      'POST /api/reviews/:name/capture. expectedVersion must match the current capture version, including for unchanged patches. A changed patch advances the version, revokes Approve as-is, moves Approve after comments to the new capture, and leaves Reject in place; an identical patch preserves the version and verdict.',
+      'POST /api/reviews/:name/capture. expectedVersion must match the current capture version, including for unchanged patches. A changed patch advances the version, moves Approve to the new capture, and leaves Reject in place; an identical patch preserves the version and verdict.',
   },
   NamedReviewCatalogueResponse: {
     ...object({ reviewId: string, ...metadataFields, files: array(ref('CapturedFile')) }),
@@ -326,19 +326,17 @@ const definitions: Record<string, Schema> = {
     ['commitMessage', 'rationale', 'version'],
   ),
   ReviewVerdict: {
-    ...enumeration('as-is', 'after-comments', 'reject'),
+    ...enumeration('approve', 'reject'),
     description:
-      "The reviewer's decision. as-is and after-comments approve the review; reject is final for those diffs: do not revise or commit, ask the user what to do instead.",
+      "The reviewer's decision. approve: act on every current comment, then commit once the required checks and reviews pass. reject is final for those diffs: do not revise or commit, ask the user what to do instead.",
   },
   ReviewApproval: object(
     {
       verdict: ref('ReviewVerdict'),
-      conditionalSupported: boolean,
       updatedAt: timestamp,
       cursor,
       captureVersion,
       patchDigest: ref('PatchDigest'),
-      diffDigest: ref('DiffDigest'),
       summaryVersion: version,
     },
     [],
@@ -529,7 +527,7 @@ const definitions: Record<string, Schema> = {
       baseVersion: version,
     }),
     description:
-      'JSON input to comment summary (POST /api/conversation/summary). baseVersion must equal the current summary.version. Empty text clears a field. A changed summary revokes Approve as-is, moves Approve after comments to the new version, and leaves Reject in place.',
+      'JSON input to comment summary (POST /api/conversation/summary). baseVersion must equal the current summary.version. Empty text clears a field. A changed summary moves Approve to the new version and leaves Reject in place.',
   },
   SummaryResponse: ref('ReviewSummary'),
   ReplyRequest: {
@@ -730,7 +728,7 @@ const definitions: Record<string, Schema> = {
   ReviewOpsRequest: {
     ...object({ repositoryId: string, ops: array(ref('ReviewOp')) }),
     description:
-      "POST /api/review-ops?<same selection query as /api/comments-json>. JSON only (HTTP 415 otherwise), at most 16 MiB (HTTP 413). Applies each op in order as a user change, one request at a time, with the same events and approval revocation as other comment edits, and also works without conversation mode. Replaying an id in the review's ledger of applied ops returns duplicate and changes nothing; the ledger keeps every id for as long as the review is saved, --clean included, and each op's id is saved together with its change before the response. When that save fails or waits on another server's lock, the endpoint returns HTTP 503 with an error, whatever each op's status was: the ops stay applied in this server's memory, and sending the batch again returns duplicate with HTTP 200 once the save succeeds. Reviews this server does not save (no store, or saved by another running server) return HTTP 200. Deleting something already gone is applied; message.add, message.edit, or thread.resolve against something gone, a malformed or unknown op, and a thread.add with an unavailable capture anchor are rejected with an error, and rejected ops do not enter the ledger. Deleting a first message deletes its thread. followingIds and precedingIds place a restored item; without them it is appended. verdict.set takes the body PUT /api/approval takes and is rejected with that endpoint's error where it would answer 400 or 409; verdict clear clears the verdict as DELETE /api/approval does. A server started without verdicts rejects verdict.set. HTTP 400 for a batch without repositoryId, ops, or an id on every op; HTTP 409, applying nothing, when repositoryId is not this server's (GET /api/diff). The answer's cursor, `<server instance>:<sequence>`, orders it among the review's snapshots from GET /api/comments-json, which carry one too: from the same instance a higher sequence is newer, and at an equal sequence a higher version; progress changes advance the sequence without a new version, and some thread edits through POST /api/comments advance the version alone; another instance means the server restarted.",
+      "POST /api/review-ops?<same selection query as /api/comments-json>. JSON only (HTTP 415 otherwise), at most 16 MiB (HTTP 413). Applies each op in order as a user change, one request at a time, with the same events as other comment edits, and also works without conversation mode. Replaying an id in the review's ledger of applied ops returns duplicate and changes nothing; the ledger keeps every id for as long as the review is saved, --clean included, and each op's id is saved together with its change before the response. When that save fails or waits on another server's lock, the endpoint returns HTTP 503 with an error, whatever each op's status was: the ops stay applied in this server's memory, and sending the batch again returns duplicate with HTTP 200 once the save succeeds. Reviews this server does not save (no store, or saved by another running server) return HTTP 200. Deleting something already gone is applied; message.add, message.edit, or thread.resolve against something gone, a malformed or unknown op, and a thread.add with an unavailable capture anchor are rejected with an error, and rejected ops do not enter the ledger. Deleting a first message deletes its thread. followingIds and precedingIds place a restored item; without them it is appended. verdict.set takes the body PUT /api/approval takes and is rejected with that endpoint's error where it would answer 400 or 409; verdict clear clears the verdict as DELETE /api/approval does. A server started without verdicts rejects verdict.set. HTTP 400 for a batch without repositoryId, ops, or an id on every op; HTTP 409, applying nothing, when repositoryId is not this server's (GET /api/diff). The answer's cursor, `<server instance>:<sequence>`, orders it among the review's snapshots from GET /api/comments-json, which carry one too: from the same instance a higher sequence is newer, and at an equal sequence a higher version; progress changes advance the sequence without a new version, and some thread edits through POST /api/comments advance the version alone; another instance means the server restarted.",
   },
   ReviewOpResult: object(
     { id: string, status: enumeration('applied', 'duplicate', 'rejected'), error: string },
@@ -773,7 +771,7 @@ const definitions: Record<string, Schema> = {
       ['verdict'],
     ),
     description:
-      'PUT /api/approval sets the verdict; DELETE /api/approval clears it and requires no matching versions. Every verdict requires captureVersion and patchDigest (named) or diffDigest (staged, working, or .) matching the displayed capture or diff; as-is and after-comments also require the current summaryVersion (omission means 0 for an unnamed review). Named review approval requires captureVersion, patchDigest and summaryVersion matching the displayed capture and proposal. Stale requests return HTTP 409. as-is is ended by new human feedback, an agent summary edit, a recapture, or a later change to the staged or worktree diff when comment snapshot or GET /api/approval reads it. after-comments tells the agent to act on all the current comments and commit; reject tells it to stop, ask the user what to do instead, and ask whether to revert. Only the reviewer ends after-comments or reject.',
+      'PUT /api/approval sets the verdict; DELETE /api/approval clears it and requires no matching versions. Every verdict requires captureVersion and patchDigest (named) or diffDigest (staged, working, or .) matching the displayed capture or diff; approve also requires the current summaryVersion (omission means 0 for an unnamed review). Named review approval requires captureVersion, patchDigest and summaryVersion matching the displayed capture and proposal. Stale requests return HTTP 409. approve tells the agent to act on all the current comments and commit once the required checks and reviews pass; reject tells it to stop, ask the user what to do instead, and ask whether to revert. Only the reviewer ends a verdict.',
   },
   ApprovalResponse: ref('ReviewApproval'),
 };

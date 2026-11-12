@@ -49,7 +49,7 @@ function review(patchDigest?: string, repositoryId = 'repo'): SavedReview {
     selection: createDiffSelection('a'.repeat(40), 'b'.repeat(40)),
     threads: [],
     progress: [],
-    approval: { verdict: 'as-is', summaryVersion: 1 },
+    approval: { verdict: 'approve', summaryVersion: 1 },
     summary: { commitMessage: 'fix: keep it', rationale: '', version: 1 },
     ...(patchDigest ? { captures: [version(patchDigest)] } : {}),
     updatedAt: new Date(now).toISOString(),

@@ -97,8 +97,8 @@ expected version returns HTTP 409 with `{error,current}`; inspect `current` and
 reconcile before retrying. Even an identical-patch update checks the expected
 version. An identical patch preserves the version and approval. A changed patch
 advances the version and retains the conversation and proposal under the same
-name and `reviewId`. Approval is revalidated under the
-[capture-update rules](approval-modes.md#approval-invalidation). Earlier inline anchors retain their original
+name and `reviewId`. An approval moves to the new capture
+([when a verdict ends](approval-modes.md#when-a-verdict-ends)). Earlier inline anchors retain their original
 capture version/digest and appear outdated after the capture changes.
 
 Rename or delete a named review without restarting the server:
@@ -284,9 +284,8 @@ stay as launched.
 
 The fields are saved with the review ([saved reviews](#saved-reviews)), except
 for an unnamed stdin patch or under `--no-conversation`, where they disappear
-when the server restarts. Saving a changed proposal revokes an Approve as-is for
-that selection, moves an Approve after comments to the new summary version, and
-leaves Reject in place. Writing these fields never executes Git or creates a
+when the server restarts. Saving a changed proposal moves an Approve for that
+selection to the new summary version and leaves Reject in place. Writing these fields never executes Git or creates a
 commit.
 
 A commit that moves HEAD gives a `staged` or `.` diff a new base commit, and so
@@ -323,9 +322,8 @@ the fields. Commit messages are limited to 16000 characters and rationales to 40
 Saved changes emit `review.summary` events with `origin`, `reviewId`, `selection`,
 `summary`, `cursor`, and `timestamp`. These events have no thread or message ID
 and require no comment receipt. Their origin is always `agent`. A summary edit
-that revokes an Approve as-is, or moves an Approve after comments to the new
-`summaryVersion`, emits `review.approval` with agent origin; direct approval
-changes use user origin.
+that moves an Approve to the new `summaryVersion` emits `review.approval` with
+agent origin; direct approval changes use user origin.
 
 Browser API: `GET /api/review-summary?base=...&target=...&baseMode=merge-base`
 returns the summary (initially empty, version 0, unless a restored review brought
@@ -339,8 +337,8 @@ Approving with `PUT /api/approval` includes the displayed `summaryVersion`.
 For a named review, also include the displayed `captureVersion` and `patchDigest`.
 For a `staged`, `working`, or `.` review, include the `diffDigest` from the
 displayed `/api/diff` response.
-The server rejects stale capture, diff, or proposal approval with HTTP 409. Revocation
-remains available regardless of these versions.
+The server rejects stale capture, diff, or proposal approval with HTTP 409. Clearing a
+verdict (`DELETE /api/approval`) needs no matching versions.
 
 ## General conversation and comment intent
 
@@ -421,29 +419,25 @@ is `POST /api/conversation/status` and accepts the same JSON as the CLI.
 
 ## Commit approval
 
-**Approve as-is** permits committing the reviewed scope. **Approve after comments**
-tells the agent to act on all the current comments and then commit. **Reject**
-tells it to stop, ask the user what to do instead, and ask whether to revert. See
-[approval modes](approval-modes.md) for invalidation rules and the revert steps. A verdict may be changed or cleared before
+**Approve** tells the agent to act on all the current comments, run the required
+checks and reviews, and then commit. **Reject** tells it to stop, ask the user what
+to do instead, and ask whether to revert. See [approval modes](approval-modes.md)
+for when a verdict ends and the revert steps. A verdict may be changed or cleared before
 the agent acts on it. Browser closure still stops a server unless it runs with
 `--keep-alive`.
 
 The launch stream emits a `review.approval` event with `reviewId`, `selection`,
-`approval`, `origin`, `cursor`, and `timestamp`. `approval.verdict` is `as-is`,
-`after-comments`, or `reject`, and is absent once the reviewer clears it or an
-as-is approval is revoked. The event has no thread or message ID, and does
+`approval`, `origin`, `cursor`, and `timestamp`. `approval.verdict` is `approve`
+or `reject`, and is absent once the reviewer clears it. The event has no thread or message ID, and does
 not need a comment receipt or reply. `comment snapshot` includes `approval`
 on each review. After addressing comments and completing the checks below,
 fetch a fresh snapshot immediately before committing and verify that the matching
-review still has `approval.verdict` of `as-is` or `after-comments`. For a named review approved as-is, require
-`approval.captureVersion === capture.version`,
-`approval.patchDigest === capture.patchDigest`, and
-`approval.summaryVersion === summary.version`. For a `staged`, `working`, or `.`
-review, the snapshot reports an as-is approval as revoked once the diff differs
-from the one approved, for example after more hunks are staged. Check that the proposed commit
+review still has `approval.verdict` of `approve`. The approval follows recaptures,
+summary edits, and changes to a `staged`, `working`, or `.` diff, including hunks
+another session stages. Check that the proposed commit
 contains only the approved captured changes and authorized fixes; approval of a
 capture does not establish ownership of later shared-tree edits. An older approval
-event does not override a later revocation. Missing state or an unavailable server is not proof
+event does not override a later cleared verdict. Missing state or an unavailable server is not proof
 of approval. Separate explicit chat approval is independent of the button state
 unless the user revokes it. Revoking cannot undo a commit already made.
 
@@ -454,21 +448,20 @@ ordinary process exit is not approval.
 The approval button reads `GET /api/approval?base=<base>&target=<target>` and sends
 its verdict as a `verdict.set` op to `POST /api/review-ops` with the same query,
 after any comment changes still waiting in the browser, in a body such as
-`{"repositoryId":"<from /api/diff>","ops":[{"id":"<uuid>","type":"verdict.set","verdict":"as-is","summaryVersion":0}]}`
+`{"repositoryId":"<from /api/diff>","ops":[{"id":"<uuid>","type":"verdict.set","verdict":"approve","summaryVersion":0}]}`
 (`gavel schema review-ops`). `PUT /api/approval` takes the op's fields without
 `id` and `type`. Approve with
-`{"verdict":"as-is","summaryVersion":0}` using the displayed summary version; reject
+`{"verdict":"approve","summaryVersion":0}` using the displayed summary version; reject
 with `{"verdict":"reject"}` plus the same capture or diff fields, without
 `summaryVersion`; clear with `DELETE /api/approval`, or `"verdict":"clear"` in a
 `verdict.set` op. Include
 `baseMode=merge-base` where applicable. For a named review, use `?review=<name>` and
 approve with
-`{"verdict":"as-is","captureVersion":1,"patchDigest":"<current-digest>","summaryVersion":0}`
+`{"verdict":"approve","captureVersion":1,"patchDigest":"<current-digest>","summaryVersion":0}`
 using the displayed capture and summary values. For a `staged`, `working`, or `.`
 review, also send `"diffDigest":"<digest from /api/diff>"`. All three
-require `--ship-it`. GET returns the current approval, after revoking an as-is
-approval whose `staged`, `working`, or `.` diff has changed; it also
-works without conversation mode. The legacy `POST /api/ship-it` approve-and-exit
+require `--ship-it`. GET returns the current approval; it also works without
+conversation mode. The legacy `POST /api/ship-it` approve-and-exit
 endpoint remains available to old clients for committed ranges, but the button
 never calls it, and it refuses named, `staged`, `working`, and `.` reviews. An old
 server without `/api/approval` must be rebuilt before using the button.
@@ -501,11 +494,9 @@ not restore it, `approval status` no longer finds its verdict, and `review unapp
 `review reapply` no longer find it by name, unless another running server saves that
 review: its saved copy stays. After a rename they find it under the new name.
 
-A restored review keeps its approval until the usual rules revoke it: a changed
-capture, summary, or `staged`/`.` diff revokes an Approve as-is, and only the
-reviewer ends Approve after comments. A relaunch that passes the same
-`--commit-message` and `--why` keeps the restored proposal and its approval; a
-different one replaces the proposal and revokes an Approve as-is. Repeated `--comment`
+A restored review keeps its verdict until the reviewer clears it. A relaunch that
+passes the same `--commit-message` and `--why` keeps the restored proposal; a
+different one replaces the proposal, and an Approve moves to the new version. Repeated `--comment`
 imports are not duplicated. A restored review gets a new review ID and a new
 event stream, so run `comment snapshot` before sending status, replies, or a
 `comment summary`, whose `baseVersion` is the restored summary's `version`.

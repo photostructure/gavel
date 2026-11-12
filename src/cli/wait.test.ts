@@ -10,7 +10,7 @@ const activity = (type = 'review.approval', origin = 'user', cursor = 'stream:1'
   cursor,
   reviewId: 'review',
   selection: { baseCommitish: 'HEAD', targetCommitish: '.' },
-  approval: { verdict: 'as-is' },
+  approval: { verdict: 'approve' },
   timestamp: '2026-11-03T00:00:00Z',
 });
 const response = (body: unknown, status = 200) =>

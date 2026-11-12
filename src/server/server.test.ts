@@ -753,10 +753,10 @@ describe('Server Integration Tests', () => {
           type: 'comment.progress',
           progress: { status: 'delivered', cursor: comment.cursor },
         });
-        await putVerdict(`${origin}/api/approval`, { verdict: 'as-is' });
+        await putVerdict(`${origin}/api/approval`, { verdict: 'approve' });
         await fetch(`${origin}/api/approval`, { method: 'DELETE' });
         expect(observed.slice(-2)).toMatchObject([
-          { type: 'review.approval', approval: { verdict: 'as-is' } },
+          { type: 'review.approval', approval: { verdict: 'approve' } },
           { type: 'review.approval', approval: {} },
         ]);
         expect(observed.at(-1)).not.toHaveProperty('approval.verdict');
@@ -2415,9 +2415,11 @@ describe('Server Integration Tests', () => {
   describe('approval requests and notifications', () => {
     it.each([
       { conversation: true, method: 'PUT', body: { verdict: 'not-yet' }, status: 400 },
+      // The verdicts the single Approve replaced.
+      { conversation: true, method: 'PUT', body: { verdict: 'as-is' }, status: 400 },
+      { conversation: true, method: 'PUT', body: { verdict: 'after-comments' }, status: 400 },
       { conversation: true, method: 'PUT', body: { approved: true }, status: 400 },
       { conversation: true, method: 'POST', body: { approved: true }, status: 404 },
-      { conversation: false, method: 'PUT', body: { verdict: 'after-comments' }, status: 400 },
     ])(
       'rejects incompatible approval requests: $method $body conversation=$conversation',
       async ({ conversation, method, body, status }) => {
@@ -2445,7 +2447,7 @@ describe('Server Integration Tests', () => {
       },
     );
 
-    it('keeps an approval after comments when the agent edits the proposed message', async () => {
+    it('keeps an approval when the agent edits the proposed message', async () => {
       const result = await startServer({
         preferredPort: 0,
         keepAlive: true,
@@ -2459,7 +2461,7 @@ describe('Server Integration Tests', () => {
           version: number;
         };
         await putVerdict(`${result.url}/api/approval`, {
-          verdict: 'after-comments',
+          verdict: 'approve',
           summaryVersion: summary.version,
         });
         const edited = await postAgentSummary(result.url, {
@@ -2469,71 +2471,9 @@ describe('Server Integration Tests', () => {
         });
         expect(edited.status).toBe(200);
         expect(await (await fetch(`${result.url}/api/approval`)).json()).toMatchObject({
-          verdict: 'after-comments',
+          verdict: 'approve',
           summaryVersion: summary.version + 1,
         });
-      } finally {
-        await result.shutdown('closed');
-      }
-    });
-
-    it('notifies the browser when edited human feedback revokes an as-is approval', async () => {
-      const broadcast = vi.spyOn(FileWatcherService.prototype, 'broadcast');
-      const result = await startServer({
-        preferredPort: 0,
-        keepAlive: true,
-        conversation: true,
-        shipIt: true,
-      });
-      servers.push(result.server);
-      const post = (path: string, body: unknown) =>
-        fetch(`${result.url}${path}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-      const now = new Date().toISOString();
-      const discussion: DiffCommentThread = {
-        id: 'discussion',
-        scope: 'review',
-        createdAt: now,
-        updatedAt: now,
-        messages: [
-          {
-            id: 'human',
-            origin: 'user',
-            intent: 'change',
-            body: 'Please fix this',
-            createdAt: now,
-            updatedAt: now,
-          },
-        ],
-      };
-      try {
-        expect((await post('/api/comments', { threads: [discussion] })).status).toBe(200);
-        const summary = (await (await fetch(`${result.url}/api/review-summary`)).json()) as {
-          version: number;
-        };
-        const response = await putVerdict(`${result.url}/api/approval`, {
-          verdict: 'as-is',
-          summaryVersion: summary.version,
-        });
-        expect(response.status).toBe(200);
-        expect(await response.json()).toMatchObject({ verdict: 'as-is' });
-        broadcast.mockClear();
-        const edited = structuredClone(discussion);
-        const message = edited.messages[0];
-        if (!message) throw new Error('Missing message');
-        message.body = 'Please fix this differently';
-        message.updatedAt = new Date(Date.now() + 1000).toISOString();
-        expect((await post('/api/comments', { threads: [edited] })).status).toBe(200);
-        const approval = (await (await fetch(`${result.url}/api/approval`)).json()) as {
-          verdict?: string;
-        };
-        expect(approval.verdict).toBeUndefined();
-        expect(broadcast).toHaveBeenCalledWith(
-          expect.objectContaining({ type: 'approvalChanged' }),
-        );
       } finally {
         await result.shutdown('closed');
       }
@@ -2590,14 +2530,14 @@ describe('Server Integration Tests', () => {
         const approval = await fetch(`${result.url}/api/approval`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ verdict: 'as-is' }),
+          body: JSON.stringify({ verdict: 'approve' }),
         });
         expect(approval.status).toBe(200);
         const { live } = await openLive(result.url);
         await closeLive(live);
         await vi.waitFor(() => expect(process.exit).toHaveBeenCalledWith(0), { timeout: 5000 });
         expect(received).toHaveLength(1);
-        expect(received[0]).toContain('Approve as-is');
+        expect(received[0]).toMatch(/: Approve\b/);
       } finally {
         await result.shutdown('closed');
         await new Promise((resolve) => inboxServer.close(resolve));
@@ -2636,7 +2576,7 @@ describe('Server Integration Tests', () => {
               { id: 'human-output', file: 'a.ts', line: 1, body: 'Human comment transcript' },
             ],
           });
-          await putVerdict(`${result!.url}/api/approval`, { verdict: 'as-is' });
+          await putVerdict(`${result!.url}/api/approval`, { verdict: 'approve' });
           const { live } = await openLive(result.url);
           await closeLive(live);
           await vi.waitFor(() =>
@@ -2651,7 +2591,7 @@ describe('Server Integration Tests', () => {
           expect(output).not.toContain('Press Ctrl+C');
           if (jsonl) expect(log).not.toHaveBeenCalled();
           else {
-            expect(output).toContain('Verdict: approved as-is (abc1234)');
+            expect(output).toContain('Verdict: approved (abc1234)');
             if (!keepAlive) expect(output).toContain('Human comment transcript');
           }
           if (keepAlive) expect(process.exit).not.toHaveBeenCalled();
@@ -2757,7 +2697,7 @@ describe('Server Integration Tests', () => {
           channel: 'presence',
           presence: expect.objectContaining({ reviewers: { connected: 1, visible: 1 } }),
         });
-        await putVerdict(`${result.url}/api/approval`, { verdict: 'as-is' });
+        await putVerdict(`${result.url}/api/approval`, { verdict: 'approve' });
         await vi.waitFor(() =>
           expect(messages).toContainEqual({
             channel: 'watch',
@@ -3248,7 +3188,7 @@ describe('Server Integration Tests', () => {
       );
       await post(
         '/api/approval',
-        { verdict: 'as-is', summaryVersion: 1 },
+        { verdict: 'approve', summaryVersion: 1 },
         'ApprovalResponse',
         'PUT',
       );
@@ -3257,7 +3197,7 @@ describe('Server Integration Tests', () => {
         {
           reviewId: edited.reviewId,
           commitMessage: 'fix: retain event origin',
-          rationale: 'An agent edit revokes approval with agent origin.',
+          rationale: 'An agent edit moves approval with agent origin.',
           baseVersion: 1,
         },
         'SummaryResponse',
@@ -3859,7 +3799,7 @@ describe('Server Integration Tests', () => {
   });
 
   describe('Review summary API', () => {
-    it('isolates summaries, rejects stale writes, emits agent origin, and revokes approval', async () => {
+    it('isolates summaries, rejects stale writes, emits agent origin, and moves the approval', async () => {
       const { port, server } = await startObservedServer({ conversation: true, shipIt: true });
       servers.push(server);
       const origin = `http://localhost:${port}`;
@@ -3872,7 +3812,7 @@ describe('Server Integration Tests', () => {
         rationale: '',
         version: 0,
       });
-      await putVerdict(approvalUrl, { verdict: 'as-is' });
+      await putVerdict(approvalUrl, { verdict: 'approve' });
       const input = {
         commitMessage: 'fix: preserve intent',
         rationale: 'Explain the proposed change.',
@@ -3888,7 +3828,10 @@ describe('Server Integration Tests', () => {
         version: 1,
       });
       expect(await (await fetch(url)).json()).toMatchObject({ version: 1 });
-      expect(await (await fetch(approvalUrl)).json()).not.toHaveProperty('verdict');
+      expect(await (await fetch(approvalUrl)).json()).toMatchObject({
+        verdict: 'approve',
+        summaryVersion: 1,
+      });
       const stale = await postAgentSummary(origin, { ...input, rationale: 'Stale text' }, targetA);
       expect(stale.status).toBe(409);
       expect(await stale.json()).toMatchObject({
@@ -3904,7 +3847,7 @@ describe('Server Integration Tests', () => {
           )
         ).json(),
       ).toMatchObject({ version: 0 });
-      await putVerdict(approvalUrl, { verdict: 'as-is', summaryVersion: 1 });
+      await putVerdict(approvalUrl, { verdict: 'approve', summaryVersion: 1 });
       expect(
         (
           await postAgentSummary(
@@ -3914,36 +3857,34 @@ describe('Server Integration Tests', () => {
           )
         ).status,
       ).toBe(200);
-      expect(await (await fetch(approvalUrl)).json()).not.toHaveProperty('verdict');
-      await putVerdict(approvalUrl, { verdict: 'as-is', summaryVersion: 2 });
-      // Resending the same text is not a revision, so the approval stands.
+      expect(await (await fetch(approvalUrl)).json()).toMatchObject({
+        verdict: 'approve',
+        summaryVersion: 2,
+      });
+      await putVerdict(approvalUrl, { verdict: 'approve', summaryVersion: 2 });
+      // Resending the same text is not a revision, so the approval stays at version 2.
       await postAgentSummary(
         origin,
         { ...input, baseVersion: 2, rationale: 'Agent revision' },
         targetA,
       );
-      expect(await (await fetch(approvalUrl)).json()).toMatchObject({ verdict: 'as-is' });
+      expect(await (await fetch(approvalUrl)).json()).toMatchObject({
+        verdict: 'approve',
+        summaryVersion: 2,
+      });
       const batch = capturedEvents(port);
       expect(batch.events.filter((entry) => entry.type === 'review.approval')).toEqual([
         expect.objectContaining({
-          approval: expect.objectContaining({ verdict: 'as-is' }),
+          approval: expect.objectContaining({ verdict: 'approve', summaryVersion: 0 }),
           origin: 'user',
         }),
         expect.objectContaining({
-          approval: expect.not.objectContaining({ verdict: expect.anything() }),
+          approval: expect.objectContaining({ verdict: 'approve', summaryVersion: 1 }),
           origin: 'agent',
         }),
         expect.objectContaining({
-          approval: expect.objectContaining({ verdict: 'as-is' }),
-          origin: 'user',
-        }),
-        expect.objectContaining({
-          approval: expect.not.objectContaining({ verdict: expect.anything() }),
+          approval: expect.objectContaining({ verdict: 'approve', summaryVersion: 2 }),
           origin: 'agent',
-        }),
-        expect.objectContaining({
-          approval: expect.objectContaining({ verdict: 'as-is' }),
-          origin: 'user',
         }),
       ]);
       expect(batch.events.filter((entry) => entry.type === 'review.summary')).toEqual([
@@ -3979,7 +3920,7 @@ describe('Server Integration Tests', () => {
         servers.push(server);
         const origin = `http://localhost:${port}`;
         const url = `${origin}/api/review-summary`;
-        await putVerdict(`${origin}/api/approval`, { verdict: 'as-is', summaryVersion: 1 });
+        await putVerdict(`${origin}/api/approval`, { verdict: 'approve', summaryVersion: 1 });
         const write = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3992,7 +3933,7 @@ describe('Server Integration Tests', () => {
           version: 1,
         });
         expect(await (await fetch(`${origin}/api/approval`)).json()).toMatchObject({
-          verdict: 'as-is',
+          verdict: 'approve',
         });
         if (!conversation)
           expect(
@@ -4013,7 +3954,7 @@ describe('Server Integration Tests', () => {
       const origin = `http://localhost:${port}`;
       const approve = (summaryVersion?: unknown) =>
         putVerdict(`${origin}/api/approval`, {
-          verdict: 'as-is',
+          verdict: 'approve',
           ...(summaryVersion === undefined ? {} : { summaryVersion }),
         });
       const verdict = async () =>
@@ -4030,6 +3971,8 @@ describe('Server Integration Tests', () => {
         rationale: 'Changed while approving',
         baseVersion: 1,
       });
+      // The approval followed the revision; clear it to check that a stale request sets nothing.
+      expect((await fetch(`${origin}/api/approval`, { method: 'DELETE' })).status).toBe(200);
       for (const summaryVersion of [undefined, 0, 1]) {
         const response = await approve(summaryVersion);
         expect(response.status).toBe(409);
@@ -4040,7 +3983,7 @@ describe('Server Integration Tests', () => {
         expect((await approve(summaryVersion)).status).toBe(400);
       }
       expect((await approve(2)).status).toBe(200);
-      expect(await verdict()).toBe('as-is');
+      expect(await verdict()).toBe('approve');
       expect((await fetch(`${origin}/api/approval`, { method: 'DELETE' })).status).toBe(200);
       expect(await verdict()).toBeUndefined();
     });
@@ -4049,7 +3992,7 @@ describe('Server Integration Tests', () => {
       const { port, server } = await startObservedServer({ conversation: true, shipIt: true });
       servers.push(server);
       const origin = `http://localhost:${port}`;
-      await putVerdict(`${origin}/api/approval`, { verdict: 'as-is' });
+      await putVerdict(`${origin}/api/approval`, { verdict: 'approve' });
       const snapshot = (await (
         await fetch(`${origin}/api/conversation/snapshot`)
       ).json()) as ConversationSnapshot;
@@ -4101,10 +4044,10 @@ describe('Server Integration Tests', () => {
       expect(await (await fetch(url)).json()).not.toHaveProperty('verdict');
       for (const set of [true, false]) {
         const result = set
-          ? await putVerdict(url, { verdict: 'as-is' })
+          ? await putVerdict(url, { verdict: 'approve' })
           : await fetch(url, { method: 'DELETE' });
         expect(result.ok).toBe(true);
-        const verdict = set ? 'as-is' : undefined;
+        const verdict = set ? 'approve' : undefined;
         expect(((await result.json()) as { verdict?: string }).verdict).toBe(verdict);
         expect(((await (await fetch(url)).json()) as { verdict?: string }).verdict).toBe(verdict);
         expect(process.exit).not.toHaveBeenCalled();
@@ -4115,7 +4058,7 @@ describe('Server Integration Tests', () => {
       expect(batch.events).toEqual([
         expect.objectContaining({
           type: 'review.approval',
-          approval: expect.objectContaining({ verdict: 'as-is' }),
+          approval: expect.objectContaining({ verdict: 'approve' }),
           selection: { baseCommitish: 'base-a', targetCommitish: 'target-a' },
         }),
         expect.objectContaining({
@@ -4155,11 +4098,11 @@ describe('Server Integration Tests', () => {
           await fetch(url, {
             method: 'PUT',
             headers: { 'Content-Type': 'text/plain' },
-            body: '{"verdict":"as-is"}',
+            body: '{"verdict":"approve"}',
           })
         ).status,
       ).toBe(415);
-      for (const verdict of ['as-is', 'reject', undefined]) {
+      for (const verdict of ['approve', 'reject', undefined]) {
         if (verdict) await putVerdict(url, { verdict });
         else await fetch(url, { method: 'DELETE' });
         expect(((await (await fetch(url)).json()) as { verdict?: string }).verdict).toBe(verdict);
@@ -4248,7 +4191,7 @@ describe('Server Integration Tests', () => {
         expect(records.slice(-2)).toEqual([
           expect.objectContaining({
             type: 'review.approval',
-            approval: expect.objectContaining({ verdict: 'as-is' }),
+            approval: expect.objectContaining({ verdict: 'approve' }),
             origin: 'user',
           }),
           expect.objectContaining({ type: 'server.shutdown', reason: 'approved' }),

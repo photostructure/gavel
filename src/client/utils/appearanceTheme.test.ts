@@ -64,7 +64,7 @@ describe('appearanceTheme', () => {
   });
 
   // Violet in normal vision, not the danger red of errors. Deuteranopia keeps it orange, since
-  // that mode spends blue on Approve and violet on Approve after comments.
+  // that mode spends blue on Approve.
   it.each([
     ['normal', 'dark', '#8957e5'],
     ['normal', 'light', '#8250df'],
@@ -75,20 +75,6 @@ describe('appearanceTheme', () => {
 
     bootstrapAppearanceTheme();
     expect(document.documentElement.style.getPropertyValue('--color-verdict-reject')).toBe(color);
-  });
-
-  // Yellow and this mode's orange Reject measure 1.60:1 on dark and 1.57:1 on light, too close
-  // for two verdicts that mean opposite things.
-  it.each([
-    ['dark', '#a371f7'],
-    ['light', '#8250df'],
-  ] as const)('gives approve-after-comments its own color in %s deuteranopia', (theme, color) => {
-    saveClientSettings({ appearance: { colorVision: 'deuteranopia', theme } });
-
-    bootstrapAppearanceTheme();
-    expect(document.documentElement.style.getPropertyValue('--color-verdict-after-comments')).toBe(
-      color,
-    );
   });
 
   it('resolves auto theme from system preference when no attribute is present', () => {

@@ -10,10 +10,10 @@ const response = (approval: ReviewApproval = {}) => new Response(JSON.stringify(
 afterEach(() => vi.unstubAllGlobals());
 
 describe('review approval', () => {
-  // A reviewer's unsaved draft keeps showing the older capture and summary; only they end these
-  // verdicts.
-  it.each(['after-comments', 'reject'] as const)(
-    'keeps showing %s on an older capture or summary',
+  // The agent revises the review under Approve, and only the reviewer ends a Reject, so neither
+  // depends on the capture or summary the page shows.
+  it.each(['approve', 'reject'] as const)(
+    'shows %s whatever capture or summary it names',
     async (verdict) => {
       vi.stubGlobal(
         'fetch',
@@ -23,9 +23,7 @@ describe('review approval', () => {
             response({ verdict, captureVersion: 2, patchDigest: 'new', summaryVersion: 2 }),
           ),
       );
-      const { result } = renderHook(() =>
-        useReviewApproval('/api/approval?review=a', { version: 1, patchDigest: 'old' }, 1),
-      );
+      const { result } = renderHook(() => useReviewApproval('/api/approval?review=a'));
       await waitFor(() => expect(result.current.verdict).toBe(verdict));
     },
   );
@@ -42,32 +40,25 @@ describe('review approval', () => {
   });
 });
 
-describe('named capture approval', () => {
-  const first = { version: 1, patchDigest: 'first-digest' };
-  const second = { version: 2, patchDigest: 'second-digest' };
-  const namedResponse = (capture = first, summaryVersion = 3) =>
-    response({
-      verdict: 'as-is',
-      captureVersion: capture.version,
-      patchDigest: capture.patchDigest,
-      summaryVersion,
-    });
+describe('approval of another review', () => {
+  const approved = () => response({ verdict: 'approve' });
 
-  it('clears approval immediately when the same named URL displays another capture', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => namedResponse());
-    vi.stubGlobal('fetch', fetchMock);
-    const { result, rerender } = renderHook(
-      ({ capture }) => useReviewApproval('/api/approval?review=task', capture, 3),
-      { initialProps: { capture: first } },
+  it("hides the verdict until the other review's approval loads", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockImplementation(async () => approved()),
     );
-    await waitFor(() => expect(result.current.verdict).toBe('as-is'));
-    rerender({ capture: second });
+    const { result, rerender } = renderHook(({ url }) => useReviewApproval(url), {
+      initialProps: { url: '/api/approval?review=task' },
+    });
+    await waitFor(() => expect(result.current.verdict).toBe('approve'));
+    rerender({ url: '/api/approval?review=other' });
     expect(result.current.verdict).toBeUndefined();
-    await waitFor(() => expect(result.current.ready).toBe(true));
-    expect(result.current.verdict).toBeUndefined();
+    expect(result.current.ready).toBe(false);
+    await waitFor(() => expect(result.current.verdict).toBe('approve'));
   });
 
-  it('does not restore an earlier capture after its in-flight request finishes', async () => {
+  it("does not show an earlier review's answer after its in-flight request finishes", async () => {
     let finish: ((response: Response) => void) | undefined;
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -79,24 +70,13 @@ describe('named capture approval', () => {
       )
       .mockImplementation(async () => response());
     vi.stubGlobal('fetch', fetchMock);
-    const { result, rerender } = renderHook(
-      ({ capture }) => useReviewApproval('/api/approval?review=task', capture, 3),
-      { initialProps: { capture: first } },
-    );
-    rerender({ capture: second });
+    const { result, rerender } = renderHook(({ url }) => useReviewApproval(url), {
+      initialProps: { url: '/api/approval?review=task' },
+    });
+    rerender({ url: '/api/approval?review=other' });
     await waitFor(() => expect(result.current.ready).toBe(true));
-    await act(async () => finish?.(namedResponse()));
+    await act(async () => finish?.(approved()));
     expect(result.current.verdict).toBeUndefined();
     expect(result.current.ready).toBe(true);
-  });
-
-  it('requires an as-is approval to match the displayed proposal version', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn<typeof fetch>().mockImplementation(async () => namedResponse(first, 2)),
-    );
-    const { result } = renderHook(() => useReviewApproval('/api/approval?review=task', first, 3));
-    await waitFor(() => expect(result.current.ready).toBe(true));
-    expect(result.current.verdict).toBeUndefined();
   });
 });
