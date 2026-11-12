@@ -1,7 +1,9 @@
-import { Settings, X } from 'lucide-react';
+import { AlignLeft, Columns, Settings, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useHotkeysContext } from 'react-hotkeys-hook';
 
+import type { DiffViewMode } from '../../types/diff';
+import { DEFAULT_DIFF_VIEW_MODE } from '../../utils/diffMode';
 import type { ColorVisionMode } from '../utils/appearanceTheme';
 import { formatAutoViewedPatterns, parseAutoViewedPatterns } from '../utils/autoViewedPatterns';
 import {
@@ -43,9 +45,17 @@ interface SettingsModalProps {
   // Saved on the server, not with the per-browser appearance settings.
   autoViewedPatterns: string[];
   onAutoViewedPatternsChange: (patterns: string[]) => void;
+  diffMode: DiffViewMode;
+  onDiffModeChange: (mode: DiffViewMode) => void;
+  // Phones show only unified diffs.
+  splitAvailable: boolean;
+  ignoreWhitespace: boolean;
+  onIgnoreWhitespaceChange: (ignore: boolean) => void;
 }
 
-type SettingsSection = 'appearance' | 'system';
+type SettingsSection = 'appearance' | 'diff' | 'system';
+
+export const DEFAULT_IGNORE_WHITESPACE = true;
 
 export const DEFAULT_SETTINGS: AppearanceSettings = {
   fontSize: 14,
@@ -83,10 +93,20 @@ const COLOR_VISION_MODES = [
   },
 ] as const;
 
+const RESET_LABELS: Record<SettingsSection, string> = {
+  appearance: 'Reset Appearance Defaults',
+  diff: 'Reset Diff Defaults',
+  system: 'Reset System Defaults',
+};
+
 const SETTINGS_SECTIONS = [
   {
     id: 'appearance',
     label: 'Appearance',
+  },
+  {
+    id: 'diff',
+    label: 'Diff',
   },
   {
     id: 'system',
@@ -101,6 +121,11 @@ export function SettingsModal({
   onSettingsChange,
   autoViewedPatterns,
   onAutoViewedPatternsChange,
+  diffMode,
+  onDiffModeChange,
+  splitAvailable,
+  ignoreWhitespace,
+  onIgnoreWhitespaceChange,
 }: SettingsModalProps) {
   const [autoViewedPatternsInput, setAutoViewedPatternsInput] = useState(
     formatAutoViewedPatterns(autoViewedPatterns),
@@ -173,6 +198,11 @@ export function SettingsModal({
         colorVision: DEFAULT_SETTINGS.colorVision,
         approvalAnimations: DEFAULT_SETTINGS.approvalAnimations,
       });
+      return;
+    }
+    if (activeSection === 'diff') {
+      onDiffModeChange(DEFAULT_DIFF_VIEW_MODE);
+      onIgnoreWhitespaceChange(DEFAULT_IGNORE_WHITESPACE);
       return;
     }
 
@@ -394,6 +424,43 @@ export function SettingsModal({
               </div>
             )}
 
+            {activeSection === 'diff' && (
+              <div className="space-y-6">
+                {splitAvailable && (
+                  <div>
+                    <span className="block text-sm ui-heading mb-2">Layout</span>
+                    <div className="flex gap-2" role="group" aria-label="Diff layout">
+                      {(['split', 'unified'] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          aria-pressed={diffMode === mode}
+                          onClick={() => onDiffModeChange(mode)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded border transition-colors ${
+                            diffMode === mode
+                              ? 'bg-github-accent text-white border-github-accent'
+                              : 'bg-github-bg-tertiary text-github-text-secondary border-github-border hover:text-github-text-primary'
+                          }`}
+                        >
+                          {mode === 'split' ? (
+                            <Columns size={14} aria-hidden="true" />
+                          ) : (
+                            <AlignLeft size={14} aria-hidden="true" />
+                          )}
+                          {mode === 'split' ? 'Split' : 'Unified'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <Checkbox
+                  checked={ignoreWhitespace}
+                  onChange={onIgnoreWhitespaceChange}
+                  label="Ignore Whitespace"
+                />
+              </div>
+            )}
+
             {activeSection === 'system' && (
               <div className="space-y-6">
                 <div>
@@ -438,7 +505,7 @@ export function SettingsModal({
             onClick={handleReset}
             className="px-3 py-2 text-sm text-github-text-secondary hover:text-github-text-primary"
           >
-            {activeSection === 'appearance' ? 'Reset Appearance Defaults' : 'Reset System Defaults'}
+            {RESET_LABELS[activeSection]}
           </button>
           <button
             onClick={onClose}

@@ -52,8 +52,7 @@ import { UnreadBadge } from './components/UnreadBadge';
 import { useAgentUpdates } from './hooks/useAgentUpdates';
 import { useNewReplyPulse } from './hooks/useNewReplyPulse';
 import { RevisionDetailModal } from './components/RevisionDetailModal';
-import { SettingsModal } from './components/SettingsModal';
-import { ViewMenu } from './components/ViewMenu';
+import { DEFAULT_IGNORE_WHITESPACE, SettingsModal } from './components/SettingsModal';
 import { CaptureDetails } from './components/CaptureDetails';
 import { AboutPanel } from './components/AboutPanel';
 import { HeaderMenu } from './components/HeaderMenu';
@@ -136,6 +135,11 @@ const parseDiffViewMode = (value: unknown): DiffViewMode | null => {
 const getInitialDiffViewMode = () =>
   parseDiffViewMode(readClientSettings().diffViewMode) ?? DEFAULT_DIFF_VIEW_MODE;
 
+const getInitialIgnoreWhitespace = () => {
+  const saved = readClientSettings().ignoreWhitespace;
+  return typeof saved === 'boolean' ? saved : DEFAULT_IGNORE_WHITESPACE;
+};
+
 const clampSidebarWidth = (width: number) =>
   Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
 
@@ -177,7 +181,7 @@ function App() {
   // Bumped only by an explicit reload, not by display toggles that refetch the diff
   const [reloadVersion, setReloadVersion] = useState(0);
   const [diffMode, setDiffMode] = useState<DiffViewMode>(getInitialDiffViewMode);
-  const [ignoreWhitespace, setIgnoreWhitespace] = useState(true);
+  const [ignoreWhitespace, setIgnoreWhitespace] = useState(getInitialIgnoreWhitespace);
   const [loading, setLoading] = useState(true);
   const [captureReloading, setCaptureReloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -721,6 +725,11 @@ function App() {
   const handleDiffModeChange = useCallback((mode: DiffViewMode) => {
     setDiffMode(mode);
     saveClientSettings({ diffViewMode: mode });
+  }, []);
+
+  const handleIgnoreWhitespaceChange = useCallback((ignore: boolean) => {
+    setIgnoreWhitespace(ignore);
+    saveClientSettings({ ignoreWhitespace: ignore });
   }, []);
 
   // Lift expand state to App level so navigation and rendering share the same merged chunks
@@ -1973,13 +1982,6 @@ function App() {
                   )}
                 </HeaderMenu>
               )}
-              <ViewMenu
-                mode={diffMode}
-                mobile={isMobile}
-                onModeChange={handleDiffModeChange}
-                ignoreWhitespace={ignoreWhitespace}
-                onWhitespaceChange={setIgnoreWhitespace}
-              />
               <button
                 type="button"
                 aria-haspopup="dialog"
@@ -2315,6 +2317,11 @@ function App() {
             onSettingsChange={updateSettings}
             autoViewedPatterns={autoViewedPatterns}
             onAutoViewedPatternsChange={handleAutoViewedPatternsChange}
+            diffMode={diffMode}
+            onDiffModeChange={handleDiffModeChange}
+            splitAvailable={!isMobile}
+            ignoreWhitespace={ignoreWhitespace}
+            onIgnoreWhitespaceChange={handleIgnoreWhitespaceChange}
           />
         )}
 

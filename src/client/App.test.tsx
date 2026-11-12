@@ -23,9 +23,10 @@ import {
   saveClientSettings,
 } from './services/userSettings';
 
-async function openViewMenu() {
-  const button = await screen.findByRole('button', { name: 'View' });
-  if (!screen.queryByRole('button', { name: 'Unified' })) fireEvent.click(button);
+// The diff layout and whitespace options live in the Diff section of Settings.
+async function openDiffSettings() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Diff/ }));
 }
 
 // Mock the useViewport hook
@@ -278,7 +279,7 @@ it('filters stdin whitespace locally without replacing the canonical patch', asy
   const diffRequests = () =>
     vi.mocked(fetch).mock.calls.filter(([url]) => String(url).startsWith('/api/diff'));
   const requestsBefore = diffRequests().length;
-  await openViewMenu();
+  await openDiffSettings();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Ignore Whitespace' }));
   await waitFor(() =>
     expect(document.querySelectorAll('[data-diff-line-row="true"]').length).toBeGreaterThan(0),
@@ -1626,7 +1627,7 @@ describe('App Component - Viewed files reload', () => {
       expect(getDiffCallCount()).toBe(1);
     });
 
-    await openViewMenu();
+    await openDiffSettings();
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Ignore Whitespace' }));
     await waitFor(() => {
       expect(getDiffCallCount()).toBe(2);
@@ -1689,7 +1690,7 @@ describe('App Component - Diff Mode Persistence', () => {
 
     renderApp();
 
-    await openViewMenu();
+    await openDiffSettings();
     const unifiedButton = await screen.findByRole('button', { name: 'Unified' });
 
     await waitFor(() => {
@@ -1702,11 +1703,53 @@ describe('App Component - Diff Mode Persistence', () => {
 
     renderApp();
 
-    await openViewMenu();
+    await openDiffSettings();
     const unifiedButton = await screen.findByRole('button', { name: 'Unified' });
     fireEvent.click(unifiedButton);
 
     expect(readClientSettings().diffViewMode).toBe('unified');
+  });
+
+  it('offers the diff layout only in Settings, not as a header menu', async () => {
+    mockFetch(mockDiffResponse);
+
+    renderApp();
+
+    const header = await screen.findByTestId('compact-review-header');
+    expect(within(header).queryByRole('button', { name: 'View' })).toBeNull();
+    await openDiffSettings();
+    expect(screen.getByRole('button', { name: 'Split' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('initializes Ignore Whitespace from the settings cookie', async () => {
+    mockFetch(mockDiffResponse);
+    saveClientSettings({ ignoreWhitespace: false });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(
+        vi
+          .mocked(global.fetch)
+          .mock.calls.some(([url]) => String(url).includes('ignoreWhitespace=false')),
+      ).toBe(true);
+    });
+    await openDiffSettings();
+    expect(screen.getByRole('checkbox', { name: 'Ignore Whitespace' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
+  });
+
+  it('persists Ignore Whitespace to the settings cookie', async () => {
+    mockFetch(mockDiffResponse);
+
+    renderApp();
+
+    await openDiffSettings();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Ignore Whitespace' }));
+
+    expect(readClientSettings().ignoreWhitespace).toBe(false);
   });
 
   it('keeps the selected view mode after triggering refresh', async () => {
@@ -1721,7 +1764,7 @@ describe('App Component - Diff Mode Persistence', () => {
 
     renderApp();
 
-    await openViewMenu();
+    await openDiffSettings();
     const unifiedButton = await screen.findByRole('button', { name: 'Unified' });
     fireEvent.click(unifiedButton);
 
@@ -1925,7 +1968,7 @@ describe('App Component - Merge-base selection', () => {
     renderApp();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'View' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
     });
 
     await act(async () => {
@@ -2011,7 +2054,7 @@ describe('App Component - Revision-aware refetching', () => {
       expect(String(diffCalls[1]?.[0])).toContain('target=HEAD%5E');
     });
 
-    await openViewMenu();
+    await openDiffSettings();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Ignore Whitespace' }));
 
     await waitFor(() => {
@@ -2367,7 +2410,7 @@ describe('App Component - Review navigation', () => {
       await act(async () => window.history.back());
       await waitFor(() => expect(commentContext().slice(0, 2)).toEqual(['base-a', '.']));
       expect(new URLSearchParams(window.location.search).get('base')).toBe('HEAD');
-      await openViewMenu();
+      await openDiffSettings();
       fireEvent.click(screen.getByRole('checkbox', { name: 'Ignore Whitespace' }));
       await waitFor(() => {
         const calls = vi

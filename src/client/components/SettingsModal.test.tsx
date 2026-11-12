@@ -35,6 +35,14 @@ const baseSettings = {
   },
 } satisfies React.ComponentProps<typeof SettingsModal>['settings'];
 
+const diffProps = {
+  diffMode: 'split',
+  onDiffModeChange: vi.fn(),
+  splitAvailable: true,
+  ignoreWhitespace: true,
+  onIgnoreWhitespaceChange: vi.fn(),
+} satisfies Partial<React.ComponentProps<typeof SettingsModal>>;
+
 describe('SettingsModal', () => {
   it('shows appearance settings by default and the editor note in the system section', () => {
     render(
@@ -45,6 +53,7 @@ describe('SettingsModal', () => {
         onSettingsChange={vi.fn()}
         autoViewedPatterns={[]}
         onAutoViewedPatternsChange={vi.fn()}
+        {...diffProps}
       />,
       { wrapper },
     );
@@ -83,6 +92,7 @@ describe('SettingsModal', () => {
         onSettingsChange={vi.fn()}
         autoViewedPatterns={[]}
         onAutoViewedPatternsChange={vi.fn()}
+        {...diffProps}
       />,
       { wrapper },
     );
@@ -104,6 +114,7 @@ describe('SettingsModal', () => {
         onSettingsChange={vi.fn()}
         autoViewedPatterns={[]}
         onAutoViewedPatternsChange={vi.fn()}
+        {...diffProps}
       />,
       { wrapper },
     );
@@ -138,6 +149,7 @@ describe('SettingsModal', () => {
         onSettingsChange={vi.fn()}
         autoViewedPatterns={[]}
         onAutoViewedPatternsChange={vi.fn()}
+        {...diffProps}
       />,
       { wrapper },
     );
@@ -169,6 +181,7 @@ describe('SettingsModal', () => {
         onSettingsChange={onSettingsChange}
         autoViewedPatterns={[]}
         onAutoViewedPatternsChange={vi.fn()}
+        {...diffProps}
       />,
       { wrapper },
     );
@@ -213,6 +226,7 @@ describe('SettingsModal', () => {
         onSettingsChange={onSettingsChange}
         autoViewedPatterns={[]}
         onAutoViewedPatternsChange={vi.fn()}
+        {...diffProps}
       />,
       { wrapper },
     );
@@ -250,6 +264,7 @@ describe('SettingsModal', () => {
         onSettingsChange={vi.fn()}
         autoViewedPatterns={['*.snap']}
         onAutoViewedPatternsChange={onAutoViewedPatternsChange}
+        {...diffProps}
       />,
       { wrapper },
     );
@@ -264,5 +279,66 @@ describe('SettingsModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset System Defaults' }));
     expect(onAutoViewedPatternsChange).toHaveBeenLastCalledWith([]);
     expect(textarea).toHaveValue('');
+  });
+
+  it('holds the diff layout and whitespace options in the Diff section and resets them', () => {
+    const onDiffModeChange = vi.fn();
+    const onIgnoreWhitespaceChange = vi.fn();
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        settings={baseSettings}
+        onSettingsChange={vi.fn()}
+        autoViewedPatterns={[]}
+        onAutoViewedPatternsChange={vi.fn()}
+        {...diffProps}
+        diffMode="unified"
+        ignoreWhitespace={false}
+        onDiffModeChange={onDiffModeChange}
+        onIgnoreWhitespaceChange={onIgnoreWhitespaceChange}
+      />,
+      { wrapper },
+    );
+
+    expect(screen.queryByRole('checkbox', { name: 'Ignore Whitespace' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Diff/ }));
+
+    expect(screen.getByRole('button', { name: 'Unified' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Split' })).toHaveAttribute('aria-pressed', 'false');
+    const whitespace = screen.getByRole('checkbox', { name: 'Ignore Whitespace' });
+    expect(whitespace).toHaveAttribute('aria-checked', 'false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Split' }));
+    expect(onDiffModeChange).toHaveBeenLastCalledWith('split');
+    fireEvent.click(whitespace);
+    expect(onIgnoreWhitespaceChange).toHaveBeenLastCalledWith(true);
+
+    onDiffModeChange.mockClear();
+    onIgnoreWhitespaceChange.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Diff Defaults' }));
+    expect(onDiffModeChange).toHaveBeenCalledWith('split');
+    expect(onIgnoreWhitespaceChange).toHaveBeenCalledWith(true);
+  });
+
+  it('leaves out the split layout where only unified diffs fit', () => {
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        settings={baseSettings}
+        onSettingsChange={vi.fn()}
+        autoViewedPatterns={[]}
+        onAutoViewedPatternsChange={vi.fn()}
+        {...diffProps}
+        splitAvailable={false}
+      />,
+      { wrapper },
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /^Diff/ }));
+    expect(screen.queryByRole('button', { name: 'Split' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Unified' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Ignore Whitespace' })).toBeInTheDocument();
   });
 });
