@@ -887,6 +887,16 @@ describe('App Component - Settings the browser refuses to keep', () => {
     delete (document as { cookie?: string }).cookie;
   });
 
+  // The header's Settings button declares aria-haspopup="dialog".
+  it('opens Settings as a dialog named Settings, with a named close button', async () => {
+    mockFetch(mockDiffResponse);
+    renderApp();
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close settings' }));
+    expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
+  });
+
   it('says so in the header and keeps the page', async () => {
     mockFetch(mockDiffResponse);
     // As Chromium does in a cross-site frame, or with cookies blocked.

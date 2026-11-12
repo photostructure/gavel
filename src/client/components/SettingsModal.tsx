@@ -223,7 +223,11 @@ export function SettingsModal({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-      <div className="flex flex-col max-h-[calc(100dvh-2rem)] bg-github-bg-secondary border border-github-border rounded-lg w-full max-w-3xl mx-4 pointer-events-auto overflow-hidden">
+      <div
+        role="dialog"
+        aria-label="Settings"
+        className="flex flex-col max-h-[calc(100dvh-2rem)] bg-github-bg-secondary border border-github-border rounded-lg w-full max-w-3xl mx-4 pointer-events-auto overflow-hidden"
+      >
         <div className="shrink-0 flex items-center justify-between p-4 border-b border-github-border">
           <h2 className="text-lg ui-heading flex items-center gap-2">
             <Settings size={20} />
@@ -231,6 +235,7 @@ export function SettingsModal({
           </h2>
           <button
             onClick={onClose}
+            aria-label="Close settings"
             className="text-github-text-secondary hover:text-github-text-primary p-1"
           >
             <X size={18} />
