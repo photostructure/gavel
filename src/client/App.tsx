@@ -77,6 +77,7 @@ import { useReviewPresence } from './hooks/useReviewPresence';
 import { useViewedFiles } from './hooks/useViewedFiles';
 import { storageService } from './services/StorageService';
 import { useViewport } from './hooks/useViewport';
+import { useHeaderFit } from './hooks/useHeaderFit';
 import { useHideHeaderOnScroll } from './hooks/useHideHeaderOnScroll';
 import { useTopVisibleFile } from './hooks/useTopVisibleFile';
 import {
@@ -279,6 +280,7 @@ function App() {
   const { settings, updateSettings } = useAppearanceSettings();
   const { isMobile } = useViewport();
   const reviewChrome = useHideHeaderOnScroll();
+  const headerFitRef = useHeaderFit();
   const topVisibleFile = useTopVisibleFile(diffScrollContainerRef, diffData?.files ?? EMPTY_FILES);
 
   const commentsContextKey = useMemo(() => {
@@ -1911,7 +1913,8 @@ function App() {
         >
           <div ref={reviewChrome.headerRef} className="flex min-h-0 flex-col overflow-hidden">
             <header
-              className="review-toolbar flex shrink-0 flex-wrap items-stretch justify-end gap-1 border-b border-github-border bg-github-bg-secondary px-3 py-2 text-sm text-github-text-primary md:gap-2"
+              ref={headerFitRef}
+              className="review-toolbar group/header flex shrink-0 flex-wrap items-stretch justify-end gap-1 border-b border-github-border bg-github-bg-secondary px-3 py-2 text-sm text-github-text-primary md:gap-2"
               data-testid="compact-review-header"
             >
               {diffData.capture && (
@@ -1921,23 +1924,31 @@ function App() {
                   <span>{diffData.capture.patchDigest.slice(0, 12)}</span>
                 </div>
               )}
-              <div className="mr-auto flex min-w-0 max-w-full flex-wrap items-center gap-1 md:gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsFileTreeOpen(!isFileTreeOpen)}
-                  className="shrink-0 rounded p-2 hover:bg-github-bg-tertiary"
-                  title={isFileTreeOpen ? 'Collapse file tree' : 'Expand file tree'}
-                  aria-expanded={isFileTreeOpen}
-                  aria-controls="file-tree-panel"
-                  aria-label="Toggle file tree panel"
-                >
-                  {isFileTreeOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
-                </button>
-                <h1 className="sr-only shrink-0 md:not-sr-only">
+              <button
+                type="button"
+                onClick={() => setIsFileTreeOpen(!isFileTreeOpen)}
+                className="inline-flex shrink-0 items-center justify-center rounded p-2 hover:bg-github-bg-tertiary"
+                title={isFileTreeOpen ? 'Collapse file tree' : 'Expand file tree'}
+                aria-expanded={isFileTreeOpen}
+                aria-controls="file-tree-panel"
+                aria-label="Toggle file tree panel"
+              >
+                {isFileTreeOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
+              </button>
+              {/* Grows into the space the controls leave; useHeaderFit hides labels to keep the
+                  logo, and the logo before the verdict buttons. */}
+              <div
+                data-header-logo-box
+                className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden md:gap-2"
+              >
+                <h1 data-header-logo className="shrink-0 group-data-hide-logo/header:sr-only">
                   <Logo style={{ height: '18px', color: 'var(--color-github-text-primary)' }} />
                 </h1>
                 {captureReloading && (
-                  <span role="status" className="text-xs text-github-text-secondary">
+                  <span
+                    role="status"
+                    className="min-w-0 truncate text-xs text-github-text-secondary"
+                  >
                     Updating capture…
                   </span>
                 )}
@@ -1969,7 +1980,7 @@ function App() {
                   label={
                     <>
                       <GitBranch size={14} aria-hidden="true" />
-                      <span className="max-w-[24ch] truncate max-lg:sr-only">
+                      <span className="max-w-[24ch] truncate group-data-hide-review-name/header:sr-only">
                         {diffData.capture?.name ?? diffData.commit}
                       </span>
                     </>
@@ -1987,11 +1998,11 @@ function App() {
                 aria-haspopup="dialog"
                 aria-label="Settings"
                 title="Settings"
-                className="inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
+                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
                 onClick={() => setIsSettingsOpen(true)}
               >
                 <Settings size={14} aria-hidden="true" />
-                <span className="sr-only lg:not-sr-only">Settings</span>
+                <span className="group-data-hide-labels/header:sr-only">Settings</span>
               </button>
               <button
                 type="button"
@@ -2000,14 +2011,14 @@ function App() {
                 aria-haspopup="dialog"
                 aria-label="About"
                 title="About"
-                className="inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
+                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
                 onClick={() => {
                   setIsCommentsListOpen(false);
                   setIsAboutOpen(true);
                 }}
               >
                 <Info size={14} aria-hidden="true" />
-                <span className="sr-only lg:not-sr-only">About</span>
+                <span className="group-data-hide-labels/header:sr-only">About</span>
               </button>
               <ReloadButton
                 shouldReload={shouldReload}
@@ -2033,10 +2044,10 @@ function App() {
                   setPendingLineJump(null);
                   setIsCommentsListOpen(true);
                 }}
-                className="relative inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
+                className="relative inline-flex items-center justify-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
               >
                 <MessageSquare size={14} aria-hidden="true" />
-                <span className="sr-only lg:not-sr-only">Conversation</span>
+                <span className="group-data-hide-labels/header:sr-only">Conversation</span>
                 {/* On mobile the badge sits on the button's corner, so it doesn't widen the header. */}
                 <span
                   id="conversation-unread-status"

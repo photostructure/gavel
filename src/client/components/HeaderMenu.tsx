@@ -15,7 +15,7 @@ import {
 import { useState, type ReactNode } from 'react';
 
 export const headerButtonClasses =
-  'inline-flex items-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 text-sm text-github-text-primary hover:bg-github-bg-tertiary';
+  'inline-flex items-center justify-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 text-sm text-github-text-primary hover:bg-github-bg-tertiary';
 
 export function HeaderMenu({
   label,

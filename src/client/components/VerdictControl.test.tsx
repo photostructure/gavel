@@ -27,6 +27,17 @@ describe('verdict control', () => {
     expect(containerRef.current).toContainElement(screen.getByRole('group', { name: 'Verdict' }));
   });
 
+  it('swaps the buttons for the menu when the review header has no room for them', () => {
+    render(<VerdictControl {...props} />);
+
+    expect(screen.getByRole('group', { name: 'Verdict' })).toHaveClass(
+      'group-data-verdict-menu/header:hidden',
+    );
+    expect(screen.getByRole('button', { name: 'Verdict options' }).closest('.hidden')).toHaveClass(
+      'group-data-verdict-menu/header:flex',
+    );
+  });
+
   it('offers Approve and Reject as buttons, each sending its own verdict in one click', () => {
     const onVerdict = vi.fn();
     render(<VerdictControl {...props} onVerdict={onVerdict} />);

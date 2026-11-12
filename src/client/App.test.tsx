@@ -797,6 +797,34 @@ describe('App Component - Header display controls', () => {
     expect(within(header).queryByText(/\d+\/\d+/)).toBeNull();
   });
 
+  // useHeaderFit sets these attributes on the header as it narrows; happy-dom has no layout, so
+  // only the wiring is checked here.
+  it('hides the labels, the review name and the logo through the header fit attributes', async () => {
+    renderApp();
+    const header = await screen.findByTestId('compact-review-header');
+    expect(header).toHaveClass('group/header');
+    for (const name of ['Settings', 'About', 'Conversation']) {
+      const button = within(header).getByRole('button', { name });
+      expect(within(button).getByText(name)).toHaveClass('group-data-hide-labels/header:sr-only');
+    }
+    expect(within(header).getByRole('heading', { level: 1 })).toHaveClass(
+      'group-data-hide-logo/header:sr-only',
+    );
+    const picker = await within(header).findByRole('button', { name: /^Revision menu/ });
+    expect(picker.querySelector('code')).toHaveClass('group-data-hide-review-name/header:hidden');
+  });
+
+  // Touch screens give toolbar buttons a 44 px minimum width, wider than an icon alone.
+  it('centers the icon of each header button wider than its content', async () => {
+    mockWatchState.shouldReload = true;
+    renderApp();
+    const header = await screen.findByTestId('compact-review-header');
+    for (const name of ['Toggle file tree panel', 'Settings', 'About', 'Conversation', 'Refresh']) {
+      expect(within(header).getByRole('button', { name })).toHaveClass('justify-center');
+    }
+    mockWatchState.shouldReload = false;
+  });
+
   it('switches between dark and light themes from the Settings button', async () => {
     renderApp();
 

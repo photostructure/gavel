@@ -31,8 +31,8 @@ const approveDescription =
 const rejectDescription = 'The agent stops and asks you what to do instead.';
 
 /**
- * The reviewer's verdict on the open review: approve or reject. Wide screens show each as a
- * button; narrow screens list them in a menu.
+ * The reviewer's verdict on the open review: approve or reject, each as a button, or listed in a
+ * menu when the review header (group/header in App) has no room for the buttons.
  */
 export function VerdictControl({
   containerRef,
@@ -65,7 +65,11 @@ export function VerdictControl({
   };
   return (
     <div ref={containerRef} className="flex items-stretch">
-      <div role="group" aria-label="Verdict" className="hidden items-stretch gap-1.5 xl:flex">
+      <div
+        role="group"
+        aria-label="Verdict"
+        className="flex items-stretch gap-1.5 group-data-verdict-menu/header:hidden"
+      >
         {/* Clicking the pressed button clears its verdict; clearing never leaves the review. */}
         <button
           type="button"
@@ -92,7 +96,7 @@ export function VerdictControl({
           Reject
         </button>
       </div>
-      <div className="flex xl:hidden">
+      <div className="hidden group-data-verdict-menu/header:flex">
         <HeaderMenu
           open={open}
           onOpenChange={setOpen}

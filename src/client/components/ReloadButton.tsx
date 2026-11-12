@@ -39,7 +39,7 @@ export function ReloadButton({
       onClick={onReload}
       disabled={isReloading}
       className={`
-        flex items-center gap-1.5 text-xs rounded-md border ${className} ${
+        flex items-center justify-center gap-1.5 text-xs rounded-md border ${className} ${
           compact ? 'px-2 py-2' : 'px-3 py-1.5'
         }
         ${

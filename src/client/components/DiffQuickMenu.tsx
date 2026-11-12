@@ -443,8 +443,8 @@ export function DiffQuickMenu({
       >
         <div className="flex min-w-0 max-w-full items-center gap-1 px-2 py-1 bg-github-bg-tertiary border border-github-border rounded hover:border-github-text-secondary transition-colors">
           <GitBranch size={14} aria-hidden="true" className="shrink-0" />
-          {/* Below 1024px only the icon shows; the menu names the selection. */}
-          <code className="hidden min-w-0 max-w-[24ch] truncate text-xs text-github-text-primary lg:block">
+          {/* Without room in the review header only the icon shows; the menu names the selection. */}
+          <code className="block min-w-0 max-w-[24ch] truncate text-xs text-github-text-primary group-data-hide-review-name/header:hidden">
             {currentLabel}
           </code>
           <ChevronDown
