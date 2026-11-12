@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { DiffCommentThread } from '../../types/diff';
 import type { ReviewOp, ReviewOpResult, ReviewOpsResponse } from '../../types/reviewOps';
+import { createId } from '../../utils/createId';
 import { applyReviewOp } from '../../utils/reviewOps';
 
 // queuedAt stamps the change on this page until the server's answer replaces it.
@@ -160,7 +161,9 @@ export function useReviewOps(
       lastQueuedAt = Math.max(Date.now(), lastQueuedAt + 1);
       const queued = {
         ...op,
-        id: crypto.randomUUID(),
+        // Not crypto.randomUUID: browsers leave it undefined on plain-HTTP pages other than
+        // localhost, such as a review opened at a LAN address.
+        id: createId(),
         queuedAt: new Date(lastQueuedAt).toISOString(),
       };
       const key = opKey(scope, queued);

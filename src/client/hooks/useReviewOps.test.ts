@@ -95,6 +95,23 @@ describe('useReviewOps', () => {
     vi.mocked(fetch).mockReset();
   });
 
+  // Browsers leave crypto.randomUUID undefined outside secure contexts, such as a page
+  // opened at http://10.1.1.24:5107/.
+  it('queues a change on a plain-HTTP page without crypto.randomUUID', async () => {
+    vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    try {
+      const { sent } = server();
+      const { result } = mount();
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      await act(async () => void (await result.current.enqueue(add('mine')).answer));
+
+      expect(sent.flat().map(({ id }) => id)).toEqual([expect.any(String)]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('keeps an op another tab queues while this tab is queueing one', async () => {
     const { answers } = server();
     answers['/api/review-ops']!.push(
