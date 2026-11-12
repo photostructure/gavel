@@ -107,7 +107,8 @@ describe('useReviewOps', () => {
     // The other tab writes between this tab's read of the queue and its write.
     const getItem = Storage.prototype.getItem;
     let interleaved = false;
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (this: Storage, key) {
+    // happy-dom copies getItem onto localStorage on first use, so a prototype spy would miss it.
+    vi.spyOn(localStorage, 'getItem').mockImplementation(function (this: Storage, key) {
       const value = getItem.call(this, key);
       if (!interleaved && key.startsWith(PREFIX)) {
         interleaved = true;
