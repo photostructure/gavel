@@ -83,6 +83,22 @@ describe('SettingsModal', () => {
     expect(screen.getByRole('button', { name: /^System/ })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('lets the font size go down to 9 px', () => {
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        settings={baseSettings}
+        onSettingsChange={vi.fn()}
+        autoViewedPatterns={[]}
+        onAutoViewedPatternsChange={vi.fn()}
+        {...diffProps}
+      />,
+      { wrapper },
+    );
+    expect(screen.getByRole('slider')).toHaveAttribute('min', '9');
+  });
+
   it('offers the bundled fonts and the browser default font', () => {
     render(
       <SettingsModal
@@ -281,7 +297,7 @@ describe('SettingsModal', () => {
     expect(textarea).toHaveValue('');
   });
 
-  it('holds the diff layout and whitespace options in the Diff section and resets them', () => {
+  it('shows the diff layout and whitespace options first in Appearance and resets them with it', () => {
     const onDiffModeChange = vi.fn();
     const onIgnoreWhitespaceChange = vi.fn();
     render(
@@ -301,8 +317,11 @@ describe('SettingsModal', () => {
       { wrapper },
     );
 
-    expect(screen.queryByRole('checkbox', { name: 'Ignore Whitespace' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /^Diff/ }));
+    expect(screen.queryByRole('button', { name: /^Diff/ })).toBeNull();
+    expect(
+      screen.getByText('Layout').compareDocumentPosition(screen.getByText('Font Size')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     expect(screen.getByRole('button', { name: 'Unified' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Split' })).toHaveAttribute('aria-pressed', 'false');
@@ -316,7 +335,7 @@ describe('SettingsModal', () => {
 
     onDiffModeChange.mockClear();
     onIgnoreWhitespaceChange.mockClear();
-    fireEvent.click(screen.getByRole('button', { name: 'Reset Diff Defaults' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Appearance Defaults' }));
     expect(onDiffModeChange).toHaveBeenCalledWith('split');
     expect(onIgnoreWhitespaceChange).toHaveBeenCalledWith(true);
   });
@@ -336,7 +355,6 @@ describe('SettingsModal', () => {
       { wrapper },
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /^Diff/ }));
     expect(screen.queryByRole('button', { name: 'Split' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Unified' })).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'Ignore Whitespace' })).toBeInTheDocument();

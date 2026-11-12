@@ -53,7 +53,7 @@ interface SettingsModalProps {
   onIgnoreWhitespaceChange: (ignore: boolean) => void;
 }
 
-type SettingsSection = 'appearance' | 'diff' | 'system';
+type SettingsSection = 'appearance' | 'system';
 
 export const DEFAULT_IGNORE_WHITESPACE = true;
 
@@ -93,20 +93,10 @@ const COLOR_VISION_MODES = [
   },
 ] as const;
 
-const RESET_LABELS: Record<SettingsSection, string> = {
-  appearance: 'Reset Appearance Defaults',
-  diff: 'Reset Diff Defaults',
-  system: 'Reset System Defaults',
-};
-
 const SETTINGS_SECTIONS = [
   {
     id: 'appearance',
     label: 'Appearance',
-  },
-  {
-    id: 'diff',
-    label: 'Diff',
   },
   {
     id: 'system',
@@ -198,9 +188,6 @@ export function SettingsModal({
         colorVision: DEFAULT_SETTINGS.colorVision,
         approvalAnimations: DEFAULT_SETTINGS.approvalAnimations,
       });
-      return;
-    }
-    if (activeSection === 'diff') {
       onDiffModeChange(DEFAULT_DIFF_VIEW_MODE);
       onIgnoreWhitespaceChange(DEFAULT_IGNORE_WHITESPACE);
       return;
@@ -273,12 +260,44 @@ export function SettingsModal({
           <div className="flex-1 min-h-0 p-4 sm:p-6 overflow-y-auto">
             {activeSection === 'appearance' && (
               <div className="space-y-6">
+                {splitAvailable && (
+                  <div>
+                    <span className="block text-sm ui-heading mb-2">Layout</span>
+                    <div className="flex gap-2" role="group" aria-label="Diff layout">
+                      {(['split', 'unified'] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          aria-pressed={diffMode === mode}
+                          onClick={() => onDiffModeChange(mode)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded border transition-colors ${
+                            diffMode === mode
+                              ? 'bg-github-accent text-white border-github-accent'
+                              : 'bg-github-bg-tertiary text-github-text-secondary border-github-border hover:text-github-text-primary'
+                          }`}
+                        >
+                          {mode === 'split' ? (
+                            <Columns size={14} aria-hidden="true" />
+                          ) : (
+                            <AlignLeft size={14} aria-hidden="true" />
+                          )}
+                          {mode === 'split' ? 'Split' : 'Unified'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <Checkbox
+                  checked={ignoreWhitespace}
+                  onChange={onIgnoreWhitespaceChange}
+                  label="Ignore Whitespace"
+                />
                 <div>
                   <label className="block text-sm ui-heading mb-2">Font Size</label>
                   <div className="flex items-center gap-3">
                     <input
                       type="range"
-                      min="10"
+                      min="9"
                       max="20"
                       step="1"
                       value={settings.fontSize}
@@ -429,43 +448,6 @@ export function SettingsModal({
               </div>
             )}
 
-            {activeSection === 'diff' && (
-              <div className="space-y-6">
-                {splitAvailable && (
-                  <div>
-                    <span className="block text-sm ui-heading mb-2">Layout</span>
-                    <div className="flex gap-2" role="group" aria-label="Diff layout">
-                      {(['split', 'unified'] as const).map((mode) => (
-                        <button
-                          key={mode}
-                          type="button"
-                          aria-pressed={diffMode === mode}
-                          onClick={() => onDiffModeChange(mode)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded border transition-colors ${
-                            diffMode === mode
-                              ? 'bg-github-accent text-white border-github-accent'
-                              : 'bg-github-bg-tertiary text-github-text-secondary border-github-border hover:text-github-text-primary'
-                          }`}
-                        >
-                          {mode === 'split' ? (
-                            <Columns size={14} aria-hidden="true" />
-                          ) : (
-                            <AlignLeft size={14} aria-hidden="true" />
-                          )}
-                          {mode === 'split' ? 'Split' : 'Unified'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <Checkbox
-                  checked={ignoreWhitespace}
-                  onChange={onIgnoreWhitespaceChange}
-                  label="Ignore Whitespace"
-                />
-              </div>
-            )}
-
             {activeSection === 'system' && (
               <div className="space-y-6">
                 <div>
@@ -510,7 +492,7 @@ export function SettingsModal({
             onClick={handleReset}
             className="px-3 py-2 text-sm text-github-text-secondary hover:text-github-text-primary"
           >
-            {RESET_LABELS[activeSection]}
+            {activeSection === 'appearance' ? 'Reset Appearance Defaults' : 'Reset System Defaults'}
           </button>
           <button
             onClick={onClose}

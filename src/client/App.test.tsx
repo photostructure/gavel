@@ -23,10 +23,9 @@ import {
   saveClientSettings,
 } from './services/userSettings';
 
-// The diff layout and whitespace options live in the Diff section of Settings.
+// The diff layout and whitespace options open first in Settings, at the top of Appearance.
 async function openDiffSettings() {
   fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
-  fireEvent.click(screen.getByRole('button', { name: /^Diff/ }));
 }
 
 // Mock the useViewport hook

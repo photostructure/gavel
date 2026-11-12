@@ -673,7 +673,6 @@ describe('named captures in the browser', () => {
     const capture = await screen.findByRole('status', { name: 'Named review capture' });
     const identity = capture.textContent;
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Diff/ }));
     const toggle = screen.getByRole('checkbox', { name: 'Ignore Whitespace' });
     expect(toggle).toBeChecked();
     await screen.findByText('Whitespace-only changes hidden');
