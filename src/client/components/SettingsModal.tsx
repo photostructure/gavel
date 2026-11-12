@@ -1,5 +1,5 @@
 import { AlignLeft, Columns, Settings, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useHotkeysContext } from 'react-hotkeys-hook';
 
 import type { DiffViewMode } from '../../types/diff';
@@ -123,6 +123,18 @@ export function SettingsModal({
   const [activeSection, setActiveSection] = useState<SettingsSection>('appearance');
   const { enableScope, disableScope } = useHotkeysContext();
 
+  // Like About and Conversation, Settings takes focus when it opens, so screen readers announce
+  // it, and gives focus back when it closes.
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement;
+    panel.current?.focus();
+    return () => {
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
+    };
+  }, [isOpen]);
+
   // Manage scopes when modal opens/closes
   useEffect(() => {
     if (isOpen) {
@@ -211,6 +223,8 @@ export function SettingsModal({
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
       <div
+        ref={panel}
+        tabIndex={-1}
         role="dialog"
         aria-label="Settings"
         className="flex flex-col max-h-[calc(100dvh-2rem)] bg-github-bg-secondary border border-github-border rounded-lg w-full max-w-3xl mx-4 pointer-events-auto overflow-hidden"

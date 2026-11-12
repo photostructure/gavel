@@ -896,6 +896,19 @@ describe('App Component - Settings the browser refuses to keep', () => {
     expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
   });
 
+  // As About and Conversation do, so screen readers announce Settings when it opens.
+  it('moves focus into Settings when it opens and back to its button when it closes', async () => {
+    mockFetch(mockDiffResponse);
+    renderApp();
+    const button = await screen.findByRole('button', { name: 'Settings' });
+    button.focus();
+    fireEvent.click(button);
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    expect(dialog).toHaveFocus();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close settings' }));
+    expect(button).toHaveFocus();
+  });
+
   it('says so in the header and keeps the page', async () => {
     mockFetch(mockDiffResponse);
     // As Chromium does in a cross-site frame, or with cookies blocked.
