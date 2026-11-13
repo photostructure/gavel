@@ -54,7 +54,7 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm run build
         env:
-          # The About panel shows the version only on builds with this flag.
+          # Marks a release build: About shows v<version>, checks npm for updates, and hides Build.
           VITE_GAVEL_RELEASE_BUILD: 'true'
       - name: Pack and verify the exact release package
         run: node scripts/release-package.mjs pack package-artifact
