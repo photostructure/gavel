@@ -71,9 +71,10 @@ Check these before merging work that touches approval, the header, or review tab
 ## Lore
 
 - Decisions the maintainer made in conversation: Not yet (now Reject) is one click and needs no
-  comment; separate buttons from 1280px, one menu below (with three buttons the
-  header needed about 1198px at 1024px, measured in the browser pane; not
-  re-measured for two); idle buttons
+  comment; separate buttons whenever the header has room, one menu otherwise
+  (`useHeaderFit` hides labels, the review name and the logo before it collapses
+  the buttons; with two buttons and a 24-character review name the header fits
+  at 1024px, measured in the browser pane); idle buttons
   are neutral, because a red-tinted idle Not yet "looks like I've already pushed
   not yet"; hover tints only the border (green, violet; the yellow after-comments
   button is gone),
