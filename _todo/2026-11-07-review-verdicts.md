@@ -104,10 +104,17 @@ Check these before merging work that touches approval, the header, or review tab
   receipt would show as the verdict's.
 - The follow-up notice renders through `FloatingPortal` because the header group
   (`flex min-h-0 flex-col overflow-hidden` in `App.tsx`) clips anything below the
-  header. The portal needs a non-modal `FloatingFocusManager` (no initial focus,
-  no return focus, no close on blur), or its buttons land last in tab order, far
-  from the verdict buttons a keyboard user just pressed. Its slide-in animates
-  `translate`, because Floating UI positions it with `transform`.
+  header. The portal needs a non-modal `FloatingFocusManager` (no return focus,
+  no close on blur), or its buttons land last in tab order, far from the verdict
+  buttons a keyboard user just pressed. It focuses the button Return should press:
+  the next step, or the X when there is none, never Undo, since Return right
+  after a click on Approve would otherwise press the focused Approve button and
+  clear the verdict. It leaves focus in a text field, since a retried send can open
+  it long after the click, and the copy button is `aria-disabled` while copying,
+  because a disabled button drops focus to the page. Escape dismisses it. The
+  maintainer accepted, as recommended, a dimmed Return glyph on the focused next
+  step and Return and Escape rows in Help, which assume this focus. Its slide-in
+  animates `translate`, because Floating UI positions it with `transform`.
 - `window.close()` works only for a tab with one history entry or one a script
   opened (HTML standard), so nothing in the follow-up calls it. Playwright cannot
   test closing: pages it creates count as

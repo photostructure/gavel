@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -10,7 +10,7 @@ import { VerdictFollowUpNotice } from './VerdictFollowUpNotice';
 type Props = ComponentProps<typeof VerdictFollowUpNotice>;
 
 describe('verdict follow-up notice', () => {
-  const status = () => screen.getByRole('status', { name: 'Next step' });
+  const toast = () => screen.getByRole('dialog', { name: 'Next step' });
   const anchor = () => {
     const element = document.createElement('div');
     document.body.appendChild(element);
@@ -31,7 +31,7 @@ describe('verdict follow-up notice', () => {
 
   it('renders nothing without a step', () => {
     render(notice({ step: null }));
-    expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Next step' })).not.toBeInTheDocument();
   });
 
   // A toast's usual anatomy: the message, with its close X in the top-right corner, above the
@@ -55,7 +55,7 @@ describe('verdict follow-up notice', () => {
     // toast's right padding, which matches its left: the primary button sat 43 px in from the
     // right edge when the whole toast had pr-12.
     expect(dismiss).toHaveClass('absolute', 'top-1.5', 'right-1.5', 'p-1');
-    expect(status()).toHaveClass('pr-4', 'pl-4', 'gap-4');
+    expect(toast()).toHaveClass('pr-4', 'pl-4', 'gap-4');
     expect(message).toHaveClass('pr-8');
     expect(next.parentElement?.nextElementSibling).toBe(dismiss);
   });
@@ -92,7 +92,7 @@ describe('verdict follow-up notice', () => {
     render(notice({ step: { kind: 'switch', name: 'fix-useReviewOps-random-uuid', waiting: 1 } }));
     const next = screen.getByRole('button', { name: 'Switch to fix-useReviewOps-random-uuid' });
     expect(next).toHaveClass('min-w-0', 'max-w-full');
-    expect(next).toHaveAttribute('title', 'Switch to fix-useReviewOps-random-uuid');
+    expect(next).toHaveAttribute('title', 'Switch to fix-useReviewOps-random-uuid (Return)');
     expect(next.querySelector('code')).toHaveClass('min-w-0', 'truncate');
   });
 
@@ -104,7 +104,7 @@ describe('verdict follow-up notice', () => {
 
   it('names a Reject', () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 }, verdict: 'reject' }));
-    expect(status()).toHaveTextContent('Rejected');
+    expect(toast()).toHaveTextContent('Rejected');
   });
 
   // Browsers honour window.close() only in a tab a script opened or one with a single history
@@ -112,16 +112,16 @@ describe('verdict follow-up notice', () => {
   // closed instead of offering a button that usually fails. "Page" holds on phones and tablets, where readers may not see tabs.
   it('says the page can be closed once every review has a verdict, with no close button', () => {
     const { rerender } = render(notice({ step: { kind: 'close', reviews: 3 } }));
-    expect(status()).toHaveTextContent('Approved');
-    expect(status()).toHaveTextContent('All 3 reviews have a verdict, so you can close this page.');
+    expect(toast()).toHaveTextContent('Approved');
+    expect(toast()).toHaveTextContent('All 3 reviews have a verdict, so you can close this page.');
     expect(
-      within(status())
+      within(toast())
         .getAllByRole('button')
         .map((button) => button.textContent),
     ).toEqual(['Undo', '']);
     rerender(notice({ step: { kind: 'close', reviews: 1 } }));
-    expect(status()).toHaveTextContent('You can close this page.');
-    expect(status()).not.toHaveTextContent('reviews have a verdict');
+    expect(toast()).toHaveTextContent('You can close this page.');
+    expect(toast()).not.toHaveTextContent('reviews have a verdict');
   });
 
   describe('delivery to the agent', () => {
@@ -248,14 +248,14 @@ describe('verdict follow-up notice', () => {
 
   it('shows no countdown', () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
-    expect(status()).not.toHaveTextContent(/\d+s\b/);
-    expect(status().querySelector('.verdict-countdown-bar')).toBeNull();
+    expect(toast()).not.toHaveTextContent(/\d+s\b/);
+    expect(toast().querySelector('.verdict-countdown-bar')).toBeNull();
   });
 
   // The toast slides in from the right; reduced motion turns that off in global.css.
   it('slides in', () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
-    expect(status()).toHaveClass('verdict-toast');
+    expect(toast()).toHaveClass('verdict-toast');
   });
 
   // Keep open did what the corner X does on every other toast.
@@ -271,8 +271,8 @@ describe('verdict follow-up notice', () => {
         onUndo,
       }),
     );
-    expect(status()).toHaveTextContent('All 2 reviews have a verdict.');
-    expect(status()).toHaveTextContent(
+    expect(toast()).toHaveTextContent('All 2 reviews have a verdict.');
+    expect(toast()).toHaveTextContent(
       "If the agent hasn't resumed, copy the prompt and paste it into the chat that opened this review",
     );
     fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt' }));
@@ -286,7 +286,10 @@ describe('verdict follow-up notice', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(onDismiss).toHaveBeenCalledOnce();
     rerender(notice({ step: { kind: 'resume', reviews: 2, status: 'copying' } }));
-    expect(screen.getByRole('button', { name: 'Copying…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Copying…' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     rerender(notice({ step: { kind: 'resume', reviews: 2, status: 'error' } }));
     expect(screen.getByRole('alert')).toHaveTextContent('Could not copy the prompt; try again.');
     expect(screen.getByRole('button', { name: 'Copy resume prompt' })).toBeEnabled();
@@ -297,8 +300,8 @@ describe('verdict follow-up notice', () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
     const next = screen.getByRole('button', { name: 'Switch to task-b' });
     expect(next).toHaveClass('bg-blue-600', 'text-white');
-    expect(status()).toHaveClass('border-blue-600');
-    for (const element of [next, status()]) expect(element.className).not.toMatch(/github-accent/);
+    expect(toast()).toHaveClass('border-blue-600');
+    for (const element of [next, toast()]) expect(element.className).not.toMatch(/github-accent/);
   });
 
   it('sizes its buttons like the verdict buttons above it', () => {
@@ -337,7 +340,7 @@ describe('verdict follow-up notice', () => {
     render(notice({ anchor: verdicts, step: { kind: 'close', reviews: 1 } }), {
       container: header,
     });
-    expect(header).not.toContainElement(status());
+    expect(header).not.toContainElement(toast());
   });
 
   // An absolute toast adds to the page's scroll size while it slides in from past the right edge,
@@ -345,7 +348,7 @@ describe('verdict follow-up notice', () => {
   // Measured in headless Chromium at 1280 px: scrollWidth reached 1291 during the slide-in.
   it('stays out of the page scroll size, so it cannot flash a scrollbar', () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
-    expect(status().style.position).toBe('fixed');
+    expect(toast().style.position).toBe('fixed');
   });
 
   // The portal mounts the notice at the end of the page; a keyboard user who just pressed a
@@ -361,20 +364,140 @@ describe('verdict follow-up notice', () => {
         <button type="button">Next control</button>
       </>,
     );
-    screen.getByRole('button', { name: 'Reject' }).focus();
-    await user.tab();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Switch to task-b' })).toHaveFocus(),
+    );
+    await user.tab({ shift: true });
     expect(screen.getByRole('button', { name: 'Undo' })).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.getByRole('button', { name: 'Reject' })).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole('button', { name: 'Switch to task-b' })).toHaveFocus();
+    await user.tab();
     await user.tab();
     expect(screen.getByRole('button', { name: 'Dismiss' })).toHaveFocus();
+  });
+
+  describe('from the keyboard', () => {
+    // Return presses the focused button, so the toast focuses the one Return should press.
+    it('focuses the next step when it opens, so Return takes it', async () => {
+      const user = userEvent.setup();
+      const onProceed = vi.fn();
+      render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 }, onProceed }));
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Switch to task-b' })).toHaveFocus(),
+      );
+      await user.keyboard('{Enter}');
+      expect(onProceed).toHaveBeenCalledOnce();
+    });
+
+    it('focuses the copy button in the resume handoff', async () => {
+      render(notice({ step: { kind: 'resume', reviews: 1, status: 'ready' } }));
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Copy resume prompt' })).toHaveFocus(),
+      );
+    });
+
+    // Never Undo: Return there would clear the verdict.
+    it('focuses the X when there is no next step to take', async () => {
+      render(notice({ step: { kind: 'close', reviews: 1 } }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Dismiss' })).toHaveFocus());
+    });
+
+    // Another tab can give the last verdict while the reviewer's focus is on Switch.
+    it('moves focus to the X when the focused next step goes away', async () => {
+      const { rerender } = render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Switch to task-b' })).toHaveFocus(),
+      );
+      rerender(notice({ step: { kind: 'close', reviews: 2 } }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Dismiss' })).toHaveFocus());
+    });
+
+    // A disabled button loses focus to the page, and a copy that then fails (no clipboard over
+    // plain HTTP) would leave Return and Escape with nothing to act on.
+    it('keeps focus on the copy button while it copies, so Return can retry a failed copy', async () => {
+      const { rerender } = render(
+        notice({ step: { kind: 'resume', reviews: 1, status: 'ready' } }),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Copy resume prompt' })).toHaveFocus(),
+      );
+      rerender(notice({ step: { kind: 'resume', reviews: 1, status: 'copying' } }));
+      const copying = screen.getByRole('button', { name: 'Copying…' });
+      expect(copying).not.toBeDisabled();
+      expect(copying).toHaveAttribute('aria-disabled', 'true');
+      expect(copying).toHaveFocus();
+      rerender(notice({ step: { kind: 'resume', reviews: 1, status: 'error' } }));
+      expect(screen.getByRole('button', { name: 'Copy resume prompt' })).toHaveFocus();
+    });
+
+    // A retried send can open the toast long after the click; typing in a comment then must not
+    // land on the toast, where Space would switch reviews.
+    it('leaves focus in a text field the reviewer is typing in, while it stays open', async () => {
+      const field = document.createElement('textarea');
+      const help = document.createElement('button');
+      document.body.append(field, help);
+      field.focus();
+      const step = { kind: 'switch', name: 'task-b', waiting: 1 } as const;
+      const { rerender } = render(notice({ step }));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(field).toHaveFocus();
+      // Leaving the field, say for Help, must not hand focus to the toast on its next render.
+      help.focus();
+      rerender(notice({ step: { ...step } }));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(help).toHaveFocus();
+      field.remove();
+      help.remove();
+    });
+
+    it('dismisses on Escape', async () => {
+      const user = userEvent.setup();
+      const onDismiss = vi.fn();
+      render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 }, onDismiss }));
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Switch to task-b' })).toHaveFocus(),
+      );
+      await user.keyboard('{Escape}');
+      expect(onDismiss).toHaveBeenCalledOnce();
+    });
+
+    // It takes focus, so it is a dialog; its message stays a live region, so a delivery report
+    // that changes after it opens is still read out.
+    it('is a non-modal dialog described by its message, which announces changes', () => {
+      render(notice({ step: { kind: 'close', reviews: 1 } }));
+      const message = screen.getByTestId('verdict-toast-detail');
+      expect(toast()).not.toHaveAttribute('aria-modal', 'true');
+      expect(toast()).toHaveAccessibleDescription(message.textContent ?? '');
+      expect(message).toHaveAttribute('aria-live', 'polite');
+    });
+
+    // The focus ring may not show after a mouse click, so a mark says Return is armed. Touch-only
+    // devices have no Return key to arm.
+    it('marks its focused next step with a Return glyph on pointer devices, and names the key', () => {
+      render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
+      const next = screen.getByRole('button', { name: 'Switch to task-b' });
+      expect(next).toHaveAttribute('title', 'Switch to task-b (Return)');
+      expect(next).toHaveClass('group');
+      const glyph = within(next).getByTestId('return-glyph');
+      expect(glyph).toHaveAttribute('aria-hidden', 'true');
+      expect(glyph).toHaveClass('hidden', 'pointer-fine:group-focus:inline');
+    });
+
+    it('names Return in the copy button title too', () => {
+      render(notice({ step: { kind: 'resume', reviews: 1, status: 'ready' } }));
+      expect(screen.getByRole('button', { name: 'Copy resume prompt' })).toHaveAttribute(
+        'title',
+        'Copy resume prompt (Return)',
+      );
+    });
   });
 
   it('says what to do with a copied resume prompt, and lets the reviewer undo or dismiss it', () => {
     const onDismiss = vi.fn();
     const onUndo = vi.fn();
     render(notice({ step: { kind: 'copied' }, onDismiss, onUndo }));
-    expect(status()).toHaveTextContent(
+    expect(toast()).toHaveTextContent(
       "Approved. Copied. Paste it into the agent's chat, then close this page.",
     );
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));

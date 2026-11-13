@@ -304,6 +304,18 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
               </div>
               <div className="flex justify-between text-sm">
                 <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
+                  Return
+                </kbd>
+                <span className="ui-value">After a verdict, take the toast's next step</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
+                  Esc
+                </kbd>
+                <span className="ui-value">After a verdict, dismiss the toast</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
                   c
                 </kbd>
                 <span className="ui-value">Add comment at current line</span>

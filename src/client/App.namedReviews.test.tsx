@@ -1486,7 +1486,7 @@ describe('named captures in the browser', () => {
 describe('after a verdict', () => {
   const verdictButton = (name: string) =>
     within(screen.getByRole('group', { name: 'Verdict' })).getByRole('button', { name });
-  const nextStep = () => screen.getByRole('status', { name: 'Next step' });
+  const nextStep = () => screen.getByRole('dialog', { name: 'Next step' });
 
   beforeEach(() => {
     localStorage.clear();
@@ -1572,7 +1572,21 @@ describe('after a verdict', () => {
     fireEvent.click(within(nextStep()).getByRole('button', { name: 'Switch to task-b' }));
     await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
     expect(window.history.length).toBe(entries + 1);
-    expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Next step' })).not.toBeInTheDocument();
+  });
+
+  // Shift+A, then Return: a verdict and the next review without the mouse.
+  it('opens the next review on Return after a verdict from the keyboard', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    fixture();
+    renderApp();
+    await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+    await user.keyboard('{Shift>}A{/Shift}');
+    await waitFor(() =>
+      expect(within(nextStep()).getByRole('button', { name: 'Switch to task-b' })).toHaveFocus(),
+    );
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
   });
 
   it('clears the verdict on Undo', async () => {
@@ -1588,7 +1602,7 @@ describe('after a verdict', () => {
       '/api/review-ops?review=task-a',
       expect.objectContaining({ method: 'POST', body: expect.stringContaining('"clear"') }),
     );
-    expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Next step' })).not.toBeInTheDocument();
   });
 
   it('ends the next step when the reviewer opens the next review from its tab', async () => {
@@ -1606,7 +1620,7 @@ describe('after a verdict', () => {
     fireEvent.click(within(barNow).getByRole('button', { name: 'task-a, Needs a verdict' }));
     await waitFor(() => expect(window.location.search).toBe('?review=task-a'));
     await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
-    expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Next step' })).not.toBeInTheDocument();
     await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
     expect(close).not.toHaveBeenCalled();
   });
@@ -1671,7 +1685,7 @@ describe('after a verdict', () => {
     renderApp();
     await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
     fireEvent.click(verdictButton('Approve'));
-    const toast = await screen.findByRole('status', { name: 'Next step' });
+    const toast = await screen.findByRole('dialog', { name: 'Next step' });
     expect(toast).toHaveTextContent('Sending to the agent…');
     expect(toast).not.toHaveTextContent('Sent to the agent');
     expect(toast).not.toHaveTextContent('close this page');
@@ -1702,7 +1716,7 @@ describe('after a verdict', () => {
       renderApp();
       await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
       fireEvent.click(verdictButton('Approve'));
-      const toast = await screen.findByRole('status', { name: 'Next step' });
+      const toast = await screen.findByRole('dialog', { name: 'Next step' });
       expect(toast).toHaveTextContent('Sending to the agent…');
       state.inbox = { status: 'queued', at: '2026-11-12T17:00:00.000Z', transport: 'queue' };
       await act(async () => {
@@ -1725,7 +1739,7 @@ describe('after a verdict', () => {
       renderApp();
       await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
       fireEvent.click(verdictButton('Approve'));
-      await screen.findByRole('status', { name: 'Next step' });
+      await screen.findByRole('dialog', { name: 'Next step' });
       state.inbox = { status: 'queued', at: '2026-11-12T17:00:00.000Z', transport: 'queue' };
       await act(async () => {
         await watch.inboxChanged?.();
@@ -1741,7 +1755,7 @@ describe('after a verdict', () => {
       renderApp();
       await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
       fireEvent.click(verdictButton('Approve'));
-      await screen.findByRole('status', { name: 'Next step' });
+      await screen.findByRole('dialog', { name: 'Next step' });
       state.inbox = {
         status: 'uncertain',
         at: '2026-11-12T17:00:00.000Z',
@@ -1762,7 +1776,7 @@ describe('after a verdict', () => {
       await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
       fireEvent.click(verdictButton('Approve'));
       expect(
-        await within(await screen.findByRole('status', { name: 'Next step' })).findByRole(
+        await within(await screen.findByRole('dialog', { name: 'Next step' })).findByRole(
           'button',
           { name: 'Copy resume prompt' },
         ),

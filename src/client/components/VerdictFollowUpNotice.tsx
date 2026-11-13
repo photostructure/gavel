@@ -8,7 +8,8 @@ import {
   shift,
   useFloating,
 } from '@floating-ui/react';
-import { X } from 'lucide-react';
+import { CornerDownLeft, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import type { ReviewVerdict } from '../../types/conversation';
 import type { ClientInboxDelivery } from '../hooks/useInboxDelivery';
@@ -87,6 +88,28 @@ export function VerdictFollowUpNotice({
     // hide: the header slides away while the diff scrolls on touch screens.
     middleware: [offset(6), flip(), shift({ padding: 8 }), hide()],
   });
+  const detailId = useId();
+  const nextRef = useRef<HTMLButtonElement>(null);
+  const dismissRef = useRef<HTMLButtonElement>(null);
+  const hasNext = step?.kind === 'switch' || step?.kind === 'resume';
+  // A next step that goes away while focused (another tab gave the last verdict, or the prompt
+  // was copied) drops focus to the page; the X takes it, so Escape and Tab still work.
+  useEffect(() => {
+    if (!hasNext && document.activeElement === document.body) dismissRef.current?.focus();
+  }, [hasNext]);
+  // A retried send can open the toast long after the click; a reviewer typing a comment by then
+  // keeps their focus, or their keystrokes would land on the toast. Decided once as it opens:
+  // Floating UI re-runs its initial focus whenever this changes.
+  const [typing, setTyping] = useState(false);
+  const [shown, setShown] = useState(false);
+  if (shown !== (step !== null)) {
+    setShown(step !== null);
+    const active = document.activeElement;
+    setTyping(
+      active instanceof HTMLElement &&
+        (active.isContentEditable || active.matches('input, textarea, select')),
+    );
+  }
   if (!step) return null;
   const allDone =
     step.kind === 'resume' &&
@@ -99,12 +122,13 @@ export function VerdictFollowUpNotice({
   const others = step.kind === 'switch' ? step.waiting - 1 : 0;
   return (
     <FloatingPortal>
-      {/* Non-modal and never moving focus: it keeps the notice in tab order right after the
-          verdict buttons, though the portal mounts it at the end of the page. */}
+      {/* Non-modal: the page stays usable, and the notice stays in tab order right after the
+          verdict buttons, though the portal mounts it at the end of the page. It focuses the
+          button Return should press: the next step, or the X when there is none, never Undo. */}
       <FloatingFocusManager
         context={context}
         modal={false}
-        initialFocus={-1}
+        initialFocus={typing ? -1 : hasNext ? nextRef : dismissRef}
         returnFocus={false}
         closeOnFocusOut={false}
       >
@@ -112,8 +136,14 @@ export function VerdictFollowUpNotice({
             outside the border and a denser shadow set the toast off, as GitHub's dark overlays do. */}
         <div
           ref={refs.setFloating}
-          role="status"
+          role="dialog"
           aria-label="Next step"
+          aria-describedby={detailId}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            onDismiss();
+          }}
           style={{
             ...floatingStyles,
             visibility: middlewareData.hide?.referenceHidden ? 'hidden' : 'visible',
@@ -123,7 +153,13 @@ export function VerdictFollowUpNotice({
         >
           {/* A toast's usual anatomy: the message, its close X in the top-right corner, and the
               actions below at the right, the primary one last. The X comes last in tab order. */}
-          <p data-testid="verdict-toast-detail" className="flex items-start gap-2 pr-8">
+          {/* A live region, so a delivery report that changes after the toast opens is read out. */}
+          <p
+            id={detailId}
+            data-testid="verdict-toast-detail"
+            aria-live="polite"
+            className="flex items-start gap-2 pr-8"
+          >
             {report && (
               <span className={`shrink-0 ${deliveryColor(report.state)}`}>
                 <DeliveryGlyph state={report.state} />
@@ -168,13 +204,20 @@ export function VerdictFollowUpNotice({
               Undo
             </button>
             {/* Blue, not green: green means approval on the verdict buttons beside it. */}
-            {(step.kind === 'switch' || step.kind === 'resume') && (
+            {hasNext && (
               <button
+                ref={nextRef}
                 type="button"
                 onClick={onProceed}
-                disabled={step.kind === 'resume' && step.status === 'copying'}
-                {...(step.kind === 'switch' ? { title: `Switch to ${step.name}` } : {})}
-                className={`${verdictButtonClasses} min-w-0 max-w-full shrink-0 border-blue-600 bg-blue-600 text-white hover:opacity-90`}
+                // Not disabled: a disabled button drops focus to the page, so Return could not
+                // retry a failed copy. The hook ignores a click while a copy is under way.
+                aria-disabled={(step.kind === 'resume' && step.status === 'copying') || undefined}
+                title={
+                  step.kind === 'switch'
+                    ? `Switch to ${step.name} (Return)`
+                    : 'Copy resume prompt (Return)'
+                }
+                className={`group ${verdictButtonClasses} min-w-0 max-w-full shrink-0 border-blue-600 bg-blue-600 text-white hover:opacity-90 aria-disabled:opacity-60`}
               >
                 {step.kind === 'switch' ? (
                   <>
@@ -185,11 +228,20 @@ export function VerdictFollowUpNotice({
                 ) : (
                   'Copy resume prompt'
                 )}
+                {/* The focus ring may not show after a mouse click, so this says Return will
+                    press the button. Touch-only screens have no Return key. */}
+                <CornerDownLeft
+                  data-testid="return-glyph"
+                  size={14}
+                  aria-hidden="true"
+                  className="hidden shrink-0 opacity-70 pointer-fine:group-focus:inline"
+                />
               </button>
             )}
           </div>
           {/* The sidebars' close button. */}
           <button
+            ref={dismissRef}
             type="button"
             onClick={onDismiss}
             aria-label="Dismiss"

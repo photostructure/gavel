@@ -1289,7 +1289,7 @@ describe('App Component - Ship it', () => {
     expect(screen.queryByText('Shipped')).not.toBeInTheDocument();
     fireEvent.click(button);
     await waitFor(() => expect(button).toHaveTextContent(/^Approve$/));
-    expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Next step' })).not.toBeInTheDocument();
     expect(button).toHaveTextContent(/^Approve$/);
     expect(button).toHaveAttribute('title', APPROVE_TITLE);
     expect(button).toBeEnabled();

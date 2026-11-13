@@ -446,7 +446,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
     state.fail = false;
 
     reconnect();
-    expect(await screen.findByRole('status', { name: 'Next step' })).toBeVisible();
+    expect(await screen.findByRole('dialog', { name: 'Next step' })).toBeVisible();
   });
 
   it('celebrates once for two approvals clicked while the first waits', async () => {
@@ -467,7 +467,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
 
     reconnect();
 
-    expect(await screen.findByRole('status', { name: 'Next step' })).toBeVisible();
+    expect(await screen.findByRole('dialog', { name: 'Next step' })).toBeVisible();
     expect(state.applied.map(({ type }) => type)).toEqual(['verdict.set', 'verdict.set']);
     expect(bursts).toBe(1);
   });
@@ -497,7 +497,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
     await act(async () => releaseReviews());
 
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(screen.queryByRole('status', { name: 'Next step' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Next step' })).toBeNull();
   });
 
   it('celebrates and moves on when the read an approval event starts answers after its own', async () => {
@@ -520,7 +520,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
     await act(async () => state.heldApprovalReads.shift()!());
     await act(async () => state.heldApprovalReads.shift()!());
 
-    expect(await screen.findByRole('status', { name: 'Next step' })).toBeVisible();
+    expect(await screen.findByRole('dialog', { name: 'Next step' })).toBeVisible();
     expect(bursts).toBe(1);
   });
 
@@ -544,7 +544,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
     await act(async () => state.heldApprovalReads.shift()!());
 
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(screen.queryByRole('status', { name: 'Next step' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Next step' })).toBeNull();
     expect(bursts).toBe(0);
   });
 

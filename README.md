@@ -68,6 +68,8 @@ Give each proposed commit a verdict:
 - **Reject** stops the agent, which asks you what to do instead and whether to revert.
 
 From the keyboard, Shift+A approves and Shift+X rejects; `?` lists every shortcut.
+The toast that follows a verdict takes focus: Return takes its next step, such as
+switching to the next review, and Escape dismisses it.
 
 The agent must run the required checks before committing. See
 [approval modes](docs/approval-modes.md) for details.

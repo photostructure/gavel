@@ -40,6 +40,8 @@ describe('HelpModal', () => {
     const row = (description: string) => screen.getByText(description).parentElement;
     expect(row('Approve this review')).toHaveTextContent(/^Shift\+A/);
     expect(row('Reject this review')).toHaveTextContent(/^Shift\+X/);
+    expect(row("After a verdict, take the toast's next step")).toHaveTextContent(/^Return/);
+    expect(row('After a verdict, dismiss the toast')).toHaveTextContent(/^Esc/);
   });
 
   it('takes focus from the button that opened About, and returns it on close', async () => {
