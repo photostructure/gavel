@@ -28,6 +28,15 @@ const watch = vi.hoisted(() => ({
   reload: undefined as (() => Promise<void>) | undefined,
   connected: true,
 }));
+// happy-dom has no canvas, so the bursts never play here; this records each one's stop.
+const celebration = vi.hoisted(() => ({ stops: [] as (() => void)[] }));
+vi.mock('./utils/approvalCelebration', () => ({
+  celebrateApproval: () => {
+    const stop = vi.fn();
+    celebration.stops.push(stop);
+    return stop;
+  },
+}));
 vi.mock('./hooks/useFileWatch', () => ({
   useFileWatch: (
     onReload?: () => Promise<void>,
@@ -1590,6 +1599,36 @@ describe('after a verdict', () => {
     );
     await user.keyboard('{Enter}');
     await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
+  });
+
+  it('ends the approval celebration when another review opens', async () => {
+    celebration.stops = [];
+    fixture();
+    renderApp();
+    await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve'));
+    await waitFor(() => expect(nextStep()).toHaveTextContent('Switch to task-b'));
+    expect(celebration.stops).toHaveLength(1);
+    expect(celebration.stops[0]).not.toHaveBeenCalled();
+    fireEvent.click(within(nextStep()).getByRole('button', { name: 'Switch to task-b' }));
+    await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
+    expect(celebration.stops[0]).toHaveBeenCalledOnce();
+  });
+
+  // Each approval starts its own burst; a new one ends the last, so none outlives the review.
+  it('ends a running celebration when an approval after Undo starts another', async () => {
+    celebration.stops = [];
+    fixture();
+    renderApp();
+    await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve'));
+    await waitFor(() => expect(nextStep()).toHaveTextContent('Switch to task-b'));
+    fireEvent.click(within(nextStep()).getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(verdictButton('Approve')).toHaveAttribute('aria-pressed', 'false'));
+    fireEvent.click(verdictButton('Approve'));
+    await waitFor(() => expect(celebration.stops).toHaveLength(2));
+    expect(celebration.stops[0]).toHaveBeenCalledOnce();
+    expect(celebration.stops[1]).not.toHaveBeenCalled();
   });
 
   it('clears the verdict on Undo', async () => {

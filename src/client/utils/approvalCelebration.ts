@@ -953,13 +953,14 @@ export function pickApprovalAnimation(
  * Fires one burst over the whole page from `source`, picked at random from the
  * enabled animations. The burst is not tied to a component, so re-rendering or
  * remounting the page cannot replay it; its canvas removes itself when it ends.
+ * Returns a function that ends it early.
  */
 export function celebrateApproval(
   source: Element,
   animations: Record<ApprovalAnimation, boolean>,
-): void {
+): () => void {
   const animation = pickApprovalAnimation(animations);
-  if (!animation || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!animation || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {};
 
   const width = window.innerWidth;
   const height = window.innerHeight;
@@ -973,8 +974,9 @@ export function celebrateApproval(
   canvas.height = Math.round(height * ratio);
   // getContext returns null where canvas is unsupported, such as in happy-dom.
   const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+  if (!ctx) return () => {};
   document.body.appendChild(canvas);
+  let stopped = false;
 
   const origin = source.getBoundingClientRect();
   const cx = origin.left + origin.width / 2;
@@ -996,6 +998,7 @@ export function celebrateApproval(
   let pending = 0;
   let last = performance.now();
   requestAnimationFrame(function tick(now) {
+    if (stopped) return;
     // Fixed physics steps keep the flight at a steady speed and stable when frames are dropped.
     pending += Math.min((now - last) / 1000, MAX_FRAME) * SPEED;
     last = now;
@@ -1015,4 +1018,8 @@ export function celebrateApproval(
     if (pieces.length > 0 && elapsed < duration) requestAnimationFrame(tick);
     else canvas.remove();
   });
+  return () => {
+    stopped = true;
+    canvas.remove();
+  };
 }

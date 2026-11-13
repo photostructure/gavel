@@ -75,6 +75,20 @@ describe('celebrateApproval', () => {
     expect(document.querySelector('canvas')).toBeNull();
   });
 
+  // Opening another review ends the burst, so it does not play over a review it was not for.
+  it('stops and removes its canvas when the stop it returns is called', () => {
+    const stop = celebrateApproval(source, only('confetti'));
+    expect(document.querySelector('canvas')).not.toBeNull();
+    stop();
+    expect(document.querySelector('canvas')).toBeNull();
+    const tick = frame;
+    frame = undefined;
+    drawCalls = 0;
+    tick?.(performance.now() + 1000 / 60);
+    expect(frame).toBeUndefined();
+    expect(drawCalls).toBe(0);
+  });
+
   it.each(ANIMATIONS)(
     'plays %s to the end within 3 seconds and removes its canvas',
     (animation) => {

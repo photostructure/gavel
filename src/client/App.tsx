@@ -235,6 +235,8 @@ function App() {
   // Follows a rename or delete of the open review, replacing its history entry; set once
   // handleRevisionChange exists.
   const switchReviewRef = useRef<((selection: ReviewSelection) => void) | null>(null);
+  // Ends the latest approval celebration early.
+  const stopCelebrationRef = useRef<(() => void) | null>(null);
   const [selectedRevision, setSelectedRevision] = useState<ReviewSelection>(
     () => readReviewLocation() ?? createDiffSelection('', ''),
   );
@@ -436,7 +438,12 @@ function App() {
     const stillGiven = () => latest() && approval.servedVerdict() === verdict;
     if (!stillGiven()) return;
     if (verdict === 'approve' && shownVerdict !== 'approve' && approvalControlRef.current) {
-      celebrateApproval(approvalControlRef.current, settings.approvalAnimations);
+      // An approval after Undo starts a second burst; the first ends rather than outlive it.
+      stopCelebrationRef.current?.();
+      stopCelebrationRef.current = celebrateApproval(
+        approvalControlRef.current,
+        settings.approvalAnimations,
+      );
     }
     // The next step depends on the other reviews' verdicts. start() sees the list from the
     // click's render; the hook corrects the step from the refreshed list on the next one. The
@@ -1561,6 +1568,8 @@ function App() {
       )
         return;
 
+      // A burst over the review the reviewer has left would celebrate the wrong review.
+      stopCelebrationRef.current?.();
       if (history) writeReviewLocation(nextSelection, history);
       preserveReviewLocationRef.current = history === null;
 
