@@ -46,6 +46,8 @@ interface FileListProps {
   onToggleReviewed: (path: string) => void;
   onToggleFolderReviewed: (path: string, reviewed: boolean) => void;
   selectedFilePath: string | null;
+  /** Highlights the Change summary row, as selectedFilePath highlights a file. */
+  summarySelected?: boolean;
 }
 
 interface TreeNode {
@@ -225,6 +227,7 @@ export const FileList = memo(function FileList({
   onToggleReviewed,
   onToggleFolderReviewed,
   selectedFilePath,
+  summarySelected = false,
 }: FileListProps) {
   const fileTree = useMemo(() => buildFileTree(files), [files]);
   const shouldUseStickyDirectoryHeaders = useMemo(
@@ -593,7 +596,9 @@ export const FileList = memo(function FileList({
         {onScrollToSummary && (
           <button
             type="button"
-            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-github-text-primary hover:bg-github-bg-tertiary focus-visible:outline-2 focus-visible:outline-github-accent"
+            className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-github-text-primary hover:bg-github-bg-tertiary focus-visible:outline-2 focus-visible:outline-github-accent ${
+              summarySelected ? 'file-tree-row-selected' : ''
+            }`}
             onClick={() => {
               onScrollToSummary();
               onFileSelected?.();

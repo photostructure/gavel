@@ -3058,6 +3058,44 @@ describe('change summary placement', () => {
     expect(screen.queryByRole('button', { name: 'Change summary' })).toBeNull();
   });
 
+  // The summary sits above the files. While it is at the top of the diff and no file holds the
+  // cursor, the file list highlights its Change summary row instead of the first file.
+  it('highlights the Change summary row while the summary is at the top of the diff', async () => {
+    mockComments = [];
+    mockSummary({ commitMessage: '', rationale: 'Explain the change.' });
+    renderApp();
+    await screen.findByText('Explain the change.');
+    const main = screen.getByRole('main');
+    // The summary spans 0–200 and test.ts 224–624, inside the 0–600 view.
+    let scrollTop = 0;
+    const rect = (top: number, height: number) =>
+      ({ top, bottom: top + height, height }) as DOMRect;
+    const spy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        if (this === main) return rect(0, 600);
+        if ('reviewSummary' in this.dataset) return rect(-scrollTop, 200);
+        if (this.dataset.filePath === 'test.ts') return rect(224 - scrollTop, 400);
+        return rect(0, 0);
+      });
+    onTestFinished(() => spy.mockRestore());
+    const scrollTo = async (top: number) => {
+      scrollTop = top;
+      fireEvent.scroll(main);
+      await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    };
+    const summaryRow = screen.getByRole('button', { name: 'Change summary' });
+    const fileRow = screen.getByTitle('test.ts').closest('[data-file-row]');
+
+    await scrollTo(10);
+    expect(summaryRow).toHaveClass('file-tree-row-selected');
+    expect(fileRow).not.toHaveClass('file-tree-row-selected');
+
+    await scrollTo(300);
+    expect(summaryRow).not.toHaveClass('file-tree-row-selected');
+    expect(fileRow).toHaveClass('file-tree-row-selected');
+  });
+
   it('jumps to the summary from the top of Files changed', async () => {
     mockComments = [];
     mockSummary({ commitMessage: '', rationale: 'Explain the change.' });

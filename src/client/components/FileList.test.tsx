@@ -101,6 +101,27 @@ describe('FileList', () => {
     expect(onFileSelected).toHaveBeenCalledOnce();
   });
 
+  it('highlights the change summary row like a selected file', () => {
+    const props = {
+      files: [createFile('README.md')],
+      onScrollToFile: vi.fn(),
+      onScrollToSummary: vi.fn(),
+      comments: [],
+      unreadUpdates: [],
+      reviewedFiles: new Set<string>(),
+      onToggleReviewed: vi.fn(),
+      onToggleFolderReviewed: vi.fn(),
+      selectedFilePath: null,
+    };
+    const { rerender } = render(<FileList {...props} summarySelected={false} />);
+    const summary = screen.getByRole('button', { name: 'Change summary' });
+    expect(summary).not.toHaveClass('file-tree-row-selected');
+
+    rerender(<FileList {...props} summarySelected />);
+
+    expect(summary).toHaveClass('file-tree-row-selected');
+  });
+
   it('strikes through directories when all descendant files are reviewed', () => {
     const files = [
       createFile('src/cli/index.ts'),

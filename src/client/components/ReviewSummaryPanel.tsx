@@ -24,6 +24,8 @@ export function ReviewSummaryPanel({
   return (
     <section
       aria-label="Change summary"
+      // useTopVisibleFile finds the summary among the diff's files by this attribute.
+      data-review-summary=""
       className="border-b border-github-border bg-github-bg-secondary px-4 py-3"
     >
       <div className="grid min-w-0 gap-3 md:grid-cols-2">

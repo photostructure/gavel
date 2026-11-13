@@ -1072,6 +1072,11 @@ function App() {
     cursor ? (diffData?.files[cursor.fileIndex]?.path ?? null) : null,
     !loading,
   );
+  // The file list has a Change summary row only while the summary says something. That row,
+  // rather than the first file, is highlighted while the summary is at the top and no file
+  // holds the cursor.
+  const hasSummary = Boolean(summary.commitMessage.trim() || summary.rationale.trim());
+  const summarySelected = hasSummary && cursorFile.path === null && topVisibleFile.summaryAtTop;
 
   // Clicking a comment puts the cursor on the comment's line, as following a link to it does.
   // It runs on <main>'s capture phase: every click first clears the cursor (handleGlobalClick,
@@ -2261,7 +2266,7 @@ function App() {
                   onScrollToFirstComment={handleFirstCommentOpened}
                   onScrollToSummary={
                     // Nothing to jump to while both fields are blank.
-                    summary.commitMessage.trim() || summary.rationale.trim()
+                    hasSummary
                       ? () => {
                           const main = diffScrollContainerRef.current;
                           if (!main) throw new Error('The diff scroll area is not mounted');
@@ -2278,7 +2283,10 @@ function App() {
                   viewedStateReady={viewedStateReady}
                   onToggleReviewed={toggleFileReviewed}
                   onToggleFolderReviewed={toggleFolderReviewed}
-                  selectedFilePath={cursorFile.path ?? topVisibleFile.topFilePath}
+                  selectedFilePath={
+                    cursorFile.path ?? (summarySelected ? null : topVisibleFile.topFilePath)
+                  }
+                  summarySelected={summarySelected}
                 />
               </div>
             </aside>
