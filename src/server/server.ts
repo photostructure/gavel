@@ -552,13 +552,6 @@ export async function startServer(options: ServerOptions): Promise<{
   );
   app.use(express.json());
 
-  app.use((_req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'http://localhost:*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-    next();
-  });
-
   // Skip validation if using stdin diff
   if (!options.stdinDiff && !initialNamedReview) {
     const isValidCommit = await parser.validateCommit(initialSelection.targetCommitish);

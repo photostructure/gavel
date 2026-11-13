@@ -2232,21 +2232,20 @@ describe('Server Integration Tests', () => {
   });
 
   describe('CORS configuration', () => {
-    it('sets correct CORS headers', async () => {
+    // The UI is same-origin, and Vite proxies /api in development, so no origin needs access.
+    it('grants no cross-origin access', async () => {
       const result = await startServer({
         selection: { targetCommitish: 'HEAD', baseCommitish: 'HEAD^' },
       });
       servers.push(result.server);
 
-      const response = await fetch(`http://localhost:${result.port}/api/diff`);
+      const response = await fetch(`http://localhost:${result.port}/api/diff`, {
+        headers: { Origin: 'http://localhost:5173' },
+      });
 
-      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:*');
-      expect(response.headers.get('Access-Control-Allow-Methods')).toBe(
-        'GET, POST, PUT, DELETE, OPTIONS',
-      );
-      expect(response.headers.get('Access-Control-Allow-Headers')).toBe(
-        'Origin, X-Requested-With, Content-Type, Accept',
-      );
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull();
+      expect(response.headers.get('Access-Control-Allow-Methods')).toBeNull();
+      expect(response.headers.get('Access-Control-Allow-Headers')).toBeNull();
     });
   });
 
