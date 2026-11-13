@@ -148,7 +148,8 @@ Check these before merging work that touches approval, the header, or review tab
      "Sent to the agent. All 2 reviews have a verdict, so you can close this
      page.", and offers only **Undo** and **×**.
   3. Reload with a review that has no verdict. The browser asks before leaving.
-  4. After a verdict, Tab past the remaining verdict buttons. Focus moves to
-     **Undo**, then **Switch to `<name>`** when another review needs a verdict,
-     then **×**.
+  4. Press Shift+A. The toast opens with focus on **Switch to `<name>`** (on **×**
+     when no review needs a verdict), showing a dimmed ↵ with a mouse or trackpad.
+     Return opens the next review; Escape dismisses the toast; Shift+Tab reaches
+     **Undo**.
   5. Click **Undo**. The verdict clears and the toast goes away.
