@@ -198,6 +198,24 @@ describe('navigating unseen agent replies', () => {
       ),
     );
 
+  // Resolving says the reviewer is done with the thread; reopening leaves its replies read.
+  it.each([
+    [
+      'the Resolve button',
+      () => fireEvent.click(screen.getByRole('button', { name: 'Resolve thread' })),
+    ],
+    ['the d key', () => fireEvent.keyDown(document.body, { key: 'd', code: 'KeyD' })],
+  ])('marks a thread read when the reviewer resolves it with %s', async (_how, resolve) => {
+    threads = threads.slice(0, 1);
+    mount();
+    await expectUnread(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation' }));
+
+    resolve();
+
+    await expectUnread(0);
+  });
+
   it('counts replies from every review and opens another review at its unread thread', async () => {
     otherThreads = [
       {

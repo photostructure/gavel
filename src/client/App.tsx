@@ -1639,6 +1639,21 @@ function App() {
       setAgentMessageRead(update.thread.id, update.message.id, update.revision, true);
     }
   }, [agentUpdates, setAgentMessageRead]);
+  // Resolving says the reviewer is done with a thread, so its agent replies count as read;
+  // reopening leaves them read.
+  const handleToggleThreadResolved = useCallback(
+    (threadId: string) => {
+      if (!threads.find((thread) => thread.id === threadId)?.resolution?.resolved) {
+        for (const update of agentUpdates) {
+          if (update.thread.id === threadId) {
+            setAgentMessageRead(update.thread.id, update.message.id, update.revision, true);
+          }
+        }
+      }
+      toggleThreadResolved(threadId);
+    },
+    [agentUpdates, setAgentMessageRead, threads, toggleThreadResolved],
+  );
   const markThisReviewRepliesRead = useCallback(() => {
     for (const update of agentUpdates) {
       if (normalizedThreads.includes(update.thread)) {
@@ -2266,7 +2281,7 @@ function App() {
                       onToggleAllCollapsed={toggleAllFilesCollapsed}
                       onAddComment={handleAddComment}
                       onGenerateThreadPrompt={handleGenerateThreadPrompt}
-                      onToggleThreadResolved={toggleThreadResolved}
+                      onToggleThreadResolved={handleToggleThreadResolved}
                       onRemoveThread={removeThread}
                       onRestoreComment={restoreComment}
                       onReplyToThread={handleReplyToThread}
@@ -2399,7 +2414,7 @@ function App() {
             return Promise.resolve();
           }}
           showAuthorBadges={showAuthorBadges}
-          onToggleThreadResolved={toggleThreadResolved}
+          onToggleThreadResolved={handleToggleThreadResolved}
           onRemoveThread={removeThread}
           onRestoreComment={restoreComment}
           onGenerateThreadPrompt={handleGenerateThreadPrompt}

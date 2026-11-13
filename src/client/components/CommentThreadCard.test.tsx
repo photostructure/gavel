@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type ComponentProps } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -803,53 +803,18 @@ describe('thread disclosure and replies', () => {
     ],
   };
 
-  it('offers quick replies beside the reply field when the agent replied last', () => {
+  // Resolve closes a thread that needs nothing more without waking the agent; a typed reply
+  // says anything else.
+  it('offers only the reply field after an agent reply', () => {
     renderThread({ thread: agentAnswered });
 
-    const row = screen.getByRole('group', { name: 'Reply' });
+    const replyArea = screen.getByRole('button', { name: 'Write a reply...' }).parentElement!;
     expect(
-      within(row)
+      within(replyArea)
         .getAllByRole('button')
-        .map((button) => [button.textContent, button.getAttribute('title')]),
-    ).toEqual([
-      ['👍 Agreed', 'Send "👍 Agreed: no reply needed." as a comment'],
-      [
-        '❓ Still unclear',
-        'Send "❓ Still unclear: please explain again in different words." as a question',
-      ],
-      ['👎 Disagree', 'Send "👎 Disagree: please reconsider, or defend the point." as a question'],
-      ['Write a reply...', null],
-    ]);
+        .map((button) => button.textContent),
+    ).toEqual(['Write a reply...']);
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-  });
-
-  it.each([
-    ['👍 Agreed', '👍 Agreed: no reply needed.', 'comment'],
-    ['❓ Still unclear', '❓ Still unclear: please explain again in different words.', 'question'],
-    ['👎 Disagree', '👎 Disagree: please reconsider, or defend the point.', 'question'],
-  ])('sends %s as an ordinary reply with one click', async (label, body, intent) => {
-    const user = userEvent.setup();
-    const onReplyToThread = vi.fn().mockResolvedValue(undefined);
-    const onClick = vi.fn();
-    renderThread({ thread: agentAnswered, onReplyToThread, onClick });
-
-    await user.click(screen.getByRole('button', { name: label }));
-
-    expect(onReplyToThread).toHaveBeenCalledWith('thread-1', body, intent);
-    expect(onClick).not.toHaveBeenCalled();
-  });
-
-  it('offers only the reply field when the newest visible message is not an agent reply', () => {
-    renderThread({
-      thread: { ...agentAnswered, deletedMessageIds: [agentAnswered.messages[1]!.id] },
-    });
-    expect(screen.queryByRole('button', { name: '👍 Agreed' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Write a reply...' })).toBeInTheDocument();
-
-    cleanup();
-    renderThread();
-    expect(screen.queryByRole('button', { name: '👍 Agreed' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Write a reply...' })).toBeInTheDocument();
   });
 
   it('opens a focused reply form and collapses it after sending', async () => {
@@ -861,7 +826,6 @@ describe('thread disclosure and replies', () => {
     await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
     const reply = screen.getByPlaceholderText('Write a reply...');
     expect(reply).toHaveFocus();
-    expect(screen.queryByRole('button', { name: '👍 Agreed' })).not.toBeInTheDocument();
     await user.type(reply, 'A new reply');
     await user.click(screen.getByRole('button', { name: 'Send' }));
 

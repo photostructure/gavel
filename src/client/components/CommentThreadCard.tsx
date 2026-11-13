@@ -31,22 +31,6 @@ import { CommentBodyRenderer } from './CommentBodyRenderer';
 import { CommentForm, type CommentSubmitOptions } from './CommentForm';
 import type { AppearanceSettings } from './SettingsModal';
 
-// One-click answers to an agent reply. They are ordinary replies, so agents
-// receive, acknowledge, and answer them like typed ones.
-const QUICK_REPLIES: readonly { label: string; body: string; intent: CommentIntent }[] = [
-  { label: '👍 Agreed', body: '👍 Agreed: no reply needed.', intent: 'comment' },
-  {
-    label: '❓ Still unclear',
-    body: '❓ Still unclear: please explain again in different words.',
-    intent: 'question',
-  },
-  {
-    label: '👎 Disagree',
-    body: '👎 Disagree: please reconsider, or defend the point.',
-    intent: 'question',
-  },
-];
-
 // A reply or edit form is 'restored' when it shows a saved draft nobody opened here:
 // this card mounted with one (after a reload or a review switch) or another tab
 // started one. A restored form does not take focus, and closes when its draft goes
@@ -454,9 +438,6 @@ export function CommentThreadCard({
     returnFocusToReplyTrigger.current = false;
     replyTrigger.current?.focus();
   }, [isReplying]);
-  const agentRepliedLast =
-    thread.messages.filter((message) => !thread.deletedMessageIds?.includes(message.id)).at(-1)
-      ?.origin === 'agent';
   const lineLabel = Array.isArray(thread.line)
     ? `${thread.line[0]}-${thread.line[1]}`
     : thread.line;
@@ -775,38 +756,14 @@ export function CommentThreadCard({
                     draftKey={replyDraft.key}
                   />
                 ) : (
-                  <div
-                    role="group"
-                    aria-label="Reply"
-                    className="flex flex-wrap items-center gap-2"
+                  <button
+                    ref={replyTrigger}
+                    type="button"
+                    onClick={() => setReplyForm('opened')}
+                    className="w-full cursor-text rounded border border-github-border bg-github-bg-secondary px-3 py-1.5 text-left text-sm text-github-text-muted transition-colors hover:border-github-text-secondary"
                   >
-                    {agentRepliedLast &&
-                      QUICK_REPLIES.map(({ label, body, intent }) => (
-                        <button
-                          key={label}
-                          type="button"
-                          title={`Send "${body}" as a ${intent}`}
-                          onClick={() => {
-                            onReplyToThread(thread.id, body, intent)
-                              .then(markAgentRepliesRead)
-                              .catch((error: unknown) => {
-                                console.error('Failed to send quick reply:', error);
-                              });
-                          }}
-                          className="whitespace-nowrap rounded-full border border-github-border bg-github-bg-secondary px-3 py-1 text-xs text-github-text-primary transition-colors hover:border-github-text-secondary hover:bg-github-bg-primary"
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    <button
-                      ref={replyTrigger}
-                      type="button"
-                      onClick={() => setReplyForm('opened')}
-                      className="min-w-40 flex-1 cursor-text rounded border border-github-border bg-github-bg-secondary px-3 py-1.5 text-left text-sm text-github-text-muted transition-colors hover:border-github-text-secondary"
-                    >
-                      Write a reply...
-                    </button>
-                  </div>
+                    Write a reply...
+                  </button>
                 )}
               </div>
             )}

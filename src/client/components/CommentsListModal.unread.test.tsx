@@ -160,7 +160,7 @@ describe('unread conversations', () => {
     expect(onMarkAllRead).not.toHaveBeenCalled();
   });
 
-  it('marks a thread read when the reviewer sends a quick reply or a typed reply', async () => {
+  it('marks a thread read when the reviewer sends a reply', async () => {
     const a = thread('a');
     const setRead = vi.fn();
     const readState = readStateFor(a, setRead);
@@ -171,10 +171,6 @@ describe('unread conversations', () => {
       { wrapper },
     );
     const revision = agentMessageRevision(a.messages[1]!);
-    fireEvent.click(screen.getByRole('button', { name: '👍 Agreed' }));
-    await waitFor(() => expect(setRead).toHaveBeenCalledWith('a', 'a-reply-0', revision, true));
-
-    setRead.mockClear();
     fireEvent.click(screen.getByRole('button', { name: 'Write a reply...' }));
     fireEvent.change(screen.getByPlaceholderText('Write a reply...'), {
       target: { value: 'Thanks' },
