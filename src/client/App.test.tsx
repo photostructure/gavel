@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest';
 import '@testing-library/jest-dom';
 
@@ -503,6 +504,185 @@ describe('App Component - Clear Comments Functionality', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  // The line cursor is where you are: clicking a comment or picking a file in the sidebar moves
+  // it, and the sidebar highlights its file while that file is on screen.
+  describe('the sidebar highlight follows the line cursor', () => {
+    const file = (path: string) => ({
+      path,
+      status: 'modified' as const,
+      additions: 1,
+      deletions: 0,
+      chunks: [
+        {
+          header: '@@ -0,0 +1 @@',
+          oldStart: 0,
+          oldLines: 0,
+          newStart: 1,
+          newLines: 1,
+          lines: [
+            { type: 'add' as const, content: `const ${path.slice(0, -3)} = 1;`, newLineNumber: 1 },
+          ],
+        },
+      ],
+    });
+    // first.ts spans 0–400 in the diff and second.ts 424–824, both inside the 0–900 view.
+    const mockLayout = () => {
+      const diff = screen.getByRole('main');
+      const rect = (top: number, height: number) =>
+        ({ top, bottom: top + height, height }) as DOMRect;
+      const spy = vi
+        .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+        .mockImplementation(function (this: HTMLElement) {
+          if (this === diff) return rect(0, 900);
+          if (this.dataset.filePath === 'first.ts') return rect(0, 400);
+          if (this.dataset.filePath === 'second.ts') return rect(424, 400);
+          return rect(0, 0);
+        });
+      onTestFinished(() => spy.mockRestore());
+    };
+    const row = (path: string) => screen.getByTitle(path).closest('[data-file-row]');
+
+    const cursorText = () =>
+      Array.from(document.querySelectorAll('.keyboard-cursor'), (cell) => cell.textContent).join(
+        ' ',
+      );
+    const renderTwoFiles = async () => {
+      mockComments = [
+        createMockThread({
+          id: 'second-thread',
+          filePath: 'second.ts',
+          line: 1,
+          body: 'Look here',
+        }),
+      ];
+      mockFetch({ ...mockDiffResponse, files: [file('first.ts'), file('second.ts')] });
+      renderApp();
+      await screen.findByText('Look here');
+      mockLayout();
+    };
+
+    // Focus also returns to a comment on its own (a closing panel restores it, the window
+    // regains it), so only a click on a comment moves the cursor.
+    it('leaves the cursor where it is when focus returns to a comment', async () => {
+      await renderTwoFiles();
+      fireEvent.keyDown(document.body, { key: 'j', code: 'KeyJ' });
+      await waitFor(() => expect(row('first.ts')).toHaveClass('file-tree-row-selected'));
+
+      const card = screen.getByText('Look here').closest<HTMLElement>('[data-comment-thread-id]')!;
+      act(() => card.focus());
+
+      expect(row('first.ts')).toHaveClass('file-tree-row-selected');
+      expect(cursorText()).toContain('const first = 1;');
+    });
+
+    // The heading's own click handler stops propagation, so the cursor is placed on capture.
+    it('moves to the file of a comment whose heading you click', async () => {
+      await renderTwoFiles();
+      fireEvent.keyDown(document.body, { key: 'j', code: 'KeyJ' });
+      await waitFor(() => expect(row('first.ts')).toHaveClass('file-tree-row-selected'));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Collapse thread' }));
+
+      await waitFor(() => expect(row('second.ts')).toHaveClass('file-tree-row-selected'));
+      expect(cursorText()).toContain('const second = 1;');
+    });
+
+    // Placing the cursor on a click inside a comment must not get in the way of the comment's
+    // own controls, such as the intent of a reply.
+    it.each(['Change request', 'Question'])(
+      'lets a reply choose %s with a mouse click',
+      async (intent) => {
+        const user = userEvent.setup();
+        await renderTwoFiles();
+        await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
+
+        await user.click(screen.getByRole('radio', { name: intent }));
+
+        expect(screen.getByRole('radio', { name: intent })).toBeChecked();
+      },
+    );
+
+    it('moves to the target of a link clicked inside a comment', async () => {
+      mockComments = [
+        createMockThread({
+          id: 'second-thread',
+          filePath: 'second.ts',
+          line: 1,
+          body: 'See [the first file](#file=first.ts&line=1)',
+        }),
+      ];
+      mockFetch({ ...mockDiffResponse, files: [file('first.ts'), file('second.ts')] });
+      renderApp();
+      await screen.findByRole('link', { name: 'the first file' });
+      mockLayout();
+
+      fireEvent.click(screen.getByRole('link', { name: 'the first file' }));
+
+      await waitFor(() => expect(cursorText()).toContain('const first = 1;'));
+      // The comment's own placement must not land after the link's.
+      await act(() => new Promise<void>((resolve) => setTimeout(resolve, 20)));
+      expect(cursorText()).toContain('const first = 1;');
+      expect(row('first.ts')).toHaveClass('file-tree-row-selected');
+    });
+
+    it('moves to the file whose first comment you jump to from the file list', async () => {
+      await renderTwoFiles();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Jump to first comment in second.ts' }));
+
+      await waitFor(() => expect(row('second.ts')).toHaveClass('file-tree-row-selected'));
+      expect(cursorText()).toContain('const second = 1;');
+    });
+
+    // Every click clears the cursor first (App's capture handler), so a click on a comment has
+    // to place it again after that.
+    it('moves to the file of a comment you click', async () => {
+      mockComments = [
+        createMockThread({
+          id: 'second-thread',
+          filePath: 'second.ts',
+          line: 1,
+          body: 'Look here',
+        }),
+      ];
+      mockFetch({ ...mockDiffResponse, files: [file('first.ts'), file('second.ts')] });
+      renderApp();
+      await screen.findByText('Look here');
+      mockLayout();
+
+      fireEvent.click(screen.getByText('Look here'));
+
+      await waitFor(() => expect(row('second.ts')).toHaveClass('file-tree-row-selected'));
+      expect(
+        Array.from(document.querySelectorAll('.keyboard-cursor'), (cell) => cell.textContent).join(
+          ' ',
+        ),
+      ).toContain('const second = 1;');
+    });
+
+    it('moves to the file you pick in the sidebar while the cursor is elsewhere on screen', async () => {
+      mockComments = [
+        createMockThread({
+          id: 'second-thread',
+          filePath: 'second.ts',
+          line: 1,
+          body: 'Look here',
+        }),
+      ];
+      mockFetch({ ...mockDiffResponse, files: [file('first.ts'), file('second.ts')] });
+      renderApp();
+      await screen.findByText('Look here');
+      mockLayout();
+      fireEvent.click(screen.getByText('Look here'));
+      await waitFor(() => expect(row('second.ts')).toHaveClass('file-tree-row-selected'));
+
+      fireEvent.click(row('first.ts')!);
+
+      await waitFor(() => expect(row('first.ts')).toHaveClass('file-tree-row-selected'));
+      expect(row('second.ts')).not.toHaveClass('file-tree-row-selected');
+    });
   });
 
   it('shows author badges in the comments modal when the diff has multiple authors', async () => {

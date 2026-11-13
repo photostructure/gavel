@@ -1,5 +1,5 @@
 import { Info, GitBranch, MessageSquare, PanelLeftClose, PanelLeft, Settings } from 'lucide-react';
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, type SyntheticEvent } from 'react';
 
 import type {
   ConversationSnapshot,
@@ -79,6 +79,7 @@ import { storageService } from './services/StorageService';
 import { useViewport } from './hooks/useViewport';
 import { useHeaderFit } from './hooks/useHeaderFit';
 import { useHideHeaderOnScroll } from './hooks/useHideHeaderOnScroll';
+import { useCursorFile } from './hooks/useCursorFile';
 import { useTopVisibleFile } from './hooks/useTopVisibleFile';
 import {
   onSettingsSaveError,
@@ -1064,6 +1065,59 @@ function App() {
       },
     });
 
+  // The line cursor is the one record of where you are. The sidebar highlights its file while
+  // that file is on screen, or else the file at the top of the screen.
+  const cursorFile = useCursorFile(
+    diffScrollContainerRef,
+    cursor ? (diffData?.files[cursor.fileIndex]?.path ?? null) : null,
+    !loading,
+  );
+
+  // Clicking a comment puts the cursor on the comment's line, as following a link to it does.
+  // It runs on <main>'s capture phase: every click first clears the cursor (handleGlobalClick,
+  // the root's capture handler), and comment controls such as the heading and Resolve stop
+  // propagation. It does not run on focus, which also returns to a comment without the reviewer
+  // going there (a closing panel restores it, or the window regains it).
+  const placeCursorAtComment = (event: SyntheticEvent<HTMLElement>) => {
+    if (!(event.target instanceof Element)) return;
+    // A link moves the cursor to its own target, which a placement after the click would undo.
+    if (event.target.closest('a[href]')) return;
+    const card = event.target.closest<HTMLElement>('[data-comment-thread-id]');
+    if (!card || !event.currentTarget.contains(card)) return;
+    const thread = displayThreads.find(
+      (candidate) => candidate.id === card.dataset.commentThreadId,
+    );
+    if (!thread) throw new Error(`No thread ${card.dataset.commentThreadId} for a diff comment`);
+    const position = findCommentPosition(thread, navigableFiles);
+    // Placed once the click is over: a click on a label goes on to click its radio, and moving
+    // the cursor in between loses the radio's change, so a reply's intent would not switch.
+    if (position) setTimeout(() => setCursorPosition(position, 'none'), 0);
+  };
+
+  // The file list's comment count jumps to the file's first comment, which gets the cursor;
+  // "first" is by diff position, the order the jump's DOM query finds them in.
+  const handleFirstCommentOpened = (filePath: string) => {
+    handleSidebarFileSelected(filePath, 'first-comment');
+    const [first] = (threadsByFile.get(filePath) ?? EMPTY_COMMENT_THREADS)
+      .filter((thread) => !thread.deleted)
+      .flatMap((thread) => findCommentPosition(thread, navigableFiles) ?? [])
+      .sort((a, b) => a.chunkIndex - b.chunkIndex || a.lineIndex - b.lineIndex);
+    setCursorPosition(first ?? null, 'none');
+  };
+
+  // Picking a file in the file list, or following a link to one, puts the cursor on its first
+  // line; a file with no lines (an image, a binary) clears it, so the top file shows instead.
+  const handleFileOpened = (filePath: string) => {
+    handleSidebarFileSelected(filePath);
+    const fileIndex = navigableFiles.findIndex((file) => file.path === filePath);
+    setCursorPosition(
+      navigableFiles[fileIndex]?.chunks[0]?.lines[0]
+        ? { fileIndex, chunkIndex: 0, lineIndex: 0, side: diffMode === 'split' ? 'left' : 'right' }
+        : null,
+      'none',
+    );
+  };
+
   const previousPresentationRef = useRef({
     files: navigableFiles,
     ignoreWhitespace,
@@ -1800,7 +1854,7 @@ function App() {
     },
     openFile: (filePath) => {
       setIsCommentsListOpen(false);
-      handleSidebarFileSelected(filePath);
+      handleFileOpened(filePath);
     },
     // The line's own scroll would still be animating when the card is measured, so the card
     // reveal below is this jump's only scroll.
@@ -2203,10 +2257,8 @@ function App() {
                       />
                     </div>
                   }
-                  onScrollToFile={handleSidebarFileSelected}
-                  onScrollToFirstComment={(path) =>
-                    handleSidebarFileSelected(path, 'first-comment')
-                  }
+                  onScrollToFile={handleFileOpened}
+                  onScrollToFirstComment={handleFirstCommentOpened}
                   onScrollToSummary={
                     // Nothing to jump to while both fields are blank.
                     summary.commitMessage.trim() || summary.rationale.trim()
@@ -2226,7 +2278,7 @@ function App() {
                   viewedStateReady={viewedStateReady}
                   onToggleReviewed={toggleFileReviewed}
                   onToggleFolderReviewed={toggleFolderReviewed}
-                  selectedFilePath={topVisibleFile.topFilePath}
+                  selectedFilePath={cursorFile.path ?? topVisibleFile.topFilePath}
                 />
               </div>
             </aside>
@@ -2246,9 +2298,11 @@ function App() {
           <main
             ref={diffScrollContainerRef}
             className="flex-1 overflow-y-auto"
+            onClickCapture={placeCursorAtComment}
             onScroll={(event) => {
               reviewChrome.onScroll(event);
               topVisibleFile.onScroll(event);
+              cursorFile.onScroll(event);
             }}
           >
             {/* Here rather than in the header so the fields size to their content and scroll
