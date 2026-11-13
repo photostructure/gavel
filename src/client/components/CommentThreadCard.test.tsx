@@ -116,45 +116,99 @@ describe('thread and reply actions', () => {
     expect(onToggleThreadResolved).toHaveBeenCalledWith('thread-1');
   });
 
-  describe('an agent comment', () => {
-    const agentRoot: CommentThread = {
+  // The heading acts on the whole thread, so its read toggle covers every agent message in it.
+  describe('the thread read toggle', () => {
+    const answered: CommentThread = {
       ...mockThread,
-      messages: [{ ...mockThread.messages[0]!, author: 'Agent', origin: 'agent' }],
+      messages: [
+        mockThread.messages[0]!,
+        { ...mockThread.messages[1]!, origin: 'agent', author: 'Agent' },
+        {
+          id: 'message-3',
+          body: 'Second answer',
+          author: 'Agent',
+          origin: 'agent',
+          createdAt: '2024-01-01T00:02:00Z',
+          updatedAt: '2024-01-01T00:02:00Z',
+        },
+      ],
     };
-    const renderAgentRoot = (readState: AgentUpdatesReadState) =>
+    const renderWithRead = (readState: AgentUpdatesReadState, thread: CommentThread) =>
       render(
         <AgentUpdatesContext.Provider value={readState}>
-          <CommentThreadCard {...props} thread={agentRoot} />
+          <CommentThreadCard {...props} thread={thread} />
         </AgentUpdatesContext.Provider>,
       );
+    const unreadKeys = (...ids: string[]) =>
+      new Set(ids.map((id) => JSON.stringify(['thread-1', id])));
+    const marks = (setRead: ReturnType<typeof vi.fn>) =>
+      setRead.mock.calls.map(([threadId, messageId, , read]) => [threadId, messageId, read]);
+    const headingRow = () =>
+      screen.getByRole('button', { name: 'Collapse thread' }).parentElement!.parentElement!;
 
-    it('labels its read toggle in the thread menu', async () => {
+    it('marks every agent message read from the heading while any is unread', async () => {
       const user = userEvent.setup();
       const setRead = vi.fn();
-      renderAgentRoot({
-        enabled: true,
-        unreadKeys: new Set([JSON.stringify(['thread-1', 'message-1'])]),
-        setRead,
-      });
+      renderWithRead({ enabled: true, unreadKeys: unreadKeys('message-3'), setRead }, answered);
+
+      await user.click(within(headingRow()).getByRole('button', { name: 'Mark thread as read' }));
+
+      expect(marks(setRead)).toEqual([
+        ['thread-1', 'message-2', true],
+        ['thread-1', 'message-3', true],
+      ]);
+    });
+
+    it('marks every agent message unread from the thread menu once all are read', async () => {
+      const user = userEvent.setup();
+      const setRead = vi.fn();
+      renderWithRead({ enabled: true, unreadKeys: new Set(), setRead }, answered);
 
       await user.click(screen.getByRole('button', { name: 'Thread actions' }));
       expect(menuItems()).toEqual([
         'Resolve thread',
-        'Mark as read',
+        'Mark thread as unread',
         'Copy prompt',
         'Edit comment',
       ]);
-      await user.click(screen.getByRole('menuitem', { name: 'Mark as read' }));
+      await user.click(screen.getByRole('menuitem', { name: 'Mark thread as unread' }));
 
-      expect(setRead).toHaveBeenCalledWith('thread-1', 'message-1', expect.any(String), true);
+      expect(marks(setRead)).toEqual([
+        ['thread-1', 'message-2', false],
+        ['thread-1', 'message-3', false],
+      ]);
     });
 
-    it('leaves the read toggle out of the menu while read state is unavailable', async () => {
+    it('covers an agent-written root comment too', async () => {
       const user = userEvent.setup();
-      renderAgentRoot({ enabled: false, unreadKeys: new Set(), setRead: vi.fn() });
+      const setRead = vi.fn();
+      renderWithRead(
+        { enabled: true, unreadKeys: unreadKeys('message-1'), setRead },
+        {
+          ...mockThread,
+          messages: [{ ...mockThread.messages[0]!, author: 'Agent', origin: 'agent' }],
+        },
+      );
 
+      await user.click(within(headingRow()).getByRole('button', { name: 'Mark thread as read' }));
+
+      expect(marks(setRead)).toEqual([['thread-1', 'message-1', true]]);
+    });
+
+    it('is absent from a thread without agent messages', () => {
+      renderWithRead({ enabled: true, unreadKeys: new Set(), setRead: vi.fn() }, mockThread);
+
+      expect(screen.queryByRole('button', { name: /^Mark thread as/ })).not.toBeInTheDocument();
+    });
+
+    it('leaves the menu item out while read state is unavailable', async () => {
+      const user = userEvent.setup();
+      renderWithRead({ enabled: false, unreadKeys: new Set(), setRead: vi.fn() }, answered);
+
+      expect(
+        within(headingRow()).getByRole('button', { name: 'Mark thread as unread' }),
+      ).toBeDisabled();
       await user.click(screen.getByRole('button', { name: 'Thread actions' }));
-
       expect(menuItems()).toEqual(['Resolve thread', 'Copy prompt', 'Edit comment']);
     });
   });
@@ -696,8 +750,8 @@ describe('reply read state', () => {
         .map((button) => button.getAttribute('aria-label')),
     ).toEqual(['Mark reply as read', 'Reply actions']);
     await user.click(within(reply).getByRole('button', { name: 'Reply actions' }));
-    expect(menuItems()).toEqual(['Mark as read', 'Copy reply']);
-    await user.click(screen.getByRole('menuitem', { name: 'Mark as read' }));
+    expect(menuItems()).toEqual(['Mark reply as read', 'Copy reply']);
+    await user.click(screen.getByRole('menuitem', { name: 'Mark reply as read' }));
 
     expect(setRead).toHaveBeenCalledWith('thread-1', 'message-2', expect.any(String), true);
   });

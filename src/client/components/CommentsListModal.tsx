@@ -490,8 +490,9 @@ export function CommentsListModal({
             </div>
           </fieldset>
           <p className="mt-3 text-xs text-github-text-secondary">
-            Blue dots mark unread replies. Click a reply or its filled dot to mark it read; click a
-            hollow dot to mark it unread.
+            Blue dots mark unread replies, and an open thread&apos;s heading dot covers all of them;
+            a closed thread&apos;s dot jumps to its first unread reply. Click a reply or its filled
+            dot to mark it read; click a hollow dot to mark it unread.
             {otherReviews.length > 0 &&
               ' On a thread from another review, use the dot; clicking the thread opens that review.'}
           </p>

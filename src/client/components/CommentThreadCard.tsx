@@ -66,43 +66,53 @@ interface ThreadMessageItemProps {
   onEscapeKeepingDraft?: () => void;
 }
 
-// The read state that an agent message's dot button and its menu item both show and flip.
-function readMark(readState: AgentUpdatesReadState, threadId: string, message: DiffCommentMessage) {
-  const unread = readState.unreadKeys.has(JSON.stringify([threadId, message.id]));
+// The read state that a dot button and its menu item both show and flip, for one reply or for
+// every agent message in a thread: unread while any of the messages is, and a flip marks them
+// all read, or all unread when none is.
+interface ReadMark {
+  label: string;
+  unread: boolean;
+  toggle: () => void;
+}
+
+function readMark(
+  readState: AgentUpdatesReadState,
+  threadId: string,
+  subject: 'reply' | 'thread',
+  messages: readonly DiffCommentMessage[],
+): ReadMark {
+  const unread = messages.some((message) =>
+    readState.unreadKeys.has(JSON.stringify([threadId, message.id])),
+  );
   return {
+    label: `Mark ${subject} as ${unread ? 'read' : 'unread'}`,
     unread,
-    toggle: () => readState.setRead(threadId, message.id, agentMessageRevision(message), unread),
+    toggle: () => {
+      for (const message of messages) {
+        readState.setRead(threadId, message.id, agentMessageRevision(message), unread);
+      }
+    },
   };
 }
 
 // Touch screens show no tooltips, so each menu also names the actions its heading or reply row
 // shows as icons.
-function readMenuItem(
-  readState: AgentUpdatesReadState,
-  threadId: string,
-  message: DiffCommentMessage,
-): ActionMenuItem {
-  const { unread, toggle } = readMark(readState, threadId, message);
-  return unread
-    ? { label: 'Mark as read', icon: <MailOpen aria-hidden="true" size={12} />, onSelect: toggle }
-    : { label: 'Mark as unread', icon: <Mail aria-hidden="true" size={12} />, onSelect: toggle };
+function readMenuItem({ label, unread, toggle }: ReadMark): ActionMenuItem {
+  const Icon = unread ? MailOpen : Mail;
+  return { label, icon: <Icon aria-hidden="true" size={12} />, onSelect: toggle };
 }
 
 function ReadToggle({
-  threadId,
-  message,
-  readState,
+  mark: { label, unread, toggle },
+  enabled,
 }: {
-  threadId: string;
-  message: DiffCommentMessage;
-  readState: AgentUpdatesReadState;
+  mark: ReadMark;
+  enabled: boolean;
 }) {
-  const { unread, toggle } = readMark(readState, threadId, message);
-  const label = unread ? 'Mark reply as read' : 'Mark reply as unread';
   return (
     <button
       type="button"
-      disabled={!readState.enabled}
+      disabled={!enabled}
       title={label}
       aria-label={label}
       className={`${iconButtonClasses} disabled:cursor-not-allowed disabled:opacity-50`}
@@ -172,14 +182,15 @@ function ThreadMessageItem({
     }
   };
 
-  const showReadToggle = !isRootMessage && message.origin === 'agent' && readState !== null;
+  const replyRead =
+    !isRootMessage && message.origin === 'agent' && readState
+      ? readMark(readState, threadId, 'reply', [message])
+      : undefined;
   const replyActions: ActionMenuItem[] =
     readOnly || isRootMessage
       ? []
       : [
-          ...(message.origin === 'agent' && readState?.enabled
-            ? [readMenuItem(readState, threadId, message)]
-            : []),
+          ...(replyRead && readState?.enabled ? [readMenuItem(replyRead)] : []),
           {
             label: 'Copy reply',
             icon: <Copy aria-hidden="true" size={12} />,
@@ -262,10 +273,10 @@ function ThreadMessageItem({
         <>
           {/* A reply's controls float, so its text wraps beneath them instead of leaving a
               full-height column; the root comment's controls are in the thread heading. */}
-          {(showReadToggle || replyActions.length > 0) && (
+          {(replyRead || replyActions.length > 0) && (
             <div className="float-right ml-3 flex items-center gap-2">
-              {showReadToggle && (
-                <ReadToggle threadId={threadId} message={message} readState={readState} />
+              {replyRead && readState && (
+                <ReadToggle mark={replyRead} enabled={readState.enabled} />
               )}
               {replyActions.length > 0 && (
                 <ActionMenu
@@ -418,13 +429,18 @@ export function CommentThreadCard({
     if (restoredDraft && !thread.deleted) setIsCollapsed(false);
   }, [restoredDraft, thread.deleted]);
   const readState = useContext(AgentUpdatesContext);
+  const agentMessages = thread.messages.filter(
+    (message) => message.origin === 'agent' && !thread.deletedMessageIds?.includes(message.id),
+  );
+  const threadRead =
+    readState && agentMessages.length > 0
+      ? readMark(readState, thread.id, 'thread', agentMessages)
+      : undefined;
   // Answering a thread means its agent replies have been read.
   const markAgentRepliesRead = () => {
     if (!readState?.enabled) return;
-    for (const message of thread.messages) {
-      if (message.origin === 'agent' && !thread.deletedMessageIds?.includes(message.id)) {
-        readState.setRead(thread.id, message.id, agentMessageRevision(message), true);
-      }
+    for (const message of agentMessages) {
+      readState.setRead(thread.id, message.id, agentMessageRevision(message), true);
     }
   };
   const replyDraft = useCommentDraft({ kind: 'reply', threadId: thread.id });
@@ -477,9 +493,7 @@ export function CommentThreadCard({
           icon: <Check aria-hidden="true" size={12} />,
           onSelect: () => onToggleThreadResolved(thread.id),
         },
-    ...(rootMessage.origin === 'agent' && readState?.enabled
-      ? [readMenuItem(readState, thread.id, rootMessage)]
-      : []),
+    ...(threadRead && readState?.enabled ? [readMenuItem(threadRead)] : []),
     {
       label: 'Copy prompt',
       icon: <Copy aria-hidden="true" size={12} />,
@@ -599,8 +613,8 @@ export function CommentThreadCard({
                 <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-blue-500" />
               </button>
             )}
-            {!isCollapsed && rootMessage.origin === 'agent' && readState && (
-              <ReadToggle threadId={thread.id} message={rootMessage} readState={readState} />
+            {!isCollapsed && threadRead && readState && (
+              <ReadToggle mark={threadRead} enabled={readState.enabled} />
             )}
             {thread.deleted ? (
               <button
