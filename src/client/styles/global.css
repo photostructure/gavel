@@ -131,20 +131,20 @@
   }
 }
 
-/* The time left in the verdict follow-up countdown; the notice sets its duration. */
-@keyframes verdict-countdown {
-  to {
-    transform: scaleX(0);
+/* The verdict follow-up toast slides in from the right. It animates `translate`, not
+   `transform`, which Floating UI sets to position it. */
+@keyframes verdict-toast-in {
+  from {
+    translate: 1.5rem 0;
+    opacity: 0;
   }
 }
-.verdict-countdown-bar {
-  animation: verdict-countdown linear forwards;
-  transform-origin: left;
+.verdict-toast {
+  animation: verdict-toast-in 180ms ease-out;
 }
-/* The notice's text still counts the seconds. */
 @media (prefers-reduced-motion: reduce) {
-  .verdict-countdown-bar {
-    display: none;
+  .verdict-toast {
+    animation: none;
   }
 }
 

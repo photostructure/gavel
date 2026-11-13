@@ -22,7 +22,8 @@ example the border under each file header and the selected option buttons in
 Add a selection color token (the maintainer suggested blue, "or some pickable theme
 color"; whether it should be a **Settings** choice is still open) and move every
 non-approval use of `github-accent` to it, keeping green only where it means a
-recorded approval. The blue already used for the verdict notice's **Switch now**
-button (`blue-600` in `VerdictFollowUpNotice.tsx`) is the maintainer's reference
+recorded approval. The blue already used for the verdict notice's primary button
+(**Switch to `<name>`**, first called **Switch now**; `blue-600` in
+`VerdictFollowUpNotice.tsx`) is the maintainer's reference
 ("the blue for the switch now is nice"). Check the deuteranopia palette in
 `appearanceTheme.ts`, where the accent is already blue.

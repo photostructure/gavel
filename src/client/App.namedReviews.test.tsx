@@ -154,8 +154,11 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
       const { ops } = JSON.parse(String(init?.body)) as { ops: Array<ReviewOp & { id: string }> };
       const key = reviewName === 'task-b' ? 'verdictB' : 'verdict';
       for (const op of ops) {
-        if (op.type === 'verdict.set') state[key] = op.verdict === 'clear' ? undefined : op.verdict;
-        else if (reviewName === state.capture.name) {
+        if (op.type === 'verdict.set') {
+          state[key] = op.verdict === 'clear' ? undefined : op.verdict;
+          // The session inbox marks a verdict pending before the server answers.
+          if (state.inbox && key === 'verdict') state.inbox = { status: 'pending' };
+        } else if (reviewName === state.capture.name) {
           const outcome = applyReviewOp(state.threads, op, '2026-11-11T00:00:00Z');
           if ('threads' in outcome) state.threads = outcome.threads;
         }
@@ -1485,7 +1488,7 @@ describe('after a verdict', () => {
       expect(bar).toHaveTextContent('2 need a verdict');
       expect(openTabMark()).toHaveClass('lucide-circle');
       fireEvent.click(verdictButton('Approve'));
-      await waitFor(() => expect(nextStep()).toHaveTextContent('Switching to task-b in 10s'));
+      await waitFor(() => expect(nextStep()).toHaveTextContent('Switch to task-b'));
       return { bar, state };
     }
 
@@ -1510,7 +1513,7 @@ describe('after a verdict', () => {
       expect(bar).toHaveTextContent('2 need a verdict');
     });
 
-    // The agent recaptures to address the comments, so the countdown must outlive it.
+    // The agent recaptures to address the comments, so the next step must outlive it.
     it('keeps its verdict and its next step through a recapture, which the approval follows', async () => {
       const { bar, state } = await approveOpenReview();
       state.capture = { ...state.capture, version: 2, patchDigest: 'b'.repeat(64) };
@@ -1519,26 +1522,45 @@ describe('after a verdict', () => {
       expect(await within(bar).findByRole('button', { name: 'task-a, Approved' })).toBeVisible();
       expect(openTabMark()).toHaveClass('lucide-check');
       expect(bar).toHaveTextContent('1 needs a verdict');
-      expect(nextStep()).toHaveTextContent('Switching to task-b');
+      expect(nextStep()).toHaveTextContent('Switch to task-b');
     });
   });
 
-  it('counts down and opens the next review without a verdict', async () => {
+  // The reviewer may still be reading, in Conversation for example, so only a click moves on.
+  it('opens the next review without a verdict only when the reviewer asks', async () => {
     fixture();
     renderApp();
     await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
     fireEvent.click(verdictButton('Approve'));
-    await waitFor(() => expect(nextStep()).toHaveTextContent('Switching to task-b in 10s'));
+    await waitFor(() => expect(nextStep()).toHaveTextContent('Approved'));
     const bar = screen.getByRole('navigation', { name: 'Reviews on this server' });
     expect(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' })).toHaveClass(
       /verdict-pulse-/,
     );
-    await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+    await act(async () => void (await vi.advanceTimersByTimeAsync(20_000)));
+    expect(window.location.search).toBe('?review=task-a');
+    fireEvent.click(within(nextStep()).getByRole('button', { name: 'Switch to task-b' }));
     await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
     expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
   });
 
-  it('ends the countdown when the reviewer opens the next review from its tab', async () => {
+  it('clears the verdict on Undo', async () => {
+    fixture();
+    renderApp();
+    await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve'));
+    await waitFor(() => expect(nextStep()).toHaveTextContent('Switch to task-b'));
+    await waitFor(() => expect(verdictButton('Approved')).toBeEnabled());
+    fireEvent.click(within(nextStep()).getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(verdictButton('Approve')).toHaveAttribute('aria-pressed', 'false'));
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/review-ops?review=task-a',
+      expect.objectContaining({ method: 'POST', body: expect.stringContaining('"clear"') }),
+    );
+    expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
+  });
+
+  it('ends the next step when the reviewer opens the next review from its tab', async () => {
     fixture();
     const close = vi.spyOn(window, 'close').mockImplementation(() => {});
     renderApp();
@@ -1547,7 +1569,7 @@ describe('after a verdict', () => {
     await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
     await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
     fireEvent.click(verdictButton('Approve'));
-    await waitFor(() => expect(nextStep()).toHaveTextContent('Switching to task-a in 10s'));
+    await waitFor(() => expect(nextStep()).toHaveTextContent('Switch to task-a'));
     // The bar remounts on every review switch.
     const barNow = screen.getByRole('navigation', { name: 'Reviews on this server' });
     fireEvent.click(within(barNow).getByRole('button', { name: 'task-a, Needs a verdict' }));
@@ -1558,22 +1580,23 @@ describe('after a verdict', () => {
     expect(close).not.toHaveBeenCalled();
   });
 
-  it('rejects in one click, then counts down to closing the tab once nothing is left', async () => {
+  it('rejects in one click, then offers to close the tab once nothing is left', async () => {
     const state = fixture();
     state.showReviewB = false;
     const close = vi.spyOn(window, 'close').mockImplementation(() => {});
     renderApp();
     await waitFor(() => expect(verdictButton('Reject')).toBeEnabled());
     fireEvent.click(verdictButton('Reject'));
-    await waitFor(() =>
-      expect(nextStep()).toHaveTextContent('This review has a verdict. Closing this tab in 10s'),
-    );
+    await waitFor(() => expect(nextStep()).toHaveTextContent('Rejected'));
+    expect(nextStep()).toHaveTextContent('You can close this tab.');
     expect(fetch).toHaveBeenCalledWith(
       '/api/review-ops?review=task-a',
       expect.objectContaining({ method: 'POST', body: expect.stringContaining('"reject"') }),
     );
     expect(verdictButton('Reject')).toHaveAttribute('aria-pressed', 'true');
-    await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+    await act(async () => void (await vi.advanceTimersByTimeAsync(20_000)));
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.click(within(nextStep()).getByRole('button', { name: 'Close tab' }));
     expect(close).toHaveBeenCalledOnce();
     expect(nextStep()).toHaveTextContent('This review has a verdict. You can close this tab.');
   });
@@ -1605,7 +1628,30 @@ describe('after a verdict', () => {
     },
   );
 
-  // The send settles 2 seconds after the verdict, so the failure arrives during the countdown.
+  // A closed tab cannot show a failed send. The toast reads the delivery before it opens, so an
+  // earlier comment's receipt never stands in for the verdict's.
+  it('holds Close tab until the last verdict reaches the agent', async () => {
+    const state = fixture();
+    state.showReviewB = false;
+    state.inbox = { status: 'sent', at: '2026-11-12T16:00:00.000Z', via: 'inbox' };
+    const close = vi.spyOn(window, 'close').mockImplementation(() => {});
+    renderApp();
+    await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve'));
+    const toast = await screen.findByRole('status', { name: 'Next step' });
+    expect(toast).toHaveTextContent('Sending to the agent…');
+    expect(toast).not.toHaveTextContent('Sent to the agent');
+    expect(within(toast).getByRole('button', { name: 'Close tab' })).toBeDisabled();
+    state.inbox = { status: 'sent', at: '2026-11-12T17:00:00.000Z', via: 'inbox' };
+    await act(async () => {
+      await watch.inboxChanged?.();
+    });
+    expect(nextStep()).toHaveTextContent('Sent to the agent. You can close this tab.');
+    fireEvent.click(within(nextStep()).getByRole('button', { name: 'Close tab' }));
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  // The send settles 2 seconds after the verdict, so the failure arrives after Close tab shows.
   it('keeps the tab open with the resume prompt when the last verdict did not reach the agent', async () => {
     const state = fixture();
     state.showReviewB = false;
@@ -1616,7 +1662,7 @@ describe('after a verdict', () => {
     await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
     fireEvent.click(verdictButton('Approve'));
     await waitFor(() =>
-      expect(nextStep()).toHaveTextContent('This review has a verdict. Closing this tab in 10s'),
+      expect(within(nextStep()).getByRole('button', { name: 'Close tab' })).toBeVisible(),
     );
     await act(async () => void (await vi.advanceTimersByTimeAsync(2_000)));
     state.inbox = { status: 'failed', at: '2026-11-11T17:00:00.000Z', error: 'connect ENOENT' };

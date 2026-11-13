@@ -81,7 +81,9 @@ shows whether the latest one was sent.
 Codex ends its turn while you review. With a supported `codex queue` CLI on the
 server, gavel queues your verdicts and comments for the chat that opened the
 review. For both agents, the robot shows availability, sweeps while delivering,
-and briefly shows a green check after acceptance. Tap it for delivery details;
+and briefly shows a green check after acceptance. After a verdict, the toast
+under the verdict buttons shows the same robot and says whether the verdict was
+sent; its **Close tab** waits until it is. Tap the header robot for delivery details;
 **Queued for Codex** confirms saved input, not a running turn. Keep that
 chat open and use separate gavel servers for Codex and Claude Code. If the chat
 stays idle, use **Copy resume prompt and close** after the last

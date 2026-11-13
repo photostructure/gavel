@@ -63,62 +63,51 @@ describe('verdict follow-up', () => {
     expect(result.current.step).toBeNull();
   });
 
-  it('counts down 10 seconds, then switches to the next review without a verdict', () => {
+  // The reviewer may be reading the conversation, so only their click moves on.
+  it('offers the next review without a verdict and never switches to it by itself', () => {
     const queue = [review('a'), review('b', approved), review('c')];
     const { result } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
-    expect(result.current.step).toMatchObject({ kind: 'switch', name: 'c', seconds: 10 });
-    act(() => void vi.advanceTimersByTime(1000));
-    expect(result.current.step).toMatchObject({ kind: 'switch', name: 'c', seconds: 9 });
-    act(() => void vi.advanceTimersByTime(9000));
+    expect(result.current.step).toEqual({ kind: 'switch', name: 'c', waiting: 1 });
+    act(() => void vi.advanceTimersByTime(60_000));
+    expect(onSwitch).not.toHaveBeenCalled();
+    expect(result.current.step).toEqual({ kind: 'switch', name: 'c', waiting: 1 });
+    act(() => result.current.proceed());
     expect(onSwitch).toHaveBeenCalledExactlyOnceWith(queue[2]!.selection);
     expect(result.current.step).toBeNull();
   });
 
-  // The notice restarts its time-remaining bar when this changes.
-  it('keeps a deadline through the ticks of a countdown and moves it for a new one', () => {
-    const queue = [review('a'), review('b')];
+  // The open review's entry may not show its verdict yet, right after the verdict saves.
+  it('counts the reviews that still need a verdict, leaving out the open one', () => {
+    const queue = [review('a'), review('b', approved), review('c'), review('d')];
     const { result } = render({ reviews: queue, current: queue[0]!.selection });
-    const started = Date.now();
     act(() => result.current.start());
-    expect(result.current.step).toMatchObject({ deadline: started + 10_000 });
-    act(() => void vi.advanceTimersByTime(2000));
-    expect(result.current.step).toMatchObject({ deadline: started + 10_000 });
-    act(() => result.current.start());
-    expect(result.current.step).toMatchObject({ deadline: started + 12_000, seconds: 10 });
+    expect(result.current.step).toEqual({ kind: 'switch', name: 'c', waiting: 2 });
   });
 
-  it('counts down 10 seconds when every other review has a verdict, then closes the tab', () => {
+  it('offers to close the tab once every review has a verdict, and never closes it by itself', () => {
     const queue = [review('a'), review('b', approved)];
     const { result } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
-    expect(result.current.step).toMatchObject({ kind: 'close', reviews: 2, seconds: 10 });
-    act(() => void vi.advanceTimersByTime(10_000));
+    expect(result.current.step).toEqual({ kind: 'close', reviews: 2 });
+    act(() => void vi.advanceTimersByTime(60_000));
+    expect(close).not.toHaveBeenCalled();
+    act(() => result.current.proceed());
     expect(close).toHaveBeenCalledOnce();
     // The browser ignores close() for a tab a script did not open and that has history.
     expect(result.current.step).toEqual({ kind: 'closable', reviews: 2 });
   });
 
-  it('switches right away on Switch now, without waiting out the countdown', () => {
-    const queue = [review('a'), review('b')];
-    const { result } = render({ reviews: queue, current: queue[0]!.selection });
-    act(() => result.current.start());
-    act(() => result.current.proceed());
-    expect(onSwitch).toHaveBeenCalledExactlyOnceWith(queue[1]!.selection);
-    expect(result.current.step).toBeNull();
-    act(() => void vi.advanceTimersByTime(20_000));
-    expect(onSwitch).toHaveBeenCalledOnce();
-  });
-
-  it('closes right away on Close now once every review has a verdict', () => {
+  // The send settles 2 seconds after the verdict, so a failure can arrive while the offer shows.
+  it('turns the offer to close into the Codex handoff when the verdict did not reach the agent', () => {
     const queue = [review('a')];
-    const { result } = render({ reviews: queue, current: queue[0]!.selection });
+    const props = { reviews: queue, current: queue[0]!.selection };
+    const { result, rerender } = render(props);
     act(() => result.current.start());
-    act(() => result.current.proceed());
-    expect(close).toHaveBeenCalledOnce();
-    expect(result.current.step).toEqual({ kind: 'closable', reviews: 1 });
-    act(() => void vi.advanceTimersByTime(20_000));
-    expect(close).toHaveBeenCalledOnce();
+    expect(result.current.step).toEqual({ kind: 'close', reviews: 1 });
+    rerender({ ...props, requiresResume: true });
+    expect(result.current.step).toEqual({ kind: 'resume', reviews: 1, status: 'ready' });
+    expect(close).not.toHaveBeenCalled();
   });
 
   it('waits for an explicit resume copy and closes only after the clipboard succeeds', async () => {
@@ -196,7 +185,7 @@ describe('verdict follow-up', () => {
     expect(close).not.toHaveBeenCalled();
   });
 
-  it('cancels the countdown', () => {
+  it('dismisses the next step', () => {
     const queue = [review('a'), review('b')];
     const { result } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
@@ -214,9 +203,9 @@ describe('verdict follow-up', () => {
     expect(result.current.step?.kind).toBe('close');
     const grown = [...queue, review('b')];
     rerender({ reviews: grown, current: queue[0]!.selection });
-    expect(result.current.step).toMatchObject({ kind: 'switch', name: 'b', seconds: 10 });
+    expect(result.current.step).toEqual({ kind: 'switch', name: 'b', waiting: 1 });
     expect(result.current.pulse).toBeGreaterThan(0);
-    act(() => void vi.advanceTimersByTime(10_000));
+    act(() => result.current.proceed());
     expect(onSwitch).toHaveBeenCalledExactlyOnceWith(grown[1]!.selection);
     expect(close).not.toHaveBeenCalled();
   });
@@ -225,32 +214,11 @@ describe('verdict follow-up', () => {
     const queue = [review('a')];
     const { result, rerender } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
-    act(() => void vi.advanceTimersByTime(10_000));
+    act(() => result.current.proceed());
     expect(result.current.step?.kind).toBe('closable');
     rerender({ reviews: [...queue, review('b')], current: queue[0]!.selection });
-    expect(result.current.step).toMatchObject({ kind: 'switch', name: 'b', seconds: 10 });
+    expect(result.current.step).toEqual({ kind: 'switch', name: 'b', waiting: 1 });
     expect(result.current.pulse).toBeGreaterThan(0);
-  });
-
-  // The hook runs in App, so each tick re-renders the whole page; the label changes once a second.
-  it('re-renders once a second while counting down', () => {
-    const queue = [review('a'), review('b')];
-    let renders = 0;
-    const { result } = renderHook(() => {
-      renders++;
-      return useVerdictFollowUp({
-        reviews: queue,
-        current: queue[0]!.selection,
-        currentHasVerdict: true,
-        onSwitch,
-      });
-    });
-    act(() => result.current.start());
-    const before = renders;
-    // One act per 250ms, so React cannot batch several ticks into one render.
-    for (let step = 0; step < 8; step++) act(() => void vi.advanceTimersByTime(250));
-    expect(result.current.step).toMatchObject({ kind: 'switch', name: 'b', seconds: 8 });
-    expect(renders - before).toBeLessThanOrEqual(2);
   });
 
   it('falls back to closing when the review it was about to open gets a verdict elsewhere', () => {
@@ -258,7 +226,7 @@ describe('verdict follow-up', () => {
     const { result, rerender } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
     rerender({ reviews: [queue[0]!, review('b', approved)], current: queue[0]!.selection });
-    expect(result.current.step).toMatchObject({ kind: 'close', reviews: 2, seconds: 10 });
+    expect(result.current.step).toEqual({ kind: 'close', reviews: 2 });
   });
 
   it('stops when the open review loses its verdict, so the tab never closes over it', () => {
@@ -271,6 +239,29 @@ describe('verdict follow-up', () => {
     expect(result.current.step).toBeNull();
     act(() => void vi.advanceTimersByTime(20_000));
     expect(close).not.toHaveBeenCalled();
+  });
+
+  // The toast names the open review's verdict, so it must not paint once that verdict is gone.
+  it('shows no step in the render where the open review loses its verdict', () => {
+    const queue = [review('a'), review('b')];
+    const steps: unknown[] = [];
+    const { result, rerender } = renderHook(
+      ({ currentHasVerdict }: { currentHasVerdict: boolean }) => {
+        const followUp = useVerdictFollowUp({
+          reviews: queue,
+          current: queue[0]!.selection,
+          currentHasVerdict,
+          onSwitch,
+        });
+        steps.push(followUp.step);
+        return followUp;
+      },
+      { initialProps: { currentHasVerdict: true } },
+    );
+    act(() => result.current.start());
+    const before = steps.length;
+    rerender({ currentHasVerdict: false });
+    expect(steps.slice(before)).toEqual(steps.slice(before).map(() => null));
   });
 
   it('stops when the reviewer opens another review', () => {
@@ -302,7 +293,7 @@ describe('verdict follow-up', () => {
     expect(result.current.pulse).toBe(0);
   });
 
-  it('pulses the reviews without a verdict when a countdown to another review starts', () => {
+  it('pulses the reviews without a verdict when it offers another review', () => {
     const queue = [review('a'), review('b')];
     const { result } = render({ reviews: queue, current: queue[0]!.selection });
     const before = result.current.pulse;

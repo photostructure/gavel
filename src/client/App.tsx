@@ -437,8 +437,10 @@ function App() {
       celebrateApproval(approvalControlRef.current, settings.approvalAnimations);
     }
     // The next step depends on the other reviews' verdicts. start() sees the list from the
-    // click's render; the hook corrects the step from the refreshed list on the next one.
-    await loadRecentReviewsRef.current?.();
+    // click's render; the hook corrects the step from the refreshed list on the next one. The
+    // server marked the verdict pending before it answered, so reading the delivery now keeps an
+    // earlier receipt from showing as the verdict's.
+    await Promise.all([loadRecentReviewsRef.current?.(), inboxDelivery.refresh()]);
     if (stillGiven()) verdictFollowUp.start();
   };
   const finishVerdictRef = useRef(finishVerdict);
@@ -1552,8 +1554,8 @@ function App() {
     current: resolvedSelection,
     currentHasVerdict: approval.verdict !== undefined,
     // A verdict that did not reach the owning session needs the same hand-back before the tab
-    // closes. The follow-up reads this when its countdown ends, so a failure that arrives during
-    // the countdown still counts.
+    // closes. The send settles after the verdict, so the follow-up also reads this while it
+    // offers to close the tab.
     requiresResume: requiresResume || inboxDelivery.delivery?.status === 'failed',
     onSwitch: openReviewFromTab,
   });
@@ -2101,8 +2103,12 @@ function App() {
               <VerdictFollowUpNotice
                 anchor={verdictAnchor}
                 step={verdictFollowUp.step}
-                onCancel={verdictFollowUp.cancel}
+                verdict={approval.verdict}
+                delivery={inboxDelivery.delivery}
+                busy={isShipping || captureReloading}
+                onDismiss={verdictFollowUp.cancel}
                 onProceed={verdictFollowUp.proceed}
+                onUndo={() => void handleVerdict('clear')}
               />
               {approval.error && (
                 <span role="alert" className="w-full text-xs text-github-danger">

@@ -40,7 +40,8 @@ host. No model turn waits for review. Manual handoff remains available:
    use **Conversation → Copy resume prompt** instead. The prompt includes the
    snapshot command and review URL. Codex keeps manual handoff available even
    when a listener is attached: a subscription does not prove delivery into the
-   owning chat. Other agents retain the close countdown.
+   owning chat. Other agents get a **Close tab** button instead, disabled while
+   the verdict is still being sent so a failed send can still show the handoff.
 4. Codex handles the delivered event batch and its saved pending work within
    the existing authorization. Use `comment snapshot --host <host> --port <actual-port>`
    for a manual resume, missing thread context, or a fresh

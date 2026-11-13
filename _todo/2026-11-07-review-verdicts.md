@@ -13,8 +13,11 @@ could not tell from leaving. Every review now gets one of two verdicts in the
 header: **Approve** or **Reject**. (It shipped with three: **Approve as-is**,
 **Approve after comments**, and **Not yet**; Not yet became Reject, and the two
 approvals became one Approve that follows the agent's revisions.) After a
-verdict the page counts down to the next review without one, or to closing the
-tab once every review has one.
+verdict a toast under the verdict buttons offers the next review without one, or
+closing the tab once every review has one, beside Undo and Dismiss; nothing moves
+until the reviewer clicks. A second line shows the header's delivery robot and
+says whether the verdict reached the agent, then what is left; **Close tab**
+waits for the send.
 
 Celebration timing, which shipped alongside it, has its own plan:
 [2026-11-07-shorter-approval-celebrations.md](../_done/2026-11-07-shorter-approval-celebrations.md).
@@ -25,7 +28,7 @@ Next: the manual check in Chrome and Firefox under Tasks; the maintainer offered
 test Firefox.
 
 - [x] Server verdict — `pnpm vitest run src/server/conversation-approval.test.ts src/server/live-approval.integration.test.ts src/server/named-reviews.integration.test.ts`
-- [x] Verdict buttons, tab marks, follow-up countdown — `pnpm vitest run src/client/components/VerdictControl.test.tsx src/client/components/VerdictFollowUpNotice.test.tsx src/client/hooks/useVerdictFollowUp.test.ts src/client/components/ReviewQueueBar.test.tsx`, then `pnpm vitest run src/client/App.namedReviews.test.tsx -t "after a verdict"` (a `-t` filter applies to every file listed)
+- [x] Verdict buttons, tab marks, follow-up toast — `pnpm vitest run src/client/components/VerdictControl.test.tsx src/client/components/VerdictFollowUpNotice.test.tsx src/client/hooks/useVerdictFollowUp.test.ts src/client/components/ReviewQueueBar.test.tsx`, then `pnpm vitest run src/client/App.namedReviews.test.tsx -t "after a verdict"` (a `-t` filter applies to every file listed)
 - [x] Docs and skills — `docs/approval-modes.md`, `docs/agent-conversations.md`, `README.md`, `skills/gavel/SKILL.md`, `.claude/skills/gavel-dev/SKILL.md`, `CHANGELOG.md`
 - [x] Reviewed — `coding:second-opinion` LAND on every batch, base `646b773`. Codex
       reviewed only the server batch; front-end batches ran the Claude reviewer alone
@@ -36,7 +39,7 @@ test Firefox.
 
 - **AGENTS.md**
 - **docs/approval-modes.md**: the verdicts and what ends each
-- `src/client/hooks/useVerdictFollowUp.ts`: the countdown's state machine
+- `src/client/hooks/useVerdictFollowUp.ts`: the follow-up's state machine
 
 ## Interfaces other work may collide with
 
@@ -79,34 +82,41 @@ Check these before merging work that touches approval, the header, or review tab
   not yet"; hover tints only the border (green, violet; the yellow after-comments
   button is gone),
   because tinted text was too faint in dark mode; clicking the pressed button
-  clears the verdict; the countdown notice sits under the verdict buttons, "where
-  I'm looking"; auto-close, accepting that Back no longer moves between reviews;
-  a 10 s countdown (it was 3 s to switch, 5 s to close) and a 1.6 s pulse beat
-  (it was 0.8 s), both lengthened at their request; a chosen button is filled in
-  its verdict's color (green, violet); **Switch now** /
-  **Close now** beside **Cancel** skip the wait; the notice and its default button
-  are blue, because green beside the verdict buttons reads as approval.
-- The countdown notice renders through `FloatingPortal` because the header group
+  clears the verdict; the follow-up notice sits under the verdict buttons, "where
+  I'm looking"; Back no longer moves between reviews; a 1.6 s pulse beat (it was
+  0.8 s), lengthened at their request; a chosen button is filled in its verdict's
+  color (green, violet); the notice and its default button are blue, because green
+  beside the verdict buttons reads as approval. The 10 s countdown to switching or
+  closing (first 3 s and 5 s) became a toast that waits for a click, after it
+  switched reviews while the maintainer was reading Conversation: **Switch to
+  `<name>`** or **Close tab**, then **Undo** (clears the verdict, as its pressed
+  button does), then **×** (Dismiss). Its second line reads "Sending to the
+  agent…", then "Sent to the agent." with the next review's name and how many
+  still need a verdict, or that the tab can be closed. **Close tab** stays
+  disabled while sending: a closed tab could not show a failed send's resume
+  prompt. The server marks a verdict pending before it answers, so `App.tsx`
+  reads the delivery before the toast opens; otherwise an earlier comment's
+  receipt would show as the verdict's.
+- The follow-up notice renders through `FloatingPortal` because the header group
   (`flex min-h-0 flex-col overflow-hidden` in `App.tsx`) clips anything below the
   header. The portal needs a non-modal `FloatingFocusManager` (no initial focus,
-  no return focus, no close on blur), or Cancel lands last in tab order and a
-  keyboard user cannot reach it before the 10 s countdown ends.
+  no return focus, no close on blur), or its buttons land last in tab order, far
+  from the verdict buttons a keyboard user just pressed. Its slide-in animates
+  `translate`, because Floating UI positions it with `transform`.
 - `window.close()` works only for a tab with one history entry or one a script
   opened (HTML standard). Playwright cannot test this: pages it creates count as
   script-opened and close at any history length. The Claude desktop app's browser
   pane also closes at any length.
 - `useReviewSummary` drops its draft when the summary URL changes, so every
   verdict is disabled while the summary is dirty or saving; otherwise the
-  countdown's switch or close would discard the draft.
+  follow-up's switch or close would discard the draft.
 - A pulse that is still above 0 replays whenever the tab bar remounts, which
   every review switch does behind the loading screen; the hook reports `pulse: 0`
   after 6.4 s (the animation's length) or when another review opens.
-- The hook ticks once per displayed second, not every 250 ms: it runs in `App`,
-  so each tick re-renders the whole page.
 - The open review's own approval hook (`currentHasVerdict`) is fresher than its
-  entry in the tab list; a verdict cleared from another tab stops any countdown,
-  so the tab never closes over a review that needs a verdict again. A recapture
-  no longer clears a verdict, so it leaves the countdown running.
+  entry in the tab list; a verdict cleared from another tab ends the follow-up,
+  so it never offers to close over a review that needs a verdict again. A
+  recapture no longer clears a verdict, so it leaves the follow-up showing.
 - With `--no-conversation`, a verdict lives in the server's `approvals` map; no test
   covers that path.
 
@@ -115,10 +125,16 @@ Check these before merging work that touches approval, the header, or review tab
 - [ ] Manual check in Chrome and Firefox, from a build served by
       `node dist/cli/index.js`, with two named reviews on one server:
 
-  1. Approve the first review. The notice under the buttons counts down 10 s and
-     opens the second, and the second review's tab pulses.
-  2. Choose Reject on the second. The notice counts down 10 s. If the tab has one
-     history entry it closes; otherwise the notice says the tab can be closed.
+  1. Approve the first review. The toast under the buttons reads "Approved" with
+     **Switch to `<second>`**, **Undo**, and **×**, and the second review's tab
+     pulses. With a Claude Code session attached, its second line reads "Sending
+     to the agent…", then "Sent to the agent. `<second>` still needs a verdict."
+     After 20 s nothing has moved; **Switch to `<second>`** opens it.
+  2. Choose Reject on the second. The toast offers **Close tab**, disabled until
+     the second line reads "Sent to the agent. All 2 reviews have a verdict, so
+     you can close this tab." If the tab has one history entry it closes;
+     otherwise the toast says the tab can be closed.
   3. Reload with a review that has no verdict. The browser asks before leaving.
   4. After a verdict, Tab past the remaining verdict buttons. Focus moves to
-     **Switch now** (or **Close now**), then **Cancel**.
+     **Switch to `<name>`** (or **Close tab**), then **Undo**, then **×**.
+  5. Click **Undo**. The verdict clears and the toast goes away.
