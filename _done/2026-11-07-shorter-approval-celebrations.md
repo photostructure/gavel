@@ -16,5 +16,5 @@ simulated seconds.
 limit and the halved disco timings. The author could not watch the bursts at the new
 speed: the browser pane stopped painting frames during the check.
 
-Related: [2026-11-07-review-verdicts.md](../_todo/2026-11-07-review-verdicts.md),
+Related: `2026-11-07-review-verdicts.md`,
 whose countdown starts with the celebration.

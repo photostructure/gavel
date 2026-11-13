@@ -11,7 +11,7 @@ Green (`--color-github-accent`, defined in `src/client/styles/global.css` and
 `src/client/utils/appearanceTheme.ts`) now means approval: a chosen **Approve
 as-is** is filled green and an approved review's tab mark is green
 (`VerdictControl.tsx`, `ReviewQueueBar.tsx`; see
-[2026-11-07-review-verdicts.md](2026-11-07-review-verdicts.md)). The same green also
+`2026-11-07-review-verdicts.md`). The same green also
 marks things unrelated to approval, which the maintainer found confusing ("the green
 really does cause some confusion with conflating approval with selection"), for
 example the border under each file header and the selected option buttons in

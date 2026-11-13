@@ -19,12 +19,12 @@ nothing moves until the reviewer clicks. Its message shows the header's delivery
 robot and says whether the verdict reached the agent, then what is left.
 
 Celebration timing, which shipped alongside it, has its own plan:
-[2026-11-07-shorter-approval-celebrations.md](../_done/2026-11-07-shorter-approval-celebrations.md).
+`2026-11-07-shorter-approval-celebrations.md`.
 
 ## Current phase
 
-Next: the manual check in Chrome and Firefox under Tasks; the maintainer offered to
-test Firefox.
+Every task is done. The maintainer ran the manual check in Chrome and Firefox on
+2026-11-13, and every step passed in both.
 
 - [x] Server verdict — `pnpm vitest run src/server/conversation-approval.test.ts src/server/live-approval.integration.test.ts src/server/named-reviews.integration.test.ts`
 - [x] Verdict buttons, tab marks, follow-up toast — `pnpm vitest run src/client/components/VerdictControl.test.tsx src/client/components/VerdictFollowUpNotice.test.tsx src/client/hooks/useVerdictFollowUp.test.ts src/client/components/ReviewQueueBar.test.tsx`, then `pnpm vitest run src/client/App.namedReviews.test.tsx -t "after a verdict"` (a `-t` filter applies to every file listed)
@@ -32,7 +32,8 @@ test Firefox.
 - [x] Reviewed — `coding:second-opinion` LAND on every batch, base `646b773`. Codex
       reviewed only the server batch; front-end batches ran the Claude reviewer alone
       (the maintainer's standing instruction).
-- [ ] Integration in a real browser — the manual steps under Tasks
+- [x] Integration in a real browser — the manual steps under Tasks, in Chrome and
+      Firefox, from a build of `1ab7747` with a Claude Code session attached
 
 ## Required reading
 
@@ -46,7 +47,7 @@ Check these before merging work that touches approval, the header, or review tab
 
 - Not yet is now Reject, recorded as `ReviewApproval.verdict: 'reject'` through
   `PUT /api/approval`, and only the reviewer clears it; see
-  [2026-11-10-reject-verdict.md](../_done/2026-11-10-reject-verdict.md).
+  `2026-11-10-reject-verdict.md`.
 - Approve as-is and Approve after comments are now one Approve
   (`ReviewApproval.verdict: 'approve'`), which follows recaptures, summary edits, and
   diff changes, and which comments do not revoke. `ReviewVerdict` is
@@ -136,7 +137,7 @@ Check these before merging work that touches approval, the header, or review tab
 
 ## Tasks
 
-- [ ] Manual check in Chrome and Firefox, from a build served by
+- [x] Manual check in Chrome and Firefox, from a build served by
       `node dist/cli/index.js`, with two named reviews on one server:
 
   1. Approve the first review. The toast under the buttons reads "Approved" with
