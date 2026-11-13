@@ -1,13 +1,22 @@
 import { BotMessageSquare, BotOff, Check } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import type { InboxDelivery } from '../../types/presence';
+import type { ClientInboxDelivery as InboxDelivery } from '../hooks/useInboxDelivery';
 import { copyTextToClipboard } from '../utils/clipboard';
 import { buildResumePrompt } from '../utils/resumePrompt';
+
+import { HeaderMenu } from './HeaderMenu';
+
+import './agent-delivery.css';
 
 function describe(delivery: InboxDelivery): { label: string; detail: string } {
   switch (delivery.status) {
     case 'ready':
+      if (delivery.transport === 'queue')
+        return {
+          label: 'Verdicts and comments will be queued for Codex',
+          detail: 'Keep the owning Codex chat open. A closed chat may need the resume prompt.',
+        };
       return {
         label: 'Your verdicts and comments go to the agent session',
         detail: 'The agent session that opened this review receives your verdicts and comments.',
@@ -16,6 +25,17 @@ function describe(delivery: InboxDelivery): { label: string; detail: string } {
       return {
         label: 'Sending to the agent session',
         detail: 'Verdicts are sent within 2 seconds; comments 5 seconds after your last one.',
+      };
+    case 'queued':
+      return {
+        label: 'Queued for Codex',
+        detail:
+          'Codex saved the notification. This does not confirm a running turn. If the chat stays idle, copy the resume prompt.',
+      };
+    case 'uncertain':
+      return {
+        label: 'Codex delivery unconfirmed',
+        detail: `${delivery.error}. The notification will not be retried automatically. If the chat stays idle, copy the resume prompt.`,
       };
     case 'sent':
       return {
@@ -35,13 +55,20 @@ function describe(delivery: InboxDelivery): { label: string; detail: string } {
   }
 }
 
-const tone: Record<InboxDelivery['status'], string> = {
-  ready: 'text-github-text-secondary',
-  pending: 'text-blue-600 animate-pulse motion-reduce:animate-none',
-  sent: 'text-github-accent-text',
-  failed: 'text-github-danger',
-  unavailable: 'text-github-text-muted',
-};
+// Both transports acknowledge acceptance, not that the agent read the message.
+// The hook timestamps new receipts in this browser, independently of the server clock.
+function useRecentDelivery(delivery: InboxDelivery): boolean {
+  const { receivedAt } = delivery;
+  const [recentReceipt, setRecentReceipt] = useState<number>();
+  useEffect(() => {
+    const remaining = receivedAt === undefined ? 0 : receivedAt + 5_000 - Date.now();
+    setRecentReceipt(remaining > 0 ? receivedAt : undefined);
+    if (remaining <= 0) return;
+    const timer = setTimeout(() => setRecentReceipt(undefined), remaining);
+    return () => clearTimeout(timer);
+  }, [receivedAt]);
+  return receivedAt !== undefined && recentReceipt === receivedAt;
+}
 
 // Copies the prompt the reviewer pastes into the agent's chat, and says whether that worked.
 function CopyResumePrompt() {
@@ -71,63 +98,90 @@ function CopyResumePrompt() {
   );
 }
 
-/**
- * Whether the open review's latest verdict or comment reached the agent session that opened it.
- * It reports state and takes no input; only when the reviewer must paste a prompt does a
- * Copy resume prompt control appear beside it. Phones have no room for it in the header: there
- * a failed delivery shows AgentDeliveryAlert instead.
- */
-export function AgentDeliveryStatus({ delivery }: { delivery: InboxDelivery | undefined }) {
-  // A server older than the inbox reports nothing; the Conversation panel shows presence then.
-  if (!delivery) return null;
-  const { label, detail } = describe(delivery);
+/** One compact control for both transports; details and recovery stay outside the header. */
+function DeliveryControl({ delivery }: { delivery: InboxDelivery }) {
+  const recent = useRecentDelivery(delivery);
+  const disconnected = delivery.status === 'unavailable' || delivery.status === 'failed';
+  const uncertain = delivery.status === 'uncertain';
+  const pending = delivery.status === 'pending';
+  const state = disconnected
+    ? 'disconnected'
+    : uncertain
+      ? 'uncertain'
+      : pending
+        ? 'delivering'
+        : recent
+          ? 'delivered'
+          : 'available';
+  const label = disconnected
+    ? 'Agent disconnected'
+    : uncertain
+      ? 'Delivery unconfirmed'
+      : pending
+        ? 'Delivering to agent'
+        : recent
+          ? 'Delivered to agent'
+          : 'Agent available';
+  const { label: receipt, detail } = describe(delivery);
+  const color = disconnected
+    ? 'text-github-text-muted'
+    : uncertain
+      ? 'text-github-danger'
+      : 'text-github-accent-text';
   return (
-    <div className="hidden shrink-0 items-center gap-1 md:flex">
-      <span
-        role="status"
-        aria-label={label}
-        title={`${label}. ${detail}`}
-        className={`relative inline-flex p-1 ${tone[delivery.status]}`}
-      >
-        {delivery.status === 'unavailable' ? (
-          <BotOff size={18} aria-hidden="true" />
-        ) : (
-          <BotMessageSquare size={18} aria-hidden="true" />
-        )}
-        {delivery.status === 'sent' && (
-          <span
-            aria-hidden="true"
-            className="absolute -right-0.5 -bottom-0.5 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-github-accent text-white"
-          >
-            <Check size={8} strokeWidth={4} />
+    <HeaderMenu
+      title={label}
+      className={`agent-delivery-button relative inline-flex shrink-0 items-center justify-center rounded hover:bg-github-bg-tertiary ${color}`}
+      label={
+        <>
+          <span className="sr-only" role="status">
+            {label}
           </span>
-        )}
-        {delivery.status === 'failed' && (
-          <span
-            aria-hidden="true"
-            className="absolute -right-0.5 -bottom-0.5 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-github-danger text-[8px] leading-none font-bold text-white"
-          >
-            !
+          <span className="relative inline-flex" data-delivery-state={state} aria-hidden="true">
+            {disconnected ? <BotOff size={18} /> : <BotMessageSquare size={18} />}
+            {pending && (
+              <BotMessageSquare
+                size={18}
+                className="agent-delivery-sweep absolute inset-0 text-github-text-primary"
+              />
+            )}
+            {recent && (
+              <span className="absolute -right-1 -bottom-1 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-github-accent text-white">
+                <Check size={8} strokeWidth={4} />
+              </span>
+            )}
+            {uncertain && (
+              <span className="absolute -right-1 -bottom-1 text-[10px] font-bold">!</span>
+            )}
           </span>
-        )}
-      </span>
-      {(delivery.status === 'failed' || delivery.status === 'unavailable') && <CopyResumePrompt />}
-    </div>
+        </>
+      }
+    >
+      <p className="font-medium">{label}</p>
+      <p className="mt-1 text-xs text-github-text-secondary">
+        {receipt}. {detail}
+      </p>
+      <div className="mt-3">
+        <CopyResumePrompt />
+      </div>
+    </HeaderMenu>
   );
 }
 
-/** On phones, where the header has no room for AgentDeliveryStatus: a failed delivery only. */
-export function AgentDeliveryAlert({ delivery }: { delivery: InboxDelivery | undefined }) {
-  if (delivery?.status !== 'failed') return null;
-  return (
-    <div
-      role="alert"
-      className="flex w-full items-center gap-2 text-xs text-github-danger md:hidden"
-    >
-      <span className="min-w-0">
-        Your latest verdict or comment didn&apos;t reach the agent session: {delivery.error}
-      </span>
-      <CopyResumePrompt />
+/** Desktop placement; older servers without delivery state use the presence indicator. */
+export function AgentDeliveryStatus({ delivery }: { delivery: InboxDelivery | undefined }) {
+  return delivery ? (
+    <div className="hidden shrink-0 md:flex">
+      <DeliveryControl delivery={delivery} />
     </div>
-  );
+  ) : null;
+}
+
+/** Mobile placement uses the same states and occupies only 30 pixels of header width. */
+export function AgentDeliveryAlert({ delivery }: { delivery: InboxDelivery | undefined }) {
+  return delivery ? (
+    <div className="flex shrink-0 md:hidden">
+      <DeliveryControl delivery={delivery} />
+    </div>
+  ) : null;
 }

@@ -45,12 +45,17 @@ to `accept` for gavel's messages to start turns in every permission mode.
 
 `GET /api/inbox` reports, for each review, `ready`, `pending`, `sent`
 (`via: "inbox"` or `"prompt"`), `failed` with the error, or
-`unavailable` when the review has no owning session. On wider screens a bot icon
-left of the review name in the header shows this state, and **Copy resume prompt** appears beside
-it when delivery failed or no session owns the review. Phones have no room for the
-icon: there a failed delivery shows an alert with **Copy resume prompt** under the
-header, and a review no session owns shows **Copy resume prompt** in the
-**Conversation** panel.
+`unavailable` when the review has no owning session. The header uses the same
+robot control on desktop and phones: a muted crossed-out robot for unavailable
+or failed delivery, a green robot when delivery is available, a diagonal sweep
+while delivering, and a green check for five seconds after acceptance. Reduced
+motion disables the sweep. Codex queue acceptance gets the same confirmation;
+uncertain delivery shows a red robot with an exclamation mark. Acceptance does
+not mean the agent read the message or started a turn.
+
+Click or tap the robot for details, errors, and **Copy resume prompt**. The
+30-pixel control keeps these details out of the phone header. If an older server
+provides no delivery state, use **Conversation → Copy resume prompt**.
 
 The socket changes when Claude Code restarts. Each server lists its owning
 sessions under `$XDG_RUNTIME_DIR/gavel/sessions/<session-id>/<host>_<port>.json`;

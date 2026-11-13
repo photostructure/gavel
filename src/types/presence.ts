@@ -5,12 +5,15 @@ export interface ReviewPresenceSnapshot {
 }
 
 /**
- * Whether the latest human activity on a review reached the Claude Code session that owns it.
- * sent means the session's inbox accepted the message, not that the agent read it.
+ * Whether the latest human activity reached its owner. Queue receipts confirm persistence,
+ * not a running turn; uncertain prevents blind retries after a lost acknowledgment.
  */
-export type InboxDelivery =
+export type InboxDelivery = (
   | { status: 'unavailable' }
   | { status: 'ready' }
   | { status: 'pending' }
   | { status: 'sent'; at: string; via: 'inbox' | 'prompt' }
-  | { status: 'failed'; at: string; error: string };
+  | { status: 'queued'; at: string }
+  | { status: 'uncertain'; at: string; error: string }
+  | { status: 'failed'; at: string; error: string }
+) & { transport?: 'queue' };

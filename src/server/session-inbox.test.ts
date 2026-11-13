@@ -1,3 +1,4 @@
+import type { QueueReceipt } from './codex-queue';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -72,7 +73,9 @@ function commentEvent(reviewId: string, origin: 'user' | 'agent' = 'user'): Conv
 describe('SessionInbox', () => {
   let runtimeDir: string;
   let snapshot: ConversationSnapshot;
-  let send: ReturnType<typeof vi.fn<(target: InboxTarget, content: string) => Promise<void>>>;
+  let send: ReturnType<
+    typeof vi.fn<(target: InboxTarget, content: string) => Promise<void | QueueReceipt>>
+  >;
   let inbox: SessionInbox;
 
   beforeEach(() => {
@@ -92,6 +95,106 @@ describe('SessionInbox', () => {
     inbox.dispose();
     vi.useRealTimers();
     rmSync(runtimeDir, { recursive: true, force: true });
+  });
+
+  const codex: InboxTarget = {
+    kind: 'codex',
+    sessionId: '01a1d14e-3f20-7a62-b380-2a1ce396a0d5',
+    home: '/home/test/.codex',
+  };
+
+  it.each([{ status: 'queued' }, { status: 'uncertain', error: 'session is archived' }] as const)(
+    'keeps a %s receipt without resending on drain or attach',
+    async (via) => {
+      send.mockResolvedValue(via);
+      inbox.setOwner('r1', codex);
+      expect(inbox.delivery('r1')).toEqual({ status: 'ready', transport: 'queue' });
+      inbox.handle(commentEvent('r1'));
+      expect(inbox.delivery('r1')).toEqual({ status: 'pending', transport: 'queue' });
+      await inbox.drain();
+      expect(send.mock.calls[0]?.[1]).toContain(
+        'gavel comment snapshot --host localhost --port 4966',
+      );
+      expect(send.mock.calls[0]?.[1]).toContain('why?');
+      expect(inbox.delivery('r1')).toMatchObject({ ...via, transport: 'queue' });
+      expect(inbox.attach(codex)).toBeUndefined();
+      await inbox.drain();
+      expect(send).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('includes the human text and captured code in a scoped Codex message', async () => {
+    send.mockResolvedValue({ status: 'queued' });
+    inbox.setOwner('r1', codex);
+    const event = commentEvent('r1') as ConversationEvent & { type: 'comment.created' };
+    inbox.handle({
+      ...event,
+      body: 'Please explain this result',
+      codeSnapshot: { content: 'const result = 1;' },
+    });
+    await inbox.drain();
+    const content = send.mock.calls[0]?.[1] ?? '';
+    expect(content).toContain('Review IDs: ["r1"]');
+    expect(content).toContain('"body":"Please explain this result"');
+    expect(content).toContain('"code":"const result = 1;"');
+    expect(content).toContain('before committing read a fresh');
+  });
+
+  it('keeps all large human context for the Codex transport to split', async () => {
+    send.mockResolvedValue({ status: 'queued' });
+    inbox.setOwner('r1', codex);
+    const event = commentEvent('r1') as ConversationEvent & { type: 'comment.created' };
+    inbox.handle({ ...event, body: '🧪'.repeat(12_000) });
+    await inbox.drain();
+    const content = send.mock.calls[0]?.[1] ?? '';
+    expect(content).toContain('Review IDs: ["r1"]');
+    expect(content).not.toContain('too large');
+    expect(content).toContain('🧪'.repeat(12_000));
+    expect(Buffer.byteLength(content)).toBeGreaterThan(32_000);
+  });
+
+  it('coalesces later reviews while one Codex queue command is still running', async () => {
+    let finish!: () => void;
+    send.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    send.mockResolvedValue({ status: 'queued' });
+    inbox.setOwner('r1', codex);
+    inbox.setOwner('r2', codex);
+    snapshot.reviews.push(review('r3', 'three'));
+    inbox.setOwner('r3', codex);
+    inbox.handle(commentEvent('r1'));
+    await vi.advanceTimersByTimeAsync(INBOX_QUIET_MS);
+    inbox.handle(approvalEvent('r2'));
+    await vi.advanceTimersByTimeAsync(INBOX_SETTLE_MS);
+    expect(send).toHaveBeenCalledTimes(1);
+    inbox.handle(approvalEvent('r3'));
+    await vi.advanceTimersByTimeAsync(INBOX_SETTLE_MS);
+    expect(send).toHaveBeenCalledTimes(1);
+    finish();
+    await inbox.drain();
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[1]?.[1]).toContain('Review IDs: ["r2","r3"]');
+    expect(inbox.delivery('r2')).toMatchObject({ status: 'queued', transport: 'queue' });
+  });
+
+  it('routes only human activity to its Codex owner', async () => {
+    send.mockResolvedValue({ status: 'queued' });
+    inbox.setOwner('r1', codex);
+    inbox.setOwner('r2', other);
+    inbox.handle(commentEvent('r1', 'agent'));
+    inbox.handle(approvalEvent('r1', 'agent'));
+    await inbox.drain();
+    expect(send).not.toHaveBeenCalled();
+    inbox.handle(approvalEvent('r1'));
+    await inbox.drain();
+    expect(send.mock.calls[0]?.[0]).toEqual(codex);
+    expect(send.mock.calls[0]?.[1]).toContain('Review IDs: ["r1"]');
+    expect(send.mock.calls[0]?.[1]).toContain('Do not act on other reviews');
+    expect(inbox.delivery('r2')).toEqual({ status: 'ready' });
   });
 
   it('sends a verdict to the review owner after the settle delay', async () => {
@@ -465,6 +568,17 @@ describe('sendToInbox', () => {
 });
 
 describe('parseInboxTarget', () => {
+  it('accepts an explicitly typed Codex owner without executing caller-supplied programs', () => {
+    const target = {
+      kind: 'codex',
+      sessionId: '01a1d14e-3f20-7a62-b380-2a1ce396a0d5',
+      home: '/home/test/.codex',
+    };
+    expect(parseInboxTarget({ ...target, executable: '/tmp/untrusted' })).toEqual(target);
+    expect(parseInboxTarget({ ...target, sessionId: 'name' })).toBeUndefined();
+    expect(parseInboxTarget({ kind: 'unknown', sessionId: 'a', socket: '/s' })).toBeUndefined();
+  });
+
   it('accepts a session ID, an absolute socket path, and an optional token', () => {
     expect(parseInboxTarget({ sessionId: 'a-1', socket: '/run/s.sock', token: 't' })).toEqual({
       sessionId: 'a-1',

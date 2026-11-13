@@ -78,10 +78,15 @@ gavel works with your existing agent; it does not start one. A review opened
 from Claude Code sends your verdicts and comments to that session, which starts
 a turn even when it is idle; a bot icon left of the review name in the header
 shows whether the latest one was sent.
-Codex ends its turn while you review. After the last verdict, choose **Copy resume
-prompt and close**, then paste the prompt into the Codex chat that opened the
-review. The tab stays open until the copy succeeds. To resume before finishing
-all reviews, use **Conversation → Copy resume prompt**. See
+Codex ends its turn while you review. With a supported `codex queue` CLI on the
+server, gavel queues your verdicts and comments for the chat that opened the
+review. For both agents, the robot shows availability, sweeps while delivering,
+and briefly shows a green check after acceptance. Tap it for delivery details;
+**Queued for Codex** confirms saved input, not a running turn. Keep that
+chat open and use separate gavel servers for Codex and Claude Code. If the chat
+stays idle, use **Copy resume prompt and close** after the last
+verdict, or tap the robot and choose **Copy resume prompt** before then, and paste into the
+owning chat. The tab stays open until the copy succeeds. See
 [waiting for review](docs/waiting-for-review.md) for host requirements.
 
 ## 🚀 Usage

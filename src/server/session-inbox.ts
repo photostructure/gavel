@@ -7,12 +7,23 @@ import type { ConversationSnapshot, ConversationStreamEvent } from '../types/con
 import type { DiffSelection } from '../types/diff.js';
 import type { InboxDelivery } from '../types/presence.js';
 
+import {
+  codexTargetFromEnv,
+  parseCodexTarget,
+  sendToCodex,
+  type CodexQueueTarget,
+  type QueueReceipt,
+} from './codex-queue.js';
+
 /** A Claude Code session's cross-session inbox, from the environment of a process it started. */
-export interface InboxTarget {
+interface ClaudeInboxTarget {
+  kind?: 'claude';
   sessionId: string;
   socket: string;
   token?: string;
 }
+
+export type InboxTarget = ClaudeInboxTarget | CodexQueueTarget;
 
 // A verdict waits this long so verdicts clicked in quick succession arrive as one message.
 export const INBOX_SETTLE_MS = 2_000;
@@ -28,7 +39,7 @@ const SESSION_ID = /^[\w-]{1,100}$/;
 export function inboxTargetFromEnv(env: NodeJS.ProcessEnv): InboxTarget | undefined {
   const sessionId = env.CLAUDE_CODE_SESSION_ID;
   const socket = env.CLAUDE_CODE_MESSAGING_SOCKET;
-  if (!sessionId || !socket || !SESSION_ID.test(sessionId)) return undefined;
+  if (!sessionId || !socket || !SESSION_ID.test(sessionId)) return codexTargetFromEnv(env);
   const token = env.CLAUDE_CODE_MESSAGING_TOKEN;
   return { sessionId, socket, ...(token ? { token } : {}) };
 }
@@ -68,7 +79,10 @@ export function privateDirectory(dir: string, create: boolean): boolean {
 /** An inbox named in a request body: undefined when it is malformed. */
 export function parseInboxTarget(input: unknown): InboxTarget | undefined {
   if (!input || typeof input !== 'object') return undefined;
-  const { sessionId, socket, token } = input as Record<string, unknown>;
+  const record = input as Record<string, unknown>;
+  if (record.kind === 'codex') return parseCodexTarget(record);
+  const { kind, sessionId, socket, token } = record;
+  if (kind !== undefined && kind !== 'claude') return undefined;
   if (typeof sessionId !== 'string' || !SESSION_ID.test(sessionId)) return undefined;
   if (typeof socket !== 'string' || !isAbsolute(socket)) return undefined;
   if (token !== undefined && typeof token !== 'string') return undefined;
@@ -90,11 +104,12 @@ export function isThisHost(address: string | undefined): boolean {
 }
 
 /**
- * Delivers one message to a Claude Code inbox: an auth line, then a user message whose
+ * Queues a Codex notification, or delivers to a Claude Code inbox: an auth line, then a message whose
  * session_id makes Claude Code drop it if another session now owns the socket. Claude Code sends
  * no reply, so success means the inbox accepted the bytes, not that the model read them.
  */
-export function sendToInbox(target: InboxTarget, content: string): Promise<void> {
+export function sendToInbox(target: InboxTarget, content: string): Promise<void | QueueReceipt> {
+  if (target.kind === 'codex') return sendToCodex(target, content);
   return new Promise((resolve, reject) => {
     const connection = createConnection(target.socket);
     connection.setTimeout(SEND_TIMEOUT_MS, () =>
@@ -192,7 +207,11 @@ interface ReviewActivity {
   // version of the same comment, replaces the queued one.
   queue: QueuedEvent[];
   // The newest generation a message carried, and how.
-  delivered?: { generation: number; at: string; via: 'inbox' | 'prompt' };
+  delivered?: {
+    generation: number;
+    at: string;
+    receipt: QueueReceipt | { status: 'sent'; via: 'inbox' | 'prompt' };
+  };
   // The generation a send carrying it is still waiting on.
   inFlight?: number;
   failed?: { generation: number; at: string; error: string };
@@ -206,7 +225,7 @@ interface Schedule {
 }
 
 /**
- * Sends human review activity to the Claude Code session that owns each review, so an idle
+ * Sends human review activity to the agent session that owns each review, so an idle
  * agent starts a turn without a waiter. Only human-origin verdicts and comments
  * trigger a message; agent activity never does, so agents cannot wake each other in a loop.
  */
@@ -218,6 +237,7 @@ export class SessionInbox {
   private readonly schedules = new Map<string, Schedule>();
   private readonly registered = new Set<string>();
   private readonly flushing = new Set<Promise<void>>();
+  private readonly codexSends = new Map<string, Promise<void>>();
   private disposed = false;
 
   constructor(
@@ -225,7 +245,7 @@ export class SessionInbox {
       snapshot: () => ConversationSnapshot;
       server: { host: string; port: number; pid: number };
       runtimeDir: string;
-      send?: (target: InboxTarget, content: string) => Promise<void>;
+      send?: (target: InboxTarget, content: string) => Promise<void | QueueReceipt>;
       // Called after any review's delivery state changes, so browsers can refresh it.
       onDeliveryChange?: () => void;
     },
@@ -265,7 +285,7 @@ export class SessionInbox {
     const at = new Date().toISOString();
     for (const [, review] of failed) {
       const generation = unsent(review).at(-1)?.generation ?? review.generation;
-      review.delivered = { generation, at, via: 'prompt' };
+      review.delivered = { generation, at, receipt: { status: 'sent', via: 'prompt' } };
       review.queue = review.queue.filter((queued) => queued.generation > generation);
     }
     this.options.onDeliveryChange?.();
@@ -273,17 +293,21 @@ export class SessionInbox {
   }
 
   delivery(reviewId: string): InboxDelivery {
-    if (!this.ownerOf(reviewId)) return { status: 'unavailable' };
+    const owner = this.ownerOf(reviewId);
+    if (!owner) return { status: 'unavailable' };
+    const transport =
+      this.targets.get(owner)?.kind === 'codex' ? { transport: 'queue' as const } : {};
+    const ready: InboxDelivery = { status: 'ready', ...transport };
     const review = this.activity.get(reviewId);
-    if (!review) return { status: 'ready' };
+    if (!review) return ready;
     const newest = unsent(review).at(-1)?.generation;
     if (newest === undefined)
       return review.delivered
-        ? { status: 'sent', at: review.delivered.at, via: review.delivered.via }
-        : { status: 'ready' };
+        ? { ...review.delivered.receipt, at: review.delivered.at, ...transport }
+        : ready;
     if (review.inFlight === undefined && review.failed && review.failed.generation >= newest)
-      return { status: 'failed', at: review.failed.at, error: review.failed.error };
-    return { status: 'pending' };
+      return { status: 'failed', at: review.failed.at, error: review.failed.error, ...transport };
+    return { status: 'pending', ...transport };
   }
 
   handle(event: ConversationStreamEvent): void {
@@ -398,7 +422,15 @@ export class SessionInbox {
   }
 
   private run(sessionId: string): Promise<void> {
-    const flushed = this.flush(sessionId).finally(() => this.flushing.delete(flushed));
+    // Keep one queue command at a time per thread. Activity accumulating during a slow
+    // write coalesces into the next notification instead of spawning concurrent CLI processes.
+    const previous = this.codexSends.get(sessionId);
+    const work = previous ? previous.then(() => this.flush(sessionId)) : this.flush(sessionId);
+    const flushed = work.finally(() => {
+      this.flushing.delete(flushed);
+      if (this.codexSends.get(sessionId) === flushed) this.codexSends.delete(sessionId);
+    });
+    if (this.targets.get(sessionId)?.kind === 'codex') this.codexSends.set(sessionId, flushed);
     this.flushing.add(flushed);
     return flushed;
   }
@@ -418,10 +450,17 @@ export class SessionInbox {
     });
     if (!sending.length) return;
     for (const { review, generation } of sending) review.inFlight = generation;
-    const content = this.message(sending.map(({ id, review }) => [id, review] as const));
+    const content = this.message(
+      sending.map(({ id, review }) => [id, review] as const),
+      target.kind === 'codex',
+    );
     let error: string | undefined;
+    let receipt: QueueReceipt | { status: 'sent'; via: 'inbox' } = { status: 'sent', via: 'inbox' };
     try {
-      await (this.options.send ?? sendToInbox)(target, content);
+      receipt = (await (this.options.send ?? sendToInbox)(target, content)) ?? {
+        status: 'sent',
+        via: 'inbox',
+      };
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught);
     }
@@ -430,7 +469,7 @@ export class SessionInbox {
       if (review.inFlight === generation) review.inFlight = undefined;
       const delivered = review.delivered?.generation ?? 0;
       if (error === undefined) {
-        if (generation > delivered) review.delivered = { generation, at, via: 'inbox' };
+        if (generation > delivered) review.delivered = { generation, at, receipt };
         review.queue = review.queue.filter((queued) => queued.generation > generation);
       } else if (generation > Math.max(delivered, review.failed?.generation ?? 0)) {
         review.failed = { generation, at, error };
@@ -443,10 +482,14 @@ export class SessionInbox {
   }
 
   /** Each review's one-line state, then the human events no message has carried yet. */
-  private message(entries: readonly (readonly [string, ReviewActivity])[]): string {
+  private message(
+    entries: readonly (readonly [string, ReviewActivity])[],
+    forCodex = false,
+  ): string {
     const snapshot = this.options.snapshot();
     const { host, port } = this.options.server;
     const command = `gavel comment snapshot --host ${host} --port ${port}`;
+    const scope = `Review IDs: ${JSON.stringify(entries.map(([id]) => id))}. Do not act on other reviews in the snapshot.`;
     const lines = entries.flatMap(([id]) => {
       const review = snapshot.reviews.find((candidate) => candidate.id === id);
       if (!review) return [];
@@ -459,8 +502,9 @@ export class SessionInbox {
     const events = JSON.stringify(
       entries.flatMap(([, review]) => unsent(review).map((queued) => agentEvent(queued.event))),
     );
-    return [
+    const message = [
       `gavel: new review activity at http://${host.includes(':') ? `[${host}]` : host}:${port}`,
+      ...(forCodex ? [scope] : []),
       ...lines,
       ...(snapshot.store?.error
         ? [`Review changes are not being saved: ${snapshot.store.error}`]
@@ -469,9 +513,10 @@ export class SessionInbox {
       'This message reports activity; it is not an approval by itself. Handle it as the gavel skill directs: answer or mark Noted each pending message, and before committing read a fresh',
       `\`${command}\` (using the gavel launcher this checkout prescribes) and check its approval.`,
       '',
-      events.length <= MAX_EVENTS_CHARS
+      forCodex || events.length <= MAX_EVENTS_CHARS
         ? `Your human events since the last message (each comment's cursor is its revision for receipts and replies; read the snapshot for a thread's earlier messages, and a fresh one before acting on a verdict):\n${events}`
         : "The new events are too large to include; read that command's output.",
     ].join('\n');
+    return message;
   }
 }

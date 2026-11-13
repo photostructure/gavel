@@ -1043,12 +1043,12 @@ describe('named captures in the browser', () => {
     const state = fixture();
     state.inbox = { status: 'ready' };
     renderApp();
-    const status = { name: 'Your verdicts and comments go to the agent session' };
-    expect(await screen.findByRole('status', status)).toBeInTheDocument();
+    const status = { name: 'Agent available' };
+    expect((await screen.findAllByRole('button', status))[0]).toBeInTheDocument();
     state.renamedA = 'task-renamed';
     await act(async () => watch.reviewsChanged?.());
     await waitFor(() => expect(window.location.search).toBe('?review=task-renamed'));
-    expect(await screen.findByRole('status', status)).toBeInTheDocument();
+    expect((await screen.findAllByRole('button', status))[0]).toBeInTheDocument();
   });
 
   // A change waits in localStorage under the review's name until the server confirms it.

@@ -1,0 +1,27 @@
+/* Keep the robot in a 30px header slot, including with coarse-pointer toolbar rules. */
+.review-toolbar button.agent-delivery-button,
+button.agent-delivery-button {
+  width: 30px;
+  min-width: 30px;
+}
+
+.agent-delivery-sweep {
+  animation: agent-delivery-sweep 1.3s linear infinite;
+}
+
+@keyframes agent-delivery-sweep {
+  /* Move a diagonal band from beyond the top-left to beyond the bottom-right. */
+  from {
+    clip-path: polygon(-100% 100%, 100% -100%, 75% -125%, -125% 75%);
+  }
+  to {
+    clip-path: polygon(25% 225%, 225% 25%, 200% 0%, 0% 200%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-delivery-sweep {
+    animation: none;
+    clip-path: polygon(-25% 100%, 100% -25%, 125% 0%, 0% 125%);
+  }
+}

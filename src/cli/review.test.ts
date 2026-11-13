@@ -71,6 +71,8 @@ describe('named review CLI', () => {
   let directory: string;
 
   beforeEach(async () => {
+    vi.stubEnv('CODEX_THREAD_ID', undefined);
+    vi.stubEnv('CLAUDE_CODE_SESSION_ID', undefined);
     directory = await mkdtemp(join(tmpdir(), 'gavel-review-cli-'));
     vi.stubGlobal('fetch', fetchMock);
     vi.spyOn(console, 'log').mockImplementation(log);
@@ -263,6 +265,15 @@ describe('named review CLI', () => {
     );
     expect(log).toHaveBeenCalledExactlyOnceWith(JSON.stringify(result));
     expect(error).not.toHaveBeenCalled();
+  });
+
+  it('records the creating Codex thread and home', async () => {
+    const sessionId = '01a1d14e-3f20-7a62-b380-2a1ce396a0d5';
+    vi.stubEnv('CODEX_THREAD_ID', sessionId);
+    vi.stubEnv('CODEX_HOME', '/home/test/.codex');
+    await run('create', 'task-b', '--port', '4983');
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { inbox: unknown };
+    expect(body.inbox).toEqual({ kind: 'codex', sessionId, home: '/home/test/.codex' });
   });
 
   it("names the creating Claude Code session's inbox so its feedback goes there", async () => {

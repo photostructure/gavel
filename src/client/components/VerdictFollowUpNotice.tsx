@@ -80,8 +80,8 @@ export function VerdictFollowUpNotice({
               `${allDone} Closing this tab in ${step.seconds}s`
             ) : step.kind === 'resume' ? (
               <>
-                {allDone} Copy the resume prompt, then paste it into the agent's chat that opened
-                this review to continue.
+                {allDone} If the agent hasn't resumed, copy the prompt and paste it into the chat
+                that opened this review.
                 {step.status === 'error' && (
                   <span role="alert" className="mt-1 block text-github-danger">
                     Could not copy the prompt. This tab will stay open; try again.
@@ -89,7 +89,7 @@ export function VerdictFollowUpNotice({
                 )}
               </>
             ) : step.promptCopied ? (
-              "Resume prompt copied. Paste it into the agent's chat that opened this review to continue. You can close this tab."
+              "Resume prompt copied. Paste it into the agent's chat that opened this review if the agent hasn't resumed. You can close this tab."
             ) : (
               `${allDone} You can close this tab.`
             )}

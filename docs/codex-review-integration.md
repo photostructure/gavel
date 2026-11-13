@@ -19,9 +19,9 @@ Claude content when separating those links.
 
 ## Codex: end the turn, resume on feedback
 
-This workflow needs no external controller and starts no model turns while the
-human is away. Use it for desktop, CLI, IDE, and subagent reviews unless an
-external event controller is already configured:
+Gavel queues human verdicts and comments for the owning Codex chat when
+`CODEX_THREAD_ID` identifies it and `codex queue` is available on the server
+host. No model turn waits for review. Manual handoff remains available:
 
 1. From the reviewed repository's Git root, launch the source build using
    the gavel launcher prescribed by the checkout's instructions with `--background`.
@@ -31,19 +31,20 @@ external event controller is already configured:
 2. Send any explicit receipts only after recording the corresponding work. Give
    the reviewer the URL and end the Codex turn. Leave the detached server running.
 3. After the last verdict, the tab stays open with **Copy resume prompt and close**.
-   The reviewer clicks it, then pastes the prompt into the owning Codex chat.
+   If queued feedback has not resumed the chat, the reviewer clicks it and
+   pastes the prompt into the owning Codex chat.
    Closing requires a successful copy; a failed copy leaves the tab open for retry.
    **Keep open** dismisses the notice. To resume before the last verdict or after
-   dismissing the notice, use **Conversation → Copy resume prompt**. That button also works when the browser
-   cannot determine listener presence. It copies a snapshot command and the
-   review URL, with the editor-session fragment removed. The final-verdict handoff
-   applies to Codex even when a listener is attached: a subscription does not
-   establish delivery into the owning chat. Codex's Conversation panel also keeps
-   its copy button available with a listener attached. Other agents retain the
-   close countdown.
-4. Codex reads one `comment snapshot --host <host> --port <actual-port>`, reconciles queued
-   messages and its saved pending work, and handles the feedback within the
-   existing authorization. Preserve exact message revision cursors for receipts
+   dismissing the notice, tap the robot and choose **Copy resume prompt**, on
+   desktop or phone. If the review has no owning session,
+   use **Conversation → Copy resume prompt** instead. The prompt includes the
+   snapshot command and review URL. Codex keeps manual handoff available even
+   when a listener is attached: a subscription does not prove delivery into the
+   owning chat. Other agents retain the close countdown.
+4. Codex handles the delivered event batch and its saved pending work within
+   the existing authorization. Use `comment snapshot --host <host> --port <actual-port>`
+   for a manual resume, missing thread context, or a fresh
+   approval check before committing. Preserve exact message revision cursors for receipts
    and replies. Check approval against the current capture and summary.
 5. When caught up, Codex ends the turn again. Delivered, Read, Thinking, and
    Replying messages still need reconciliation against saved work; only Queued
@@ -66,37 +67,58 @@ substitute a model polling loop to preserve the server.
 The listener indicator reports a subscription, not an active model or automatic
 turn delivery. Browser presence and background processes do not resume Codex.
 
-## Automatic integration: a controller owns event delivery
+## Queue delivery
 
-OpenAI's [app-server protocol](https://learn.chatgpt.com/docs/app-server#lifecycle-overview)
-documents `initialize`, `thread/resume`, and `turn/start`. A controller that owns
-the real app-server connection can keep the model idle and call `turn/start`
-when gavel returns a nonempty human-event batch. This is an integration contract,
-not a claim that the gavel CLI currently controls an arbitrary desktop chat.
+Gavel uses the documented [`codex queue`](https://learn.chatgpt.com/docs/developer-commands#codex-queue)
+command with the owning thread UUID and Codex home. Install Codex CLI on the
+machine running gavel and keep the owning chat open. The server checks command
+support before attempting a queue write. Hosts without a UUID or a usable CLI
+retain the manual resume prompt. A named review belongs to the chat that created
+it; a review without an owner does not fall back to another chat. Codex and
+Claude Code must use separate servers. Do not create Codex reviews on a
+Claude-launched server or reuse a Codex server from Claude. Mixed-host servers
+are unsupported; the final-verdict handoff uses the launching host identity.
 
-An implementation must:
+Human verdicts settle for two seconds; comments wait for five seconds of quiet.
+Agent replies and receipts never trigger a notification. Sends to a Codex thread
+are serialized. Messages name their review IDs and include the same verdicts, comment text,
+revision cursors, and captured code context as Claude inbox messages. Codex can
+handle that feedback directly; it reads the snapshot for missing thread history
+and before committing. Messages up to 16,000 UTF-8 bytes stay inline. For larger
+batches, gavel writes the complete feedback to a private local temporary file
+and queues one instruction to read it. This avoids command-line argument limits
+without splitting feedback across model inputs. The file is written before
+queueing, with owner-only access, and retained after delivery attempts and server
+shutdown so a delayed chat can read it. The host's temporary-file cleanup may
+remove it; use the manual resume prompt if it is missing or inaccessible. This
+handoff requires the agent to read files on the gavel host. The CLI receives each
+message as one literal argument; gavel does not interpolate it into a shell command.
 
-- Bind an explicit repository, server identity, review and Codex thread. Keep
-  process-local review/cursor identities distinct from thread identity.
-- Wait in ordinary code, without scheduled model prompts or timed model checks.
-  Presence changes, HTTP empty rounds and agent receipts never start a turn.
-- Store pending batches and per-port checkpoints before handing off work.
-  Deduplicate recovered messages by server/review/thread/message/revision; the
-  snapshot deliberately repeats still-Queued messages. Otherwise an unacknowledged
-  comment could create an expensive self-sustaining loop.
-- Serialize turns per thread and collect feedback arriving while it is busy.
-  Treat delivery failures as terminal for automatic invocation; preserve the
-  pending batch for explicit recovery instead of retrying model starts blindly.
-- On exit 4, stop automatic turn starts. The controller may observe presence in
-  ordinary code, but checking for a browser must never require a model turn.
-- Keep host approvals and capture guards in effect. Do not infer permission to
-  edit, commit or approve from presence or message intent.
+Claude and Codex use the same header control: a muted crossed-out robot when
+unavailable or disconnected, a green robot when delivery is available, a sweep
+while delivering, and a green check for five seconds when the browser observes
+acceptance. Reduced motion disables the sweep. Tap the robot for details and
+**Copy resume prompt**; the phone control occupies only 30 pixels.
 
-Queue/resume commands do not establish that they can deliver into the owning
-desktop chat. Verify the owning connection and real event delivery when building
-an integration. Do not start `codex exec resume` against an already-managed
-desktop chat as a substitute for a configured controller. Ordinary review work
-does not include building or probing an automatic bridge.
+**Queued for Codex** in the details confirms that the command saved the
+notification. It does not confirm that a turn started or the agent read it.
+**Codex delivery unconfirmed** shows the error or missing-acknowledgment
+diagnostic, with a red robot and exclamation mark. Gavel does not retry an
+attempted write automatically because it may already be saved. The final-verdict
+tab stays open for manual handoff.
+
+Validated on Linux with CLI 0.167.1 and desktop runtime 0.167.0-alpha.3.2: plain queue
+started turns in idle chats and deferred busy-chat input until the active turn
+finished. A closed CLI chat consumed its saved message when manually reopened.
+A fully closed desktop app, remote hosts, IDEs, and other versions have not been
+validated. Queue capability is checked rather than inferred from a version.
+
+Gavel deliberately omits `--resume`: it requires the correct daemon or remote
+server, and can print a warning while still exiting successfully. It does not
+start a daemon, use private desktop pipes, install hooks, or run `codex exec resume`
+against an already-managed chat. The [app-server protocol](https://learn.chatgpt.com/docs/app-server)
+can support a separately configured controller; this integration makes no claim
+to control an arbitrary unloaded desktop thread.
 
 ## Claude integration
 
