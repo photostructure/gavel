@@ -33,11 +33,25 @@ export function createNavigationFilters(
   viewMode: ViewMode,
   reviewedFiles?: Set<string>,
 ) {
+  // Added files have no old-column lines and deleted files no new-column lines.
+  const fileHasSide = (fileIndex: number, side: CursorPosition['side']): boolean =>
+    files[fileIndex]?.chunks.some((chunk, chunkIndex) =>
+      chunk.lines.some((_, lineIndex) =>
+        hasContentOnSide({ fileIndex, chunkIndex, lineIndex, side }, files),
+      ),
+    ) ?? false;
+  // Computed once: a lookup per line would rescan the file on every line it passes.
+  const fileSides = files.map((_, fileIndex) => ({
+    left: fileHasSide(fileIndex, 'left'),
+    right: fileHasSide(fileIndex, 'right'),
+  }));
+
   return {
     /**
      * Line navigation - navigates to lines with content on the current side
      * In unified mode, all lines are navigable
-     * In split mode, only lines with content on the current side
+     * In split mode, only lines with content on the current side, unless the file has none
+     * there; findNextMatchingPosition then moves the cursor to the other side
      * Skip lines in reviewed/collapsed files
      */
     line: (pos: CursorPosition): boolean => {
@@ -47,7 +61,11 @@ export function createNavigationFilters(
       // Skip if file is reviewed/collapsed
       if (reviewedFiles?.has(file.path)) return false;
 
-      return viewMode === 'unified' || hasContentOnSide(pos, files);
+      return (
+        viewMode === 'unified' ||
+        hasContentOnSide(pos, files) ||
+        fileSides[pos.fileIndex]?.[pos.side] === false
+      );
     },
 
     /**

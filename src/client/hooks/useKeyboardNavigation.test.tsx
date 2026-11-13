@@ -217,6 +217,98 @@ describe('useKeyboardNavigation', () => {
         side: 'right',
       });
     });
+
+    // A file with no lines on the cursor's side used to be skipped, so j wrapped to the top.
+    const sideOnlyFile = (path: string, type: 'add' | 'delete'): DiffFile => ({
+      path,
+      status: type === 'add' ? 'added' : 'deleted',
+      additions: type === 'add' ? 2 : 0,
+      deletions: type === 'delete' ? 2 : 0,
+      chunks: [
+        {
+          header: '@@',
+          oldStart: 1,
+          oldLines: 0,
+          newStart: 1,
+          newLines: 2,
+          lines: [1, 2].map((n) =>
+            type === 'add'
+              ? { type, newLineNumber: n, content: `+ ${n}` }
+              : { type, oldLineNumber: n, content: `- ${n}` },
+          ),
+        },
+      ],
+    });
+
+    it('should move j from the old column into a new file on its new column', async () => {
+      const user = userEvent.setup();
+      const files = [mockFiles[0]!, sideOnlyFile('new.js', 'add')];
+
+      const { result } = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files,
+            comments: [],
+            viewMode: 'split',
+            onToggleReviewed: vi.fn(),
+            reviewedFiles: new Set<string>(),
+          }),
+        { wrapper },
+      );
+
+      act(() => {
+        result.current.setCursorPosition({
+          fileIndex: 0,
+          chunkIndex: 0,
+          lineIndex: 3,
+          side: 'left',
+        });
+      });
+
+      await user.keyboard('j');
+
+      expect(result.current.cursor).toEqual({
+        fileIndex: 1,
+        chunkIndex: 0,
+        lineIndex: 0,
+        side: 'right',
+      });
+    });
+
+    it('should move k from the new column into a deleted file on its old column', async () => {
+      const user = userEvent.setup();
+      const files = [sideOnlyFile('gone.js', 'delete'), mockFiles[1]!];
+
+      const { result } = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files,
+            comments: [],
+            viewMode: 'split',
+            onToggleReviewed: vi.fn(),
+            reviewedFiles: new Set<string>(),
+          }),
+        { wrapper },
+      );
+
+      act(() => {
+        result.current.setCursorPosition({
+          fileIndex: 1,
+          chunkIndex: 0,
+          lineIndex: 0,
+          side: 'right',
+        });
+      });
+
+      await user.keyboard('k');
+
+      expect(result.current.cursor).toEqual({
+        fileIndex: 0,
+        chunkIndex: 0,
+        lineIndex: 1,
+        side: 'left',
+      });
+    });
   });
 
   describe('File Navigation (]/[)', () => {
