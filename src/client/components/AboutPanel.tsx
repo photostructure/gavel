@@ -86,6 +86,7 @@ export function AboutPanel({
           <div>
             <h2 className="sr-only">About</h2>
             <Logo style={{ height: '24px', color: 'var(--color-github-text-primary)' }} />
+            <p className="mt-2 text-sm text-github-text-secondary">{tagline}</p>
             <p className="mt-1.5 select-text text-xs ui-label">
               {import.meta.env.VITE_GAVEL_RELEASE_BUILD === 'true'
                 ? `Version ${version}`

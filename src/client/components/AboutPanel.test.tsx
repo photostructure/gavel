@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { version } from '../../../package.json';
 
-import { AboutPanel } from './AboutPanel';
+import { AboutPanel, tagline } from './AboutPanel';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -14,6 +14,11 @@ function renderPanel(onShowShortcuts = vi.fn()) {
 }
 
 describe('AboutPanel', () => {
+  it('shows the tagline under the logo', () => {
+    renderPanel();
+    expect(screen.getByText(tagline)).toBeInTheDocument();
+  });
+
   it('shows the package version on a release build', () => {
     vi.stubEnv('VITE_GAVEL_RELEASE_BUILD', 'true');
     renderPanel();
