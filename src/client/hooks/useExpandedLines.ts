@@ -281,8 +281,8 @@ export function useExpandedLines({
           const newRanges = [...currentRanges];
 
           // For the gap before chunkIndex, we need to consider BOTH:
-          // 1. 'up' direction from current chunk (user clicked "expand down" button in middle position)
-          // 2. 'down' direction from previous chunk (user clicked "expand up" button in middle position)
+          // 1. 'up' direction from current chunk (the middle gap's "Expand 20 lines up" button)
+          // 2. 'down' direction from previous chunk (the middle gap's "Expand 20 lines down" button)
           // This is because the UI buttons call different functions based on direction
 
           const existingUpIndex = newRanges.findIndex(

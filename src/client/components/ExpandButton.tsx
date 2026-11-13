@@ -4,6 +4,11 @@ import { memo, type ReactElement } from 'react';
 const DEFAULT_EXPAND_COUNT = 20;
 
 interface ExpandButtonProps {
+  /**
+   * The way the shown code grows into the gap, as on GitHub: `up` reveals the gap's
+   * last lines, above the hunk below it; `down` reveals its first lines, below the
+   * hunk above it.
+   */
   direction: 'up' | 'down' | 'both';
   hiddenLines: number;
   onExpandUp?: () => void;
@@ -46,20 +51,21 @@ export const ExpandButton = memo(function ExpandButton({
       icon: <UnfoldVertical size={16} aria-hidden="true" />,
     });
   } else {
-    if (direction === 'up' || direction === 'both') {
-      actions.push({
-        key: 'up',
-        onClick: onExpandUp,
-        ariaLabel: `Expand ${DEFAULT_EXPAND_COUNT} hidden lines above`,
-        icon: <ArrowUpFromLine size={12} aria-hidden="true" className="translate-y-0.5" />,
-      });
-    }
+    // In a middle gap, the button nearer the hunk above comes first.
     if (direction === 'down' || direction === 'both') {
       actions.push({
         key: 'down',
         onClick: onExpandDown,
-        ariaLabel: `Expand ${DEFAULT_EXPAND_COUNT} hidden lines below`,
-        icon: <ArrowDownFromLine size={12} aria-hidden="true" className="-translate-y-0.5" />,
+        ariaLabel: `Expand ${DEFAULT_EXPAND_COUNT} lines down`,
+        icon: <ArrowDownFromLine size={12} aria-hidden="true" className="translate-y-0.5" />,
+      });
+    }
+    if (direction === 'up' || direction === 'both') {
+      actions.push({
+        key: 'up',
+        onClick: onExpandUp,
+        ariaLabel: `Expand ${DEFAULT_EXPAND_COUNT} lines up`,
+        icon: <ArrowUpFromLine size={12} aria-hidden="true" className="-translate-y-0.5" />,
       });
     }
   }

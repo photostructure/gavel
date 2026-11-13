@@ -89,6 +89,34 @@ describe('text patch context controls', () => {
     expect(options.expandHiddenLines).toHaveBeenCalledWith(file, 1, 'down', 4);
     expect(screen.queryByText(/outside this patch/)).not.toBeInTheDocument();
   });
+
+  it('points each arrow the way the shown code grows, as GitHub does', () => {
+    const top = { ...first, hiddenLinesBefore: 30 };
+    const bottom = { ...second, hiddenLinesBefore: 40, hiddenLinesAfter: 50 };
+    const options = props({ mergedChunks: [top, bottom] });
+    render(<TextDiffViewer {...options} />);
+    const buttons = screen.getAllByRole('button', { name: /^Expand 20 lines/ });
+    // Top of file: the first hunk grows up. Middle: the hunk above grows down, then
+    // the hunk below grows up. End of file: the last hunk grows down.
+    expect(
+      buttons.map((button) => [
+        button.getAttribute('aria-label'),
+        button.querySelector('svg')?.getAttribute('class'),
+      ]),
+    ).toEqual([
+      ['Expand 20 lines up', expect.stringContaining('lucide-arrow-up-from-line')],
+      ['Expand 20 lines down', expect.stringContaining('lucide-arrow-down-from-line')],
+      ['Expand 20 lines up', expect.stringContaining('lucide-arrow-up-from-line')],
+      ['Expand 20 lines down', expect.stringContaining('lucide-arrow-down-from-line')],
+    ]);
+    for (const button of buttons) fireEvent.click(button);
+    expect(vi.mocked(options.expandHiddenLines).mock.calls).toEqual([
+      [file, 0, 'up'],
+      [file, 0, 'down'],
+      [file, 1, 'up'],
+      [file, 1, 'down'],
+    ]);
+  });
 });
 
 describe('drafts on lines no longer in the diff', () => {

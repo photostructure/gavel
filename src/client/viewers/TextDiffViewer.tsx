@@ -58,9 +58,9 @@ export function TextDiffViewer({
     if (position === 'top' && mergedChunk.hiddenLinesBefore > 0) {
       return (
         <ExpandButton
-          direction="down"
+          direction="up"
           hiddenLines={mergedChunk.hiddenLinesBefore}
-          onExpandDown={() => expandHiddenLines(file, firstOriginalIndex, 'up')}
+          onExpandUp={() => expandHiddenLines(file, firstOriginalIndex, 'up')}
           onExpandAll={() =>
             expandAllBetweenChunks(file, firstOriginalIndex, mergedChunk.hiddenLinesBefore)
           }
@@ -74,8 +74,8 @@ export function TextDiffViewer({
         <ExpandButton
           direction="both"
           hiddenLines={mergedChunk.hiddenLinesBefore}
-          onExpandUp={() => expandHiddenLines(file, firstOriginalIndex - 1, 'down')}
-          onExpandDown={() => expandHiddenLines(file, firstOriginalIndex, 'up')}
+          onExpandDown={() => expandHiddenLines(file, firstOriginalIndex - 1, 'down')}
+          onExpandUp={() => expandHiddenLines(file, firstOriginalIndex, 'up')}
           onExpandAll={() =>
             expandAllBetweenChunks(file, firstOriginalIndex, mergedChunk.hiddenLinesBefore)
           }
@@ -87,9 +87,9 @@ export function TextDiffViewer({
     if (position === 'bottom' && mergedChunk.hiddenLinesAfter > 0) {
       return (
         <ExpandButton
-          direction="up"
+          direction="down"
           hiddenLines={mergedChunk.hiddenLinesAfter}
-          onExpandUp={() => expandHiddenLines(file, lastOriginalIndex, 'down')}
+          onExpandDown={() => expandHiddenLines(file, lastOriginalIndex, 'down')}
           onExpandAll={() =>
             expandHiddenLines(file, lastOriginalIndex, 'down', mergedChunk.hiddenLinesAfter)
           }
