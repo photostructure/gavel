@@ -1304,13 +1304,38 @@ describe('named captures in the browser', () => {
     ).toBeVisible();
   });
 
-  it('switches reviews from the tabs without adding browser history, so Back leaves the page', async () => {
+  it('switches reviews from the tabs with a history entry, so Back returns to the previous review', async () => {
     fixture();
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
     const entries = window.history.length;
     fireEvent.click(within(bar).getByRole('button', { name: 'task-b, Needs a verdict' }));
     await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
+    expect(window.history.length).toBe(entries + 1);
+    await act(async () => {
+      const popped = new Promise((resolve) =>
+        window.addEventListener('popstate', resolve, { once: true }),
+      );
+      window.history.back();
+      await popped;
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'Named review capture' })).toHaveTextContent(
+        'task-a',
+      ),
+    );
+  });
+
+  it('adds no history entry when the tab of the open review is clicked', async () => {
+    fixture();
+    renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    await waitFor(() =>
+      expect(JSON.stringify(window.history.state)).toContain('"reviewName":"task-a"'),
+    );
+    const entries = window.history.length;
+    fireEvent.click(within(bar).getByRole('button', { name: /^task-a,/ }));
+    await act(async () => {});
     expect(window.history.length).toBe(entries);
   });
 
@@ -1543,8 +1568,10 @@ describe('after a verdict', () => {
     );
     await act(async () => void (await vi.advanceTimersByTimeAsync(20_000)));
     expect(window.location.search).toBe('?review=task-a');
+    const entries = window.history.length;
     fireEvent.click(within(nextStep()).getByRole('button', { name: 'Switch to task-b' }));
     await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
+    expect(window.history.length).toBe(entries + 1);
     expect(screen.queryByRole('status', { name: 'Next step' })).not.toBeInTheDocument();
   });
 

@@ -232,7 +232,8 @@ function App() {
   // Each named review's ID in the latest snapshot. A rename keeps the ID; a delete moves it to
   // deletedReviews.
   const reviewIdsRef = useRef(new Map<string, string>());
-  // Switches the open review in place, as a review tab does; set once handleRevisionChange exists.
+  // Follows a rename or delete of the open review, replacing its history entry; set once
+  // handleRevisionChange exists.
   const switchReviewRef = useRef<((selection: ReviewSelection) => void) | null>(null);
   const [selectedRevision, setSelectedRevision] = useState<ReviewSelection>(
     () => readReviewLocation() ?? createDiffSelection('', ''),
@@ -1550,10 +1551,12 @@ function App() {
   const handleRevisionChange = useCallback(
     // null when the browser already moved to the review's URL (Back or Forward).
     async (nextSelection: ReviewSelection, history: 'push' | 'replace' | null = 'push') => {
-      // Skip if no actual change
+      // Skip if no actual change. A named review's URL and diff ignore retained, so its tab
+      // opens nothing new on the review the page launched with.
       if (
         diffSelectionsEqual(nextSelection, selectedRevisionRef.current) &&
-        nextSelection.retained === selectedRevisionRef.current.retained
+        (nextSelection.reviewName !== undefined ||
+          nextSelection.retained === selectedRevisionRef.current.retained)
       )
         return;
 
@@ -1590,11 +1593,11 @@ function App() {
     return () => window.removeEventListener('popstate', restoreReview);
   }, [handleRevisionChange]);
 
-  // Replace, not push: Back leaves the review page instead of stepping through its reviews.
+  // Following a rename or delete of the open review corrects the entry it is in.
   switchReviewRef.current = (selection) => void handleRevisionChange(selection, 'replace');
+  // Opening another review adds a history entry, so Back returns to the one before.
   const openReviewFromTab = useCallback(
-    (selection: DiffSelection) =>
-      void handleRevisionChange({ ...selection, retained: true }, 'replace'),
+    (selection: DiffSelection) => void handleRevisionChange({ ...selection, retained: true }),
     [handleRevisionChange],
   );
   const openOtherReviewThread = useCallback(

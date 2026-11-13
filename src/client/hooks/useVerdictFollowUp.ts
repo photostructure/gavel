@@ -37,7 +37,8 @@ export type VerdictFollowUpStep =
  * verdict that did not reach the agent (requiresResume) offers the resume prompt instead. A review
  * that arrives in the meantime takes over the follow-up. Nothing closes the page: browsers honour
  * window.close() only in a tab a script opened or one whose history holds a single entry, and
- * comment links, the revision picker, and pages the tab showed before gavel all add entries.
+ * review switches, comment links, the revision picker, and pages the tab showed before gavel all
+ * add entries.
  */
 export function useVerdictFollowUp<
   T extends { selection: DiffSelection; name: string; approval: ReviewApproval },

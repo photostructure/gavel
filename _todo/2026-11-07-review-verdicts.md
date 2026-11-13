@@ -60,11 +60,12 @@ Check these before merging work that touches approval, the header, or review tab
   argument changed from `addHistory: boolean` to `'push' | 'replace' | null`.
   `approvalControlRef` is now set through the `setVerdictControl` callback ref,
   which also anchors the notice.
-- Review tabs (`ReviewQueueBar`) switch with `history.replaceState`, not
-  `pushState`, so Back no longer steps between reviews. The bar takes a `pulse`
-  prop. Its labels changed: "Not approved" is now "Needs a verdict", and the count
-  reads "2 of 3 need a verdict" / "All 3 have a verdict". Tests on other branches
-  that query the old labels will fail after a merge.
+- Review tabs (`ReviewQueueBar`), the toast's Switch, and opening another review's
+  thread from Conversation add a history entry, so Back returns to the previous
+  review; following a rename or delete of the open review replaces its entry.
+  The bar takes a `pulse` prop. Its labels changed: "Not approved" is now "Needs a
+  verdict", and the count reads "2 of 3 need a verdict" / "All 3 have a verdict".
+  Tests on other branches that query the old labels will fail after a merge.
 - `App.tsx` adds a `beforeunload` listener that calls `preventDefault` while any
   review that asks for approval lacks a verdict, next to the existing comment
   beacon listener.
@@ -82,7 +83,7 @@ Check these before merging work that touches approval, the header, or review tab
   button is gone),
   because tinted text was too faint in dark mode; clicking the pressed button
   clears the verdict; the follow-up notice sits under the verdict buttons, "where
-  I'm looking"; Back no longer moves between reviews; a 1.6 s pulse beat (it was
+  I'm looking"; a 1.6 s pulse beat (it was
   0.8 s), lengthened at their request; a chosen button is filled in its verdict's
   color (green, violet); the notice and its default button are blue, because green
   beside the verdict buttons reads as approval. The 10 s countdown to switching or
@@ -94,9 +95,11 @@ Check these before merging work that touches approval, the header, or review tab
   sit **Undo** (clears the verdict, as its pressed button does) and **Switch to
   `<name>`**, with an **×** (Dismiss) in the corner. A **Close tab** button was
   dropped: browsers honour `window.close()` only in a tab a script opened or one
-  with a single history entry, and comment links, the revision picker, and pages
-  the tab showed before gavel all add entries; it did nothing in the maintainer's
-  Firefox. The server marks a verdict pending before it answers, so `App.tsx`
+  with a single history entry, and review switches, comment links, the revision
+  picker, and pages the tab showed before gavel all add entries; it did nothing in
+  the maintainer's Firefox. Review switches replaced their entry at first, only so
+  the page could close itself after switching; with nothing left to close it, the
+  maintainer chose to make them add entries again. The server marks a verdict pending before it answers, so `App.tsx`
   reads the delivery before the toast opens; otherwise an earlier comment's
   receipt would show as the verdict's.
 - The follow-up notice renders through `FloatingPortal` because the header group

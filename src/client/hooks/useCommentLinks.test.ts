@@ -26,7 +26,7 @@ function setup(overrides: { threads?: CommentThread[]; jumps?: boolean } = {}) {
   const calls = {
     // As the App's openReviewFromTab does.
     switchReview: vi.fn((selection: DiffSelection) =>
-      writeReviewLocation({ ...selection, retained: true }, 'replace'),
+      writeReviewLocation({ ...selection, retained: true }, 'push'),
     ),
     canShowLine: vi.fn(() => overrides.jumps ?? true),
     jumpToLine: vi.fn(),
@@ -142,10 +142,13 @@ describe('useCommentLinks', () => {
 
   it('switches review, then jumps once that review has loaded', () => {
     const { result, calls, rerender, props } = setup();
+    const before = window.history.length;
     act(() => result.current.follow('?review=there#thread=t5', { threadId: 't1' }));
     expect(calls.switchReview).toHaveBeenCalledWith(other);
     expect(window.location.search).toBe('?review=there');
     expect(window.location.hash).toBe('#gavel-editor-token=k&thread=t5');
+    // The switch adds the link's one entry.
+    expect(window.history.length).toBe(before + 1);
     // The App shows the new review's comments only after loading them.
     rerender({ ...props, ready: false });
     expect(calls.jumpToThread).not.toHaveBeenCalled();
@@ -154,6 +157,20 @@ describe('useCommentLinks', () => {
       expect.objectContaining({ lineNumber: 4 }),
       't5',
     );
+  });
+
+  it('returns on Back from another review to the thread the link was in', async () => {
+    const { result } = setup();
+    act(() => result.current.follow('?review=there#thread=t5', { threadId: 't1' }));
+    await act(async () => {
+      const popped = new Promise((resolve) =>
+        window.addEventListener('popstate', resolve, { once: true }),
+      );
+      window.history.back();
+      await popped;
+    });
+    expect(window.location.search).toBe('?review=here');
+    expect(window.location.hash).toBe('#gavel-editor-token=k&thread=t1');
   });
 
   it('resolves a relative link in another review against that review', () => {

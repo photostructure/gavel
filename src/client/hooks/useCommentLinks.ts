@@ -173,7 +173,8 @@ export function useCommentLinks(options: UseCommentLinksOptions) {
             withLinkPlace(window.location.hash, { kind: 'thread', threadId: source.threadId }),
             'replace',
           );
-        writeLocationHash(hash, 'push');
+        // Switching review adds the link's entry itself.
+        if (!switches) writeLocationHash(hash, 'push');
       }
       if (switches && target) {
         switchReview(target);
