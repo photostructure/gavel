@@ -55,14 +55,21 @@ never shipped. When in doubt, leave it out.
   a named review on a running server and keeps its comments."
 - Put UI labels in **bold** as the page shows them, and commands, flags,
   endpoints, and JSON fields in `code`.
-- Start an entry that forces a major bump with `**Breaking:**`, and say what an
-  existing caller must change.
+- In an entry that forces a major bump, say what an existing caller must change.
 
-Use these sections, in this order, and omit empty ones: `### Added`,
-`### Changed`, `### Removed`, `### Fixed`. A change a working caller could
-observe, such as a new error, a flipped default, or different output, goes
-under Changed, not Fixed. A change to user docs that is not part of another
-entry goes under Changed; drop the `### Documentation` section older notes used.
+Use these sections, in this order, and omit empty ones:
+
+- `### Breaking changes`: every entry that forces a major bump (step 3), such as
+  a removed command, endpoint, or JSON field, or a new error from a call that
+  used to work.
+- `### New features`: something a user can now do, or a workflow that now works
+  differently, such as a new command, panel, or keyboard shortcut.
+- `### Bug fixes and polish`: fixes first, then smaller changes to existing
+  behavior, such as a moved control, a color, a label, or a docs correction.
+
+Released sections keep the Keep a Changelog headings they were written with;
+drop the `### Added`, `### Changed`, `### Removed`, `### Fixed`, and
+`### Documentation` sections older Unreleased notes used.
 
 ## 3. Choose the bump
 
@@ -88,7 +95,7 @@ everything under it up to the next `## [` heading, with the new section:
 ```markdown
 ## [Unreleased (minor)]
 
-### Added
+### New features
 
 - `gavel review rename <name> <new-name>` renames a named review on a running server and keeps its comments.
 ```
