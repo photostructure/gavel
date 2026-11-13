@@ -26,13 +26,12 @@ An SVG viewer, or an image-viewer mode for SVG, with a tab for the text diff and
 the rendered old and new versions, in both live diffs and named reviews. Which tab is the
 default is open.
 
-In a named review, the rendered versions need whole files, which a capture does not hold.
-`capturedBinaryContent` in `src/server/review-capture.ts` already reads blobs by the IDs on a
-section's `index` line:
-
-- The old side, and the new side of a patch of committed work, are blobs in the repository.
-- The new side of a working-tree capture was never stored, so the server would apply the
-  section's hunks to the old blob to rebuild it.
+In a named review, the rendered versions need whole files. Since `ab253fc`,
+`capturedFileContent` in `src/server/review-capture.ts` serves both sides of a captured text
+file at `/api/blob/<path>?review=<name>&version=<n>&side=old|new`: the old side is the blob
+on the section's `index` line, and the new side is that blob with the section's hunks
+applied. A file it cannot rebuild (a plain unified patch, an old blob the repository lacks, a
+`--select` that left out an earlier hunk) has `contextUnavailable` set in the diff response.
 
 An SVG can carry script; check how the image viewer's `<img>` already contains that before
 adding any inline rendering.

@@ -19,5 +19,12 @@ to a newer `main`. The patch numbers that line 1534, inside a hunk covering new
 lines 1531–1537, so line 1593 is in no hunk. The reviewer could not open the
 comment.
 
+Since `ab253fc`, a named review whose patch names its blobs loads the lines around
+its hunks, so a comment outside every hunk opens when its line exists in the captured
+file. That makes the example above fail quietly: the captured `App.tsx` has a line
+1593, so the comment opens on the wrong line. A comment still cannot open on a line
+past the end of the captured file or in a file marked `contextUnavailable`, and gavel
+cannot tell a line number taken from a different version of the file.
+
 Decide between refusing such a comment with an error that names the file's hunk
 ranges, and accepting it as a review-level comment.
