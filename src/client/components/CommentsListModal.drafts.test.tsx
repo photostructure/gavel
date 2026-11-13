@@ -253,7 +253,8 @@ describe('Conversation unsent drafts', () => {
 
   it('closes the panel on Escape in an edit with text and keeps the edit', async () => {
     const { props } = renderPanel();
-    fireEvent.click(screen.getByTitle('Edit message'));
+    fireEvent.click(screen.getByRole('button', { name: 'Thread actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit comment' }));
     fireEvent.change(screen.getByPlaceholderText('Edit your message...'), {
       target: { value: 'Reworded' },
     });
@@ -264,7 +265,8 @@ describe('Conversation unsent drafts', () => {
 
   it('still discards a panel edit on Cancel', () => {
     renderPanel();
-    fireEvent.click(screen.getByTitle('Edit message'));
+    fireEvent.click(screen.getByRole('button', { name: 'Thread actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit comment' }));
     fireEvent.change(screen.getByPlaceholderText('Edit your message...'), {
       target: { value: 'Reworded' },
     });

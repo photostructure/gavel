@@ -5,7 +5,10 @@ import {
   Copy,
   Edit2,
   LoaderCircle,
+  Mail,
+  MailOpen,
   MessageSquare,
+  RotateCcw,
   Trash2,
 } from 'lucide-react';
 import React, { useContext, useEffect, useId, useRef, useState } from 'react';
@@ -19,10 +22,11 @@ import {
 import { copyTextToClipboard } from '../utils/clipboard';
 import { useFocusedAgentMessage } from '../hooks/useFocusedAgentMessage';
 import { agentMessageRevision } from '../hooks/useAgentUpdates';
-import { AgentUpdatesContext } from '../contexts/AgentUpdatesContext';
+import { AgentUpdatesContext, type AgentUpdatesReadState } from '../contexts/AgentUpdatesContext';
 import { useCommentDraft, useThreadHadDraftOnMount } from '../hooks/useCommentDrafts';
 import { hasActiveTextSelection, isDisclosureRowClick } from '../utils/domUtils';
 
+import { ActionMenu, iconButtonClasses, type ActionMenuItem } from './ActionMenu';
 import { CommentBodyRenderer } from './CommentBodyRenderer';
 import { CommentForm, type CommentSubmitOptions } from './CommentForm';
 import type { AppearanceSettings } from './SettingsModal';
@@ -71,11 +75,65 @@ interface ThreadMessageItemProps {
   filename?: string;
   originalCode?: string;
   onUpdate: (newBody: string, intent: CommentIntent) => void;
-  onResolveOrDelete: () => void;
-  actionLabel: string;
-  onDelete?: () => void;
+  onDeleteReply?: () => void;
+  // The root comment's actions live in the thread heading; a new number opens its editor.
+  editRequest?: number;
   onClick?: (e: React.MouseEvent) => void;
   onEscapeKeepingDraft?: () => void;
+}
+
+// The read state that an agent message's dot button and its menu item both show and flip.
+function readMark(readState: AgentUpdatesReadState, threadId: string, message: DiffCommentMessage) {
+  const unread = readState.unreadKeys.has(JSON.stringify([threadId, message.id]));
+  return {
+    unread,
+    toggle: () => readState.setRead(threadId, message.id, agentMessageRevision(message), unread),
+  };
+}
+
+// Touch screens show no tooltips, so each menu also names the actions its heading or reply row
+// shows as icons.
+function readMenuItem(
+  readState: AgentUpdatesReadState,
+  threadId: string,
+  message: DiffCommentMessage,
+): ActionMenuItem {
+  const { unread, toggle } = readMark(readState, threadId, message);
+  return unread
+    ? { label: 'Mark as read', icon: <MailOpen aria-hidden="true" size={12} />, onSelect: toggle }
+    : { label: 'Mark as unread', icon: <Mail aria-hidden="true" size={12} />, onSelect: toggle };
+}
+
+function ReadToggle({
+  threadId,
+  message,
+  readState,
+}: {
+  threadId: string;
+  message: DiffCommentMessage;
+  readState: AgentUpdatesReadState;
+}) {
+  const { unread, toggle } = readMark(readState, threadId, message);
+  const label = unread ? 'Mark reply as read' : 'Mark reply as unread';
+  return (
+    <button
+      type="button"
+      disabled={!readState.enabled}
+      title={label}
+      aria-label={label}
+      className={`${iconButtonClasses} disabled:cursor-not-allowed disabled:opacity-50`}
+      onClick={(event) => {
+        event.stopPropagation();
+        toggle();
+      }}
+    >
+      {/* A filled dot means unread, a hollow ring read; 8px plus margin fills the 12px icon box. */}
+      <span
+        aria-hidden="true"
+        className={`m-0.5 block h-2 w-2 rounded-full ${unread ? 'bg-blue-500' : 'border border-blue-500'}`}
+      />
+    </button>
+  );
 }
 
 function ThreadMessageItem({
@@ -91,15 +149,13 @@ function ThreadMessageItem({
   filename,
   originalCode,
   onUpdate,
-  onResolveOrDelete,
-  actionLabel,
-  onDelete,
+  onDeleteReply,
+  editRequest,
   onClick,
   onEscapeKeepingDraft,
 }: ThreadMessageItemProps) {
   const messageElement = useFocusedAgentMessage(message.id, highlighted, focusRequest);
   const readState = useContext(AgentUpdatesContext);
-  const unread = readState?.unreadKeys.has(JSON.stringify([threadId, message.id])) ?? false;
   // Another review's replies keep their read state until the reader uses its read controls.
   const canMarkRead = !readOnly && message.origin === 'agent' && readState?.enabled === true;
   const showAuthorHeader = showAuthorBadge && Boolean(message.author);
@@ -111,18 +167,17 @@ function ThreadMessageItem({
     { body: message.body, intent },
   );
   const [editForm, setEditForm] = useDraftForm(editDraft);
+  const [openedEditRequest, setOpenedEditRequest] = useState(editRequest);
+  if (editRequest !== openedEditRequest) {
+    setOpenedEditRequest(editRequest);
+    setEditForm('opened');
+  }
   const isEditing = editForm !== 'closed';
   const [isCopied, setIsCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(copyTimer.current), []);
 
-  const handleStartEdit = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditForm('opened');
-  };
-
-  const handleCopy = async (event: React.MouseEvent) => {
-    event.stopPropagation();
+  const handleCopy = async () => {
     try {
       await copyTextToClipboard(message.body);
       setIsCopied(true);
@@ -132,6 +187,40 @@ function ThreadMessageItem({
       console.error('Failed to copy message:', error);
     }
   };
+
+  const showReadToggle = !isRootMessage && message.origin === 'agent' && readState !== null;
+  const replyActions: ActionMenuItem[] =
+    readOnly || isRootMessage
+      ? []
+      : [
+          ...(message.origin === 'agent' && readState?.enabled
+            ? [readMenuItem(readState, threadId, message)]
+            : []),
+          {
+            label: 'Copy reply',
+            icon: <Copy aria-hidden="true" size={12} />,
+            onSelect: handleCopy,
+          },
+          ...(isUserAuthoredMessage
+            ? [
+                {
+                  label: 'Edit reply',
+                  icon: <Edit2 aria-hidden="true" size={12} />,
+                  onSelect: () => setEditForm('opened'),
+                },
+              ]
+            : []),
+          ...(isUserAuthoredMessage && onDeleteReply
+            ? [
+                {
+                  label: 'Delete reply',
+                  icon: <Trash2 aria-hidden="true" size={12} />,
+                  onSelect: onDeleteReply,
+                  danger: true,
+                },
+              ]
+            : []),
+        ];
 
   // Cancel passes ''; Escape passes the text. Escape never discards unsaved changes: in
   // the panel it closes the panel and keeps them (see
@@ -164,7 +253,7 @@ function ThreadMessageItem({
       ref={messageElement}
       tabIndex={-1}
       data-comment-message-id={message.id}
-      className={`${isEditing ? '' : 'flex min-w-0 items-start gap-3'} ${highlighted ? 'rounded ring-2 ring-blue-500 ring-offset-2 ring-offset-github-bg-tertiary' : ''}`}
+      className={`flow-root ${highlighted ? 'rounded ring-2 ring-blue-500 ring-offset-2 ring-offset-github-bg-tertiary' : ''}`}
       // Following a link means the reader read the message. A gavel link's handler stops the
       // click before onClick below, and onClick skips other links, so the read mark goes here.
       onClickCapture={(event) => {
@@ -187,7 +276,23 @@ function ThreadMessageItem({
     >
       {!isEditing ? (
         <>
-          <div className="min-w-0 flex-1">
+          {/* A reply's controls float, so its text wraps beneath them instead of leaving a
+              full-height column; the root comment's controls are in the thread heading. */}
+          {(showReadToggle || replyActions.length > 0) && (
+            <div className="float-right ml-3 flex items-center gap-2">
+              {showReadToggle && (
+                <ReadToggle threadId={threadId} message={message} readState={readState} />
+              )}
+              {replyActions.length > 0 && (
+                <ActionMenu
+                  label="Reply actions"
+                  items={replyActions}
+                  confirmation={isCopied ? 'Copied!' : undefined}
+                />
+              )}
+            </div>
+          )}
+          <div>
             {showAuthorHeader && (
               <div className="mb-2 flex min-w-0 items-center gap-2 pr-2 text-xs text-github-text-secondary">
                 <span className="inline-flex items-center rounded-full border border-github-border bg-github-bg-primary px-2 py-0.5 text-[11px] font-medium text-github-text-primary">
@@ -231,78 +336,6 @@ function ThreadMessageItem({
               filename={filename}
               syntaxTheme={syntaxTheme}
             />
-          </div>
-          <div className="flex shrink-0 items-start gap-2 pt-0.5">
-            {message.origin === 'agent' && readState && (
-              <button
-                type="button"
-                disabled={!readState.enabled}
-                title={unread ? 'Mark reply as read' : 'Mark reply as unread'}
-                aria-label={unread ? 'Mark reply as read' : 'Mark reply as unread'}
-                className="rounded border border-github-border bg-github-bg-tertiary p-1.5 transition-all hover:bg-github-bg-primary disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  readState.setRead(threadId, message.id, agentMessageRevision(message), unread);
-                }}
-              >
-                {/* A filled dot means unread, a hollow ring read; 8px plus margin fills the 12px icon box. */}
-                <span
-                  aria-hidden="true"
-                  className={`m-0.5 block h-2 w-2 rounded-full ${unread ? 'bg-blue-500' : 'border border-blue-500'}`}
-                />
-              </button>
-            )}
-            {!readOnly && !isRootMessage && (
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="rounded border border-github-border bg-github-bg-tertiary p-1.5 text-github-text-primary transition-all hover:bg-github-bg-primary"
-                title={isCopied ? 'Copied!' : 'Copy message'}
-                aria-label={isCopied ? 'Copied!' : 'Copy message'}
-              >
-                {isCopied ? <Check size={12} /> : <Copy size={12} />}
-              </button>
-            )}
-            {!readOnly && (isUserAuthoredMessage || isRootMessage) && (
-              <button
-                type="button"
-                onClick={handleStartEdit}
-                className="rounded border border-github-border bg-github-bg-tertiary p-1.5 text-github-text-primary transition-all hover:bg-github-bg-primary"
-                title="Edit message"
-              >
-                <Edit2 size={12} />
-              </button>
-            )}
-            {!readOnly && (isRootMessage || isUserAuthoredMessage) && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onResolveOrDelete();
-                }}
-                className={`rounded border border-github-border bg-github-bg-tertiary p-1.5 transition-all hover:bg-github-bg-primary ${
-                  isRootMessage ? 'text-github-accent-text' : 'text-github-danger'
-                }`}
-                title={actionLabel}
-                aria-label={actionLabel}
-              >
-                {isRootMessage ? <Check size={12} /> : <Trash2 size={12} />}
-              </button>
-            )}
-            {onDelete && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                }}
-                className="rounded border border-github-border bg-github-bg-tertiary p-1.5 text-github-danger transition-all hover:bg-github-bg-primary"
-                title="Delete thread"
-                aria-label="Delete thread"
-              >
-                <Trash2 size={12} />
-              </button>
-            )}
           </div>
         </>
       ) : (
@@ -433,8 +466,9 @@ export function CommentThreadCard({
     setIsCollapsed((prev) => !prev);
   };
 
-  const handleCopyThread = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const [rootEditRequest, setRootEditRequest] = useState(0);
+
+  const handleCopyThread = async () => {
     try {
       const prompt = onGeneratePrompt(thread);
       await copyTextToClipboard(prompt);
@@ -450,6 +484,42 @@ export function CommentThreadCard({
   if (!rootMessage) return null;
 
   const toggleLabel = isCollapsed ? 'Expand thread' : 'Collapse thread';
+  const threadActions: ActionMenuItem[] = [
+    thread.resolution?.resolved
+      ? {
+          label: 'Reopen thread',
+          icon: <RotateCcw aria-hidden="true" size={12} />,
+          onSelect: () => onToggleThreadResolved(thread.id),
+        }
+      : {
+          label: 'Resolve thread',
+          icon: <Check aria-hidden="true" size={12} />,
+          onSelect: () => onToggleThreadResolved(thread.id),
+        },
+    ...(rootMessage.origin === 'agent' && readState?.enabled
+      ? [readMenuItem(readState, thread.id, rootMessage)]
+      : []),
+    {
+      label: 'Copy prompt',
+      icon: <Copy aria-hidden="true" size={12} />,
+      onSelect: handleCopyThread,
+    },
+    {
+      label: 'Edit comment',
+      icon: <Edit2 aria-hidden="true" size={12} />,
+      onSelect: () => setRootEditRequest((request) => request + 1),
+    },
+    ...(onRemoveThread
+      ? [
+          {
+            label: 'Delete thread',
+            icon: <Trash2 aria-hidden="true" size={12} />,
+            onSelect: () => onRemoveThread(thread.id),
+            danger: true,
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div
@@ -548,6 +618,9 @@ export function CommentThreadCard({
                 <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-blue-500" />
               </button>
             )}
+            {!isCollapsed && rootMessage.origin === 'agent' && readState && (
+              <ReadToggle threadId={thread.id} message={rootMessage} readState={readState} />
+            )}
             {thread.deleted ? (
               <button
                 type="button"
@@ -574,23 +647,26 @@ export function CommentThreadCard({
                 </button>
               )
             )}
-            {!readOnly && !isCollapsed && (
+            {!readOnly && !isCollapsed && !thread.resolution?.resolved && (
               <button
                 type="button"
-                onClick={handleCopyThread}
-                className="whitespace-nowrap rounded px-2 py-1 text-xs transition-all"
-                style={{
-                  backgroundColor: 'var(--color-yellow-btn-bg)',
-                  color: 'var(--color-yellow-btn-text)',
-                  border: '1px solid var(--color-yellow-btn-border)',
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleThreadResolved(thread.id);
                 }}
-                title="Copy thread prompt for AI coding agent"
+                className={`${iconButtonClasses} text-github-accent-text!`}
+                title="Resolve thread"
+                aria-label="Resolve thread"
               >
-                <span className="inline-flex items-center gap-1">
-                  <Copy size={12} />
-                  {isCopied ? 'Copied!' : 'Copy Prompt'}
-                </span>
+                <Check aria-hidden="true" size={12} />
               </button>
+            )}
+            {!readOnly && !isCollapsed && (
+              <ActionMenu
+                label="Thread actions"
+                items={threadActions}
+                confirmation={isCopied ? 'Copied!' : undefined}
+              />
             )}
           </div>
         )}
@@ -618,9 +694,7 @@ export function CommentThreadCard({
               onUpdate={(newBody, intent) =>
                 onUpdateMessage(thread.id, rootMessage.id, newBody, intent)
               }
-              onResolveOrDelete={() => onToggleThreadResolved(thread.id)}
-              actionLabel={thread.resolution?.resolved ? 'Reopen thread' : 'Resolve thread'}
-              onDelete={!readOnly && onRemoveThread ? () => onRemoveThread(thread.id) : undefined}
+              editRequest={rootEditRequest}
             />
 
             {thread.messages.slice(1).map((message) => (
@@ -655,8 +729,7 @@ export function CommentThreadCard({
                     onUpdate={(newBody, intent) =>
                       onUpdateMessage(thread.id, message.id, newBody, intent)
                     }
-                    onResolveOrDelete={() => onRemoveMessage(thread.id, message.id)}
-                    actionLabel="Delete reply"
+                    onDeleteReply={() => onRemoveMessage(thread.id, message.id)}
                   />
                 )}
               </div>

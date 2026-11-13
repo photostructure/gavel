@@ -128,9 +128,8 @@ describe('conversations across reviews', () => {
       .closest<HTMLElement>('[data-comment-thread-id]')!;
     expect(within(card).queryByText('Write a reply...')).not.toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: 'Resolve thread' })).toBeNull();
-    expect(within(card).queryByTitle('Edit message')).toBeNull();
-    expect(within(card).queryByTitle('Copy thread prompt for AI coding agent')).toBeNull();
-    expect(within(card).queryByTitle('Copy message')).toBeNull();
+    expect(within(card).queryByRole('button', { name: 'Thread actions' })).toBeNull();
+    expect(within(card).queryByRole('button', { name: 'Reply actions' })).toBeNull();
 
     fireEvent.click(within(card).getByRole('button', { name: 'Mark reply as read' }));
     expect(setRead).toHaveBeenCalledWith(

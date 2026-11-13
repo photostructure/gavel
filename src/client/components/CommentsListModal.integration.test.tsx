@@ -112,7 +112,8 @@ describe('Conversation keyboard navigation', () => {
   it('keeps navigation shortcuts active after clicking a drawer button', async () => {
     const user = userEvent.setup();
     render(<KeyboardHarness />);
-    await user.click(screen.getAllByRole('button', { name: 'Copy Prompt' })[0]!);
+    await user.click(screen.getAllByRole('button', { name: 'Thread actions' })[0]!);
+    await user.click(screen.getByRole('menuitem', { name: 'Copy prompt' }));
     await user.keyboard('j');
     expect(screen.getByText('2 of 3 threads')).toBeInTheDocument();
   });
@@ -130,7 +131,8 @@ describe('Conversation keyboard navigation', () => {
 it('deletes a general thread immediately without removing adjacent discussions', async () => {
   const user = userEvent.setup();
   render(<KeyboardHarness />);
-  await user.click(screen.getAllByRole('button', { name: 'Delete thread' })[0]!);
+  await user.click(screen.getAllByRole('button', { name: 'Thread actions' })[0]!);
+  await user.click(screen.getByRole('menuitem', { name: 'Delete thread' }));
   expect(screen.queryByText('Thread A')).not.toBeInTheDocument();
   expect(screen.getByText('Thread B')).toBeInTheDocument();
   expect(screen.getByText('Thread C')).toBeInTheDocument();
@@ -144,7 +146,8 @@ it('keeps a reply draft visible after a click outside the reply form', async () 
   await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
   const reply = screen.getByPlaceholderText('Write a reply...');
   await user.type(reply, 'Keep this reply');
-  await user.click(screen.getByRole('button', { name: 'Copy Prompt' }));
+  await user.click(screen.getByRole('button', { name: 'Thread actions' }));
+  await user.click(screen.getByRole('menuitem', { name: 'Copy prompt' }));
   expect(reply).toBeVisible();
   expect(reply).toHaveValue('Keep this reply');
 });

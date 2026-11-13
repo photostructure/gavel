@@ -923,12 +923,18 @@ describe('named captures in the browser', () => {
     expect(window.location.search).toBe('?review=task-a');
   });
 
-  async function copyFromConversation(button: string | RegExp = 'Copy Prompt') {
+  // Copies the thread's prompt from its menu, or clicks `button` instead when given.
+  async function copyFromConversation(button?: RegExp) {
     fireEvent.click(await screen.findByRole('button', { name: 'Conversation' }));
     const conversation = screen.getByRole('dialog', { name: 'Conversation' });
     await within(conversation).findByText('Original capture discussion');
     vi.mocked(copyTextToClipboard).mockClear();
-    fireEvent.click(await within(conversation).findByRole('button', { name: button }));
+    if (button) {
+      fireEvent.click(await within(conversation).findByRole('button', { name: button }));
+    } else {
+      fireEvent.click(await within(conversation).findByRole('button', { name: 'Thread actions' }));
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy prompt' }));
+    }
     await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalledTimes(1));
     return vi.mocked(copyTextToClipboard).mock.calls[0]?.[0];
   }

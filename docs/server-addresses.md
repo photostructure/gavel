@@ -80,8 +80,8 @@ or bypassing a certificate warning, is not a substitute for trusted HTTPS.
 
 ### Check copying and live conversations
 
-Open the HTTPS page without a certificate warning, click Copy Prompt, and paste
-into a text editor. For conversations, start foreground gavel with `--keep-alive`
+Open the HTTPS page without a certificate warning, choose Copy prompt from a
+comment's ⋯ menu, and paste into a text editor. For conversations, start foreground gavel with `--keep-alive`
 on the repository machine and retain its JSONL stdout. Submit a comment from the
 remote browser, verify it appears in the launch output, then send a
 [reply](agent-conversations.md) and confirm it appears without refreshing.

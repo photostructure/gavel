@@ -384,7 +384,8 @@ describe('CommentsListModal', () => {
       { wrapper },
     );
 
-    await user.click(screen.getAllByTitle('Edit message')[0]!);
+    await user.click(screen.getAllByRole('button', { name: 'Thread actions' })[0]!);
+    await user.click(screen.getByRole('menuitem', { name: 'Edit comment' }));
     await user.keyboard('{Escape}');
 
     expect(onNavigate).not.toHaveBeenCalled();
