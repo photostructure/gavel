@@ -54,3 +54,4 @@ openspec/
 
 # Agent worktrees; oxlint loads each one's nested config unless git ignores it
 .claude/worktrees/
+.perf/Firefox 2026-11-13 09.33 profile.json.gz
