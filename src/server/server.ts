@@ -308,6 +308,13 @@ export async function startServer(options: ServerOptions): Promise<{
     : undefined;
   const editorSessionToken = randomBytes(16).toString('base64url');
   const editorSessionTokenBytes = Buffer.from(editorSessionToken);
+  // Privacy opt-outs that stop About from asking registry.npmjs.org for the latest release.
+  // DO_NOT_TRACK, DNT, and GPC count only as 1 or true, as PhotoStructure reads them;
+  // NO_UPDATE_NOTIFIER counts whenever it is set, as the update-notifier package documents.
+  const updateCheckDisabledBy =
+    ['DO_NOT_TRACK', 'DNT', 'GPC'].find((name) =>
+      ['1', 'true'].includes(process.env[name]?.trim().toLowerCase() ?? ''),
+    ) ?? ('NO_UPDATE_NOTIFIER' in process.env ? 'NO_UPDATE_NOTIFIER' : undefined);
   const editorSelection = process.env.GAVEL_EDITOR ?? process.env.EDITOR;
   const editorOption = resolveEditorOption(editorSelection);
   if (
@@ -1064,6 +1071,7 @@ export async function startServer(options: ServerOptions): Promise<{
       ...responseDiffData,
       ignoreWhitespace,
       openInEditorAvailable: editorAvailable,
+      updateCheckDisabledBy,
       baseCommitish,
       targetCommitish,
       requestedBaseCommitish,

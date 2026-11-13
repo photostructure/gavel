@@ -2499,6 +2499,7 @@ function App() {
         {isAboutOpen && (
           <AboutPanel
             context={diffData.reviewContext}
+            updateCheckDisabledBy={diffData.updateCheckDisabledBy}
             onClose={closeAbout}
             onShowShortcuts={() => {
               setIsAboutOpen(false);

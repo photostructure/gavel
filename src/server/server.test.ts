@@ -4031,6 +4031,54 @@ describe('Server Integration Tests', () => {
     });
   });
 
+  describe('Update check opt-out', () => {
+    const optOuts = ['DO_NOT_TRACK', 'DNT', 'GPC', 'NO_UPDATE_NOTIFIER'];
+
+    async function updateCheckDisabledBy(): Promise<string | undefined> {
+      const result = await startServer({ preferredPort: 0 });
+      servers.push(result.server);
+      vi.unstubAllEnvs();
+      const response = await fetch(`${result.url}/api/diff`);
+      return ((await response.json()) as { updateCheckDisabledBy?: string }).updateCheckDisabledBy;
+    }
+
+    it('leaves the update check on when no opt-out is set', async () => {
+      for (const name of optOuts) vi.stubEnv(name, undefined);
+      expect(await updateCheckDisabledBy()).toBeUndefined();
+    });
+
+    it.each(
+      ['DO_NOT_TRACK', 'DNT', 'GPC'].flatMap((name) =>
+        ['1', 'true', ' TRUE '].map((value) => [name, value]),
+      ),
+    )('names %s when it is %j', async (name, value) => {
+      for (const other of optOuts) vi.stubEnv(other, undefined);
+      vi.stubEnv(name, value);
+      expect(await updateCheckDisabledBy()).toBe(name);
+    });
+
+    // donottrack.sh defines only DO_NOT_TRACK=1; PhotoStructure also accepts true, and the DNT
+    // header spec reads 0 as permission to track.
+    it.each(['', '0', 'false', 'yes', 'on'])(
+      'leaves the update check on when DO_NOT_TRACK, DNT, and GPC are %j',
+      async (value) => {
+        for (const name of optOuts) vi.stubEnv(name, undefined);
+        for (const name of ['DO_NOT_TRACK', 'DNT', 'GPC']) vi.stubEnv(name, value);
+        expect(await updateCheckDisabledBy()).toBeUndefined();
+      },
+    );
+
+    // update-notifier turns itself off when the variable exists: `'NO_UPDATE_NOTIFIER' in process.env`.
+    it.each(['', '0', 'false', '1'])(
+      'names NO_UPDATE_NOTIFIER whenever it is set, even to %j',
+      async (value) => {
+        for (const name of optOuts) vi.stubEnv(name, undefined);
+        vi.stubEnv('NO_UPDATE_NOTIFIER', value);
+        expect(await updateCheckDisabledBy()).toBe('NO_UPDATE_NOTIFIER');
+      },
+    );
+  });
+
   describe('Ship it option', () => {
     it('keeps approval reversible, selection-scoped, and visible to conversation consumers', async () => {
       const { port, server } = await startObservedServer({

@@ -73,6 +73,8 @@ export interface DiffResponse {
   ignoreWhitespace?: boolean;
   isEmpty?: boolean;
   openInEditorAvailable?: boolean;
+  /** The environment variable, such as DO_NOT_TRACK, that turned off About's npm update check. */
+  updateCheckDisabledBy?: string;
   baseCommitish?: string;
   targetCommitish?: string;
   requestedBaseCommitish?: string;

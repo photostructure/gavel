@@ -117,6 +117,22 @@ You can review from a phone or another computer. gavel has no built-in login;
 put it behind an authenticated HTTPS proxy or tunnel before exposing it.
 See [remote browser setup](docs/server-addresses.md#https-and-remote-browsers).
 
+## Update check
+
+Opening **About** asks `registry.npmjs.org` for gavel's latest release and, when
+it is newer than yours, shows the commands to upgrade. Start gavel with
+`NO_UPDATE_NOTIFIER` set to skip that request:
+
+```sh
+NO_UPDATE_NOTIFIER=1 gavel
+```
+
+The request carries none of your reviews' content, but gavel also skips it when
+your browser sends [Global Privacy Control](https://globalprivacycontrol.org/),
+or when `DO_NOT_TRACK`, `DNT`, or `GPC` is set to `1` or `true`.
+
+A server that is already running keeps the environment it started with.
+
 ## Agent integration
 
 The skills handle review setup and feedback. For custom integrations, see:

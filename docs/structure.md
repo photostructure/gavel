@@ -59,3 +59,7 @@ dependency inventory. See [testing](test.md) for checks and fixture conventions.
 gavel has no built-in login. Binding it to a reachable interface exposes the
 review and its enabled actions. Use an authenticated HTTPS proxy for remote
 reviewers; see [server addresses](server-addresses.md).
+
+Opening **About** on a release build makes the browser ask `registry.npmjs.org`
+for gavel's latest release; see [update check](../README.md#update-check) for
+how to turn it off.

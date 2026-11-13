@@ -1,9 +1,10 @@
-import { BookOpen, Keyboard, X } from 'lucide-react';
+import { BookOpen, Keyboard, ScrollText, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useHotkeysContext } from 'react-hotkeys-hook';
 
-import { version } from '../../../package.json';
+import { name, version } from '../../../package.json';
 import type { ReviewContext as ReviewContextData } from '../../types/diff';
+import { isNewerRelease, useLatestRelease, type LatestRelease } from '../hooks/useLatestRelease';
 
 import { GitHubIcon } from './GitHubIcon';
 import { Logo } from './Logo';
@@ -16,18 +17,62 @@ const linkHint = 'ml-auto text-xs text-github-text-secondary';
 
 export const tagline = 'Your agent makes the case for its code. You give the verdict.';
 
+/** Why About skips the npm check on a release build, or undefined when it should check. */
+function updateCheckOffReason(disabledBy: string | undefined): string | undefined {
+  if (disabledBy !== undefined) return `${disabledBy} is set`;
+  const { globalPrivacyControl } = navigator as Navigator & { globalPrivacyControl?: boolean };
+  return globalPrivacyControl === true ? 'your browser sends Global Privacy Control' : undefined;
+}
+
+function ReleaseStatus({ latest }: { latest: LatestRelease }) {
+  if (latest.state !== 'found' || !isNewerRelease(latest.version, version)) {
+    const status =
+      latest.state === 'checking'
+        ? 'Checking npm for the latest release…'
+        : latest.state === 'off'
+          ? `Update check off: ${latest.reason}`
+          : latest.state === 'failed'
+            ? "Couldn't check npm for the latest release"
+            : 'Up to date';
+    return <p className="mt-1.5 text-xs ui-label">{status}</p>;
+  }
+  const command = 'rounded bg-github-bg-tertiary px-1 font-mono';
+  return (
+    <div className="mt-1.5 select-text text-xs">
+      <p className="font-semibold text-github-accent-text">{`Version ${latest.version} is available`}</p>
+      <p className="mt-1 ui-label">Upgrade with either command:</p>
+      {/* One command per line, so neither wraps partway through. */}
+      <ul className="mt-1 space-y-1 overflow-x-auto whitespace-nowrap">
+        <li>
+          <code className={command}>{`npm install -g ${name}@latest`}</code>
+        </li>
+        <li>
+          <code className={command}>{`npx ${name}@latest`}</code>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
 export function AboutPanel({
   context,
   onClose,
   onShowShortcuts,
+  updateCheckDisabledBy,
 }: {
   context?: ReviewContextData;
   onClose: () => void;
   onShowShortcuts: () => void;
+  updateCheckDisabledBy?: string;
 }) {
   // vite.config.ts sets these only when `vite build` makes a development build.
   const buildCommit = import.meta.env.VITE_GAVEL_BUILD_COMMIT;
   const buildDiffHash = import.meta.env.VITE_GAVEL_BUILD_DIFF_HASH;
+  const isRelease = import.meta.env.VITE_GAVEL_RELEASE_BUILD === 'true';
+  // A development build never asks npm: the people running one work from the checkout itself.
+  const latest = useLatestRelease(
+    isRelease ? updateCheckOffReason(updateCheckDisabledBy) : 'development build',
+  );
   const panel = useRef<HTMLDivElement>(null);
   const { enableScope, disableScope } = useHotkeysContext();
   useEffect(() => {
@@ -83,15 +128,17 @@ export function AboutPanel({
         className="review-panel relative h-full w-full max-w-lg overflow-y-auto border-l border-github-border bg-github-bg-primary p-5 text-github-text-primary shadow-lg"
       >
         <div className="mb-5 flex items-start justify-between gap-3">
-          <div>
+          {/* min-w-0 lets the upgrade commands scroll inside the panel instead of widening it. */}
+          <div className="min-w-0">
             <h2 className="sr-only">About</h2>
-            <Logo style={{ height: '24px', color: 'var(--color-github-text-primary)' }} />
+            <div className="flex items-center gap-2">
+              <Logo style={{ height: '24px', color: 'var(--color-github-text-primary)' }} />
+              <span className="select-text rounded border border-github-border px-1.5 font-mono text-xs text-github-text-secondary">
+                {isRelease ? `v${version}` : buildCommit ? `dev ${buildCommit.slice(0, 7)}` : 'dev'}
+              </span>
+            </div>
             <p className="mt-2 text-sm text-github-text-secondary">{tagline}</p>
-            <p className="mt-1.5 select-text text-xs ui-label">
-              {import.meta.env.VITE_GAVEL_RELEASE_BUILD === 'true'
-                ? `Version ${version}`
-                : `Development build (last release ${version})`}
-            </p>
+            {isRelease && <ReleaseStatus latest={latest} />}
           </div>
           <button
             type="button"
@@ -120,6 +167,18 @@ export function AboutPanel({
                 ?
               </kbd>
             </button>
+          </li>
+          <li>
+            <a
+              href="https://github.com/photostructure/gavel/blob/main/CHANGELOG.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={linkRow}
+            >
+              <ScrollText size={16} aria-hidden="true" className={linkIcon} />
+              What's new
+              <span className={linkHint}>CHANGELOG.md</span>
+            </a>
           </li>
           <li>
             <a
@@ -155,14 +214,21 @@ export function AboutPanel({
             Review information is unavailable from this server.
           </p>
         )}
-        {buildCommit !== undefined && (
+        {!isRelease && (
           <section aria-label="Gavel build" className="mt-5">
             <DetailGroup title="Build">
-              <Detail label="Built from commit" mono>
-                {buildCommit}
-              </Detail>
-              <Detail label="Uncommitted changes" mono={Boolean(buildDiffHash)}>
-                {buildDiffHash ? `sha256 ${buildDiffHash}` : 'None'}
+              {buildCommit !== undefined && (
+                <>
+                  <Detail label="Built from commit" mono>
+                    {buildCommit}
+                  </Detail>
+                  <Detail label="Uncommitted changes" mono={Boolean(buildDiffHash)}>
+                    {buildDiffHash ? `sha256 ${buildDiffHash}` : 'None'}
+                  </Detail>
+                </>
+              )}
+              <Detail label="Based on release" mono>
+                {version}
               </Detail>
             </DetailGroup>
           </section>
