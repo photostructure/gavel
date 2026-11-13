@@ -145,7 +145,9 @@ describe('large files', () => {
       await watch.reload?.();
     });
 
-    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Load diff' })).toHaveLength(2));
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'Load diff' })).toHaveLength(2),
+    );
     expect(screen.queryByText('zzgrowmarker')).toBeNull();
     expect(screen.queryByText('zznewmarker')).toBeNull();
     expect(screen.getAllByText('zzbigmarker')).toHaveLength(1025);
