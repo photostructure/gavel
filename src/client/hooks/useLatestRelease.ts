@@ -26,8 +26,8 @@ function releaseParts(version: string): [number, number, number] {
   return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
-async function fetchLatestVersion(signal: AbortSignal): Promise<string> {
-  const response = await fetch(latestUrl, { signal });
+async function fetchLatestVersion(): Promise<string> {
+  const response = await fetch(latestUrl);
   if (!response.ok) throw new Error(`npm answered ${response.status}`);
   const body = (await response.json()) as { version?: unknown };
   if (typeof body.version !== 'string' || !releaseVersion.test(body.version)) {
@@ -36,21 +36,33 @@ async function fetchLatestVersion(signal: AbortSignal): Promise<string> {
   return body.version;
 }
 
-/** Asks npm for gavel's `latest` release once, when the caller mounts, unless given a reason not to. */
+// The first About open in a page starts the request; later opens reuse its answer until reload.
+let latestVersion: Promise<string> | undefined;
+
+/** Forgets the page's npm answer, so the next About open asks again. Tests call it between cases. */
+export function forgetLatestRelease(): void {
+  latestVersion = undefined;
+}
+
+/** Asks npm for gavel's `latest` release once per page load, unless given a reason not to. */
 export function useLatestRelease(offReason: string | undefined): LatestRelease {
   const [latest, setLatest] = useState<LatestRelease>({ state: 'checking' });
   useEffect(() => {
     if (offReason !== undefined) return;
-    const controller = new AbortController();
-    fetchLatestVersion(controller.signal).then(
+    // Closing About only stops listening: aborting would hand the next open an aborted request.
+    let listening = true;
+    latestVersion ??= fetchLatestVersion();
+    latestVersion.then(
       (version) => {
-        if (!controller.signal.aborted) setLatest({ state: 'found', version });
+        if (listening) setLatest({ state: 'found', version });
       },
       () => {
-        if (!controller.signal.aborted) setLatest({ state: 'failed' });
+        if (listening) setLatest({ state: 'failed' });
       },
     );
-    return () => controller.abort();
+    return () => {
+      listening = false;
+    };
   }, [offReason]);
   return offReason === undefined ? latest : { state: 'off', reason: offReason };
 }

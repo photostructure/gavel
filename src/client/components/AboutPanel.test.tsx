@@ -3,12 +3,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { version } from '../../../package.json';
 
+import { forgetLatestRelease } from '../hooks/useLatestRelease';
+
 import { AboutPanel, tagline } from './AboutPanel';
 
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.mocked(global.fetch).mockReset();
   Reflect.deleteProperty(navigator, 'globalPrivacyControl');
+  forgetLatestRelease();
 });
 
 const latestUrl = 'https://registry.npmjs.org/@photostructure%2fgavel/latest';
@@ -57,7 +60,27 @@ describe('AboutPanel', () => {
     vi.stubEnv('VITE_GAVEL_RELEASE_BUILD', 'true');
     npmLatest(version);
     renderPanel();
-    expect(global.fetch).toHaveBeenCalledWith(latestUrl, expect.anything());
+    expect(global.fetch).toHaveBeenCalledWith(latestUrl);
+  });
+
+  it('asks npm once per page load, however often About opens', async () => {
+    vi.stubEnv('VITE_GAVEL_RELEASE_BUILD', 'true');
+    npmLatest('10.0.0');
+    const first = render(<AboutPanel onClose={vi.fn()} onShowShortcuts={vi.fn()} />);
+    expect(await screen.findByText('Version 10.0.0 is available')).toBeInTheDocument();
+    first.unmount();
+    render(<AboutPanel onClose={vi.fn()} onShowShortcuts={vi.fn()} />);
+    expect(await screen.findByText('Version 10.0.0 is available')).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the request going when About closes before npm answers', async () => {
+    vi.stubEnv('VITE_GAVEL_RELEASE_BUILD', 'true');
+    npmLatest('10.0.0');
+    render(<AboutPanel onClose={vi.fn()} onShowShortcuts={vi.fn()} />).unmount();
+    render(<AboutPanel onClose={vi.fn()} onShowShortcuts={vi.fn()} />);
+    expect(await screen.findByText('Version 10.0.0 is available')).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledOnce();
   });
 
   it('says a release build is up to date when npm has no newer version', async () => {
@@ -126,7 +149,7 @@ describe('AboutPanel', () => {
     Object.defineProperty(navigator, 'globalPrivacyControl', { value: false, configurable: true });
     npmLatest(version);
     renderPanel();
-    expect(global.fetch).toHaveBeenCalledWith(latestUrl, expect.anything());
+    expect(global.fetch).toHaveBeenCalledWith(latestUrl);
   });
 
   it('neither asks npm nor shows a release status on a development build', () => {
