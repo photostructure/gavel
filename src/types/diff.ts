@@ -8,6 +8,8 @@ export interface DiffFile {
   deletions: number;
   chunks: DiffChunk[];
   isGenerated?: boolean;
+  /** Git reported the file as binary: a `Binary files … differ` line or a `GIT binary patch`. */
+  isBinary?: boolean;
   /** `path` or `oldPath` is Git's quoted form of a name that is not valid UTF-8. */
   hasNonUtf8Path?: boolean;
 }

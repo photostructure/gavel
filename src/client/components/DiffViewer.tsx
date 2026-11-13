@@ -8,6 +8,7 @@ import {
   type CommentIntent,
   type LineNumber,
 } from '../../types/diff';
+import type { NamedReviewMetadata } from '../../types/review';
 import { FileLevelTokensProvider } from '../contexts/FileLevelTokensContext';
 import { type CursorPosition } from '../hooks/keyboardNavigation';
 import { useLineDraftAnchors, type LineDraftAnchor } from '../hooks/useCommentDrafts';
@@ -60,7 +61,8 @@ interface DiffViewerProps {
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
   baseCommitish?: string;
   targetCommitish?: string;
-  contextUnavailable?: boolean;
+  /** The named review whose frozen capture the diff shows, absent for a live diff. */
+  capture?: Pick<NamedReviewMetadata, 'name' | 'version'>;
   cursor?: CursorPosition | null;
   isFocused?: boolean;
   fileIndex?: number;
@@ -199,6 +201,13 @@ const getLastChunkIndex = (mergedChunks: MergedChunk[]): number | null => {
   return lastIndex ?? null;
 };
 
+/** What a patch section with no hunks and no binary block changes, worded as GitHub does. */
+const HEADER_ONLY_NOTES: Partial<Record<DiffFile['status'], string>> = {
+  renamed: 'File renamed without changes.',
+  copied: 'File copied without changes.',
+  modified: 'File mode changed.',
+};
+
 export const DiffViewer = memo(function DiffViewer({
   file,
   threads,
@@ -224,7 +233,7 @@ export const DiffViewer = memo(function DiffViewer({
   syntaxTheme,
   baseCommitish,
   targetCommitish,
-  contextUnavailable = false,
+  capture,
   cursor = null,
   isFocused = false,
   fileIndex = 0,
@@ -262,6 +271,8 @@ export const DiffViewer = memo(function DiffViewer({
   const [isVisible, setIsVisible] = useState(false);
 
   const viewer = getViewerForFile(file);
+  // A frozen capture holds only its patch, so no viewer can load lines outside it.
+  const contextUnavailable = Boolean(capture);
   const canExpandHiddenLines = fileCanExpandHiddenLines(file, {
     contextUnavailable,
     baseCommitish,
@@ -401,7 +412,19 @@ export const DiffViewer = memo(function DiffViewer({
   });
 
   const lineNumberWidth = '4em';
-  const ViewerComponent = contextUnavailable ? TextDiffViewer : viewer.Component;
+  // A capture holds a binary file's bytes in its patch, or the IDs of its blobs, so the image
+  // viewer can show it. Other viewers need whole files, which a capture does not hold, and a
+  // text image such as an SVG has hunks instead of bytes, as does a symlink that a type change
+  // turned into an image. An image that is only renamed, copied or changes mode has neither,
+  // and the capture's base commit need not be the patch's base, so it gets a note.
+  const imageWithoutHunks = viewer.id === 'image' && file.chunks.length === 0;
+  const showsCapturedBytes = imageWithoutHunks && file.isBinary === true;
+  const headerOnlyNote =
+    contextUnavailable && imageWithoutHunks && !file.isBinary
+      ? HEADER_ONLY_NOTES[file.status]
+      : undefined;
+  const ViewerComponent =
+    contextUnavailable && !showsCapturedBytes ? TextDiffViewer : viewer.Component;
   const viewerProps: DiffViewerBodyProps = {
     file,
     threads,
@@ -410,6 +433,7 @@ export const DiffViewer = memo(function DiffViewer({
     syntaxTheme,
     baseCommitish,
     targetCommitish,
+    capture,
     cursor,
     fileIndex,
     mergedChunks,
@@ -454,7 +478,11 @@ export const DiffViewer = memo(function DiffViewer({
       {!isCollapsed && (
         <FileLevelTokensProvider value={fileLevelTokens}>
           <div className="overflow-y-auto">
-            <ViewerComponent {...viewerProps} />
+            {headerOnlyNote ? (
+              <div className="p-4 text-github-text-muted text-sm">{headerOnlyNote}</div>
+            ) : (
+              <ViewerComponent {...viewerProps} />
+            )}
           </div>
         </FileLevelTokensProvider>
       )}

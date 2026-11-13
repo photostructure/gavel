@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 
 import type { CapturedFile, CapturedHunk, ReviewCapture } from '../types/review.js';
 
+import { applyGitDelta, forwardBinaryHunk } from './binary-patch.js';
 import { PATCH_HEADER_OPTIONS, QUOTE_PATH_CONFIG } from './git-client.js';
 
 export const MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
@@ -502,6 +503,58 @@ export function validateCapture(value: unknown): ReviewCapture {
   if (!('files' in value) || !catalogueMatches(value.files, capture.files))
     throw new Error('Review capture catalogue does not match its patch');
   return capture;
+}
+
+/** Largest repository blob a review serves; a capture's 8 MiB limit applies to its patch only. */
+const MAX_REVIEW_BLOB_BYTES = 64 * 1024 * 1024;
+
+async function readBlob(repositoryRoot: string, object: string): Promise<Buffer> {
+  const { stdout } = await execFileAsync('git', [...GIT_OPTIONS, 'cat-file', 'blob', object], {
+    cwd: repositoryRoot,
+    env: gitEnvironment(repositoryRoot),
+    encoding: 'buffer',
+    maxBuffer: MAX_REVIEW_BLOB_BYTES,
+  });
+  return stdout;
+}
+
+/**
+ * The bytes one side of a captured binary file held. The new side comes from the capture's
+ * `GIT binary patch` block, so it is the captured version even if the working tree has changed
+ * since. The old side is the blob the patch's `index` line names, read from the repository.
+ * A patch made without `--binary`, such as the gavel skill's `git diff --full-index <sha>^ <sha>`,
+ * has only `Binary files … differ`, so both sides are the blobs its `index` line names.
+ * A file that is only renamed, copied or changes mode has no bytes in the patch, and the
+ * capture's base commit is the local HEAD for a piped patch, so it is refused like a text file.
+ * `path` is the file's path on that side.
+ */
+export async function capturedBinaryContent(
+  capture: ReviewCapture,
+  path: string,
+  side: 'old' | 'new',
+): Promise<Buffer> {
+  const index = capture.files.findIndex(
+    (file) => (side === 'old' ? (file.oldPath ?? file.path) : file.path) === path,
+  );
+  const raw = parsePatch(capture.patch)[index];
+  if (!raw) throw new Error(`${path} is not in this review`);
+  const body = raw.raw.slice(raw.header.length);
+  const blobIds = raw.header.match(/^index ([\da-f]+)\.\.([\da-f]+)/m);
+  const readVersion = async (version: 'old' | 'new'): Promise<Buffer> => {
+    const blob = blobIds?.[version === 'old' ? 1 : 2];
+    if (!blob || /^0+$/.test(blob))
+      throw new Error(`${path} has no ${version} version in this review`);
+    return readBlob(capture.repositoryRoot, blob);
+  };
+  if (body.startsWith('Binary files ')) return readVersion(side);
+  const lines = body.split('\n');
+  if (lines[0] !== 'GIT binary patch')
+    throw new Error(`${path} is not a binary file in this review`);
+  if (side === 'old') return readVersion('old');
+  const forward = forwardBinaryHunk(lines.slice(1));
+  return forward.kind === 'literal'
+    ? forward.data
+    : applyGitDelta(await readVersion('old'), forward.data);
 }
 
 /** IDs of the files with a hunk that adds no lines, such as a hunk that only deletes lines. */

@@ -2365,7 +2365,7 @@ function App() {
                       syntaxTheme={settings.syntaxTheme}
                       baseCommitish={diffData.baseCommitish}
                       targetCommitish={diffData.targetCommitish}
-                      contextUnavailable={Boolean(diffData.capture)}
+                      capture={diffData.capture}
                       cursor={cursor?.fileIndex === fileIndex ? cursor : null}
                       isFocused={cursor?.fileIndex === fileIndex}
                       fileIndex={fileIndex}

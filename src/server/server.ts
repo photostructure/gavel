@@ -22,7 +22,7 @@ import type { ServerEvent, ServerShutdownEvent } from '../types/events.js';
 import { writeJsonl } from './event-output.js';
 import type { NamedReviewStart, ReviewCapture } from '../types/review.js';
 import { NamedReviewError, NamedReviewStore, type NamedReviewState } from './named-reviews.js';
-import { getCaptureRepository, validateCapture } from './review-capture.js';
+import { capturedBinaryContent, getCaptureRepository, validateCapture } from './review-capture.js';
 import { openReviewStore, savedReviewKey, type SavedReview } from './review-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1216,25 +1216,33 @@ export async function startServer(options: ServerOptions): Promise<{
 
   app.get(/^\/api\/blob\/(.*)$/, async (req, res) => {
     try {
-      if (typeof req.query.review === 'string') {
-        res.status(404).json({ error: 'Blob content is not available for a frozen capture' });
-        return;
-      }
-      // If using stdin diff, blob content is not available
-      if (options.stdinDiff) {
-        res.status(404).json({ error: 'Blob content not available for stdin diff' });
-        return;
-      }
-
       const filepathResult = parseRepositoryRelativePath(req.params[0]);
       if (!filepathResult.ok) {
         res.status(400).json({ error: filepathResult.error });
         return;
       }
       const filepath = filepathResult.path;
-      const ref = (req.query.ref as string) || 'HEAD';
-
-      const blob = await parser.getBlobContent(filepath, ref);
+      let blob: Buffer;
+      if (typeof req.query.review === 'string') {
+        // A review shows its capture: a binary file's bytes come from its patch or its index blobs.
+        const side = req.query.side;
+        if (side !== 'old' && side !== 'new') {
+          res.status(400).json({ error: 'Expected side=old or side=new for a review' });
+          return;
+        }
+        const version = req.query.version === undefined ? undefined : Number(req.query.version);
+        const review = namedReviews.get(req.query.review, version);
+        if (!review) {
+          res.status(404).json({ error: 'Named review capture not found' });
+          return;
+        }
+        blob = await capturedBinaryContent(review.capture, filepath, side);
+      } else if (options.stdinDiff) {
+        res.status(404).json({ error: 'Blob content not available for stdin diff' });
+        return;
+      } else {
+        blob = await parser.getBlobContent(filepath, (req.query.ref as string) || 'HEAD');
+      }
 
       // Determine content type based on file extension
       const ext = getFileExtension(filepath);
@@ -1252,6 +1260,7 @@ export async function startServer(options: ServerOptions): Promise<{
         avif: 'image/avif',
         heic: 'image/heic',
         heif: 'image/heif',
+        webm: 'video/webm',
       };
 
       const contentType = contentTypes[ext || ''] || 'application/octet-stream';

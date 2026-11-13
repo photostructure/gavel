@@ -8,6 +8,7 @@ import type {
   DiffViewMode,
   LineNumber,
 } from '../../types/diff';
+import type { NamedReviewMetadata } from '../../types/review';
 import type { CommentSubmitOptions } from '../components/CommentForm';
 import type { AppearanceSettings } from '../components/SettingsModal';
 import type { CursorPosition } from '../hooks/keyboardNavigation';
@@ -21,6 +22,8 @@ export type DiffViewerBodyProps = {
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
   baseCommitish?: string;
   targetCommitish?: string;
+  /** The named review whose capture the diff shows, absent for a live diff. */
+  capture?: Pick<NamedReviewMetadata, 'name' | 'version'>;
   cursor?: CursorPosition | null;
   fileIndex?: number;
   mergedChunks: MergedChunk[];

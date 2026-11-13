@@ -1,5 +1,5 @@
 import type { DiffFile } from '../../types/diff';
-import { isImageFile } from '../utils/imageUtils';
+import { isImageFile, isVideoFile } from '../utils/imageUtils';
 import { isMarkdownFile } from '../utils/markdownUtils';
 import { isNotebookFile } from '../utils/notebookUtils';
 
@@ -12,7 +12,7 @@ import type { DiffViewerRegistration } from './types';
 const viewers: DiffViewerRegistration[] = [
   {
     id: 'image',
-    match: (file) => isImageFile(file.path),
+    match: (file) => isImageFile(file.path) || isVideoFile(file.path),
     Component: ImageDiffViewer,
     canExpandHiddenLines: () => false,
   },

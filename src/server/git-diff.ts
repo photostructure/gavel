@@ -655,12 +655,16 @@ export class GitDiffParser {
     const chunks = this.parseChunks(lines);
 
     const { additions, deletions } = this.countLinesFromChunks(chunks);
+    const isBinary = lines.some(
+      (line) => line === 'GIT binary patch' || line.startsWith('Binary files '),
+    );
     return {
       ...baseFile,
       additions,
       deletions,
       chunks,
       isGenerated: isGeneratedFile(path).isGenerated,
+      ...(isBinary ? { isBinary } : {}),
     };
   }
 

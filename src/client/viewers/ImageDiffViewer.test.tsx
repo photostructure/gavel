@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import type { DiffFile } from '../../types/diff';
@@ -62,7 +62,7 @@ describe('ImageDiffViewer', () => {
 
       renderViewer(addedFile);
 
-      expect(screen.getByText('Added Image')).toBeInTheDocument();
+      expect(screen.getByText('Added Image')).toHaveClass('text-github-accent-text');
       expect(screen.getByText('New file:')).toBeInTheDocument();
       expect(screen.getByRole('img')).toHaveAttribute('src', '/api/blob/test.jpg?ref=HEAD');
     });
@@ -159,6 +159,83 @@ describe('ImageDiffViewer', () => {
       const images = screen.getAllByRole('img');
       expect(images[0]).toHaveAttribute('src', '/api/blob/old-test.jpg?ref=HEAD~1');
       expect(images[1]).toHaveAttribute('src', '/api/blob/test.jpg?ref=HEAD');
+    });
+  });
+
+  describe('Named reviews', () => {
+    it("requests each side from the review's capture", () => {
+      const file: DiffFile = {
+        path: 'new name.webp',
+        oldPath: 'old name.webp',
+        status: 'renamed',
+        additions: 0,
+        deletions: 0,
+        chunks: [],
+      };
+
+      renderViewer(file, { capture: { name: 'a task', version: 3 } });
+
+      const images = screen.getAllByRole('img');
+      expect(images[0]).toHaveAttribute(
+        'src',
+        '/api/blob/old%20name.webp?review=a%20task&version=3&side=old',
+      );
+      expect(images[1]).toHaveAttribute(
+        'src',
+        '/api/blob/new%20name.webp?review=a%20task&version=3&side=new',
+      );
+    });
+  });
+
+  it('loads the new capture after a failed load when the review updates', () => {
+    const file: DiffFile = {
+      path: 'demo.webm',
+      status: 'added',
+      additions: 0,
+      deletions: 0,
+      chunks: [],
+    };
+    const { container, rerender } = renderViewer(file, { capture: { name: 'task', version: 1 } });
+    fireEvent.error(container.querySelector('video')!);
+    expect(screen.getByText('Video could not be loaded')).toBeInTheDocument();
+
+    rerender(<ImageDiffViewer {...baseProps} file={file} capture={{ name: 'task', version: 2 }} />);
+
+    expect(container.querySelector('video')).toHaveAttribute(
+      'src',
+      '/api/blob/demo.webm?review=task&version=2&side=new',
+    );
+  });
+
+  describe('Video files', () => {
+    it('plays both versions of a modified WebM video and shows its size', async () => {
+      const file: DiffFile = {
+        path: 'demo.webm',
+        status: 'modified',
+        additions: 0,
+        deletions: 0,
+        chunks: [],
+      };
+
+      const { container } = renderViewer(file, { diffMode: 'split' });
+
+      expect(screen.getByText('Modified Video')).toBeInTheDocument();
+      expect(screen.queryByRole('img')).toBeNull();
+      const videos = [...container.querySelectorAll('video')];
+      expect(videos.map((video) => video.getAttribute('src'))).toEqual([
+        '/api/blob/demo.webm?ref=HEAD~1',
+        '/api/blob/demo.webm?ref=HEAD',
+      ]);
+      expect(videos.every((video) => video.controls)).toBe(true);
+
+      const video = videos[1]!;
+      Object.defineProperty(video, 'videoWidth', { value: 1280, configurable: true });
+      Object.defineProperty(video, 'videoHeight', { value: 720, configurable: true });
+      video.dispatchEvent(new Event('loadedmetadata'));
+
+      await waitFor(() => {
+        expect(screen.getByText(/W: 1280px \| H: 720px/)).toBeInTheDocument();
+      });
     });
   });
 

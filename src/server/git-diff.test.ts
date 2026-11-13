@@ -240,6 +240,7 @@ describe('GitDiffParser', () => {
         deletions: 0,
         chunks: [], // Binary files should have empty chunks
         isGenerated: false,
+        isBinary: true,
       });
     });
 
@@ -270,6 +271,7 @@ describe('GitDiffParser', () => {
         deletions: 0,
         chunks: [],
         isGenerated: false,
+        isBinary: true,
       });
     });
 
@@ -299,6 +301,7 @@ describe('GitDiffParser', () => {
         deletions: 0,
         chunks: [],
         isGenerated: false,
+        isBinary: true,
       });
     });
 
@@ -329,6 +332,27 @@ describe('GitDiffParser', () => {
         chunks: [],
         isGenerated: false,
       });
+    });
+
+    it('marks a file whose bytes are a GIT binary patch, as a review capture holds them', () => {
+      // Ground truth: git diff --binary --full-index HEAD after a committed photo.png holding
+      // bytes 00 01 02 03 changes to 00 01 02 04.
+      const diffLines = [
+        'diff --git a/photo.png b/photo.png',
+        'index eaf36c1daccfdf325514461cd1a2ffbc139b5464..f75c32acfbf126176c30bf9bda9a5f2bb8f78d06 100644',
+        'GIT binary patch',
+        'literal 4',
+        'LcmZQzWMTmT01p5N',
+        '',
+        'literal 4',
+        'LcmZQzWMT#Y01f~L',
+        '',
+      ];
+
+      const result = (parser as any).parseFileBlock(diffLines.join('\n'));
+
+      expect(result).toMatchObject({ path: 'photo.png', status: 'modified', isBinary: true });
+      expect(result.chunks).toEqual([]);
     });
 
     it('handles non-binary files normally', () => {

@@ -191,6 +191,45 @@ describe('named review HTTP integration', () => {
     expect(readFileSync(join(root, 'untracked.txt'), 'utf8')).toBe('untracked after capture\n');
   });
 
+  it('serves the captured old and new bytes of binary files, not the working tree', async () => {
+    const before = Buffer.from([0, 1, 2, 3]);
+    const after = Buffer.from([0, 5, 6, 7, 8]);
+    writeFileSync(join(root, 'still.webp'), before);
+    writeFileSync(join(root, 'clip.webm'), before);
+    git('add', 'still.webp', 'clip.webm');
+    git('commit', '--quiet', '--no-verify', '-m', 'media');
+    writeFileSync(join(root, 'still.webp'), after);
+    writeFileSync(join(root, 'clip.webm'), after);
+    const capture = await captureWorkingTree({ cwd: root, pathspecs: ['still.webp', 'clip.webm'] });
+    await post(`/api/reviews/${name}/capture`, { expectedVersion: 1, capture });
+    writeFileSync(join(root, 'still.webp'), Buffer.from([9, 9]));
+
+    const blob = async (path: string) => {
+      const response = await fetch(`${running!.url}/api/blob/${path}`);
+      return {
+        status: response.status,
+        type: response.headers.get('content-type'),
+        body: Buffer.from(await response.arrayBuffer()),
+      };
+    };
+    expect(await blob(`still.webp?review=${name}&version=2&side=new`)).toEqual({
+      status: 200,
+      type: 'image/webp',
+      body: after,
+    });
+    expect(await blob(`still.webp?review=${name}&version=2&side=old`)).toMatchObject({
+      status: 200,
+      body: before,
+    });
+    expect(await blob(`clip.webm?review=${name}&version=2&side=new`)).toEqual({
+      status: 200,
+      type: 'video/webm',
+      body: after,
+    });
+    expect((await blob(`still.webp?review=${name}&version=1&side=new`)).status).toBe(404);
+    expect((await blob(`still.webp?review=${name}&version=2`)).status).toBe(400);
+  });
+
   it('names the launched review as the diff the revision menu offers', async () => {
     const revisions = await get<RevisionsResponse>('/api/revisions');
     expect(revisions.launch).toMatchObject({ reviewName: name });
@@ -635,7 +674,7 @@ describe('named review HTTP integration', () => {
       conversation: true,
     });
     const paths = [
-      '/api/blob/first.txt?ref=.',
+      '/api/blob/first.txt?ref=.&side=new',
       '/api/line-count/first.txt?oldRef=.&newRef=.',
       '/api/generated-status/first.txt?ref=.',
     ];

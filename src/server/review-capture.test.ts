@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   chmodSync,
   mkdirSync,
@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  capturedBinaryContent,
   capturePatch,
   captureWorkingTree,
   filesWithoutAddedLines,
@@ -550,6 +551,120 @@ describe('read-only working tree captures', () => {
       artifact.files.find((file) => file.path === 'text.txt')?.hunks[0]?.id ?? '',
     ]);
     expect(selected.files.map((file) => file.path)).toEqual(['text.txt']);
+  });
+
+  it('recovers both sides of a binary file from literal hunks', async () => {
+    const before = Buffer.from([0, 1, 2, 3]);
+    const after = Buffer.from([0, 5, 6, 7, 8]);
+    writeFileSync(join(root, 'image.webp'), before);
+    commit();
+    writeFileSync(join(root, 'image.webp'), after);
+    const artifact = await captureWorkingTree({ cwd: root });
+    expect(artifact.patch).toContain('\nliteral 5\n');
+    expect(await capturedBinaryContent(artifact, 'image.webp', 'new')).toEqual(after);
+    expect(await capturedBinaryContent(artifact, 'image.webp', 'old')).toEqual(before);
+  });
+
+  it('recovers the new side of a binary file from a delta hunk and a rename', async () => {
+    const before = randomBytes(64 * 1024);
+    const after = Buffer.from(before);
+    randomBytes(16).copy(after, 30_000);
+    writeFileSync(join(root, 'old.webm'), before);
+    commit();
+    git('mv', 'old.webm', 'new.webm');
+    writeFileSync(join(root, 'new.webm'), after);
+    const artifact = await captureWorkingTree({ cwd: root });
+    expect(artifact.patch).toMatch(/\ndelta \d+\n/);
+    expect(artifact.files[0]).toMatchObject({ path: 'new.webm', oldPath: 'old.webm' });
+    expect(await capturedBinaryContent(artifact, 'new.webm', 'new')).toEqual(after);
+    expect(await capturedBinaryContent(artifact, 'old.webm', 'old')).toEqual(before);
+  });
+
+  it('serves no bytes for a binary file that is only renamed or only changes mode', async () => {
+    const bytes = Buffer.from([0, 1, 2, 3]);
+    writeFileSync(join(root, 'before.webp'), bytes);
+    writeFileSync(join(root, 'mode.png'), bytes);
+    commit();
+    git('mv', 'before.webp', 'after.webp');
+    chmodSync(join(root, 'mode.png'), 0o755);
+    const artifact = await captureWorkingTree({ cwd: root });
+    // Ground truth: git diff --binary --full-index HEAD prints no index line or binary block here,
+    // and a piped patch's capture records the local HEAD, not the patch's base.
+    expect(artifact.patch).not.toContain('GIT binary patch');
+    for (const [path, side] of [
+      ['before.webp', 'old'],
+      ['after.webp', 'new'],
+      ['mode.png', 'old'],
+      ['mode.png', 'new'],
+    ] as const) {
+      await expect(capturedBinaryContent(artifact, path, side)).rejects.toThrow(
+        `${path} is not a binary file in this review`,
+      );
+    }
+  });
+
+  it('rebuilds a delta against an old blob larger than the capture limit', async () => {
+    const before = randomBytes(MAX_CAPTURE_BYTES + 1024 * 1024);
+    const after = Buffer.from(before);
+    after[4096] = (after[4096] ?? 0) ^ 0xff;
+    writeFileSync(join(root, 'big.webm'), before);
+    commit();
+    writeFileSync(join(root, 'big.webm'), after);
+    const artifact = await captureWorkingTree({ cwd: root });
+    expect(artifact.patch).toMatch(/\ndelta \d+\n/);
+    // toEqual compares 9 MiB byte by byte for most of a minute; Buffer.equals takes milliseconds.
+    expect((await capturedBinaryContent(artifact, 'big.webm', 'new')).equals(after)).toBe(true);
+    expect((await capturedBinaryContent(artifact, 'big.webm', 'old')).equals(before)).toBe(true);
+  });
+
+  it('has no old side for an added binary file and no content for a text file', async () => {
+    writeFileSync(join(root, 'text.txt'), 'before\n');
+    commit();
+    const added = Buffer.from([0, 9, 8, 7]);
+    writeFileSync(join(root, 'added.webp'), added);
+    writeFileSync(join(root, 'text.txt'), 'after\n');
+    const artifact = await captureWorkingTree({ cwd: root, includeUntracked: true });
+    expect(await capturedBinaryContent(artifact, 'added.webp', 'new')).toEqual(added);
+    await expect(capturedBinaryContent(artifact, 'added.webp', 'old')).rejects.toThrow(
+      'added.webp has no old version in this review',
+    );
+    await expect(capturedBinaryContent(artifact, 'text.txt', 'new')).rejects.toThrow(
+      'text.txt is not a binary file in this review',
+    );
+    await expect(capturedBinaryContent(artifact, 'missing.webp', 'new')).rejects.toThrow(
+      'missing.webp is not in this review',
+    );
+  });
+
+  it('reads both sides by blob ID for a binary file in a patch made without --binary', async () => {
+    const before = Buffer.from([0, 1, 2, 3]);
+    const after = Buffer.from([0, 1, 2, 4]);
+    writeFileSync(join(root, 'still.webp'), before);
+    writeFileSync(join(root, 'gone.webp'), before);
+    commit();
+    writeFileSync(join(root, 'still.webp'), after);
+    rmSync(join(root, 'gone.webp'));
+    commit();
+    // Ground truth: the gavel skill's command for committed work, git diff --full-index
+    // <sha>^ <sha>, writes "Binary files … differ" under an index line with both blob IDs.
+    const patch = git('diff', '--full-index', 'HEAD^', 'HEAD');
+    expect(patch).toContain('Binary files a/still.webp and b/still.webp differ');
+    const piped = capturePatch(patch, {
+      repositoryRoot: root,
+      baseCommit: git('rev-parse', 'HEAD').trim(),
+    });
+    expect(await capturedBinaryContent(piped, 'still.webp', 'old')).toEqual(before);
+    expect(await capturedBinaryContent(piped, 'still.webp', 'new')).toEqual(after);
+    expect(await capturedBinaryContent(piped, 'gone.webp', 'old')).toEqual(before);
+    await expect(capturedBinaryContent(piped, 'gone.webp', 'new')).rejects.toThrow(
+      'gone.webp has no new version in this review',
+    );
+    const newBlob = git('rev-parse', 'HEAD:still.webp').trim();
+    const unknown = capturePatch(patch.replace(newBlob, 'f'.repeat(40)), {
+      repositoryRoot: root,
+      baseCommit: git('rev-parse', 'HEAD').trim(),
+    });
+    await expect(capturedBinaryContent(unknown, 'still.webp', 'new')).rejects.toThrow();
   });
 
   it('retains prefixed blank context when diff.suppressBlankEmpty is enabled', async () => {

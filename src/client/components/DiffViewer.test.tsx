@@ -1,4 +1,5 @@
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DiffChunk, DiffFile } from '../../types/diff';
@@ -53,6 +54,7 @@ function renderViewer(
   onAddComment: AddComment = vi.fn(async () => {}),
   pendingJump: LineDraftAnchor | null = null,
   shownFile: DiffFile = file,
+  extraProps: Partial<ComponentProps<typeof DiffViewer>> = {},
 ) {
   return render(
     <WordHighlightProvider>
@@ -82,6 +84,7 @@ function renderViewer(
           prefetchFileContent={vi.fn(async () => {})}
           isExpandLoading={false}
           pendingJump={pendingJump}
+          {...extraProps}
         />
       </CommentDraftScope>
     </WordHighlightProvider>,
@@ -191,5 +194,96 @@ describe('DiffViewer context expansion for line drafts', () => {
     await waitFor(() => expect(onAddComment).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled());
     expect(screen.getByRole('textbox')).toHaveValue('Do not lose this');
+  });
+});
+
+describe('DiffViewer in a named review', () => {
+  it("shows an image from the review's capture instead of an empty text diff", () => {
+    const image: DiffFile = {
+      path: 'still.webp',
+      status: 'modified',
+      additions: 0,
+      deletions: 0,
+      chunks: [],
+      isBinary: true,
+    };
+    renderViewer(
+      vi.fn(async () => {}),
+      [],
+      vi.fn(async () => {}),
+      null,
+      image,
+      {
+        capture: { name: 'task', version: 2 },
+      },
+    );
+    expect(screen.getAllByRole('img').map((img) => img.getAttribute('src'))).toEqual([
+      '/api/blob/still.webp?review=task&version=2&side=old',
+      '/api/blob/still.webp?review=task&version=2&side=new',
+    ]);
+  });
+
+  // A capture has no bytes for these files, and its base commit may not be the patch's base.
+  it.each([
+    [
+      'File renamed without changes.',
+      { path: 'after.webp', oldPath: 'before.webp', status: 'renamed' },
+    ],
+    [
+      'File copied without changes.',
+      { path: 'copy.webp', oldPath: 'still.webp', status: 'copied' },
+    ],
+    ['File mode changed.', { path: 'still.webp', status: 'modified' }],
+  ] as const)(
+    'says "%s" instead of loading an image with no bytes in the patch',
+    (text, change) => {
+      const image: DiffFile = { ...change, additions: 0, deletions: 0, chunks: [] };
+      renderViewer(
+        vi.fn(async () => {}),
+        [],
+        vi.fn(async () => {}),
+        null,
+        image,
+        {
+          capture: { name: 'task', version: 2 },
+        },
+      );
+      expect(screen.queryByRole('img')).toBeNull();
+      expect(screen.getByText(text)).toBeInTheDocument();
+    },
+  );
+
+  it('keeps the text diff of an SVG, which Git captures as text', () => {
+    const svg: DiffFile = { ...file, path: 'icon.svg' };
+    renderViewer(
+      vi.fn(async () => {}),
+      mergedChunks,
+      vi.fn(async () => {}),
+      null,
+      svg,
+      {
+        capture: { name: 'task', version: 2 },
+      },
+    );
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByText('16 lines outside this patch')).toBeInTheDocument();
+  });
+
+  it('keeps the text hunk of an image symlink replaced by an image', () => {
+    // Git writes the symlink's deletion as text and the image's addition as binary, and the
+    // parser folds both into one file that is binary and has the symlink's hunk.
+    const typeChange: DiffFile = { ...file, path: 'icon.png', isBinary: true };
+    renderViewer(
+      vi.fn(async () => {}),
+      mergedChunks,
+      vi.fn(async () => {}),
+      null,
+      typeChange,
+      {
+        capture: { name: 'task', version: 2 },
+      },
+    );
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByText('16 lines outside this patch')).toBeInTheDocument();
   });
 });
