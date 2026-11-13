@@ -141,6 +141,40 @@ describe('text patch context controls', () => {
     ]);
     expect(vi.mocked(options.expandHiddenLines).mock.calls).toEqual([[file, 1, 'down', 50]]);
   });
+
+  it('makes the bar beside each gap button do what that button does', () => {
+    const top = { ...first, hiddenLinesBefore: 30 };
+    const bottom = { ...second, hiddenLinesBefore: 12, hiddenLinesAfter: 50 };
+    const options = props({ mergedChunks: [top, bottom] });
+    const { container } = render(<TextDiffViewer {...options} />);
+    const areas = [...container.querySelectorAll<HTMLElement>('[data-expand-area]')];
+    // A gap with two arrows splits its bar: the top half beside the down arrow, the
+    // bottom half beside the up arrow. A gap with one button gives it the whole bar.
+    expect(areas.map((area) => area.dataset.expandArea)).toEqual(['up', 'all', 'down']);
+    for (const area of areas) fireEvent.click(area);
+    fireEvent.click(areas[0]!, { shiftKey: true });
+    expect(vi.mocked(options.expandHiddenLines).mock.calls).toEqual([
+      [file, 0, 'up'],
+      [file, 1, 'down'],
+    ]);
+    expect(vi.mocked(options.expandAllBetweenChunks).mock.calls).toEqual([
+      [file, 1, 12],
+      [file, 0, 30],
+    ]);
+  });
+
+  it('splits the bar of a middle gap with both arrows into halves', () => {
+    const middle = { ...second, hiddenLinesBefore: 40, hiddenLinesAfter: 0 };
+    const options = props({ mergedChunks: [{ ...first, hiddenLinesBefore: 0 }, middle] });
+    const { container } = render(<TextDiffViewer {...options} />);
+    const areas = [...container.querySelectorAll<HTMLElement>('[data-expand-area]')];
+    expect(areas.map((area) => area.dataset.expandArea)).toEqual(['down', 'up']);
+    for (const area of areas) fireEvent.click(area);
+    expect(vi.mocked(options.expandHiddenLines).mock.calls).toEqual([
+      [file, 0, 'down'],
+      [file, 1, 'up'],
+    ]);
+  });
 });
 
 describe('drafts on lines no longer in the diff', () => {

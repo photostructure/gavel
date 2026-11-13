@@ -1,5 +1,5 @@
 import { ArrowDownFromLine, ArrowUpFromLine, Loader2, UnfoldVertical } from 'lucide-react';
-import { memo, type ReactElement } from 'react';
+import { memo, type MouseEvent, type ReactElement } from 'react';
 
 const DEFAULT_EXPAND_COUNT = 20;
 
@@ -36,14 +36,19 @@ export const ExpandButton = memo(function ExpandButton({
   const iconButtonClass =
     'flex flex-1 w-full items-center justify-center py-1 text-github-text-primary hover:bg-github-bg-secondary hover:text-github-text-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
 
-  const actions: {
+  interface Action {
     key: string;
     onClick: (() => void) | undefined;
     ariaLabel: string;
     title: string;
     icon: ReactElement;
-  }[] = [];
+  }
+  const actions: Action[] = [];
   // Shift or Alt with an arrow expands the whole gap, as Alt does for the file header's toggle.
+  const activate = (action: Action, event: MouseEvent) => {
+    if ((event.shiftKey || event.altKey) && onExpandAll) onExpandAll();
+    else action.onClick?.();
+  };
   const expandAllHint = `(Shift+Click or Alt+Click to expand all ${hiddenLines})`;
 
   if (showOnlyExpandAll) {
@@ -92,10 +97,7 @@ export const ExpandButton = memo(function ExpandButton({
             <button
               key={action.key}
               type="button"
-              onClick={(event) => {
-                if ((event.shiftKey || event.altKey) && onExpandAll) onExpandAll();
-                else action.onClick?.();
-              }}
+              onClick={(event) => activate(action, event)}
               disabled={isLoading || !action.onClick}
               className={iconButtonClass}
               title={action.title}
@@ -106,8 +108,31 @@ export const ExpandButton = memo(function ExpandButton({
           ))
         )}
       </div>
-      <div className="flex items-center justify-start px-3 py-1.5 font-mono text-github-text-muted select-none">
-        {lineLabel}
+      <div className="relative flex items-center justify-start px-3 py-1.5 font-mono text-github-text-muted select-none">
+        {/* The bar beside the buttons does what the button beside it does: with two arrows,
+            its top half is the top arrow's and its bottom half the bottom arrow's. The buttons
+            stay the keyboard and screen-reader targets, so the bar is hidden from both. */}
+        {!isLoading &&
+          actions.map(
+            (action, index) =>
+              action.onClick && (
+                <div
+                  key={action.key}
+                  data-expand-area={action.key}
+                  aria-hidden="true"
+                  title={action.title}
+                  onClick={(event) => activate(action, event)}
+                  className={`absolute inset-x-0 cursor-pointer hover:bg-github-bg-secondary ${
+                    actions.length === 1
+                      ? 'inset-y-0'
+                      : index === 0
+                        ? 'top-0 h-1/2'
+                        : 'bottom-0 h-1/2'
+                  }`}
+                />
+              ),
+          )}
+        <span className="relative pointer-events-none">{lineLabel}</span>
       </div>
     </div>
   );
