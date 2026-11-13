@@ -40,14 +40,18 @@ export const ExpandButton = memo(function ExpandButton({
     key: string;
     onClick: (() => void) | undefined;
     ariaLabel: string;
+    title: string;
     icon: ReactElement;
   }[] = [];
+  // Shift or Alt with an arrow expands the whole gap, as Alt does for the file header's toggle.
+  const expandAllHint = `(Shift+Click or Alt+Click to expand all ${hiddenLines})`;
 
   if (showOnlyExpandAll) {
     actions.push({
       key: 'all',
       onClick: onExpandAll,
       ariaLabel: `Expand all ${hiddenLines} hidden lines`,
+      title: `Expand all ${hiddenLines} hidden lines`,
       icon: <UnfoldVertical size={16} aria-hidden="true" />,
     });
   } else {
@@ -57,6 +61,7 @@ export const ExpandButton = memo(function ExpandButton({
         key: 'down',
         onClick: onExpandDown,
         ariaLabel: `Expand ${DEFAULT_EXPAND_COUNT} lines down`,
+        title: `Expand ${DEFAULT_EXPAND_COUNT} lines down ${expandAllHint}`,
         icon: <ArrowDownFromLine size={12} aria-hidden="true" className="translate-y-0.5" />,
       });
     }
@@ -65,6 +70,7 @@ export const ExpandButton = memo(function ExpandButton({
         key: 'up',
         onClick: onExpandUp,
         ariaLabel: `Expand ${DEFAULT_EXPAND_COUNT} lines up`,
+        title: `Expand ${DEFAULT_EXPAND_COUNT} lines up ${expandAllHint}`,
         icon: <ArrowUpFromLine size={12} aria-hidden="true" className="-translate-y-0.5" />,
       });
     }
@@ -86,10 +92,13 @@ export const ExpandButton = memo(function ExpandButton({
             <button
               key={action.key}
               type="button"
-              onClick={action.onClick}
+              onClick={(event) => {
+                if ((event.shiftKey || event.altKey) && onExpandAll) onExpandAll();
+                else action.onClick?.();
+              }}
               disabled={isLoading || !action.onClick}
               className={iconButtonClass}
-              title={action.ariaLabel}
+              title={action.title}
               aria-label={action.ariaLabel}
             >
               {action.icon}

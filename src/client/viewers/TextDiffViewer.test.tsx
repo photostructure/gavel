@@ -117,6 +117,30 @@ describe('text patch context controls', () => {
       [file, 1, 'down'],
     ]);
   });
+
+  it('expands the whole gap on a Shift- or Alt-click of either arrow', () => {
+    const top = { ...first, hiddenLinesBefore: 30 };
+    const bottom = { ...second, hiddenLinesBefore: 40, hiddenLinesAfter: 50 };
+    const options = props({ mergedChunks: [top, bottom] });
+    render(<TextDiffViewer {...options} />);
+    const [topUp, middleDown, middleUp, bottomDown] = screen.getAllByRole('button', {
+      name: /^Expand 20 lines/,
+    });
+    expect(middleDown).toHaveAttribute(
+      'title',
+      'Expand 20 lines down (Shift+Click or Alt+Click to expand all 40)',
+    );
+    fireEvent.click(topUp!, { shiftKey: true });
+    fireEvent.click(middleDown!, { altKey: true });
+    fireEvent.click(middleUp!, { shiftKey: true });
+    fireEvent.click(bottomDown!, { altKey: true });
+    expect(vi.mocked(options.expandAllBetweenChunks).mock.calls).toEqual([
+      [file, 0, 30],
+      [file, 1, 40],
+      [file, 1, 40],
+    ]);
+    expect(vi.mocked(options.expandHiddenLines).mock.calls).toEqual([[file, 1, 'down', 50]]);
+  });
 });
 
 describe('drafts on lines no longer in the diff', () => {
