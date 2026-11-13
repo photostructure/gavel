@@ -14,6 +14,7 @@ import { type CursorPosition } from '../hooks/keyboardNavigation';
 import { useLineDraftAnchors, type LineDraftAnchor } from '../hooks/useCommentDrafts';
 import { type MergedChunk } from '../hooks/useExpandedLines';
 import { useFileLevelTokens } from '../hooks/useFileLevelTokens';
+import { isLargeDiffFile } from '../utils/diffUtils';
 import { isWholeFileHighlightExtension } from '../utils/languageDetection';
 import { TextDiffViewer } from '../viewers/TextDiffViewer';
 import { fileCanExpandHiddenLines, getViewerForFile } from '../viewers/registry';
@@ -492,6 +493,21 @@ export const DiffViewer = memo(function DiffViewer({
             )}
           </div>
         </FileLevelTokensProvider>
+      )}
+      {isCollapsed && isLargeDiffFile(file) && (
+        <div className="flex items-center gap-3 px-4 py-3 text-sm text-github-text-secondary">
+          <span>
+            Large diff not shown: {(file.additions + file.deletions).toLocaleString()} changed
+            lines.
+          </span>
+          <button
+            type="button"
+            onClick={() => onToggleCollapsed(file.path)}
+            className="px-3 py-1.5 text-xs rounded border border-github-border text-github-text-secondary hover:text-github-text-primary hover:bg-github-bg-tertiary"
+          >
+            Load diff
+          </button>
+        </div>
       )}
     </div>
   );

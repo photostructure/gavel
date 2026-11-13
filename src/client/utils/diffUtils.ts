@@ -2,6 +2,17 @@ import { type DiffFile } from '../../types/diff';
 export { getLanguageFromPath } from './languageDetection';
 
 /**
+ * A file with more changed lines than this starts collapsed. Rendering one of tens of thousands
+ * of lines took seconds and slowed every later update of the page. Lines are counted, not their
+ * length, so a smaller file of very long lines still renders open.
+ */
+export const LARGE_DIFF_CHANGED_LINES = 1024;
+
+export function isLargeDiffFile(file: Pick<DiffFile, 'additions' | 'deletions'>): boolean {
+  return file.additions + file.deletions > LARGE_DIFF_CHANGED_LINES;
+}
+
+/**
  * Generate SHA-256 hash of diff content
  */
 export async function generateDiffHash(diffContent: string): Promise<string> {

@@ -96,6 +96,7 @@ import { findCommentPosition, findSidePosition } from './utils/navigation/positi
 import { createScrollToElement, linkScrollBehavior } from './hooks/keyboardNavigation/scrollUtils';
 import type { CursorScroll } from './hooks/keyboardNavigation/types';
 import { glowLinkTarget } from './utils/linkTargetGlow';
+import { isLargeDiffFile } from './utils/diffUtils';
 import { fileCanExpandHiddenLines } from './viewers/registry';
 import {
   readReviewLocation,
@@ -554,6 +555,43 @@ function App() {
     pendingSidebarSelectionsRef.current.clear();
   }, [diffData?.repositoryId, resolvedSelectionKey, diffData?.commit, commentsCaptureKey]);
 
+  // Large files start collapsed. This runs while rendering, not in an effect, so the first render
+  // of a new diff already has them collapsed; viewed files load later, after hashing every file,
+  // and a large file drawn open until then took seconds. Each path collapses once per diff, so
+  // a file a reload adds or grows past the limit collapses too, and one the reviewer loaded stays
+  // open. The key is the revision key lazy rendering uses to start a diff over, plus the
+  // repository.
+  const largeFilesKey = diffData
+    ? JSON.stringify([
+        diffData.repositoryId,
+        diffData.requestedBaseCommitish,
+        diffData.requestedTargetCommitish,
+        diffData.requestedBaseMode ?? 'direct',
+        diffData.capture?.name,
+        diffData.capture?.version,
+        diffData.capture?.patchDigest,
+      ])
+    : null;
+  const [largeFilesCollapsed, setLargeFilesCollapsed] = useState<{
+    key: string | null;
+    paths: ReadonlySet<string>;
+  }>({ key: null, paths: new Set() });
+  if (diffData) {
+    const collapsedBefore =
+      largeFilesCollapsed.key === largeFilesKey ? largeFilesCollapsed.paths : null;
+    const newLargePaths = diffData.files
+      .filter((file) => isLargeDiffFile(file) && !collapsedBefore?.has(file.path))
+      .map((file) => file.path);
+    if (!collapsedBefore || newLargePaths.length > 0) {
+      setLargeFilesCollapsed({
+        key: largeFilesKey,
+        paths: new Set([...(collapsedBefore ?? []), ...newLargePaths]),
+      });
+      if (newLargePaths.length > 0)
+        setCollapsedFiles((prev) => new Set([...prev, ...newLargePaths]));
+    }
+  }
+
   // Initialize collapsed files from viewed files (only once per diff)
   useEffect(() => {
     if (!collapsedInitializedRef.current && hasLoadedInitialViewedFiles) {
@@ -561,6 +599,12 @@ function App() {
       pendingSidebarSelectionsRef.current.clear();
       setCollapsedFiles((current) => {
         const nextCollapsedFiles = new Set(viewedFiles);
+        // A large file keeps its state: collapsed while rendering, or loaded by the reviewer.
+        for (const file of diffData?.files ?? []) {
+          if (!isLargeDiffFile(file)) continue;
+          if (current.has(file.path)) nextCollapsedFiles.add(file.path);
+          else nextCollapsedFiles.delete(file.path);
+        }
         // A file holding an unsent draft opens, so the restored draft shows.
         for (const filePath of filesWithDrafts(draftScope, fileOfThread)) {
           nextCollapsedFiles.delete(filePath);
@@ -574,7 +618,7 @@ function App() {
       });
       collapsedInitializedRef.current = true;
     }
-  }, [viewedFiles, hasLoadedInitialViewedFiles, draftScope, fileOfThread]);
+  }, [viewedFiles, hasLoadedInitialViewedFiles, draftScope, fileOfThread, diffData?.files]);
 
   // Reply and edit drafts find their file through their thread, so once the threads
   // load, open the files whose threads hold a draft.
