@@ -8,7 +8,10 @@ import { useInboxDelivery } from './useInboxDelivery';
 const selection = { baseCommitish: 'HEAD', targetCommitish: 'capture', reviewName: 'one' };
 const other = { baseCommitish: 'HEAD', targetCommitish: 'capture', reviewName: 'two' };
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 describe('inbox delivery', () => {
   it("reports the open review's delivery and refreshes it on demand", async () => {
@@ -38,6 +41,18 @@ describe('inbox delivery', () => {
       receivedAt: expect.any(Number),
     });
     expect(fetchMock).toHaveBeenCalledWith('/api/inbox', { cache: 'no-store' });
+  });
+
+  // pnpm dev serves the UI from Vite and sets VITE_GAVEL_API_URL to the CLI server's origin;
+  // the server sends no CORS headers, so only Vite's /api proxy can carry this request.
+  it('asks the page origin while VITE_GAVEL_API_URL names the API server', async () => {
+    vi.stubEnv('VITE_GAVEL_API_URL', 'http://localhost:4966');
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ reviews: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderHook(() => useInboxDelivery(selection));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/inbox', { cache: 'no-store' }),
+    );
   });
 
   it.each([

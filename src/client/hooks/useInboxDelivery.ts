@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from 'react';
 import type { DiffSelection } from '../../types/diff';
 import type { InboxDelivery } from '../../types/presence';
 import { diffSelectionsEqual } from '../../utils/diffSelection';
-import { resolveEventSourceUrl } from '../utils/eventSourceUrl';
 
 /** Browser observation time; never sent by or compared with the server. */
 export type ClientInboxDelivery = InboxDelivery & { receivedAt?: number };
@@ -41,7 +40,7 @@ function normalizeDelivery(delivery: InboxDelivery | EarlierQueueReceipt): Inbox
 export function useInboxDelivery(selection: DiffSelection | null) {
   const [reviews, setReviews] = useState<InboxReview[]>([]);
   const refresh = useCallback(async () => {
-    const response = await fetch(resolveEventSourceUrl('/api/inbox'), { cache: 'no-store' });
+    const response = await fetch('/api/inbox', { cache: 'no-store' });
     // A server older than the inbox answers with an error or another page: the indicator then
     // falls back to listener presence.
     const body = response.ok
