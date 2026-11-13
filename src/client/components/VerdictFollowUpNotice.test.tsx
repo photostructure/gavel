@@ -230,6 +230,22 @@ describe('verdict follow-up notice', () => {
     });
   });
 
+  // What the reviewer acts on stands out; the delivery report is status beside it.
+  it('dims only the delivery report, not the verdict or the next step', () => {
+    render(
+      notice({
+        step: { kind: 'close', reviews: 1 },
+        delivery: { status: 'sent', at: '2026-11-12T17:00:00.000Z', via: 'inbox' },
+      }),
+    );
+    const message = screen.getByTestId('verdict-toast-detail');
+    expect(message).toHaveTextContent('Approved. Sent to the agent. You can close this page.');
+    expect(message).not.toHaveClass('text-github-text-secondary');
+    expect(
+      [...message.querySelectorAll('.text-github-text-secondary')].map((dim) => dim.textContent),
+    ).toEqual(['Sent to the agent.']);
+  });
+
   it('shows no countdown', () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
     expect(status()).not.toHaveTextContent(/\d+s\b/);

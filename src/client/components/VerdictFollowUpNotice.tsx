@@ -108,6 +108,8 @@ export function VerdictFollowUpNotice({
         returnFocus={false}
         closeOnFocusOut={false}
       >
+        {/* A black shadow cannot show on the dark theme's near-black page, so there a dark ring
+            outside the border and a denser shadow set the toast off, as GitHub's dark overlays do. */}
         <div
           ref={refs.setFloating}
           role="status"
@@ -117,24 +119,20 @@ export function VerdictFollowUpNotice({
             visibility: middlewareData.hide?.referenceHidden ? 'hidden' : 'visible',
             maxWidth: 'min(36rem, calc(100vw - 16px))',
           }}
-          className="verdict-toast z-40 flex flex-col gap-4 rounded-md border border-blue-600 bg-[color-mix(in_srgb,var(--color-blue-600)_14%,var(--color-github-bg-secondary))] [[data-theme=dark]_&]:bg-[color-mix(in_srgb,var(--color-blue-600)_20%,var(--color-github-bg-secondary))] py-3 pr-4 pl-4 text-sm text-github-text-primary shadow-2xl"
+          className="verdict-toast z-40 flex flex-col gap-4 rounded-md border border-blue-600 bg-[color-mix(in_srgb,var(--color-blue-600)_14%,var(--color-github-bg-secondary))] [[data-theme=dark]_&]:bg-[color-mix(in_srgb,var(--color-blue-600)_20%,var(--color-github-bg-secondary))] py-3 pr-4 pl-4 text-sm text-github-text-primary shadow-[0_12px_32px_rgb(31_35_40/0.3),0_2px_6px_rgb(31_35_40/0.16)] [[data-theme=dark]_&]:shadow-[0_0_0_1px_rgb(1_4_9/0.9),0_16px_40px_rgb(1_4_9/0.9)]"
         >
           {/* A toast's usual anatomy: the message, its close X in the top-right corner, and the
               actions below at the right, the primary one last. The X comes last in tab order. */}
-          <p
-            data-testid="verdict-toast-detail"
-            className="flex items-start gap-2 pr-8 text-github-text-secondary"
-          >
+          <p data-testid="verdict-toast-detail" className="flex items-start gap-2 pr-8">
             {report && (
               <span className={`shrink-0 ${deliveryColor(report.state)}`}>
                 <DeliveryGlyph state={report.state} />
               </span>
             )}
             <span className="min-w-0 [overflow-wrap:anywhere]">
-              <span className="font-medium text-github-text-primary">
-                {describeVerdict(verdict)}.
-              </span>{' '}
-              {report?.text}
+              <span className="font-medium">{describeVerdict(verdict)}.</span>{' '}
+              {/* Dimmed: it is status, beside the next step the reviewer acts on. */}
+              {report && <span className="text-github-text-secondary">{report.text}</span>}
               {report && ' '}
               {step.kind === 'switch' ? (
                 !sending && (
