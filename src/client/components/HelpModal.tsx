@@ -276,7 +276,7 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
                     R
                   </kbd>
                 </div>
-                <span className="ui-value">Refresh diff when changes detected</span>
+                <span className="ui-value">Refresh the diff without reloading the page</span>
               </div>
               <div className="flex justify-between text-sm">
                 <div className="flex items-center gap-1">
