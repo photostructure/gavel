@@ -41,7 +41,7 @@ When adding or changing a feature, update any affected README, documentation, an
 
 ## Reviews After Approval
 
-Never recapture a review the user approved, or ask them to approve it again. Changes made after an approval, such as a replay onto a newer `main` or a fix, go in a new review that holds only the diff the user has not seen; for a replay, that is the conflict resolutions. Second-opinion passes after an approval also cover only that diff, and only the batches it touches. When two review rounds patch the same kind of defect, stop and ask whether the design is wrong before writing a third patch.
+Never recapture a review the user approved, or ask them to approve it again. Changes made after an approval, such as a replay onto a newer `main` or a fix, go in a new review that holds only the diff the user has not seen; for a replay, that is the conflict resolutions. That new review needs no verdict before the commit when it changes only prose or tests, or when a comment said exactly what to change and the diff does only that; otherwise it needs one. When you cannot tell which applies, ask the user whether they want to approve it or it can land without a verdict. Second-opinion passes after an approval also cover only that diff, and only the batches it touches. When two review rounds patch the same kind of defect, stop and ask whether the design is wrong before writing a third patch.
 
 ## Tooling & Environment
 
