@@ -52,8 +52,8 @@ the receiving session, and an idle session starts a turn with the message.
    when needed. The Conversation panel's listener label remains for servers
    older than the inbox and for reviews no session owns; on phones, which have
    no room for the icon, it is the only Copy resume prompt for those reviews.
-   When the last verdict's delivery fails, the verdict follow-up ends at Copy
-   resume prompt and close instead of closing the tab.
+   When the last verdict's delivery fails, the verdict follow-up offers Copy
+   resume prompt instead of saying the page can be closed.
 4. **Fallback.** The server writes `<runtime-dir>/gavel/sessions/<session-id>/<host>_<port>.json`.
    `gavel pending`, run from `UserPromptSubmit` and `SessionStart` hooks, reads the
    files for its session, re-attaches the session's current socket and token

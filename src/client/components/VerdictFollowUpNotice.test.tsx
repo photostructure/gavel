@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -107,15 +107,20 @@ describe('verdict follow-up notice', () => {
     expect(status()).toHaveTextContent('Rejected');
   });
 
-  it('offers Close tab once every review has a verdict', () => {
-    const onProceed = vi.fn();
-    const { rerender } = render(notice({ step: { kind: 'close', reviews: 3 }, onProceed }));
+  // Browsers honour window.close() only in a tab a script opened or one with a single history
+  // entry, and comment links and the revision picker add entries, so the toast says the page can be
+  // closed instead of offering a button that usually fails. "Page" holds on phones and tablets, where readers may not see tabs.
+  it('says the page can be closed once every review has a verdict, with no close button', () => {
+    const { rerender } = render(notice({ step: { kind: 'close', reviews: 3 } }));
     expect(status()).toHaveTextContent('Approved');
-    expect(status()).toHaveTextContent('All 3 reviews have a verdict, so you can close this tab.');
-    fireEvent.click(screen.getByRole('button', { name: 'Close tab' }));
-    expect(onProceed).toHaveBeenCalledOnce();
+    expect(status()).toHaveTextContent('All 3 reviews have a verdict, so you can close this page.');
+    expect(
+      within(status())
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Undo', '']);
     rerender(notice({ step: { kind: 'close', reviews: 1 } }));
-    expect(status()).toHaveTextContent('You can close this tab.');
+    expect(status()).toHaveTextContent('You can close this page.');
     expect(status()).not.toHaveTextContent('reviews have a verdict');
   });
 
@@ -127,8 +132,8 @@ describe('verdict follow-up notice', () => {
       via: 'inbox',
     };
 
-    // A closed tab cannot show a failed send, which needs the resume prompt.
-    it('says the verdict is being sent, and holds Close tab until it is', () => {
+    // Until the verdict is sent, a failure that needs the resume prompt may still arrive.
+    it('says the verdict is being sent, and only then that the page can be closed', () => {
       const step = { kind: 'close', reviews: 1 } as const;
       const { rerender } = render(notice({ step, delivery: { status: 'pending' } }));
       expect(line()).toHaveTextContent(/^Approved\. Sending to the agent…$/);
@@ -136,14 +141,14 @@ describe('verdict follow-up notice', () => {
         'data-delivery-state',
         'delivering',
       );
-      expect(screen.getByRole('button', { name: 'Close tab' })).toBeDisabled();
       rerender(notice({ step, delivery: sent }));
-      expect(line()).toHaveTextContent(/^Approved\. Sent to the agent\. You can close this tab\.$/);
+      expect(line()).toHaveTextContent(
+        /^Approved\. Sent to the agent\. You can close this page\.$/,
+      );
       expect(line().querySelector('[data-delivery-state]')).toHaveAttribute(
         'data-delivery-state',
         'delivered',
       );
-      expect(screen.getByRole('button', { name: 'Close tab' })).toBeEnabled();
     });
 
     // Switching reviews keeps the page, so it never waits for the send.
@@ -210,20 +215,18 @@ describe('verdict follow-up notice', () => {
     });
 
     // An agent blocked in gavel wait still gets the verdict without an inbox.
-    it('says when no agent session gets messages, and still offers Close tab', () => {
+    it('says when no agent session gets messages, and that the page can still be closed', () => {
       render(notice({ step: { kind: 'close', reviews: 1 }, delivery: { status: 'unavailable' } }));
       expect(line()).toHaveTextContent(
-        /^Approved\. No agent session gets messages from this review\. You can close this tab\.$/,
+        /^Approved\. No agent session gets messages from this review\. You can close this page\.$/,
       );
-      expect(screen.getByRole('button', { name: 'Close tab' })).toBeEnabled();
     });
 
     // A server older than the inbox reports no delivery.
     it('shows only the next step without a delivery report', () => {
       render(notice({ step: { kind: 'close', reviews: 1 } }));
-      expect(line()).toHaveTextContent(/^Approved\. You can close this tab\.$/);
+      expect(line()).toHaveTextContent(/^Approved\. You can close this page\.$/);
       expect(line().querySelector('[data-delivery-state]')).toBeNull();
-      expect(screen.getByRole('button', { name: 'Close tab' })).toBeEnabled();
     });
   });
 
@@ -256,21 +259,21 @@ describe('verdict follow-up notice', () => {
     expect(status()).toHaveTextContent(
       "If the agent hasn't resumed, copy the prompt and paste it into the chat that opened this review",
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt and close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt' }));
     expect(onProceed).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(onUndo).toHaveBeenCalledOnce();
     expect(screen.queryByRole('button', { name: 'Keep open' })).toBeNull();
-    expect(
-      screen.getByRole('button', { name: 'Copy resume prompt and close' }).previousElementSibling,
-    ).toBe(screen.getByRole('button', { name: 'Undo' }));
+    expect(screen.getByRole('button', { name: 'Copy resume prompt' }).previousElementSibling).toBe(
+      screen.getByRole('button', { name: 'Undo' }),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(onDismiss).toHaveBeenCalledOnce();
     rerender(notice({ step: { kind: 'resume', reviews: 2, status: 'copying' } }));
     expect(screen.getByRole('button', { name: 'Copying…' })).toBeDisabled();
     rerender(notice({ step: { kind: 'resume', reviews: 2, status: 'error' } }));
-    expect(screen.getByRole('alert')).toHaveTextContent('This tab will stay open; try again.');
-    expect(screen.getByRole('button', { name: 'Copy resume prompt and close' })).toBeEnabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not copy the prompt; try again.');
+    expect(screen.getByRole('button', { name: 'Copy resume prompt' })).toBeEnabled();
   });
 
   // Green means approval on the verdict buttons beside it; moving on is navigation.
@@ -351,11 +354,13 @@ describe('verdict follow-up notice', () => {
     expect(screen.getByRole('button', { name: 'Dismiss' })).toHaveFocus();
   });
 
-  it('tells the reviewer the tab can be closed, and lets them undo or dismiss it', () => {
+  it('says what to do with a copied resume prompt, and lets the reviewer undo or dismiss it', () => {
     const onDismiss = vi.fn();
     const onUndo = vi.fn();
-    render(notice({ step: { kind: 'closable', reviews: 2 }, onDismiss, onUndo }));
-    expect(status()).toHaveTextContent('All 2 reviews have a verdict. You can close this tab.');
+    render(notice({ step: { kind: 'copied' }, onDismiss, onUndo }));
+    expect(status()).toHaveTextContent(
+      "Approved. Copied. Paste it into the agent's chat, then close this page.",
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(onUndo).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));

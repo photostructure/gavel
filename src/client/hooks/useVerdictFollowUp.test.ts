@@ -37,6 +37,9 @@ describe('verdict follow-up', () => {
   let onSwitch: ReturnType<typeof vi.fn<(selection: DiffSelection) => void>>;
   let close: ReturnType<typeof vi.fn<() => void>>;
 
+  // close() is spied so every test can check the hook never calls it: browsers honour it only in a
+  // tab a script opened or one with a single history entry, and comment links and the revision
+  // picker add entries.
   beforeEach(() => {
     vi.useFakeTimers();
     vi.mocked(copyTextToClipboard).mockReset().mockResolvedValue(undefined);
@@ -85,17 +88,15 @@ describe('verdict follow-up', () => {
     expect(result.current.step).toEqual({ kind: 'switch', name: 'c', waiting: 2 });
   });
 
-  it('offers to close the tab once every review has a verdict, and never closes it by itself', () => {
+  it('says the page can be closed once every review has a verdict, and never closes it', () => {
     const queue = [review('a'), review('b', approved)];
     const { result } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
     expect(result.current.step).toEqual({ kind: 'close', reviews: 2 });
     act(() => void vi.advanceTimersByTime(60_000));
-    expect(close).not.toHaveBeenCalled();
     act(() => result.current.proceed());
-    expect(close).toHaveBeenCalledOnce();
-    // The browser ignores close() for a tab a script did not open and that has history.
-    expect(result.current.step).toEqual({ kind: 'closable', reviews: 2 });
+    expect(close).not.toHaveBeenCalled();
+    expect(result.current.step).toEqual({ kind: 'close', reviews: 2 });
   });
 
   // The send settles 2 seconds after the verdict, so a failure can arrive while the offer shows.
@@ -111,7 +112,7 @@ describe('verdict follow-up', () => {
   });
 
   // The handoff can open from a render whose delivery was stale; once the verdict reaches the
-  // agent, the reviewer can close the tab as usual.
+  // agent, the toast says the page can be closed as usual.
   it('turns an untouched Codex handoff back into the offer to close once it is not needed', () => {
     const queue = [review('a')];
     const props = { reviews: queue, current: queue[0]!.selection, requiresResume: true };
@@ -136,7 +137,7 @@ describe('verdict follow-up', () => {
     await act(async () => copy.resolve());
   });
 
-  it('waits for an explicit resume copy and closes only after the clipboard succeeds', async () => {
+  it('copies the resume prompt only on request, and leaves the page open', async () => {
     const queue = [review('a')];
     const copied = pendingCopy();
     vi.mocked(copyTextToClipboard).mockReturnValueOnce(copied.promise);
@@ -154,14 +155,14 @@ describe('verdict follow-up', () => {
     expect(result.current.step).toMatchObject({ kind: 'resume', status: 'copying' });
     expect(close).not.toHaveBeenCalled();
     await act(async () => copied.resolve());
-    expect(close).toHaveBeenCalledOnce();
-    expect(result.current.step).toEqual({ kind: 'closable', reviews: 1, promptCopied: true });
+    expect(close).not.toHaveBeenCalled();
+    expect(result.current.step).toEqual({ kind: 'copied' });
     expect(copyTextToClipboard).toHaveBeenCalledWith(
       expect.stringContaining('Please read my latest gavel comments and verdicts'),
     );
   });
 
-  it('keeps the tab open on clipboard failure and allows retry', async () => {
+  it('reports a clipboard failure and allows retry', async () => {
     vi.mocked(copyTextToClipboard).mockRejectedValueOnce(new Error('denied'));
     const queue = [review('a')];
     const { result } = render({
@@ -174,11 +175,12 @@ describe('verdict follow-up', () => {
     expect(result.current.step).toMatchObject({ kind: 'resume', status: 'error' });
     expect(close).not.toHaveBeenCalled();
     await act(async () => result.current.proceed());
-    expect(close).toHaveBeenCalledOnce();
+    expect(result.current.step).toEqual({ kind: 'copied' });
+    expect(close).not.toHaveBeenCalled();
   });
 
   it.each(['cancel', 'new review', 'recapture', 'navigation', 'unmount'] as const)(
-    'does not close after a pending copy is superseded by %s',
+    'drops a pending copy superseded by %s',
     async (change) => {
       const copied = pendingCopy();
       vi.mocked(copyTextToClipboard).mockReturnValueOnce(copied.promise);
@@ -195,6 +197,7 @@ describe('verdict follow-up', () => {
       else if (change === 'navigation') rerender({ ...props, current: review('b').selection });
       else unmount();
       await act(async () => copied.resolve());
+      if (change !== 'unmount') expect(result.current.step?.kind).not.toBe('copied');
       expect(close).not.toHaveBeenCalled();
     },
   );
@@ -222,7 +225,7 @@ describe('verdict follow-up', () => {
     expect(close).not.toHaveBeenCalled();
   });
 
-  it('switches to a review that arrives while the tab is about to close', () => {
+  it('offers a review that arrives while it says the page can be closed', () => {
     const queue = [review('a')];
     const { result, rerender } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());
@@ -236,13 +239,14 @@ describe('verdict follow-up', () => {
     expect(close).not.toHaveBeenCalled();
   });
 
-  it('switches to a review that arrives after the tab failed to close', () => {
+  it('offers a review that arrives after the resume prompt was copied', async () => {
     const queue = [review('a')];
-    const { result, rerender } = render({ reviews: queue, current: queue[0]!.selection });
+    const props = { reviews: queue, current: queue[0]!.selection, requiresResume: true };
+    const { result, rerender } = render(props);
     act(() => result.current.start());
-    act(() => result.current.proceed());
-    expect(result.current.step?.kind).toBe('closable');
-    rerender({ reviews: [...queue, review('b')], current: queue[0]!.selection });
+    await act(async () => result.current.proceed());
+    expect(result.current.step?.kind).toBe('copied');
+    rerender({ ...props, reviews: [...queue, review('b')] });
     expect(result.current.step).toEqual({ kind: 'switch', name: 'b', waiting: 1 });
     expect(result.current.pulse).toBeGreaterThan(0);
   });
@@ -255,7 +259,7 @@ describe('verdict follow-up', () => {
     expect(result.current.step).toEqual({ kind: 'close', reviews: 2 });
   });
 
-  it('stops when the open review loses its verdict, so the tab never closes over it', () => {
+  it('stops when the open review loses its verdict, so it never offers to close over it', () => {
     const queue = [review('a')];
     const { result, rerender } = render({ reviews: queue, current: queue[0]!.selection });
     act(() => result.current.start());

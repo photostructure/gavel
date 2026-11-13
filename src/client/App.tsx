@@ -1590,8 +1590,7 @@ function App() {
     return () => window.removeEventListener('popstate', restoreReview);
   }, [handleRevisionChange]);
 
-  // Replace, not push: a page whose history holds one entry may close itself once every
-  // review has a verdict.
+  // Replace, not push: Back leaves the review page instead of stepping through its reviews.
   switchReviewRef.current = (selection) => void handleRevisionChange(selection, 'replace');
   const openReviewFromTab = useCallback(
     (selection: DiffSelection) =>
@@ -1613,10 +1612,10 @@ function App() {
     reviews: approvalRequests,
     current: resolvedSelection,
     currentHasVerdict: approval.verdict !== undefined,
-    // The reviewer hands the review back before the tab closes when the verdict did not reach
+    // The reviewer hands the review back with the resume prompt when the verdict did not reach
     // the owning session: the send failed or went unconfirmed, or nothing reaches a Codex chat
     // (a server without an inbox, or no queue). The send settles after the verdict, so the
-    // follow-up also reads this while it offers to close the tab.
+    // follow-up also reads this while it says the page can be closed.
     requiresResume:
       deliveryStatus === 'failed' ||
       deliveryStatus === 'uncertain' ||

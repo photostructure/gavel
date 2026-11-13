@@ -1304,7 +1304,7 @@ describe('named captures in the browser', () => {
     ).toBeVisible();
   });
 
-  it('switches reviews from the tabs without adding browser history, so the tab can close itself', async () => {
+  it('switches reviews from the tabs without adding browser history, so Back leaves the page', async () => {
     fixture();
     renderApp();
     const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
@@ -1584,7 +1584,7 @@ describe('after a verdict', () => {
     expect(close).not.toHaveBeenCalled();
   });
 
-  it('rejects in one click, then offers to close the tab once nothing is left', async () => {
+  it('rejects in one click, then says the page can be closed once nothing is left', async () => {
     const state = fixture();
     state.showReviewB = false;
     const close = vi.spyOn(window, 'close').mockImplementation(() => {});
@@ -1592,7 +1592,7 @@ describe('after a verdict', () => {
     await waitFor(() => expect(verdictButton('Reject')).toBeEnabled());
     fireEvent.click(verdictButton('Reject'));
     await waitFor(() => expect(nextStep()).toHaveTextContent('Rejected'));
-    expect(nextStep()).toHaveTextContent('You can close this tab.');
+    expect(nextStep()).toHaveTextContent('You can close this page.');
     expect(fetch).toHaveBeenCalledWith(
       '/api/review-ops?review=task-a',
       expect.objectContaining({ method: 'POST', body: expect.stringContaining('"reject"') }),
@@ -1600,13 +1600,11 @@ describe('after a verdict', () => {
     expect(verdictButton('Reject')).toHaveAttribute('aria-pressed', 'true');
     await act(async () => void (await vi.advanceTimersByTimeAsync(20_000)));
     expect(close).not.toHaveBeenCalled();
-    fireEvent.click(within(nextStep()).getByRole('button', { name: 'Close tab' }));
-    expect(close).toHaveBeenCalledOnce();
-    expect(nextStep()).toHaveTextContent('This review has a verdict. You can close this tab.');
+    expect(within(nextStep()).queryByRole('button', { name: 'Close tab' })).toBeNull();
   });
 
   it.each(['Approve', 'Reject'])(
-    'requires a resume prompt before closing a Codex review after %s',
+    'offers the resume prompt for a Codex review with no queue after %s',
     async (verdict) => {
       const state = fixture();
       state.verdictB = 'approve';
@@ -1625,34 +1623,36 @@ describe('after a verdict', () => {
       await act(async () => void (await vi.advanceTimersByTimeAsync(20_000)));
       expect(close).not.toHaveBeenCalled();
       expect(copyTextToClipboard).not.toHaveBeenCalled();
-      fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt and close' }));
-      await waitFor(() => expect(close).toHaveBeenCalledOnce());
+      fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt' }));
+      await waitFor(() =>
+        expect(nextStep()).toHaveTextContent(
+          "Copied. Paste it into the agent's chat, then close this page.",
+        ),
+      );
       expect(copyTextToClipboard).toHaveBeenCalledWith(expect.stringContaining('comment snapshot'));
-      expect(nextStep()).toHaveTextContent("Resume prompt copied. Paste it into the agent's chat");
+      expect(close).not.toHaveBeenCalled();
     },
   );
 
-  // A closed tab cannot show a failed send. The toast reads the delivery before it opens, so an
-  // earlier comment's receipt never stands in for the verdict's.
-  it('holds Close tab until the last verdict reaches the agent', async () => {
+  // A failure that needs the resume prompt may still arrive until the verdict is sent. The toast
+  // reads the delivery before it opens, so an earlier comment's receipt never stands in for the
+  // verdict's.
+  it('says the page can be closed only once the last verdict reaches the agent', async () => {
     const state = fixture();
     state.showReviewB = false;
     state.inbox = { status: 'sent', at: '2026-11-12T16:00:00.000Z', via: 'inbox' };
-    const close = vi.spyOn(window, 'close').mockImplementation(() => {});
     renderApp();
     await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
     fireEvent.click(verdictButton('Approve'));
     const toast = await screen.findByRole('status', { name: 'Next step' });
     expect(toast).toHaveTextContent('Sending to the agent…');
     expect(toast).not.toHaveTextContent('Sent to the agent');
-    expect(within(toast).getByRole('button', { name: 'Close tab' })).toBeDisabled();
+    expect(toast).not.toHaveTextContent('close this page');
     state.inbox = { status: 'sent', at: '2026-11-12T17:00:00.000Z', via: 'inbox' };
     await act(async () => {
       await watch.inboxChanged?.();
     });
-    expect(nextStep()).toHaveTextContent('Sent to the agent. You can close this tab.');
-    fireEvent.click(within(nextStep()).getByRole('button', { name: 'Close tab' }));
-    expect(close).toHaveBeenCalledOnce();
+    expect(nextStep()).toHaveTextContent('Sent to the agent. You can close this page.');
   });
 
   describe('a Codex review', () => {
@@ -1669,28 +1669,25 @@ describe('after a verdict', () => {
     };
 
     // The queue starts a turn in the owning chat, as the inbox does for Claude Code.
-    it('closes like any other once the queue has its verdict', async () => {
+    it('says the page can be closed like any other once the queue has its verdict', async () => {
       const state = codex();
       state.inbox = { status: 'ready', transport: 'queue' };
-      const close = vi.spyOn(window, 'close').mockImplementation(() => {});
       renderApp();
       await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
       fireEvent.click(verdictButton('Approve'));
       const toast = await screen.findByRole('status', { name: 'Next step' });
-      expect(within(toast).getByRole('button', { name: 'Close tab' })).toBeDisabled();
+      expect(toast).toHaveTextContent('Sending to the agent…');
       state.inbox = { status: 'queued', at: '2026-11-12T17:00:00.000Z', transport: 'queue' };
       await act(async () => {
         await watch.inboxChanged?.();
       });
-      expect(nextStep()).toHaveTextContent('Queued for Codex. You can close this tab.');
-      expect(screen.queryByRole('button', { name: 'Copy resume prompt and close' })).toBeNull();
-      fireEvent.click(within(nextStep()).getByRole('button', { name: 'Close tab' }));
-      expect(close).toHaveBeenCalledOnce();
+      expect(nextStep()).toHaveTextContent('Queued for Codex. You can close this page.');
+      expect(screen.queryByRole('button', { name: 'Copy resume prompt' })).toBeNull();
     });
 
     // The toast opens from the render before the delivery refresh, which still shows the earlier
-    // comment's unconfirmed send; the queued verdict must still end in Close tab.
-    it('closes like any other once the queue has its verdict, after an unconfirmed comment', async () => {
+    // comment's unconfirmed send; the queued verdict must still end without the resume prompt.
+    it('says the page can be closed once the queue has its verdict, after an unconfirmed comment', async () => {
       const state = codex();
       state.inbox = {
         status: 'uncertain',
@@ -1706,9 +1703,8 @@ describe('after a verdict', () => {
       await act(async () => {
         await watch.inboxChanged?.();
       });
-      expect(nextStep()).toHaveTextContent('Queued for Codex. You can close this tab.');
-      expect(screen.queryByRole('button', { name: 'Copy resume prompt and close' })).toBeNull();
-      expect(within(nextStep()).getByRole('button', { name: 'Close tab' })).toBeEnabled();
+      expect(nextStep()).toHaveTextContent('Queued for Codex. You can close this page.');
+      expect(screen.queryByRole('button', { name: 'Copy resume prompt' })).toBeNull();
     });
 
     // The write may have been saved without an acknowledgment, so nothing retries it.
@@ -1728,9 +1724,7 @@ describe('after a verdict', () => {
       await act(async () => {
         await watch.inboxChanged?.();
       });
-      expect(
-        within(nextStep()).getByRole('button', { name: 'Copy resume prompt and close' }),
-      ).toBeVisible();
+      expect(within(nextStep()).getByRole('button', { name: 'Copy resume prompt' })).toBeVisible();
     });
 
     // Without a thread ID or a usable codex queue, nothing reaches the chat.
@@ -1743,14 +1737,14 @@ describe('after a verdict', () => {
       expect(
         await within(await screen.findByRole('status', { name: 'Next step' })).findByRole(
           'button',
-          { name: 'Copy resume prompt and close' },
+          { name: 'Copy resume prompt' },
         ),
       ).toBeVisible();
     });
   });
 
-  // The send settles 2 seconds after the verdict, so the failure arrives after Close tab shows.
-  it('keeps the tab open with the resume prompt when the last verdict did not reach the agent', async () => {
+  // The send settles 2 seconds after the verdict, so the failure arrives after the toast shows.
+  it('offers the resume prompt when the last verdict did not reach the agent', async () => {
     const state = fixture();
     state.showReviewB = false;
     state.inbox = { status: 'ready' };
@@ -1759,20 +1753,21 @@ describe('after a verdict', () => {
     renderApp();
     await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
     fireEvent.click(verdictButton('Approve'));
-    await waitFor(() =>
-      expect(within(nextStep()).getByRole('button', { name: 'Close tab' })).toBeVisible(),
-    );
+    await waitFor(() => expect(nextStep()).toHaveTextContent('Sending to the agent…'));
     await act(async () => void (await vi.advanceTimersByTimeAsync(2_000)));
     state.inbox = { status: 'failed', at: '2026-11-11T17:00:00.000Z', error: 'connect ENOENT' };
     await act(async () => {
       await watch.inboxChanged?.();
     });
     await act(async () => void (await vi.advanceTimersByTimeAsync(20_000)));
-    expect(close).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt and close' }));
-    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt' }));
+    await waitFor(() =>
+      expect(nextStep()).toHaveTextContent(
+        "Copied. Paste it into the agent's chat, then close this page.",
+      ),
+    );
     expect(copyTextToClipboard).toHaveBeenCalledWith(expect.stringContaining('comment snapshot'));
-    expect(nextStep()).toHaveTextContent("Paste it into the agent's chat that opened this review");
+    expect(close).not.toHaveBeenCalled();
   });
 
   it('asks before leaving while a review has no verdict, and pulses its tab', async () => {

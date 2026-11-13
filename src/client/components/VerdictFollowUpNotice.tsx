@@ -46,10 +46,10 @@ function describeDelivery(
 }
 
 /**
- * A toast after a verdict: it names the verdict and offers the next review, closing the tab, or
- * the Codex handoff, beside Undo. A second line says whether the verdict reached the agent, then
- * what is left. It floats just below the verdict buttons, where the reviewer is looking, from a
- * portal: the header group clips its overflow.
+ * A toast after a verdict: it names the verdict, says whether it reached the agent, and then what
+ * is left: the next review to open, the resume prompt to copy, or that the page can be closed.
+ * Undo sits beside the next step. It floats just below the verdict buttons, where the reviewer is
+ * looking, from a portal: the header group clips its overflow.
  */
 export function VerdictFollowUpNotice({
   anchor,
@@ -89,12 +89,12 @@ export function VerdictFollowUpNotice({
   });
   if (!step) return null;
   const allDone =
-    step.kind !== 'switch' &&
+    step.kind === 'resume' &&
     (step.reviews === 1
       ? 'This review has a verdict.'
       : `All ${step.reviews} reviews have a verdict.`);
   const report = describeDelivery(delivery);
-  // A closed tab could not show a failed send, which needs the resume prompt.
+  // A failed send, which needs the resume prompt, may still arrive; what is left waits for it.
   const sending = delivery?.status === 'pending';
   const others = step.kind === 'switch' ? step.waiting - 1 : 0;
   return (
@@ -148,22 +148,20 @@ export function VerdictFollowUpNotice({
               ) : step.kind === 'close' ? (
                 !sending &&
                 (step.reviews === 1
-                  ? 'You can close this tab.'
-                  : `All ${step.reviews} reviews have a verdict, so you can close this tab.`)
+                  ? 'You can close this page.'
+                  : `All ${step.reviews} reviews have a verdict, so you can close this page.`)
               ) : step.kind === 'resume' ? (
                 <>
                   {allDone} If the agent hasn't resumed, copy the prompt and paste it into the chat
                   that opened this review.
                   {step.status === 'error' && (
                     <span role="alert" className="mt-1 block text-github-danger">
-                      Could not copy the prompt. This tab will stay open; try again.
+                      Could not copy the prompt; try again.
                     </span>
                   )}
                 </>
-              ) : step.promptCopied ? (
-                "Resume prompt copied. Paste it into the agent's chat that opened this review if the agent hasn't resumed. You can close this tab."
               ) : (
-                `${allDone} You can close this tab.`
+                "Copied. Paste it into the agent's chat, then close this page."
               )}
             </span>
           </p>
@@ -172,14 +170,11 @@ export function VerdictFollowUpNotice({
               Undo
             </button>
             {/* Blue, not green: green means approval on the verdict buttons beside it. */}
-            {step.kind !== 'closable' && (
+            {(step.kind === 'switch' || step.kind === 'resume') && (
               <button
                 type="button"
                 onClick={onProceed}
-                disabled={
-                  (step.kind === 'resume' && step.status === 'copying') ||
-                  (step.kind === 'close' && sending)
-                }
+                disabled={step.kind === 'resume' && step.status === 'copying'}
                 {...(step.kind === 'switch' ? { title: `Switch to ${step.name}` } : {})}
                 className={`${verdictButtonClasses} min-w-0 max-w-full shrink-0 border-blue-600 bg-blue-600 text-white hover:opacity-90`}
               >
@@ -187,14 +182,10 @@ export function VerdictFollowUpNotice({
                   <>
                     Switch to <code className="min-w-0 truncate font-semibold">{step.name}</code>
                   </>
-                ) : step.kind === 'resume' ? (
-                  step.status === 'copying' ? (
-                    'Copying…'
-                  ) : (
-                    'Copy resume prompt and close'
-                  )
+                ) : step.status === 'copying' ? (
+                  'Copying…'
                 ) : (
-                  'Close tab'
+                  'Copy resume prompt'
                 )}
               </button>
             )}

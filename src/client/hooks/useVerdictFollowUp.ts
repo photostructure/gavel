@@ -16,7 +16,7 @@ type Phase =
   | ((
       | { kind: 'switch' | 'close' }
       | { kind: 'resume'; status: CopyStatus }
-      | { kind: 'closable'; promptCopied?: boolean }
+      | { kind: 'copied' }
     ) & {
       review: string | null;
     })
@@ -25,16 +25,19 @@ type Phase =
 export type VerdictFollowUpStep =
   // waiting: the reviews without a verdict, the named one among them.
   | { kind: 'switch'; name: string; waiting: number }
+  // Every review has a verdict, so the reviewer can close the page.
   | { kind: 'close'; reviews: number }
-  // The browser ignored close(): it closes only tabs a script opened or with one history entry.
-  | { kind: 'closable'; reviews: number; promptCopied?: boolean }
-  | { kind: 'resume'; reviews: number; status: CopyStatus };
+  | { kind: 'resume'; reviews: number; status: CopyStatus }
+  // The resume prompt is on the clipboard.
+  | { kind: 'copied' };
 
 /**
- * After a verdict, offers the next review without one, or closing the tab when every review has
- * one; only the reviewer's click takes the step, since they may still be reading. A verdict that
- * did not reach the agent (requiresResume) waits for an explicit copy-and-close handoff instead.
- * A review that arrives in the meantime takes over the follow-up.
+ * After a verdict, offers the next review without one, or says the page can be closed when every
+ * review has one; only the reviewer's click takes a step, since they may still be reading. A
+ * verdict that did not reach the agent (requiresResume) offers the resume prompt instead. A review
+ * that arrives in the meantime takes over the follow-up. Nothing closes the page: browsers honour
+ * window.close() only in a tab a script opened or one whose history holds a single entry, and
+ * comment links, the revision picker, and pages the tab showed before gavel all add entries.
  */
 export function useVerdictFollowUp<
   T extends { selection: DiffSelection; name: string; approval: ReviewApproval },
@@ -59,7 +62,7 @@ export function useVerdictFollowUp<
   currentKeyRef.current = currentKey;
   // A phase belongs to the review it began on, while that review has a verdict. Opening another
   // review or clearing the verdict ends it in the same render, before any effect sees it; a later
-  // effect cannot turn it into an offer to close the tab over a review that still needs a verdict.
+  // effect cannot say the page can be closed over a review that still needs a verdict.
   const phase = storedPhase?.review === currentKey && currentHasVerdict ? storedPhase : null;
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
@@ -134,7 +137,7 @@ export function useVerdictFollowUp<
       offer(targetRef.current);
   }, [phase, hasTarget, requiresResume, offer]);
 
-  const copyAndClose = async () => {
+  const copyPrompt = async () => {
     if (phase?.kind !== 'resume' || phase.status === 'copying') return;
     const copying: Phase = { ...phase, status: 'copying' };
     phaseRef.current = copying;
@@ -143,8 +146,7 @@ export function useVerdictFollowUp<
       await copyTextToClipboard(buildResumePrompt());
       // A new review, recapture, navigation, Undo, or Dismiss supersedes this handoff.
       if (phaseRef.current !== copying) return;
-      window.close();
-      setPhase({ kind: 'closable', promptCopied: true, review: currentKeyRef.current });
+      setPhase({ kind: 'copied', review: currentKeyRef.current });
     } catch {
       if (phaseRef.current === copying) setPhase({ ...copying, status: 'error' });
     }
@@ -153,8 +155,8 @@ export function useVerdictFollowUp<
   const count = Math.max(reviews.length, 1);
   const step: VerdictFollowUpStep | null = !phase
     ? null
-    : phase.kind === 'closable'
-      ? { kind: 'closable', reviews: count, ...(phase.promptCopied ? { promptCopied: true } : {}) }
+    : phase.kind === 'copied'
+      ? { kind: 'copied' }
       : phase.kind === 'resume'
         ? { kind: 'resume', reviews: count, status: phase.status }
         : phase.kind === 'switch' && target
@@ -174,15 +176,12 @@ export function useVerdictFollowUp<
     pulse: pulsing ? pulse : 0,
     start: () => offer(target),
     cancel,
-    // Takes the next step, copying the resume prompt before closing in the handoff.
+    // Takes the next step: opens the next review, or copies the resume prompt in the handoff.
     proceed: () => {
-      if (phase?.kind === 'resume') void copyAndClose();
+      if (phase?.kind === 'resume') void copyPrompt();
       else if (phase?.kind === 'switch' && target) {
         setPhase(null);
         onSwitch(target.selection);
-      } else if (phase?.kind === 'close') {
-        window.close();
-        setPhase({ kind: 'closable', review: currentKey });
       }
     },
     pulseNow,

@@ -30,14 +30,13 @@ host. No model turn waits for review. Manual handoff remains available:
    named review when the patch must remain frozen.
 2. Send any explicit receipts only after recording the corresponding work. Give
    the reviewer the URL and end the Codex turn. Leave the detached server running.
-3. After the last verdict, the toast offers **Close tab** once the queue has it
-   (**Queued for Codex**), as it does for Claude Code; the button stays disabled
-   while the verdict is still being sent. When nothing reaches the chat, because
-   the queue write failed or went unconfirmed or the server has no queue for this
-   chat, it offers **Copy resume prompt and close** instead. The reviewer clicks it
-   and pastes the prompt into the owning Codex chat. Closing requires a successful
-   copy; a failed copy leaves the tab open for retry. The toast's X dismisses it
-   and leaves the tab open. To resume at any other time, for example when queued feedback has not
+3. After the last verdict, the toast says the page can be closed once the queue
+   has it (**Queued for Codex**), as it does for Claude Code; while the verdict is
+   still being sent, it says only "Sending to the agent…". When nothing reaches the chat, because the
+   queue write failed or went unconfirmed or the server has no queue for this
+   chat, it offers **Copy resume prompt** instead. The reviewer clicks it, pastes
+   the prompt into the owning Codex chat, and closes the page; a failed copy says
+   so and can be retried. The toast's X dismisses it. To resume at any other time, for example when queued feedback has not
    resumed the chat, tap the robot and choose **Copy resume prompt**, on desktop or
    phone. If the review has no owning session, use **Conversation → Copy resume
    prompt** instead. The prompt includes the snapshot command and review URL. A
@@ -105,8 +104,8 @@ acceptance. Reduced motion disables the sweep. Tap the robot for details and
 notification. It does not confirm that a turn started or the agent read it.
 **Codex delivery unconfirmed** shows the error or missing-acknowledgment
 diagnostic, with a red robot and exclamation mark. Gavel does not retry an
-attempted write automatically because it may already be saved. The final-verdict
-tab stays open for manual handoff.
+attempted write automatically because it may already be saved. After the last
+verdict, the toast offers the resume prompt for manual handoff.
 
 Validated on Linux with CLI 0.167.1 and desktop runtime 0.167.0-alpha.3.2: plain queue
 started turns in idle chats and deferred busy-chat input until the active turn
