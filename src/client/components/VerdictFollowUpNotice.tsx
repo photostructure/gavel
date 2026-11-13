@@ -15,9 +15,11 @@ import type { ClientInboxDelivery } from '../hooks/useInboxDelivery';
 import type { VerdictFollowUpStep } from '../hooks/useVerdictFollowUp';
 
 import { type DeliveryState, DeliveryGlyph, deliveryColor } from './AgentDeliveryStatus';
-import { describeVerdict, verdictButtonClasses } from './VerdictControl';
+import { describeVerdict, idleClasses, verdictButtonClasses } from './VerdictControl';
 
-const secondaryClasses = `${verdictButtonClasses} shrink-0 border-github-text-secondary bg-github-bg-primary text-github-text-primary hover:bg-github-bg-tertiary`;
+// An unpressed verdict button, with a neutral hover: the verdict buttons' green and violet
+// hovers say which verdict a click gives.
+const secondaryClasses = `${verdictButtonClasses} shrink-0 ${idleClasses} enabled:hover:border-github-text-secondary`;
 
 // What became of the open review's latest verdict or comment, in the header robot's terms. A
 // server without an inbox reports nothing, and ready means nothing is waiting to go.

@@ -280,6 +280,17 @@ describe('verdict follow-up notice', () => {
     }
   });
 
+  // Undo and Keep open sit under the verdict buttons, so they look like an unpressed one; no other
+  // control used their old lighter border on the page background.
+  it('styles its secondary buttons like an unpressed verdict button', () => {
+    render(notice({ step: { kind: 'resume', reviews: 1, status: 'ready' } }));
+    for (const name of ['Undo', 'Keep open']) {
+      const button = screen.getByRole('button', { name });
+      expect(button).toHaveClass('border-github-border', 'bg-github-bg-tertiary');
+      expect(button).not.toHaveClass('bg-github-bg-primary');
+    }
+  });
+
   // A bordered X was shorter than the text buttons beside it, and no other control looked like it.
   it('dismisses with a bare X, like the sidebars close', () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
