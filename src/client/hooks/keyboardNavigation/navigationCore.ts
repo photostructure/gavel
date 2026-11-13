@@ -18,23 +18,8 @@ export function getStartPosition(cursor: CursorPosition | null): CursorPosition 
 }
 
 /**
- * Check if we've wrapped around to the starting position
- */
-function hasWrappedAround(
-  current: CursorPosition,
-  start: CursorPosition,
-  started: boolean,
-): boolean {
-  return (
-    started &&
-    current.fileIndex === start.fileIndex &&
-    current.chunkIndex === start.chunkIndex &&
-    current.lineIndex === start.lineIndex
-  );
-}
-
-/**
- * Advance to the next position in the given direction
+ * Advance to the next position in the given direction, or null past the first or last line of
+ * the review: navigation stops there instead of wrapping around
  */
 function advancePosition(
   pos: CursorPosition,
@@ -42,14 +27,12 @@ function advancePosition(
   files: DiffFile[],
 ): CursorPosition | null {
   let { fileIndex, chunkIndex, lineIndex } = pos;
-  const totalFiles = files.length;
-  let wrappedCount = 0;
 
   if (direction === 'next') {
     lineIndex++;
 
     // Keep advancing until we find a valid position
-    while (wrappedCount < totalFiles) {
+    while (fileIndex < files.length) {
       // Check if current line exists
       if (files[fileIndex]?.chunks[chunkIndex]?.lines[lineIndex]) {
         return { ...pos, fileIndex, chunkIndex, lineIndex };
@@ -65,19 +48,13 @@ function advancePosition(
         fileIndex++;
         chunkIndex = 0;
         lineIndex = 0;
-
-        // Wrap around to beginning
-        if (fileIndex >= totalFiles) {
-          fileIndex = 0;
-          wrappedCount++;
-        }
       }
     }
   } else {
     lineIndex--;
 
     // Keep advancing backward until we find a valid position
-    while (wrappedCount < totalFiles) {
+    while (fileIndex >= 0) {
       // Check if we need to move to previous chunk
       if (lineIndex < 0) {
         chunkIndex--;
@@ -85,12 +62,7 @@ function advancePosition(
         // Check if we need to move to previous file
         if (chunkIndex < 0) {
           fileIndex--;
-
-          // Wrap around to end
-          if (fileIndex < 0) {
-            fileIndex = totalFiles - 1;
-            wrappedCount++;
-          }
+          if (fileIndex < 0) break;
 
           const file = files[fileIndex];
           if (file && file.chunks.length > 0) {
@@ -135,23 +107,9 @@ export function findNextMatchingPosition(
   files: DiffFile[],
   viewMode: ViewMode,
 ): NavigationResult {
-  let current: CursorPosition | null = startPos;
-  let started = false;
+  let current = advancePosition(startPos, direction, files);
 
-  while (true) {
-    if (!current) break;
-
-    const nextPos = advancePosition(current, direction, files);
-    if (!nextPos) break;
-
-    current = nextPos;
-
-    // Check if we've wrapped around to start
-    if (hasWrappedAround(current, startPos, started)) {
-      break;
-    }
-    started = true;
-
+  for (; current; current = advancePosition(current, direction, files)) {
     // Check if position matches filter
     if (filter(current, files)) {
       const fixed = fixSide(current, files);

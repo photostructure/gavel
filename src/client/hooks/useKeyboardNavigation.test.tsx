@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import type { DiffFile } from '../../types/diff';
 
+import type { CursorPosition } from './keyboardNavigation/types';
+
 import { useKeyboardNavigation } from './useKeyboardNavigation';
 
 // Mock scrollIntoView and getElementById
@@ -355,10 +357,12 @@ describe('useKeyboardNavigation', () => {
     it('should move j past a collapsed file that is not Viewed', async () => {
       const user = userEvent.setup();
 
+      const files = [...mockFiles, { ...mockFiles[1]!, path: 'file3.js' }];
+
       const { result } = renderHook(
         () =>
           useKeyboardNavigation({
-            files: mockFiles,
+            files,
             comments: [],
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
@@ -379,8 +383,64 @@ describe('useKeyboardNavigation', () => {
 
       await user.keyboard('j');
 
-      // file2.js is the last file, so j wraps to the top of file1.js
-      expect(result.current.cursor).toMatchObject({ fileIndex: 0, chunkIndex: 0, lineIndex: 0 });
+      expect(result.current.cursor).toEqual({
+        fileIndex: 2,
+        chunkIndex: 0,
+        lineIndex: 0,
+        side: 'right',
+      });
+    });
+  });
+
+  // Navigation stops at the first and last line of the review instead of wrapping around.
+  describe('Ends of the review', () => {
+    const renderAt = (cursor: CursorPosition) => {
+      const hook = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: mockFiles,
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed: vi.fn(),
+            reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
+          }),
+        { wrapper },
+      );
+      act(() => {
+        hook.result.current.setCursorPosition(cursor);
+      });
+      return hook.result;
+    };
+
+    it('should keep the cursor on the last line of the last file with j', async () => {
+      const user = userEvent.setup();
+      const last = { fileIndex: 1, chunkIndex: 0, lineIndex: 1, side: 'right' } as const;
+      const result = renderAt(last);
+
+      await user.keyboard('j');
+
+      expect(result.current.cursor).toEqual(last);
+    });
+
+    it('should keep the cursor on the first line of the first file with k', async () => {
+      const user = userEvent.setup();
+      const first = { fileIndex: 0, chunkIndex: 0, lineIndex: 0, side: 'left' } as const;
+      const result = renderAt(first);
+
+      await user.keyboard('k');
+
+      expect(result.current.cursor).toEqual(first);
+    });
+
+    it('should keep the cursor in the last file with ]', async () => {
+      const user = userEvent.setup();
+      const lastFile = { fileIndex: 1, chunkIndex: 0, lineIndex: 0, side: 'right' } as const;
+      const result = renderAt(lastFile);
+
+      await user.keyboard('{\\]}');
+
+      expect(result.current.cursor).toEqual(lastFile);
     });
   });
 
