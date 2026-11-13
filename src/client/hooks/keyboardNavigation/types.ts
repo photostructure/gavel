@@ -38,6 +38,8 @@ export interface UseKeyboardNavigationProps {
   comments: CommentNavigationItem[];
   viewMode?: DiffViewMode;
   reviewedFiles: Set<string>;
+  /** Files whose lines are hidden; line, chunk, and comment keys skip them. */
+  collapsedFiles: Set<string>;
   viewedStateReady?: boolean;
   onToggleReviewed: (filePath: string) => void;
   onCreateComment?: () => void;

@@ -31,7 +31,7 @@ export function createNavigationFilters(
   files: DiffFile[],
   commentIndex: Map<string, CommentNavigationItem[]>,
   viewMode: ViewMode,
-  reviewedFiles?: Set<string>,
+  collapsedFiles: Set<string>,
 ) {
   // Added files have no old-column lines and deleted files no new-column lines.
   const fileHasSide = (fileIndex: number, side: CursorPosition['side']): boolean =>
@@ -52,14 +52,14 @@ export function createNavigationFilters(
      * In unified mode, all lines are navigable
      * In split mode, only lines with content on the current side, unless the file has none
      * there; findNextMatchingPosition then moves the cursor to the other side
-     * Skip lines in reviewed/collapsed files
+     * Skip lines in collapsed files, whose lines are not on screen
      */
     line: (pos: CursorPosition): boolean => {
       const file = files[pos.fileIndex];
       if (!file) return false;
 
-      // Skip if file is reviewed/collapsed
-      if (reviewedFiles?.has(file.path)) return false;
+      // Skip if file is collapsed
+      if (collapsedFiles.has(file.path)) return false;
 
       return (
         viewMode === 'unified' ||
@@ -71,14 +71,14 @@ export function createNavigationFilters(
     /**
      * Chunk navigation - navigates to the first line of each change chunk
      * Skips normal (unchanged) lines and finds boundaries between chunks
-     * Skip chunks in reviewed/collapsed files
+     * Skip chunks in collapsed files, whose lines are not on screen
      */
     chunk: (pos: CursorPosition): boolean => {
       const file = files[pos.fileIndex];
       if (!file) return false;
 
-      // Skip if file is reviewed/collapsed
-      if (reviewedFiles?.has(file.path)) return false;
+      // Skip if file is collapsed
+      if (collapsedFiles.has(file.path)) return false;
 
       const line = file.chunks[pos.chunkIndex]?.lines[pos.lineIndex];
       if (!line || line.type === 'normal') return false;
@@ -93,14 +93,14 @@ export function createNavigationFilters(
 
     /**
      * Comment navigation - navigates to lines that have comments
-     * Skip comments in reviewed/collapsed files
+     * Skip comments in collapsed files, whose lines are not on screen
      */
     comment: (pos: CursorPosition): boolean => {
       const file = files[pos.fileIndex];
       if (!file) return false;
 
-      // Skip if file is reviewed/collapsed
-      if (reviewedFiles?.has(file.path)) return false;
+      // Skip if file is collapsed
+      if (collapsedFiles.has(file.path)) return false;
 
       const line = file.chunks[pos.chunkIndex]?.lines[pos.lineIndex];
       if (!line) return false;

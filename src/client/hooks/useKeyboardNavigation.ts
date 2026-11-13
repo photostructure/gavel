@@ -28,6 +28,7 @@ export function useKeyboardNavigation({
   comments,
   viewMode = DEFAULT_DIFF_VIEW_MODE,
   reviewedFiles,
+  collapsedFiles,
   viewedStateReady = true,
   onToggleReviewed,
   onCreateComment,
@@ -69,8 +70,8 @@ export function useKeyboardNavigation({
 
   // Create navigation filters
   const filters = useMemo(
-    () => createNavigationFilters(files, commentIndex, viewMode, reviewedFiles),
-    [files, commentIndex, viewMode, reviewedFiles],
+    () => createNavigationFilters(files, commentIndex, viewMode, collapsedFiles),
+    [files, commentIndex, viewMode, collapsedFiles],
   );
 
   // Core navigation function - finds next/prev position matching filter

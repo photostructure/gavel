@@ -144,6 +144,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -169,6 +170,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -194,6 +196,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -252,6 +255,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'split',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -287,6 +291,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'split',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -309,6 +314,74 @@ describe('useKeyboardNavigation', () => {
         side: 'left',
       });
     });
+
+    // Line keys follow what is on screen: a Viewed file opened from the file list shows its
+    // lines, and a file collapsed from its header hides them.
+    it('should move j into a Viewed file that is expanded', async () => {
+      const user = userEvent.setup();
+
+      const { result } = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: mockFiles,
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed: vi.fn(),
+            reviewedFiles: new Set<string>(['file2.js']),
+            collapsedFiles: new Set<string>(),
+          }),
+        { wrapper },
+      );
+
+      act(() => {
+        result.current.setCursorPosition({
+          fileIndex: 0,
+          chunkIndex: 0,
+          lineIndex: 3,
+          side: 'right',
+        });
+      });
+
+      await user.keyboard('j');
+
+      expect(result.current.cursor).toEqual({
+        fileIndex: 1,
+        chunkIndex: 0,
+        lineIndex: 0,
+        side: 'right',
+      });
+    });
+
+    it('should move j past a collapsed file that is not Viewed', async () => {
+      const user = userEvent.setup();
+
+      const { result } = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: mockFiles,
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed: vi.fn(),
+            reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(['file2.js']),
+          }),
+        { wrapper },
+      );
+
+      act(() => {
+        result.current.setCursorPosition({
+          fileIndex: 0,
+          chunkIndex: 0,
+          lineIndex: 3,
+          side: 'right',
+        });
+      });
+
+      await user.keyboard('j');
+
+      // file2.js is the last file, so j wraps to the top of file1.js
+      expect(result.current.cursor).toMatchObject({ fileIndex: 0, chunkIndex: 0, lineIndex: 0 });
+    });
   });
 
   describe('File Navigation (]/[)', () => {
@@ -322,6 +395,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -346,6 +420,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -375,6 +450,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -407,6 +483,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -447,6 +524,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -478,6 +556,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -499,6 +578,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -542,6 +622,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -567,6 +648,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -615,6 +697,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -644,6 +727,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -672,6 +756,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -698,6 +783,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -716,6 +802,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -747,6 +834,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed,
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -779,6 +867,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed,
             reviewedFiles: new Set<string>(['file1.js']),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -810,6 +899,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed,
             reviewedFiles: new Set<string>(['file2.js']),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -841,6 +931,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed,
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
             getHoveredFileIndex: () => 1,
           }),
         { wrapper },
@@ -864,6 +955,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed,
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
             getHoveredFileIndex: () => 1,
           }),
         { wrapper },
@@ -895,6 +987,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed,
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -921,6 +1014,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed,
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -959,6 +1053,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed,
             reviewedFiles,
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -990,6 +1085,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed,
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
             getHoveredFileIndex: () => 1,
           }),
         { wrapper },
@@ -1014,6 +1110,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -1050,6 +1147,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -1080,6 +1178,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
             onRefresh,
           }),
         { wrapper },
@@ -1101,6 +1200,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -1120,6 +1220,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
             onVerdict,
           }),
         { wrapper },
@@ -1166,6 +1267,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
             onCreateComment,
           }),
         { wrapper },
@@ -1198,6 +1300,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
             onCreateComment,
           }),
         { wrapper },
@@ -1231,6 +1334,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'split',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -1261,6 +1365,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'split',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -1292,6 +1397,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -1334,6 +1440,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -1360,6 +1467,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -1388,6 +1496,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed,
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -1420,6 +1529,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed,
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -1446,6 +1556,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'unified',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );
@@ -1473,6 +1584,7 @@ describe('useKeyboardNavigation', () => {
             viewMode: 'split',
             onToggleReviewed: vi.fn(),
             reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
           }),
         { wrapper },
       );

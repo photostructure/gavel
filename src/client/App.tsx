@@ -1024,6 +1024,7 @@ function App() {
       comments: normalizedThreads.filter((thread) => thread.scope !== 'review'),
       viewMode: diffMode,
       reviewedFiles: viewedFiles,
+      collapsedFiles,
       viewedStateReady,
       onToggleReviewed: toggleFileReviewed,
       getHoveredFileIndex,
