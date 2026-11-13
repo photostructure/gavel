@@ -2315,8 +2315,7 @@ export async function startServer(options: ServerOptions): Promise<{
   if (conversation) {
     const host = new URL(url).hostname.replace(/^\[(.*)\]$/, '$1');
     inbox = new SessionInbox({
-      // The snapshot endpoint's fields, so the message reports unsaved reviews too. It skips the
-      // endpoint's revocation of approvals whose diff changed; agents read a fresh snapshot to commit.
+      // The snapshot endpoint's fields, so the message reports unsaved reviews too.
       snapshot: () => {
         const store = storeStatus();
         return {
