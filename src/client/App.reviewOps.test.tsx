@@ -588,6 +588,49 @@ describe('comment and verdict changes the server has not confirmed', () => {
     expect(queued()).toEqual([]);
   });
 
+  // The review tabs show every review's verdict. A page whose live connection is gone gets no
+  // approvalChanged event, which this harness never sends, so the answer itself must reload them.
+  const reviewListReads = () =>
+    vi
+      .mocked(fetch)
+      .mock.calls.filter(([url]) => String(url).startsWith('/api/conversation/snapshot')).length;
+
+  it('reloads the review tabs for a verdict another tab sends', async () => {
+    const state = server();
+    mount();
+    await waitForServerThreads();
+    state.fail = 'status';
+    await userEvent.click(approveButton());
+    await findNotSavedAlert();
+    const before = reviewListReads();
+    const [key] = Object.keys(localStorage).filter((item) => item.startsWith(QUEUE_PREFIX));
+
+    // The other tab's send reached the server and removed the shared queue entry.
+    state.verdict = 'approve';
+    act(() => {
+      localStorage.removeItem(key!);
+      window.dispatchEvent(new StorageEvent('storage', { key }));
+    });
+
+    await waitFor(() => expect(reviewListReads()).toBeGreaterThan(before));
+  });
+
+  it('reloads the review tabs for a verdict that a retry gets rejected', async () => {
+    const state = server();
+    mount();
+    await waitForServerThreads();
+    state.fail = 'status';
+    await userEvent.click(approveButton());
+    await findNotSavedAlert();
+    const before = reviewListReads();
+    state.fail = false;
+    state.staleVerdict = 'Diff changed; reload it before choosing a verdict';
+
+    reconnect();
+
+    await waitFor(() => expect(reviewListReads()).toBeGreaterThan(before));
+  });
+
   it('reloads the diff for a verdict that a retry gets rejected because the diff changed', async () => {
     const state = server();
     mount();

@@ -415,43 +415,51 @@ function App() {
     // The reviewer moved to another review, so its reload and next step no longer apply.
     const sameReview = () => activeCommentsContextRef.current.generation === generation;
     const latest = () => sameReview() && verdictClickRef.current === click;
-    if (!sameReview()) return;
-    // Another tab sent it, so only the server knows how it went.
-    if (answer === 'elsewhere') {
+    // The review tabs show every review's verdict. A page whose live connection is gone gets no
+    // approvalChanged event to reload them, so every way out of here reads them again.
+    let listed = false;
+    try {
+      if (!sameReview()) return;
+      // Another tab sent it, so only the server knows how it went.
+      if (answer === 'elsewhere') {
+        await refreshApproval();
+        return;
+      }
+      if (answer.status === 'rejected') {
+        // The capture, summary or diff changed. Without a file watcher no Reload prompt appears,
+        // so reload here, re-checking viewed files so a collapsed file whose diff changed is flagged.
+        await Promise.all([refreshSummary(), refreshApproval(), fetchDiffDataRef.current?.()]);
+        if (sameReview()) setReloadVersion((prev) => prev + 1);
+        return;
+      }
       await refreshApproval();
-      return;
+      // A later click replaced this verdict, so its burst and next step would be wrong.
+      if (!latest()) return;
+      if (verdict === 'clear') {
+        verdictFollowUp.cancel();
+        return;
+      }
+      // Another tab or reviewer may have changed or cleared the verdict before this read.
+      const stillGiven = () => latest() && approval.servedVerdict() === verdict;
+      if (!stillGiven()) return;
+      if (verdict === 'approve' && shownVerdict !== 'approve' && approvalControlRef.current) {
+        // An approval after Undo starts a second burst; the first ends rather than outlive it.
+        stopCelebrationRef.current?.();
+        stopCelebrationRef.current = celebrateApproval(
+          approvalControlRef.current,
+          settings.approvalAnimations,
+        );
+      }
+      // The next step depends on the other reviews' verdicts. start() sees the list from the
+      // click's render; the hook corrects the step from the refreshed list on the next one. The
+      // server marked the verdict pending before it answered, so reading the delivery now keeps
+      // an earlier receipt from showing as the verdict's.
+      listed = true;
+      await Promise.all([loadRecentReviewsRef.current?.(), inboxDelivery.refresh()]);
+      if (stillGiven()) verdictFollowUp.start();
+    } finally {
+      if (!listed) await loadRecentReviewsRef.current?.();
     }
-    if (answer.status === 'rejected') {
-      // The capture, summary or diff changed. Without a file watcher no Reload prompt appears,
-      // so reload here, re-checking viewed files so a collapsed file whose diff changed is flagged.
-      await Promise.all([refreshSummary(), refreshApproval(), fetchDiffDataRef.current?.()]);
-      if (sameReview()) setReloadVersion((prev) => prev + 1);
-      return;
-    }
-    await refreshApproval();
-    // A later click replaced this verdict, so its burst and next step would be wrong.
-    if (!latest()) return;
-    if (verdict === 'clear') {
-      verdictFollowUp.cancel();
-      return;
-    }
-    // Another tab or reviewer may have changed or cleared the verdict before this read.
-    const stillGiven = () => latest() && approval.servedVerdict() === verdict;
-    if (!stillGiven()) return;
-    if (verdict === 'approve' && shownVerdict !== 'approve' && approvalControlRef.current) {
-      // An approval after Undo starts a second burst; the first ends rather than outlive it.
-      stopCelebrationRef.current?.();
-      stopCelebrationRef.current = celebrateApproval(
-        approvalControlRef.current,
-        settings.approvalAnimations,
-      );
-    }
-    // The next step depends on the other reviews' verdicts. start() sees the list from the
-    // click's render; the hook corrects the step from the refreshed list on the next one. The
-    // server marked the verdict pending before it answered, so reading the delivery now keeps an
-    // earlier receipt from showing as the verdict's.
-    await Promise.all([loadRecentReviewsRef.current?.(), inboxDelivery.refresh()]);
-    if (stillGiven()) verdictFollowUp.start();
   };
   const finishVerdictRef = useRef(finishVerdict);
   finishVerdictRef.current = finishVerdict;
