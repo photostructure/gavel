@@ -239,11 +239,18 @@ describe('verdict follow-up notice', () => {
     expect(status()).toHaveClass('verdict-toast');
   });
 
-  it('explains the Codex handoff, and exposes copy errors', () => {
+  // Keep open did what the corner X does on every other toast.
+  it('explains the resume handoff, closes with the corner X, and exposes copy errors', () => {
+    const onDismiss = vi.fn();
     const onProceed = vi.fn();
     const onUndo = vi.fn();
     const { rerender } = render(
-      notice({ step: { kind: 'resume', reviews: 2, status: 'ready' }, onProceed, onUndo }),
+      notice({
+        step: { kind: 'resume', reviews: 2, status: 'ready' },
+        onDismiss,
+        onProceed,
+        onUndo,
+      }),
     );
     expect(status()).toHaveTextContent('All 2 reviews have a verdict.');
     expect(status()).toHaveTextContent(
@@ -253,10 +260,12 @@ describe('verdict follow-up notice', () => {
     expect(onProceed).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(onUndo).toHaveBeenCalledOnce();
-    expect(screen.getByRole('button', { name: 'Keep open' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Keep open' })).toBeNull();
     expect(
       screen.getByRole('button', { name: 'Copy resume prompt and close' }).previousElementSibling,
-    ).toBe(screen.getByRole('button', { name: 'Keep open' }));
+    ).toBe(screen.getByRole('button', { name: 'Undo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(onDismiss).toHaveBeenCalledOnce();
     rerender(notice({ step: { kind: 'resume', reviews: 2, status: 'copying' } }));
     expect(screen.getByRole('button', { name: 'Copying…' })).toBeDisabled();
     rerender(notice({ step: { kind: 'resume', reviews: 2, status: 'error' } }));
@@ -280,15 +289,13 @@ describe('verdict follow-up notice', () => {
     }
   });
 
-  // Undo and Keep open sit under the verdict buttons, so they look like an unpressed one; no other
-  // control used their old lighter border on the page background.
-  it('styles its secondary buttons like an unpressed verdict button', () => {
+  // Undo sits under the verdict buttons, so it looks like an unpressed one; no other control used
+  // its old lighter border on the page background.
+  it('styles Undo like an unpressed verdict button', () => {
     render(notice({ step: { kind: 'resume', reviews: 1, status: 'ready' } }));
-    for (const name of ['Undo', 'Keep open']) {
-      const button = screen.getByRole('button', { name });
-      expect(button).toHaveClass('border-github-border', 'bg-github-bg-tertiary');
-      expect(button).not.toHaveClass('bg-github-bg-primary');
-    }
+    const button = screen.getByRole('button', { name: 'Undo' });
+    expect(button).toHaveClass('border-github-border', 'bg-github-bg-tertiary');
+    expect(button).not.toHaveClass('bg-github-bg-primary');
   });
 
   // A bordered X was shorter than the text buttons beside it, and no other control looked like it.

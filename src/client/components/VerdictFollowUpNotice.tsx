@@ -171,11 +171,6 @@ export function VerdictFollowUpNotice({
             <button type="button" onClick={onUndo} disabled={busy} className={secondaryClasses}>
               Undo
             </button>
-            {step.kind === 'resume' && (
-              <button type="button" onClick={onDismiss} className={secondaryClasses}>
-                Keep open
-              </button>
-            )}
             {/* Blue, not green: green means approval on the verdict buttons beside it. */}
             {step.kind !== 'closable' && (
               <button
@@ -204,18 +199,16 @@ export function VerdictFollowUpNotice({
               </button>
             )}
           </div>
-          {step.kind !== 'resume' && (
-            // The sidebars' close button.
-            <button
-              type="button"
-              onClick={onDismiss}
-              aria-label="Dismiss"
-              title="Dismiss"
-              className="absolute top-1.5 right-1.5 p-1 text-github-text-secondary transition-colors hover:text-github-text-primary"
-            >
-              <X size={20} aria-hidden="true" />
-            </button>
-          )}
+          {/* The sidebars' close button. */}
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss"
+            title="Dismiss"
+            className="absolute top-1.5 right-1.5 p-1 text-github-text-secondary transition-colors hover:text-github-text-primary"
+          >
+            <X size={20} aria-hidden="true" />
+          </button>
         </div>
       </FloatingFocusManager>
     </FloatingPortal>

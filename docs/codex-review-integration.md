@@ -30,18 +30,18 @@ host. No model turn waits for review. Manual handoff remains available:
    named review when the patch must remain frozen.
 2. Send any explicit receipts only after recording the corresponding work. Give
    the reviewer the URL and end the Codex turn. Leave the detached server running.
-3. After the last verdict, the tab stays open with **Copy resume prompt and close**.
-   If queued feedback has not resumed the chat, the reviewer clicks it and
-   pastes the prompt into the owning Codex chat.
-   Closing requires a successful copy; a failed copy leaves the tab open for retry.
-   **Keep open** dismisses the notice. To resume before the last verdict or after
-   dismissing the notice, tap the robot and choose **Copy resume prompt**, on
-   desktop or phone. If the review has no owning session,
-   use **Conversation → Copy resume prompt** instead. The prompt includes the
-   snapshot command and review URL. Codex keeps manual handoff available even
-   when a listener is attached: a subscription does not prove delivery into the
-   owning chat. Other agents get a **Close tab** button instead, disabled while
-   the verdict is still being sent so a failed send can still show the handoff.
+3. After the last verdict, the toast offers **Close tab** once the queue has it
+   (**Queued for Codex**), as it does for Claude Code; the button stays disabled
+   while the verdict is still being sent. When nothing reaches the chat, because
+   the queue write failed or went unconfirmed or the server has no queue for this
+   chat, it offers **Copy resume prompt and close** instead. The reviewer clicks it
+   and pastes the prompt into the owning Codex chat. Closing requires a successful
+   copy; a failed copy leaves the tab open for retry. The toast's X dismisses it
+   and leaves the tab open. To resume at any other time, for example when queued feedback has not
+   resumed the chat, tap the robot and choose **Copy resume prompt**, on desktop or
+   phone. If the review has no owning session, use **Conversation → Copy resume
+   prompt** instead. The prompt includes the snapshot command and review URL. A
+   listener subscription does not prove delivery into the owning chat.
 4. Codex handles the delivered event batch and its saved pending work within
    the existing authorization. Use `comment snapshot --host <host> --port <actual-port>`
    for a manual resume, missing thread context, or a fresh

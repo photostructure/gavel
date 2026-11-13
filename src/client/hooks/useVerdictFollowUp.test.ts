@@ -110,6 +110,32 @@ describe('verdict follow-up', () => {
     expect(close).not.toHaveBeenCalled();
   });
 
+  // The handoff can open from a render whose delivery was stale; once the verdict reaches the
+  // agent, the reviewer can close the tab as usual.
+  it('turns an untouched Codex handoff back into the offer to close once it is not needed', () => {
+    const queue = [review('a')];
+    const props = { reviews: queue, current: queue[0]!.selection, requiresResume: true };
+    const { result, rerender } = render(props);
+    act(() => result.current.start());
+    expect(result.current.step).toEqual({ kind: 'resume', reviews: 1, status: 'ready' });
+    rerender({ ...props, requiresResume: false });
+    expect(result.current.step).toEqual({ kind: 'close', reviews: 1 });
+  });
+
+  it('keeps a Codex handoff whose copy has started', async () => {
+    const copy = pendingCopy();
+    vi.mocked(copyTextToClipboard).mockReturnValue(copy.promise);
+    const queue = [review('a')];
+    const props = { reviews: queue, current: queue[0]!.selection, requiresResume: true };
+    const { result, rerender } = render(props);
+    act(() => result.current.start());
+    act(() => result.current.proceed());
+    expect(result.current.step).toEqual({ kind: 'resume', reviews: 1, status: 'copying' });
+    rerender({ ...props, requiresResume: false });
+    expect(result.current.step).toEqual({ kind: 'resume', reviews: 1, status: 'copying' });
+    await act(async () => copy.resolve());
+  });
+
   it('waits for an explicit resume copy and closes only after the clipboard succeeds', async () => {
     const queue = [review('a')];
     const copied = pendingCopy();

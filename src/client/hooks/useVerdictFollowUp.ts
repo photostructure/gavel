@@ -32,9 +32,9 @@ export type VerdictFollowUpStep =
 
 /**
  * After a verdict, offers the next review without one, or closing the tab when every review has
- * one; only the reviewer's click takes the step, since they may still be reading. Codex waits for
- * an explicit copy-and-close handoff instead. A review that arrives in the meantime takes over
- * the follow-up.
+ * one; only the reviewer's click takes the step, since they may still be reading. A verdict that
+ * did not reach the agent (requiresResume) waits for an explicit copy-and-close handoff instead.
+ * A review that arrives in the meantime takes over the follow-up.
  */
 export function useVerdictFollowUp<
   T extends { selection: DiffSelection; name: string; approval: ReviewApproval },
@@ -122,12 +122,16 @@ export function useVerdictFollowUp<
   }, [pulsing, pulse]);
 
   // A review that arrives takes over an offer to close; one that gets a verdict elsewhere gives
-  // way to closing, or to the Codex handoff. So does a verdict that did not reach the agent.
+  // way to closing, or to the Codex handoff. So does a verdict that did not reach the agent. An
+  // untouched handoff that is no longer needed gives way to closing: start() can run from a render
+  // whose delivery report predates the verdict.
   const hasTarget = target !== undefined;
   useEffect(() => {
     if (!phase) return;
     const stale = hasTarget ? phase.kind !== 'switch' : phase.kind === 'switch';
-    if (stale || (phase.kind === 'close' && requiresResume)) offer(targetRef.current);
+    const handoff = phase.kind === 'resume' && phase.status === 'ready';
+    if (stale || (phase.kind === 'close' && requiresResume) || (handoff && !requiresResume))
+      offer(targetRef.current);
   }, [phase, hasTarget, requiresResume, offer]);
 
   const copyAndClose = async () => {
@@ -137,7 +141,7 @@ export function useVerdictFollowUp<
     setPhase(copying);
     try {
       await copyTextToClipboard(buildResumePrompt());
-      // A new review, recapture, navigation, Undo, or Keep open supersedes this handoff.
+      // A new review, recapture, navigation, Undo, or Dismiss supersedes this handoff.
       if (phaseRef.current !== copying) return;
       window.close();
       setPhase({ kind: 'closable', promptCopied: true, review: currentKeyRef.current });
@@ -170,7 +174,7 @@ export function useVerdictFollowUp<
     pulse: pulsing ? pulse : 0,
     start: () => offer(target),
     cancel,
-    // Takes the next step, copying the resume prompt before closing for Codex.
+    // Takes the next step, copying the resume prompt before closing in the handoff.
     proceed: () => {
       if (phase?.kind === 'resume') void copyAndClose();
       else if (phase?.kind === 'switch' && target) {

@@ -40,10 +40,11 @@ do not invent or test a bridge during ordinary review. Consult the
 [Codex integration guide](https://github.com/photostructure/gavel/blob/main/docs/codex-review-integration.md)
 only for delivery setup or diagnosis.
 
-If delivery is unavailable or the chat stays idle, use the manual handoff:
-**Copy resume prompt and close** after the last verdict, or the robot's
-**Copy resume prompt** before then. Use **Conversation → Copy resume prompt**
-only when there is no delivery state or owning session. Paste into this chat;
+If delivery is unavailable or the chat stays idle, use the manual handoff: the
+robot's **Copy resume prompt**, or **Copy resume prompt and close**, which the
+last verdict's toast offers when the verdict cannot reach the chat. Use
+**Conversation → Copy resume prompt** only when there is no delivery state or
+owning session. Paste into this chat;
 copying or closing alone does not resume Codex. Do not substitute a foreground wait.
 
 ## Open the requested patch

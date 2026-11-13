@@ -1606,16 +1606,21 @@ function App() {
     [openReviewFromTab],
   );
   const clearThreadToFocus = useCallback(() => setThreadToFocus(null), []);
-  // A listener subscription cannot start a new turn in the owning Codex chat.
-  const requiresResume = /^codex\b/i.test(diffData?.reviewContext?.agent ?? '');
+  // Only the queue starts a turn in the owning Codex chat; a listener subscription cannot.
+  const codexReview = /^codex\b/i.test(diffData?.reviewContext?.agent ?? '');
+  const deliveryStatus = inboxDelivery.delivery?.status;
   const verdictFollowUp = useVerdictFollowUp({
     reviews: approvalRequests,
     current: resolvedSelection,
     currentHasVerdict: approval.verdict !== undefined,
-    // A verdict that did not reach the owning session needs the same hand-back before the tab
-    // closes. The send settles after the verdict, so the follow-up also reads this while it
-    // offers to close the tab.
-    requiresResume: requiresResume || inboxDelivery.delivery?.status === 'failed',
+    // The reviewer hands the review back before the tab closes when the verdict did not reach
+    // the owning session: the send failed or went unconfirmed, or nothing reaches a Codex chat
+    // (a server without an inbox, or no queue). The send settles after the verdict, so the
+    // follow-up also reads this while it offers to close the tab.
+    requiresResume:
+      deliveryStatus === 'failed' ||
+      deliveryStatus === 'uncertain' ||
+      (codexReview && (deliveryStatus === undefined || deliveryStatus === 'unavailable')),
     onSwitch: openReviewFromTab,
   });
 
@@ -2454,10 +2459,7 @@ function App() {
                   view, with its resume prompt, remains for older servers and for reviews no
                   session owns, which phones' headers have no room to show. */}
               {(!inboxDelivery.delivery || inboxDelivery.delivery.status === 'unavailable') && (
-                <ReviewPresenceIndicator
-                  presence={reviewPresence}
-                  requiresResume={requiresResume}
-                />
+                <ReviewPresenceIndicator presence={reviewPresence} requiresResume={codexReview} />
               )}
               {threads.length > 0 && (
                 <CommentsDropdown

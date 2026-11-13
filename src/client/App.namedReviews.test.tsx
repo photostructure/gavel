@@ -157,7 +157,11 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
         if (op.type === 'verdict.set') {
           state[key] = op.verdict === 'clear' ? undefined : op.verdict;
           // The session inbox marks a verdict pending before the server answers.
-          if (state.inbox && key === 'verdict') state.inbox = { status: 'pending' };
+          if (state.inbox && state.inbox.status !== 'unavailable' && key === 'verdict')
+            state.inbox = {
+              status: 'pending',
+              ...(state.inbox.transport ? { transport: 'queue' } : {}),
+            };
         } else if (reviewName === state.capture.name) {
           const outcome = applyReviewOp(state.threads, op, '2026-11-11T00:00:00Z');
           if ('threads' in outcome) state.threads = outcome.threads;
@@ -1649,6 +1653,100 @@ describe('after a verdict', () => {
     expect(nextStep()).toHaveTextContent('Sent to the agent. You can close this tab.');
     fireEvent.click(within(nextStep()).getByRole('button', { name: 'Close tab' }));
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  describe('a Codex review', () => {
+    const codex = () => {
+      const state = fixture();
+      state.showReviewB = false;
+      state.reviewContext = {
+        source: 'git',
+        workingDirectory: '/repo',
+        hostname: 'host',
+        agent: 'Codex desktop',
+      };
+      return state;
+    };
+
+    // The queue starts a turn in the owning chat, as the inbox does for Claude Code.
+    it('closes like any other once the queue has its verdict', async () => {
+      const state = codex();
+      state.inbox = { status: 'ready', transport: 'queue' };
+      const close = vi.spyOn(window, 'close').mockImplementation(() => {});
+      renderApp();
+      await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+      fireEvent.click(verdictButton('Approve'));
+      const toast = await screen.findByRole('status', { name: 'Next step' });
+      expect(within(toast).getByRole('button', { name: 'Close tab' })).toBeDisabled();
+      state.inbox = { status: 'queued', at: '2026-11-12T17:00:00.000Z', transport: 'queue' };
+      await act(async () => {
+        await watch.inboxChanged?.();
+      });
+      expect(nextStep()).toHaveTextContent('Queued for Codex. You can close this tab.');
+      expect(screen.queryByRole('button', { name: 'Copy resume prompt and close' })).toBeNull();
+      fireEvent.click(within(nextStep()).getByRole('button', { name: 'Close tab' }));
+      expect(close).toHaveBeenCalledOnce();
+    });
+
+    // The toast opens from the render before the delivery refresh, which still shows the earlier
+    // comment's unconfirmed send; the queued verdict must still end in Close tab.
+    it('closes like any other once the queue has its verdict, after an unconfirmed comment', async () => {
+      const state = codex();
+      state.inbox = {
+        status: 'uncertain',
+        at: '2026-11-12T16:00:00.000Z',
+        error: 'Codex did not confirm queueing the feedback',
+        transport: 'queue',
+      };
+      renderApp();
+      await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+      fireEvent.click(verdictButton('Approve'));
+      await screen.findByRole('status', { name: 'Next step' });
+      state.inbox = { status: 'queued', at: '2026-11-12T17:00:00.000Z', transport: 'queue' };
+      await act(async () => {
+        await watch.inboxChanged?.();
+      });
+      expect(nextStep()).toHaveTextContent('Queued for Codex. You can close this tab.');
+      expect(screen.queryByRole('button', { name: 'Copy resume prompt and close' })).toBeNull();
+      expect(within(nextStep()).getByRole('button', { name: 'Close tab' })).toBeEnabled();
+    });
+
+    // The write may have been saved without an acknowledgment, so nothing retries it.
+    it('hands the review back when the queue does not confirm the verdict', async () => {
+      const state = codex();
+      state.inbox = { status: 'ready', transport: 'queue' };
+      renderApp();
+      await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+      fireEvent.click(verdictButton('Approve'));
+      await screen.findByRole('status', { name: 'Next step' });
+      state.inbox = {
+        status: 'uncertain',
+        at: '2026-11-12T17:00:00.000Z',
+        error: 'Codex did not confirm queueing the feedback',
+        transport: 'queue',
+      };
+      await act(async () => {
+        await watch.inboxChanged?.();
+      });
+      expect(
+        within(nextStep()).getByRole('button', { name: 'Copy resume prompt and close' }),
+      ).toBeVisible();
+    });
+
+    // Without a thread ID or a usable codex queue, nothing reaches the chat.
+    it('hands the review back when no queue reaches its chat', async () => {
+      const state = codex();
+      state.inbox = { status: 'unavailable' };
+      renderApp();
+      await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+      fireEvent.click(verdictButton('Approve'));
+      expect(
+        await within(await screen.findByRole('status', { name: 'Next step' })).findByRole(
+          'button',
+          { name: 'Copy resume prompt and close' },
+        ),
+      ).toBeVisible();
+    });
   });
 
   // The send settles 2 seconds after the verdict, so the failure arrives after Close tab shows.

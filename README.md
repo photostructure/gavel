@@ -86,9 +86,9 @@ under the verdict buttons shows the same robot and says whether the verdict was
 sent; its **Close tab** waits until it is. Tap the header robot for delivery details;
 **Queued for Codex** confirms saved input, not a running turn. Keep that
 chat open and use separate gavel servers for Codex and Claude Code. If the chat
-stays idle, use **Copy resume prompt and close** after the last
-verdict, or tap the robot and choose **Copy resume prompt** before then, and paste into the
-owning chat. The tab stays open until the copy succeeds. See
+stays idle, tap the robot and choose **Copy resume prompt**, and paste it into the
+owning chat. When the last verdict cannot reach the chat, the toast offers **Copy resume
+prompt and close** instead of **Close tab**; the tab stays open until the copy succeeds. See
 [waiting for review](docs/waiting-for-review.md) for host requirements.
 
 ## 🚀 Usage
