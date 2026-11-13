@@ -159,7 +159,10 @@ in file paths and thread IDs.
 Set `GAVEL_EDITOR` before starting gavel. It accepts `vscode` (default), `cursor`, `zed`, `textmate`, `bbedit`, `emacs`,
 `macvim`, `sublime`, `nova`, `custom`, or `none`. If `GAVEL_EDITOR` is unset,
 gavel checks `EDITOR` for one of these preset names. Use `none` to hide the
-button. Open in editor is unavailable for stdin diffs.
+button. Open in editor is unavailable for stdin diffs. The button beside a line
+opens the file at that line, and the one beside the file name opens it at the
+file's first hunk. Both open the file in the working tree, which can differ from
+a named review's capture.
 
 ```sh
 GAVEL_EDITOR=cursor gavel .

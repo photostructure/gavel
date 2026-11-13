@@ -473,6 +473,11 @@ export const DiffViewer = memo(function DiffViewer({
         onToggleCollapsed={onToggleCollapsed}
         onToggleAllCollapsed={onToggleAllCollapsed}
         onToggleReviewed={onToggleReviewed}
+        onOpenInEditor={
+          onOpenInEditor && file.status !== 'deleted'
+            ? () => onOpenInEditor(file.path, file.chunks[0]?.newStart ?? 1)
+            : undefined
+        }
       />
 
       {!isCollapsed && (

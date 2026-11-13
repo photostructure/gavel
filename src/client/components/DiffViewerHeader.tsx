@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  ExternalLink,
   FileDiff,
   FilePen,
   FilePlus,
@@ -34,6 +35,8 @@ interface DiffViewerHeaderProps {
   onToggleCollapsed: (path: string) => void;
   onToggleAllCollapsed: (shouldCollapse: boolean) => void;
   onToggleReviewed: (path: string) => void;
+  /** Opens the file in the configured editor; absent when there is no editor or file. */
+  onOpenInEditor?: () => void;
 }
 
 const getFileIcon = (status: DiffFile['status']) => {
@@ -67,6 +70,7 @@ export const DiffViewerHeader = ({
   onToggleCollapsed,
   onToggleAllCollapsed,
   onToggleReviewed,
+  onOpenInEditor,
 }: DiffViewerHeaderProps) => {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -130,6 +134,16 @@ export const DiffViewerHeader = ({
             >
               {isCopied ? <Check size={14} /> : <Copy size={14} />}
             </button>
+            {onOpenInEditor && (
+              <button
+                className={`${HIT_SLOP} shrink-0 bg-transparent border-none cursor-pointer px-1.5 py-1 rounded text-sm transition-all hover:bg-github-bg-tertiary text-github-text-secondary hover:text-github-text-primary`}
+                onClick={onOpenInEditor}
+                title="Open file in editor"
+                aria-label="Open file in editor"
+              >
+                <ExternalLink size={14} />
+              </button>
+            )}
           </div>
           {file.oldPath && file.oldPath !== file.path && (
             <div className="mt-0.5 text-xs text-github-text-muted">

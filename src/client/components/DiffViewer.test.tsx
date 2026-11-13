@@ -197,6 +197,34 @@ describe('DiffViewer context expansion for line drafts', () => {
   });
 });
 
+describe('DiffViewer header', () => {
+  it('opens the file in the editor at its first hunk, unless the change deletes it', () => {
+    const onOpenInEditor = vi.fn();
+    const shifted = { ...file, chunks: [hunk(20)] };
+    const view = renderViewer(
+      vi.fn(async () => {}),
+      mergedChunks,
+      vi.fn(async () => {}),
+      null,
+      shifted,
+      { onOpenInEditor },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open file in editor' }));
+    expect(onOpenInEditor).toHaveBeenCalledWith('notes.txt', 20);
+    view.unmount();
+
+    renderViewer(
+      vi.fn(async () => {}),
+      mergedChunks,
+      vi.fn(async () => {}),
+      null,
+      { ...file, status: 'deleted' },
+      { onOpenInEditor },
+    );
+    expect(screen.queryByRole('button', { name: 'Open file in editor' })).toBeNull();
+  });
+});
+
 describe('DiffViewer in a named review', () => {
   it("shows an image from the review's capture instead of an empty text diff", () => {
     const image: DiffFile = {
