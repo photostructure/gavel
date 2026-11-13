@@ -22,7 +22,12 @@ import type { ServerEvent, ServerShutdownEvent } from '../types/events.js';
 import { writeJsonl } from './event-output.js';
 import type { NamedReviewStart, ReviewCapture } from '../types/review.js';
 import { NamedReviewError, NamedReviewStore, type NamedReviewState } from './named-reviews.js';
-import { capturedBinaryContent, getCaptureRepository, validateCapture } from './review-capture.js';
+import {
+  capturedFileContent,
+  getCaptureRepository,
+  pathsWithoutContext,
+  validateCapture,
+} from './review-capture.js';
 import { openReviewStore, savedReviewKey, type SavedReview } from './review-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -555,9 +560,14 @@ export async function startServer(options: ServerOptions): Promise<{
 
   // Generate initial diff data for isEmpty check
   let initialDiffData: DiffResponse;
-  function parseNamedDiff(review: NamedReviewState): DiffResponse {
+  async function parseNamedDiff(review: NamedReviewState): Promise<DiffResponse> {
+    const parsed = parser.parseStdinDiff(review.capture.patch);
+    const withoutContext = new Set(await pathsWithoutContext(review.capture));
     return {
-      ...parser.parseStdinDiff(review.capture.patch),
+      ...parsed,
+      files: parsed.files.map((file) =>
+        withoutContext.has(file.path) ? { ...file, contextUnavailable: true } : file,
+      ),
       commit: `Review: ${review.metadata.name}`,
       baseCommitish: review.metadata.baseCommit,
       targetCommitish: '.',
@@ -565,7 +575,7 @@ export async function startServer(options: ServerOptions): Promise<{
     };
   }
   if (initialNamedReview) {
-    initialDiffData = parseNamedDiff(initialNamedReview);
+    initialDiffData = await parseNamedDiff(initialNamedReview);
   } else if (options.stdinDiff) {
     // Parse stdin diff directly
     initialDiffData = parser.parseStdinDiff(options.stdinDiff);
@@ -981,7 +991,7 @@ export async function startServer(options: ServerOptions): Promise<{
 
     let responseDiffData = initialDiffData;
     if (namedReview) {
-      responseDiffData = parseNamedDiff(namedReview);
+      responseDiffData = await parseNamedDiff(namedReview);
     } else if (!options.stdinDiff) {
       // Retained reviews already have a resolved base. Keep their original
       // mode for comment identity while calculating the saved comparison directly.
@@ -1224,7 +1234,7 @@ export async function startServer(options: ServerOptions): Promise<{
       const filepath = filepathResult.path;
       let blob: Buffer;
       if (typeof req.query.review === 'string') {
-        // A review shows its capture: a binary file's bytes come from its patch or its index blobs.
+        // A review shows its capture: each side comes from its index blobs and its patch.
         const side = req.query.side;
         if (side !== 'old' && side !== 'new') {
           res.status(400).json({ error: 'Expected side=old or side=new for a review' });
@@ -1236,7 +1246,7 @@ export async function startServer(options: ServerOptions): Promise<{
           res.status(404).json({ error: 'Named review capture not found' });
           return;
         }
-        blob = await capturedBinaryContent(review.capture, filepath, side);
+        blob = await capturedFileContent(review.capture, filepath, side);
       } else if (options.stdinDiff) {
         res.status(404).json({ error: 'Blob content not available for stdin diff' });
         return;

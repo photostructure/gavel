@@ -47,10 +47,10 @@ export const getViewerForFile = (file: DiffFile): DiffViewerRegistration => {
 /** Whether hidden context around `file`'s hunks can be loaded and shown. */
 export function fileCanExpandHiddenLines(
   file: DiffFile,
-  source: { contextUnavailable: boolean; baseCommitish?: string; targetCommitish?: string },
+  source: { baseCommitish?: string; targetCommitish?: string },
 ): boolean {
   const hasBlobContent =
-    !source.contextUnavailable &&
+    !file.contextUnavailable &&
     source.baseCommitish !== 'stdin' &&
     source.targetCommitish !== 'stdin';
   // The server refuses a non-UTF-8 path, so an expansion would fill the gap with blank rows.

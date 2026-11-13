@@ -82,11 +82,21 @@ const tourStart = thread(
 const tourNext = thread('tour-2', 'old', 'The old line. [back to start](#thread=tour-1)');
 
 // A Git comparison (`?base=HEAD&target=.`) when `git` is set, else named reviews.
-function fixture({ git = false } = {}) {
+function fixture({ git = false, contextUnavailable = false, blobMissing = false } = {}) {
   vi.mocked(fetch).mockImplementation(async (input) => {
     const url = new URL(String(input), window.location.origin);
     const reviewName = url.searchParams.get('review') ?? 'task-a';
     let payload: unknown = {};
+    if (url.pathname === '/api/blob/file.md' && blobMissing) {
+      return new Response(JSON.stringify({ error: 'File not found' }), { status: 404 });
+    }
+    if (url.pathname === '/api/blob/file.md' && !git) {
+      // The captured file: 45 lines, with the hunk's line 2.
+      const side = url.searchParams.get('side');
+      const lines = Array.from({ length: 45 }, (_, index) => `line ${index + 1}`);
+      lines[1] = `${side} ${reviewName}`;
+      return new Response(`${lines.join('\n')}\n`);
+    }
     if (url.pathname === '/api/diff') {
       payload = {
         ...(git ? {} : { capture: capture(reviewName) }),
@@ -102,6 +112,7 @@ function fixture({ git = false } = {}) {
             status: 'modified',
             additions: 1,
             deletions: 1,
+            ...(contextUnavailable ? { contextUnavailable } : {}),
             chunks: [
               {
                 header: '@@ -2 +2 @@',
@@ -175,6 +186,29 @@ const back = () =>
 const cursorText = () =>
   Array.from(document.querySelectorAll('.keyboard-cursor'), (cell) => cell.textContent).join(' ');
 const notice = () => screen.getByRole('status', { name: 'Link not followed' });
+const blobRequests = () =>
+  vi
+    .mocked(fetch)
+    .mock.calls.map(([input]) => String(input))
+    .filter((url) => url.startsWith('/api/blob/'));
+/** A file loads its length once it scrolls into view, which happy-dom never reports. */
+const reportEveryFileVisible = () => {
+  const original = globalThis.IntersectionObserver;
+  globalThis.IntersectionObserver = class {
+    constructor(private readonly callback: IntersectionObserverCallback) {}
+    observe(target: Element) {
+      this.callback(
+        [{ isIntersecting: true, target } as unknown as IntersectionObserverEntry],
+        this as unknown as IntersectionObserver,
+      );
+    }
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof IntersectionObserver;
+  return () => {
+    globalThis.IntersectionObserver = original;
+  };
+};
 
 describe('links in comments', () => {
   beforeEach(() => {
@@ -222,12 +256,43 @@ describe('links in comments', () => {
     expect(window.location.search).toBe('?base=HEAD&target=.');
   });
 
+  it("opens a line outside a named review's hunks from its capture", async () => {
+    const restore = reportEveryFileVisible();
+    try {
+      renderApp();
+      fireEvent.click(await screen.findByRole('link', { name: 'far' }));
+      await waitFor(() => expect(cursorText()).toContain('line 40'));
+    } finally {
+      restore();
+    }
+    expect(blobRequests()).toEqual([
+      '/api/blob/file.md?review=task-a&version=1&side=old',
+      '/api/blob/file.md?review=task-a&version=1&side=new',
+    ]);
+  });
+
+  it("shows a named review's gaps as labels once its file cannot load, without retrying", async () => {
+    fixture({ blobMissing: true });
+    const restore = reportEveryFileVisible();
+    try {
+      renderApp();
+      fireEvent.click(await screen.findByRole('link', { name: 'far' }));
+      await waitFor(() => expect(screen.getByText('1 line outside this patch')).toBeVisible());
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } finally {
+      restore();
+    }
+    expect(blobRequests()).toEqual(['/api/blob/file.md?review=task-a&version=1&side=old']);
+    expect(screen.queryByRole('button', { name: /hidden lines|Expand all lines/ })).toBeNull();
+  });
+
   it('says why it cannot follow a link', async () => {
+    fixture({ contextUnavailable: true });
     renderApp();
     fireEvent.click(await screen.findByRole('link', { name: 'gone' }));
     expect(notice()).toHaveTextContent('No comment "nope" in this review.');
     fireEvent.click(screen.getByRole('link', { name: 'far' }));
-    // A named review's capture holds only its hunks, so it cannot show other lines.
+    // This capture's patch names no old blob, so it cannot show lines outside its hunks.
     await waitFor(() =>
       expect(notice()).toHaveTextContent('Line 40 of "file.md" is not in this diff.'),
     );

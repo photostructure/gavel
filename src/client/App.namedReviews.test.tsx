@@ -846,8 +846,9 @@ describe('named captures in the browser', () => {
     expect(identity).toHaveTextContent('task-a');
     expect(identity).toHaveTextContent('capture v1');
     expect(identity).toHaveTextContent(initialCapture.patchDigest.slice(0, 12));
-    expect(screen.queryByRole('button', { name: /Expand.*hidden lines/ })).not.toBeInTheDocument();
-    expect(screen.getByText('1 line outside this patch')).toBeVisible();
+    // The capture's patch names its blobs, so the line outside its hunk can load.
+    expect(screen.getByRole('button', { name: 'Expand all 1 hidden lines' })).toBeEnabled();
+    expect(screen.queryByText(/outside this patch/)).not.toBeInTheDocument();
     const approve = screen.getByRole('button', { name: /^(Approve|Approved)$/ });
     await waitFor(() => expect(approve).toBeEnabled());
     fireEvent.click(approve);

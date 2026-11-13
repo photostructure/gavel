@@ -18,12 +18,13 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  capturedBinaryContent,
+  capturedFileContent,
   capturePatch,
   captureWorkingTree,
   filesWithoutAddedLines,
   getCaptureRepository,
   MAX_CAPTURE_BYTES,
+  pathsWithoutContext,
   selectCapture,
   validateCapture,
 } from './review-capture.js';
@@ -561,8 +562,8 @@ describe('read-only working tree captures', () => {
     writeFileSync(join(root, 'image.webp'), after);
     const artifact = await captureWorkingTree({ cwd: root });
     expect(artifact.patch).toContain('\nliteral 5\n');
-    expect(await capturedBinaryContent(artifact, 'image.webp', 'new')).toEqual(after);
-    expect(await capturedBinaryContent(artifact, 'image.webp', 'old')).toEqual(before);
+    expect(await capturedFileContent(artifact, 'image.webp', 'new')).toEqual(after);
+    expect(await capturedFileContent(artifact, 'image.webp', 'old')).toEqual(before);
   });
 
   it('recovers the new side of a binary file from a delta hunk and a rename', async () => {
@@ -576,8 +577,8 @@ describe('read-only working tree captures', () => {
     const artifact = await captureWorkingTree({ cwd: root });
     expect(artifact.patch).toMatch(/\ndelta \d+\n/);
     expect(artifact.files[0]).toMatchObject({ path: 'new.webm', oldPath: 'old.webm' });
-    expect(await capturedBinaryContent(artifact, 'new.webm', 'new')).toEqual(after);
-    expect(await capturedBinaryContent(artifact, 'old.webm', 'old')).toEqual(before);
+    expect(await capturedFileContent(artifact, 'new.webm', 'new')).toEqual(after);
+    expect(await capturedFileContent(artifact, 'old.webm', 'old')).toEqual(before);
   });
 
   it('serves no bytes for a binary file that is only renamed or only changes mode', async () => {
@@ -597,8 +598,8 @@ describe('read-only working tree captures', () => {
       ['mode.png', 'old'],
       ['mode.png', 'new'],
     ] as const) {
-      await expect(capturedBinaryContent(artifact, path, side)).rejects.toThrow(
-        `${path} is not a binary file in this review`,
+      await expect(capturedFileContent(artifact, path, side)).rejects.toThrow(
+        `${path} has no content in this review`,
       );
     }
   });
@@ -613,25 +614,23 @@ describe('read-only working tree captures', () => {
     const artifact = await captureWorkingTree({ cwd: root });
     expect(artifact.patch).toMatch(/\ndelta \d+\n/);
     // toEqual compares 9 MiB byte by byte for most of a minute; Buffer.equals takes milliseconds.
-    expect((await capturedBinaryContent(artifact, 'big.webm', 'new')).equals(after)).toBe(true);
-    expect((await capturedBinaryContent(artifact, 'big.webm', 'old')).equals(before)).toBe(true);
+    expect((await capturedFileContent(artifact, 'big.webm', 'new')).equals(after)).toBe(true);
+    expect((await capturedFileContent(artifact, 'big.webm', 'old')).equals(before)).toBe(true);
   });
 
-  it('has no old side for an added binary file and no content for a text file', async () => {
+  it('has no old side for an added binary file', async () => {
     writeFileSync(join(root, 'text.txt'), 'before\n');
     commit();
     const added = Buffer.from([0, 9, 8, 7]);
     writeFileSync(join(root, 'added.webp'), added);
     writeFileSync(join(root, 'text.txt'), 'after\n');
     const artifact = await captureWorkingTree({ cwd: root, includeUntracked: true });
-    expect(await capturedBinaryContent(artifact, 'added.webp', 'new')).toEqual(added);
-    await expect(capturedBinaryContent(artifact, 'added.webp', 'old')).rejects.toThrow(
+    expect(await capturedFileContent(artifact, 'added.webp', 'new')).toEqual(added);
+    await expect(capturedFileContent(artifact, 'added.webp', 'old')).rejects.toThrow(
       'added.webp has no old version in this review',
     );
-    await expect(capturedBinaryContent(artifact, 'text.txt', 'new')).rejects.toThrow(
-      'text.txt is not a binary file in this review',
-    );
-    await expect(capturedBinaryContent(artifact, 'missing.webp', 'new')).rejects.toThrow(
+    expect((await capturedFileContent(artifact, 'text.txt', 'new')).toString()).toBe('after\n');
+    await expect(capturedFileContent(artifact, 'missing.webp', 'new')).rejects.toThrow(
       'missing.webp is not in this review',
     );
   });
@@ -653,10 +652,10 @@ describe('read-only working tree captures', () => {
       repositoryRoot: root,
       baseCommit: git('rev-parse', 'HEAD').trim(),
     });
-    expect(await capturedBinaryContent(piped, 'still.webp', 'old')).toEqual(before);
-    expect(await capturedBinaryContent(piped, 'still.webp', 'new')).toEqual(after);
-    expect(await capturedBinaryContent(piped, 'gone.webp', 'old')).toEqual(before);
-    await expect(capturedBinaryContent(piped, 'gone.webp', 'new')).rejects.toThrow(
+    expect(await capturedFileContent(piped, 'still.webp', 'old')).toEqual(before);
+    expect(await capturedFileContent(piped, 'still.webp', 'new')).toEqual(after);
+    expect(await capturedFileContent(piped, 'gone.webp', 'old')).toEqual(before);
+    await expect(capturedFileContent(piped, 'gone.webp', 'new')).rejects.toThrow(
       'gone.webp has no new version in this review',
     );
     const newBlob = git('rev-parse', 'HEAD:still.webp').trim();
@@ -664,7 +663,111 @@ describe('read-only working tree captures', () => {
       repositoryRoot: root,
       baseCommit: git('rev-parse', 'HEAD').trim(),
     });
-    await expect(capturedBinaryContent(unknown, 'still.webp', 'new')).rejects.toThrow();
+    await expect(capturedFileContent(unknown, 'still.webp', 'new')).rejects.toThrow();
+  });
+
+  it('rebuilds both sides of an edited text file from its old blob and its hunks', async () => {
+    const numbered = (count: number) =>
+      Array.from({ length: count }, (_, index) => `line ${index + 1}\n`);
+    const before = numbered(40).join('');
+    const lines = numbered(40);
+    lines[2] = 'line three\r\n';
+    lines.splice(19, 1);
+    lines.splice(29, 0, 'inserted\n');
+    const after = lines.join('').replace(/\n$/, '');
+    // Keep the CR: a developer's core.autocrlf=input would strip it from the working tree's blob.
+    git('config', 'core.autocrlf', 'false');
+    writeFileSync(join(root, 'file.txt'), before);
+    writeFileSync(join(root, 'old name.txt'), before);
+    commit();
+    writeFileSync(join(root, 'file.txt'), after);
+    git('mv', 'old name.txt', 'new name.txt');
+    writeFileSync(join(root, 'new name.txt'), `${before}appended\n`);
+    const artifact = await captureWorkingTree({ cwd: root });
+    // A later edit cannot reach the review: both sides come from the repository and the patch.
+    writeFileSync(join(root, 'file.txt'), 'later\n');
+    expect(artifact.patch).toContain('\\ No newline at end of file');
+    expect(artifact.files.find((file) => file.path === 'file.txt')?.hunks).toHaveLength(4);
+    expect((await capturedFileContent(artifact, 'file.txt', 'old')).toString()).toBe(before);
+    expect((await capturedFileContent(artifact, 'file.txt', 'new')).toString()).toBe(after);
+    expect((await capturedFileContent(artifact, 'old name.txt', 'old')).toString()).toBe(before);
+    expect((await capturedFileContent(artifact, 'new name.txt', 'new')).toString()).toBe(
+      `${before}appended\n`,
+    );
+    expect(await pathsWithoutContext(artifact)).toEqual([]);
+  });
+
+  it('rebuilds a file whose unchanged runs are longer than a call can spread', async () => {
+    // Reported by the Codex reviewer: 150,000 unchanged lines overflowed result.push(...lines).
+    const lines = Array.from({ length: 300_000 }, (_, index) => `${index}\n`);
+    const before = lines.join('');
+    lines[150_000] = 'changed\n';
+    const after = lines.join('');
+    writeFileSync(join(root, 'long.txt'), before);
+    commit();
+    writeFileSync(join(root, 'long.txt'), after);
+    const artifact = await captureWorkingTree({ cwd: root });
+    expect((await capturedFileContent(artifact, 'long.txt', 'new')).toString()).toBe(after);
+  });
+
+  it('has no context for a file whose selected hunks skip one that shifts later lines', async () => {
+    const lines = Array.from({ length: 60 }, (_, index) => `line ${index + 1}\n`);
+    writeFileSync(join(root, 'file.txt'), lines.join(''));
+    commit();
+    const edited = [...lines];
+    edited[49] = 'line fifty\n';
+    writeFileSync(join(root, 'file.txt'), edited.slice(5).join(''));
+    const artifact = await captureWorkingTree({ cwd: root });
+    const [deletion, edit] = artifact.files[0]?.hunks ?? [];
+    // Ground truth: git diff HEAD numbers the edit @@ -47,7 +42,7 @@, counting the deletion.
+    expect(edit).toMatchObject({ oldStart: 47, newStart: 42 });
+    expect(await pathsWithoutContext(artifact)).toEqual([]);
+    const editOnly = selectCapture(artifact, [edit?.id ?? '']);
+    expect(await pathsWithoutContext(editOnly)).toEqual(['file.txt']);
+    await expect(capturedFileContent(editOnly, 'file.txt', 'new')).rejects.toThrow(
+      "file.txt's hunks do not match its old version in this review",
+    );
+    expect(await pathsWithoutContext(selectCapture(artifact, [deletion?.id ?? '']))).toEqual([]);
+  });
+
+  it('has no context for a file whose old blob is not in the repository', async () => {
+    writeFileSync(join(root, 'file.txt'), 'one\ntwo\n');
+    commit();
+    writeFileSync(join(root, 'file.txt'), 'one\nTWO\n');
+    const patch = git('diff', '--full-index', 'HEAD');
+    const oldBlob = git('rev-parse', 'HEAD:file.txt').trim();
+    // A PR's diff names its base's blobs, which a clone that has not fetched the base lacks.
+    const foreign = capturePatch(patch.replace(oldBlob, 'f'.repeat(40)), {
+      repositoryRoot: root,
+      baseCommit: git('rev-parse', 'HEAD').trim(),
+    });
+    expect(await pathsWithoutContext(foreign)).toEqual(['file.txt']);
+  });
+
+  it('refuses a text file whose hunks do not match the old blob its index line names', async () => {
+    writeFileSync(join(root, 'file.txt'), 'one\ntwo\nthree\n');
+    commit();
+    writeFileSync(join(root, 'file.txt'), 'one\nTWO\nthree\n');
+    const patch = git('diff', '--full-index', 'HEAD');
+    const tampered = capturePatch(patch.replace('\n one\n', '\n uno\n'), {
+      repositoryRoot: root,
+      baseCommit: git('rev-parse', 'HEAD').trim(),
+    });
+    await expect(capturedFileContent(tampered, 'file.txt', 'new')).rejects.toThrow(
+      "file.txt's hunks do not match its old version in this review",
+    );
+  });
+
+  it('has no context for a file in a plain unified patch, which names no old blob', async () => {
+    const plain = capturePatch(
+      ['--- a/file.txt', '+++ b/file.txt', '@@ -2 +2 @@', '-two', '+TWO', ''].join('\n'),
+      { repositoryRoot: root, baseCommit: BASE },
+    );
+    // A plain unified patch keeps its b/ prefix, since nothing marks it as Git's.
+    expect(await pathsWithoutContext(plain)).toEqual(['b/file.txt']);
+    await expect(capturedFileContent(plain, 'b/file.txt', 'new')).rejects.toThrow(
+      'b/file.txt has no old version in this review',
+    );
   });
 
   it('retains prefixed blank context when diff.suppressBlankEmpty is enabled', async () => {

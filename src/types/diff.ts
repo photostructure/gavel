@@ -12,6 +12,8 @@ export interface DiffFile {
   isBinary?: boolean;
   /** `path` or `oldPath` is Git's quoted form of a name that is not valid UTF-8. */
   hasNonUtf8Path?: boolean;
+  /** A named review cannot rebuild this file, so lines outside its hunks can't load. */
+  contextUnavailable?: boolean;
 }
 
 export interface DiffChunk {
@@ -283,6 +285,8 @@ export interface FileExpandedState {
   expandedRanges: ExpandedRange[];
   oldTotalLines?: number;
   newTotalLines?: number;
+  /** A named review's side failed to load, so the file shows its gaps as labels. */
+  contextLoadFailed?: boolean;
 }
 
 interface ExpandedRange {

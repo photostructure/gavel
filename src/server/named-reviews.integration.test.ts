@@ -230,6 +230,28 @@ describe('named review HTTP integration', () => {
     expect((await blob(`still.webp?review=${name}&version=2`)).status).toBe(400);
   });
 
+  it('serves the captured text of both sides and marks files whose patch names no blob', async () => {
+    writeFileSync(join(root, 'first.txt'), 'later shared edit\n');
+    const text = async (side: 'old' | 'new') => {
+      const response = await fetch(
+        `${running!.url}/api/blob/first.txt?review=${name}&version=1&side=${side}`,
+      );
+      return { status: response.status, body: await response.text() };
+    };
+    expect(await text('old')).toEqual({ status: 200, body: 'before first\n' });
+    expect(await text('new')).toEqual({ status: 200, body: 'captured first\n' });
+    const gitFile = (await get<DiffResponse>(`/api/diff${query}`)).files[0];
+    expect(gitFile?.contextUnavailable).toBeUndefined();
+
+    const plain = capturePatch(
+      '--- a/first.txt\n+++ b/first.txt\n@@ -1 +1 @@\n-before first\n+plain\n',
+      initialCapture,
+    );
+    await post(`/api/reviews/${name}/capture`, { expectedVersion: 1, capture: plain });
+    const plainFile = (await get<DiffResponse>(`/api/diff${query}`)).files[0];
+    expect(plainFile).toMatchObject({ path: 'b/first.txt', contextUnavailable: true });
+  });
+
   it('names the launched review as the diff the revision menu offers', async () => {
     const revisions = await get<RevisionsResponse>('/api/revisions');
     expect(revisions.launch).toMatchObject({ reviewName: name });
@@ -691,7 +713,13 @@ describe('named review HTTP integration', () => {
     await post('/api/reviews', { name, capture: initialCapture });
     await get<DiffResponse>(`/api/diff${query}`);
     expect(await responses()).toEqual(before);
-    for (const path of paths) {
+    // A review's blob is its capture's text; the other endpoints have no capture form.
+    const captured = await fetch(`${running.url}${paths[0]}&review=${name}`);
+    expect({ status: captured.status, body: await captured.text() }).toEqual({
+      status: 200,
+      body: 'captured first\n',
+    });
+    for (const path of paths.slice(1)) {
       const response = await fetch(`${running.url}${path}&review=${name}`);
       expect(response.status).toBe(404);
       await response.text();

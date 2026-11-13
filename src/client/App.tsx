@@ -747,12 +747,13 @@ function App() {
     collapseExpandedLines,
     prefetchFileContent,
     getMergedChunks,
+    hasContextLoadFailed,
     lastUpdatedAt,
   } = useExpandedLines({
     baseCommitish: diffData?.baseCommitish,
     targetCommitish: diffData?.targetCommitish,
     diffIdentity: diffDataVersion,
-    contextUnavailable: Boolean(diffData?.capture),
+    capture: diffData?.capture,
   });
 
   const getMergedChunksRef = useRef(getMergedChunks);
@@ -1841,17 +1842,17 @@ function App() {
   };
 
   // A comment link's line can show unless the hunks leave it out and the diff cannot load the
-  // context around them (a named review's capture, piped input, an image).
+  // context around them (a named review's plain unified patch, piped input, an image).
   const canShowLinkedLine = (anchor: LineDraftAnchor) => {
     const file = navigableFiles.find((candidate) => candidate.path === anchor.filePath);
     if (!file || !diffData) return false;
     return (
       findDraftPosition(anchor, navigableFiles) !== null ||
-      fileCanExpandHiddenLines(file, {
-        contextUnavailable: Boolean(diffData.capture),
-        baseCommitish: diffData.baseCommitish,
-        targetCommitish: diffData.targetCommitish,
-      })
+      (!hasContextLoadFailed(file) &&
+        fileCanExpandHiddenLines(file, {
+          baseCommitish: diffData.baseCommitish,
+          targetCommitish: diffData.targetCommitish,
+        }))
     );
   };
   const linkedFilePaths = useMemo(() => navigableFiles.map((file) => file.path), [navigableFiles]);
@@ -2393,6 +2394,7 @@ function App() {
                       isExpandLoading={isExpandLoading}
                       diffVersion={diffDataVersion}
                       pendingJump={pendingLineJump?.filePath === file.path ? pendingLineJump : null}
+                      contextLoadFailed={hasContextLoadFailed(file)}
                     />
                   ) : (
                     <div className="bg-github-bg-secondary border border-github-border rounded-md px-4 py-3">

@@ -98,6 +98,8 @@ interface DiffViewerProps {
   // A jump to a line of this file that waits for the line to show (a comment link's
   // target); its hidden context opens the way a thread's does.
   pendingJump?: LineDraftAnchor | null;
+  /** A named review's side of this file failed to load, so its gaps stay labels. */
+  contextLoadFailed?: boolean;
 }
 
 type LineRange = { start: number; end: number };
@@ -249,6 +251,7 @@ export const DiffViewer = memo(function DiffViewer({
   isExpandLoading,
   diffVersion,
   pendingJump,
+  contextLoadFailed = false,
 }: DiffViewerProps) {
   const isCollapsed = collapsedFiles.has(file.path);
   // Expanded context does not survive a reload or a review switch, so a line draft
@@ -271,13 +274,10 @@ export const DiffViewer = memo(function DiffViewer({
   const [isVisible, setIsVisible] = useState(false);
 
   const viewer = getViewerForFile(file);
-  // A frozen capture holds only its patch, so no viewer can load lines outside it.
-  const contextUnavailable = Boolean(capture);
-  const canExpandHiddenLines = fileCanExpandHiddenLines(file, {
-    contextUnavailable,
-    baseCommitish,
-    targetCommitish,
-  });
+  // A named review's viewers must not read files by Git ref, which would show the working tree.
+  const isCapture = Boolean(capture);
+  const canExpandHiddenLines =
+    !contextLoadFailed && fileCanExpandHiddenLines(file, { baseCommitish, targetCommitish });
   // -1 after the last hunk means the file length isn't known yet, so lines may still be hidden.
   const hasHiddenLines = mergedChunks.some(
     (chunk) => chunk.hiddenLinesBefore > 0 || chunk.hiddenLinesAfter !== 0,
@@ -405,7 +405,7 @@ export const DiffViewer = memo(function DiffViewer({
 
   const fileLevelTokens = useFileLevelTokens({
     file,
-    enabled: wholeFileHighlight && !contextUnavailable,
+    enabled: wholeFileHighlight && !isCapture,
     baseCommitish,
     targetCommitish,
     reloadKey: diffVersion,
@@ -413,18 +413,16 @@ export const DiffViewer = memo(function DiffViewer({
 
   const lineNumberWidth = '4em';
   // A capture holds a binary file's bytes in its patch, or the IDs of its blobs, so the image
-  // viewer can show it. Other viewers need whole files, which a capture does not hold, and a
+  // viewer can show it. The Markdown and notebook viewers read whole files by Git ref, so a
+  // capture's other files use the text viewer, which loads context from the capture. A
   // text image such as an SVG has hunks instead of bytes, as does a symlink that a type change
   // turned into an image. An image that is only renamed, copied or changes mode has neither,
   // and the capture's base commit need not be the patch's base, so it gets a note.
   const imageWithoutHunks = viewer.id === 'image' && file.chunks.length === 0;
   const showsCapturedBytes = imageWithoutHunks && file.isBinary === true;
   const headerOnlyNote =
-    contextUnavailable && imageWithoutHunks && !file.isBinary
-      ? HEADER_ONLY_NOTES[file.status]
-      : undefined;
-  const ViewerComponent =
-    contextUnavailable && !showsCapturedBytes ? TextDiffViewer : viewer.Component;
+    isCapture && imageWithoutHunks && !file.isBinary ? HEADER_ONLY_NOTES[file.status] : undefined;
+  const ViewerComponent = isCapture && !showsCapturedBytes ? TextDiffViewer : viewer.Component;
   const viewerProps: DiffViewerBodyProps = {
     file,
     threads,

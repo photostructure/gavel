@@ -281,6 +281,33 @@ describe('DiffViewer in a named review', () => {
     },
   );
 
+  it('expands a text file from the capture, unless its patch names no old blob', () => {
+    const expandAllLines = vi.fn(async () => {});
+    const view = renderViewer(
+      vi.fn(async () => {}),
+      mergedChunks,
+      vi.fn(async () => {}),
+      null,
+      file,
+      { capture: { name: 'task', version: 2 }, expandAllLines },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all lines' }));
+    expect(expandAllLines).toHaveBeenCalledWith(file);
+    expect(screen.getByRole('button', { name: 'Expand all 16 hidden lines' })).toBeEnabled();
+    view.unmount();
+
+    renderViewer(
+      vi.fn(async () => {}),
+      mergedChunks,
+      vi.fn(async () => {}),
+      null,
+      { ...file, contextUnavailable: true },
+      { capture: { name: 'task', version: 2 } },
+    );
+    expect(screen.queryByRole('button', { name: /^Expand all/ })).toBeNull();
+    expect(screen.getByText('16 lines outside this patch')).toBeInTheDocument();
+  });
+
   it('keeps the text diff of an SVG, which Git captures as text', () => {
     const svg: DiffFile = { ...file, path: 'icon.svg' };
     renderViewer(

@@ -518,17 +518,86 @@ async function readBlob(repositoryRoot: string, object: string): Promise<Buffer>
   return stdout;
 }
 
+/** The old and new blob IDs a Git patch's `index` line names, if it has one. */
+function indexBlobIds(raw: RawFile): { old: string; new: string } | undefined {
+  const match = raw.header.match(/^index ([\da-f]+)\.\.([\da-f]+)/m);
+  return match?.[1] && match[2] ? { old: match[1], new: match[2] } : undefined;
+}
+
+const isMissingBlob = (blob: string | undefined) => blob === undefined || /^0+$/.test(blob);
+
+/** `text`'s lines, each with its `\n`, except a last line that has none. */
+function linesWithEnds(text: string): string[] {
+  return text.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+}
+
+/** The 0-based line index a hunk side starts at; a side with no lines names the line before. */
+const hunkPosition = (start: number, lines: number) => (lines === 0 ? start : start - 1);
+
 /**
- * The bytes one side of a captured binary file held. The new side comes from the capture's
- * `GIT binary patch` block, so it is the captured version even if the working tree has changed
- * since. The old side is the blob the patch's `index` line names, read from the repository.
+ * Whether each hunk's new-side position follows from its old-side position and the hunks
+ * before it. It does not when a selection dropped an earlier hunk that added or removed
+ * lines, or when Git hid a change (`--ignore-blank-lines`), so applying the hunks to the old
+ * version would not reproduce the numbering the review shows.
+ */
+function hunksLineUp(hunks: RawHunk[]): boolean {
+  let shift = 0;
+  return hunks.every(({ metadata }) => {
+    const linesUp =
+      hunkPosition(metadata.newStart, metadata.newLines) ===
+      hunkPosition(metadata.oldStart, metadata.oldLines) + shift;
+    shift += metadata.newLines - metadata.oldLines;
+    return linesUp;
+  });
+}
+
+/**
+ * `old` with `hunks` applied. Every context and removed line must equal the old line it
+ * stands for, so a capture whose `index` line names a different blob is refused.
+ */
+function applyTextHunks(path: string, old: string, hunks: RawHunk[]): string {
+  const oldLines = linesWithEnds(old);
+  const result: string[] = [];
+  let cursor = 0;
+  const mismatch = () => new Error(`${path}'s hunks do not match its old version in this review`);
+  // A loop, not push(...lines): a long unchanged run would exceed the engine's argument limit.
+  const copyOldLines = (end: number) => {
+    for (; cursor < end; cursor++) result.push(oldLines[cursor] ?? '');
+  };
+  if (!hunksLineUp(hunks)) throw mismatch();
+  for (const hunk of hunks) {
+    const start = hunkPosition(hunk.metadata.oldStart, hunk.metadata.oldLines);
+    if (start < cursor || start > oldLines.length) throw mismatch();
+    copyOldLines(start);
+    const body = hunk.raw.split('\n').slice(1);
+    body.forEach((line, index) => {
+      if (line === '' || line.startsWith('\\')) return;
+      const text = `${line.slice(1)}${body[index + 1]?.startsWith('\\') ? '' : '\n'}`;
+      if (line.startsWith('+')) {
+        result.push(text);
+        return;
+      }
+      if (oldLines[cursor] !== text) throw mismatch();
+      cursor++;
+      if (line.startsWith(' ')) result.push(text);
+    });
+  }
+  copyOldLines(oldLines.length);
+  return result.join('');
+}
+
+/**
+ * The bytes one side of a captured file held, read from the repository and the capture's
+ * patch, so it is the captured version even if the working tree has changed since. The old
+ * side is the blob the patch's `index` line names. The new side of a text file is that blob
+ * with the file's hunks applied; of a binary file, it comes from the `GIT binary patch` block.
  * A patch made without `--binary`, such as the gavel skill's `git diff --full-index <sha>^ <sha>`,
  * has only `Binary files … differ`, so both sides are the blobs its `index` line names.
- * A file that is only renamed, copied or changes mode has no bytes in the patch, and the
- * capture's base commit is the local HEAD for a piped patch, so it is refused like a text file.
- * `path` is the file's path on that side.
+ * A plain unified patch names no blobs, and a file that is only renamed, copied or changes mode
+ * has no content in the patch; the capture's base commit is the local HEAD for a piped patch,
+ * so neither is read from there. `path` is the file's path on that side.
  */
-export async function capturedBinaryContent(
+export async function capturedFileContent(
   capture: ReviewCapture,
   path: string,
   side: 'old' | 'new',
@@ -539,22 +608,63 @@ export async function capturedBinaryContent(
   const raw = parsePatch(capture.patch)[index];
   if (!raw) throw new Error(`${path} is not in this review`);
   const body = raw.raw.slice(raw.header.length);
-  const blobIds = raw.header.match(/^index ([\da-f]+)\.\.([\da-f]+)/m);
+  const blobIds = indexBlobIds(raw);
   const readVersion = async (version: 'old' | 'new'): Promise<Buffer> => {
-    const blob = blobIds?.[version === 'old' ? 1 : 2];
-    if (!blob || /^0+$/.test(blob))
+    const blob = blobIds?.[version];
+    if (blob === undefined || isMissingBlob(blob))
       throw new Error(`${path} has no ${version} version in this review`);
     return readBlob(capture.repositoryRoot, blob);
   };
   if (body.startsWith('Binary files ')) return readVersion(side);
   const lines = body.split('\n');
-  if (lines[0] !== 'GIT binary patch')
-    throw new Error(`${path} is not a binary file in this review`);
+  const binary = lines[0] === 'GIT binary patch';
+  if (!binary && raw.hunks.length === 0) throw new Error(`${path} has no content in this review`);
   if (side === 'old') return readVersion('old');
-  const forward = forwardBinaryHunk(lines.slice(1));
-  return forward.kind === 'literal'
-    ? forward.data
-    : applyGitDelta(await readVersion('old'), forward.data);
+  if (binary) {
+    const forward = forwardBinaryHunk(lines.slice(1));
+    return forward.kind === 'literal'
+      ? forward.data
+      : applyGitDelta(await readVersion('old'), forward.data);
+  }
+  if (blobIds && isMissingBlob(blobIds.new))
+    throw new Error(`${path} has no new version in this review`);
+  const old = blobIds && isMissingBlob(blobIds.old) ? '' : (await readVersion('old')).toString();
+  return Buffer.from(applyTextHunks(path, old, raw.hunks));
+}
+
+/** The blobs among `blobs` that the repository does not have. */
+async function missingBlobs(repositoryRoot: string, blobs: string[]): Promise<Set<string>> {
+  if (blobs.length === 0) return new Set();
+  const request = execFileAsync(
+    'git',
+    [...GIT_OPTIONS, 'cat-file', '--batch-check=%(objectname)'],
+    { cwd: repositoryRoot, env: gitEnvironment(repositoryRoot), encoding: 'utf8' },
+  );
+  request.child.stdin?.end(`${blobs.join('\n')}\n`);
+  // One line per request, in order: the full ID, or the request followed by "missing".
+  const answers = (await request).stdout.split('\n');
+  return new Set(blobs.filter((_blob, index) => !/^[\da-f]+$/.test(answers[index] ?? '')));
+}
+
+/**
+ * Paths of the files whose lines outside their hunks cannot be rebuilt: the patch has no
+ * `index` line (a plain unified patch), the repository lacks the old blob it names (a PR's
+ * base that was never fetched), or the hunks' numbering does not follow from applying them.
+ */
+export async function pathsWithoutContext(capture: ReviewCapture): Promise<string[]> {
+  const rawFiles = parsePatch(capture.patch);
+  const oldBlobs = rawFiles.flatMap((raw) => {
+    const blob = indexBlobIds(raw)?.old;
+    return blob === undefined || isMissingBlob(blob) ? [] : [blob];
+  });
+  const missing = await missingBlobs(capture.repositoryRoot, oldBlobs);
+  return capture.files
+    .filter((_file, index) => {
+      const raw = rawFiles[index];
+      const blobIds = raw && indexBlobIds(raw);
+      return !raw || !blobIds || missing.has(blobIds.old) || !hunksLineUp(raw.hunks);
+    })
+    .map((file) => file.path);
 }
 
 /** IDs of the files with a hunk that adds no lines, such as a hunk that only deletes lines. */

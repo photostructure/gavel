@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 
 import {
   type DiffFile,
@@ -13,11 +13,17 @@ const EMPTY_EXPANDED_STATE: ExpandedLinesState = {};
 
 type ExpandedRange = FileExpandedState['expandedRanges'][number];
 
+/** A named review's capture, whose sides the server rebuilds from its patch. */
+interface CaptureRef {
+  name: string;
+  version: number;
+}
+
 interface UseExpandedLinesOptions {
   baseCommitish?: string;
   targetCommitish?: string;
   diffIdentity?: string | number;
-  contextUnavailable?: boolean;
+  capture?: CaptureRef;
 }
 
 export interface MergedChunk extends DiffChunk {
@@ -48,14 +54,22 @@ interface UseExpandedLinesResult {
   getMergedChunks: (file: DiffFile) => MergedChunk[];
   getHiddenLinesBefore: (file: DiffFile, chunk: DiffChunk, chunkIndex: number) => number;
   getHiddenLinesAfter: (file: DiffFile, chunk: DiffChunk, chunkIndex: number) => number;
+  /** A named review's side of `file` failed to load, so its gaps cannot expand. */
+  hasContextLoadFailed: (file: DiffFile) => boolean;
 }
 
-async function fetchFileContent(
+function blobUrl(
   filePath: string,
-  commitish: string,
-): Promise<{ lines: string[]; totalLines: number }> {
+  source: { ref: string } | { capture: CaptureRef; side: 'old' | 'new' },
+): string {
   const encodedPath = encodeURIComponent(filePath);
-  const response = await fetch(`/api/blob/${encodedPath}?ref=${encodeURIComponent(commitish)}`);
+  if ('ref' in source) return `/api/blob/${encodedPath}?ref=${encodeURIComponent(source.ref)}`;
+  const { name, version } = source.capture;
+  return `/api/blob/${encodedPath}?review=${encodeURIComponent(name)}&version=${version}&side=${source.side}`;
+}
+
+async function fetchFileContent(url: string): Promise<{ lines: string[]; totalLines: number }> {
+  const response = await fetch(url);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch file content: ${response.statusText}`);
@@ -93,13 +107,30 @@ export function useExpandedLines({
   baseCommitish,
   targetCommitish,
   diffIdentity,
-  contextUnavailable = false,
+  capture,
 }: UseExpandedLinesOptions): UseExpandedLinesResult {
-  const blobContentUnavailable =
-    contextUnavailable || baseCommitish === 'stdin' || targetCommitish === 'stdin';
+  const blobContentUnavailable = baseCommitish === 'stdin' || targetCommitish === 'stdin';
+  const captureName = capture?.name;
+  const captureVersion = capture?.version;
+  const captureRef = useMemo(
+    () =>
+      captureName === undefined || captureVersion === undefined
+        ? undefined
+        : { name: captureName, version: captureVersion },
+    [captureName, captureVersion],
+  );
+  const stateKey = JSON.stringify([
+    baseCommitish,
+    targetCommitish,
+    diffIdentity,
+    captureName,
+    captureVersion,
+  ]);
   const [cachedExpandedState, setExpandedState] = useState<ExpandedLinesState>({});
-  // A frozen capture must never expose mutable lines, including before passive cleanup.
-  const expandedState = contextUnavailable ? EMPTY_EXPANDED_STATE : cachedExpandedState;
+  const [cachedStateKey, setCachedStateKey] = useState(stateKey);
+  // Lines expanded for another diff, such as the working tree before a named review opens,
+  // never show, including on the render before the reset below runs.
+  const expandedState = cachedStateKey === stateKey ? cachedExpandedState : EMPTY_EXPANDED_STATE;
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdatedFilePath, setLastUpdatedFilePath] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(0);
@@ -108,17 +139,34 @@ export function useExpandedLines({
   // Use ref to access current state without causing dependency loop (#2)
   const expandedStateRef = useRef<ExpandedLinesState>({});
   expandedStateRef.current = expandedState;
-  const revisionGenerationRef = useRef(0);
+  // The diff a request started for. It changes during render, before any child effect can
+  // start a request for the new diff, so a reset effect that runs after those effects does
+  // not make their responses look stale.
+  const revisionGenerationRef = useRef(stateKey);
+  revisionGenerationRef.current = stateKey;
 
   useEffect(() => {
-    revisionGenerationRef.current += 1;
     pendingFetchesRef.current.clear();
     expandedStateRef.current = {};
     setExpandedState({});
+    setCachedStateKey(stateKey);
     setIsLoading(false);
     setLastUpdatedFilePath(null);
     setLastUpdatedAt(0);
-  }, [baseCommitish, targetCommitish, diffIdentity, contextUnavailable]);
+  }, [stateKey]);
+
+  const markContextLoadFailed = useCallback((file: DiffFile, revisionGeneration: string) => {
+    if (revisionGenerationRef.current !== revisionGeneration) return null;
+    setExpandedState((prev) => ({
+      ...prev,
+      [file.path]: {
+        ...prev[file.path],
+        expandedRanges: prev[file.path]?.expandedRanges ?? [],
+        contextLoadFailed: true,
+      },
+    }));
+    return null;
+  }, []);
 
   const ensureFileContent = useCallback(
     async (file: DiffFile): Promise<FileExpandedState | null> => {
@@ -150,16 +198,23 @@ export function useExpandedLines({
         };
 
         // Fetch old content for modified/deleted/renamed files
-        if (file.status !== 'added' && baseCommitish) {
+        if (file.status !== 'added' && (captureRef || baseCommitish)) {
           const oldPath = file.oldPath || file.path;
           try {
-            const { lines, totalLines } = await fetchFileContent(oldPath, baseCommitish);
+            const { lines, totalLines } = await fetchFileContent(
+              blobUrl(
+                oldPath,
+                captureRef ? { capture: captureRef, side: 'old' } : { ref: baseCommitish ?? '' },
+              ),
+            );
             if (revisionGenerationRef.current !== revisionGeneration) {
               return null;
             }
             state.oldContent = lines;
             state.oldTotalLines = totalLines;
           } catch (error) {
+            // A named review's lines come only from its capture, so blank lines would be wrong.
+            if (captureRef) return markContextLoadFailed(file, revisionGeneration);
             console.error('Failed to fetch old file content:', error);
             state.oldContent = [];
             state.oldTotalLines = 0;
@@ -167,15 +222,21 @@ export function useExpandedLines({
         }
 
         // Fetch new content for modified/added/renamed files
-        if (file.status !== 'deleted' && targetCommitish) {
+        if (file.status !== 'deleted' && (captureRef || targetCommitish)) {
           try {
-            const { lines, totalLines } = await fetchFileContent(file.path, targetCommitish);
+            const { lines, totalLines } = await fetchFileContent(
+              blobUrl(
+                file.path,
+                captureRef ? { capture: captureRef, side: 'new' } : { ref: targetCommitish ?? '' },
+              ),
+            );
             if (revisionGenerationRef.current !== revisionGeneration) {
               return null;
             }
             state.newContent = lines;
             state.newTotalLines = totalLines;
           } catch (error) {
+            if (captureRef) return markContextLoadFailed(file, revisionGeneration);
             console.error('Failed to fetch new file content:', error);
             state.newContent = [];
             state.newTotalLines = 0;
@@ -193,7 +254,7 @@ export function useExpandedLines({
         pendingFetchesRef.current.delete(pendingFetchKey);
       }
     },
-    [baseCommitish, targetCommitish, blobContentUnavailable],
+    [baseCommitish, targetCommitish, blobContentUnavailable, captureRef, markContextLoadFailed],
   );
 
   const markFileUpdated = useCallback((filePath: string) => {
@@ -428,6 +489,22 @@ export function useExpandedLines({
         return;
       }
 
+      if (captureRef) {
+        // The line-count endpoint has no capture form, so a named review loads both sides,
+        // which its expansions then reuse.
+        const fileState = await ensureFileContent(file);
+        if (!fileState || revisionGenerationRef.current !== revisionGeneration) return;
+        setExpandedState((prev) => ({
+          ...prev,
+          [file.path]: {
+            ...fileState,
+            expandedRanges: prev[file.path]?.expandedRanges ?? fileState.expandedRanges,
+          },
+        }));
+        markFileUpdated(file.path);
+        return;
+      }
+
       const oldRef = file.status !== 'added' ? baseCommitish : undefined;
       const newRef = file.status !== 'deleted' ? targetCommitish : undefined;
 
@@ -464,7 +541,14 @@ export function useExpandedLines({
         console.error('Failed to prefetch line count:', error);
       }
     },
-    [baseCommitish, targetCommitish, blobContentUnavailable, markFileUpdated],
+    [
+      baseCommitish,
+      targetCommitish,
+      blobContentUnavailable,
+      captureRef,
+      ensureFileContent,
+      markFileUpdated,
+    ],
   );
 
   const getExpandedCount = useCallback(
@@ -705,6 +789,11 @@ export function useExpandedLines({
     [getExpandedChunk, getHiddenLinesBefore, getHiddenLinesAfter],
   );
 
+  const hasContextLoadFailed = useCallback(
+    (file: DiffFile) => expandedState[file.path]?.contextLoadFailed === true,
+    [expandedState],
+  );
+
   return {
     expandedState,
     isLoading,
@@ -718,5 +807,6 @@ export function useExpandedLines({
     getMergedChunks,
     getHiddenLinesBefore,
     getHiddenLinesAfter,
+    hasContextLoadFailed,
   };
 }

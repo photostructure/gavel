@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, render, renderHook, waitFor } from '@testing-library/react';
+import { createElement, useEffect } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DiffFile } from '../../types/diff';
@@ -36,7 +37,7 @@ function createMockDiffFile(): DiffFile {
 }
 
 describe('useExpandedLines', () => {
-  it('never exposes previously expanded mutable lines on a frozen capture render', async () => {
+  it("never shows another diff's expanded lines on a named review's first render", async () => {
     const file = createMockDiffFile();
     const observed: string[][] = [];
     const { result, rerender } = renderHook(
@@ -45,7 +46,7 @@ describe('useExpandedLines', () => {
           baseCommitish: 'base-a',
           targetCommitish: 'target',
           diffIdentity: frozen ? 'capture' : 'ordinary',
-          contextUnavailable: frozen,
+          capture: frozen ? { name: 'task', version: 1 } : undefined,
         });
         if (frozen)
           observed.push(
@@ -66,17 +67,75 @@ describe('useExpandedLines', () => {
     expect(observed.flat()).not.toContain('target line 1');
   });
 
-  it('never fetches mutable blob content for a fixed named capture', async () => {
+  it("loads a named review's sides from its capture, not from refs", async () => {
     const file = createMockDiffFile();
     const { result } = renderHook(() =>
-      useExpandedLines({ baseCommitish: 'base-a', targetCommitish: '.', contextUnavailable: true }),
+      useExpandedLines({
+        baseCommitish: 'base-a',
+        targetCommitish: '.',
+        capture: { name: 'task', version: 3 },
+      }),
     );
-    await act(async () => {
-      await result.current.prefetchFileContent(file);
-      await result.current.expandLines(file, 0, 'up', 1);
-      await result.current.expandAllBetweenChunks(file, 0, 1);
-    });
-    expect(fetch).not.toHaveBeenCalled();
+    expect(result.current.getMergedChunks(file)[0]?.hiddenLinesAfter).toBe(-1);
+    await act(async () => result.current.prefetchFileContent(file));
+    expect(result.current.getMergedChunks(file)[0]?.hiddenLinesAfter).toBe(1);
+    await act(async () => result.current.expandAllLines(file));
+    expect(
+      result.current
+        .getMergedChunks(file)
+        .flatMap((chunk) => chunk.lines.map((line) => line.content)),
+    ).toEqual(['captured line 1', 'old changed line', 'new changed line', 'captured line 3']);
+    expect(vi.mocked(fetch).mock.calls.map(([input]) => String(input))).toEqual([
+      '/api/blob/src%2Fapp.ts?review=task&version=3&side=old',
+      '/api/blob/src%2Fapp.ts?review=task&version=3&side=new',
+    ]);
+  });
+
+  it('marks a file whose named-review side cannot load, instead of showing blank lines', async () => {
+    const file = createMockDiffFile();
+    const { result } = renderHook(() =>
+      useExpandedLines({ targetCommitish: '.', capture: { name: 'missing', version: 1 } }),
+    );
+    expect(result.current.hasContextLoadFailed(file)).toBe(false);
+    await act(async () => result.current.expandLines(file, 0, 'up', 1));
+    expect(result.current.hasContextLoadFailed(file)).toBe(true);
+    expect(result.current.getMergedChunks(file)[0]?.lines).toEqual(file.chunks[0]?.lines);
+  });
+
+  it('keeps a prefetch that a child starts in the render that announces a new capture', async () => {
+    // Reported by the Codex reviewer: child effects run before the hook's reset, so a
+    // generation counter bumped by that reset dropped the new capture's prefetch.
+    const file = createMockDiffFile();
+    let latest: ReturnType<typeof useExpandedLines> | undefined;
+    function Child({
+      api,
+      version,
+    }: {
+      api: ReturnType<typeof useExpandedLines>;
+      version: number;
+    }) {
+      const { prefetchFileContent } = api;
+      useEffect(() => {
+        void prefetchFileContent(file);
+      }, [prefetchFileContent, version]);
+      return null;
+    }
+    function Parent({ version }: { version: number }) {
+      const api = useExpandedLines({
+        baseCommitish: 'base-a',
+        targetCommitish: '.',
+        diffIdentity: version,
+        capture: { name: 'task', version },
+      });
+      useEffect(() => {
+        latest = api;
+      });
+      return createElement(Child, { api, version });
+    }
+    const view = render(createElement(Parent, { version: 1 }));
+    await waitFor(() => expect(latest?.getMergedChunks(file)[0]?.hiddenLinesAfter).toBe(1));
+    view.rerender(createElement(Parent, { version: 2 }));
+    await waitFor(() => expect(latest?.getMergedChunks(file)[0]?.hiddenLinesAfter).toBe(1));
   });
 
   beforeEach(() => {
@@ -87,13 +146,23 @@ describe('useExpandedLines', () => {
         typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       const url = new URL(rawUrl, 'http://localhost');
       const ref = url.searchParams.get('ref');
+      const review = url.searchParams.get('review');
 
       const contentByRef: Record<string, string> = {
         'base-a': 'base a line 1\nold changed line\n',
         'base-b': 'base b line 1\nold changed line\n',
         target: 'target line 1\nnew changed line\n',
       };
-      const body = ref ? contentByRef[ref] : undefined;
+      const contentBySide: Record<string, string> = {
+        old: 'captured line 1\nold changed line\ncaptured line 3\n',
+        new: 'captured line 1\nnew changed line\ncaptured line 3\n',
+      };
+      const body =
+        review === 'task'
+          ? contentBySide[url.searchParams.get('side') ?? '']
+          : ref
+            ? contentByRef[ref]
+            : undefined;
 
       if (!body) {
         return Promise.resolve({

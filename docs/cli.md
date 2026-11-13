@@ -148,8 +148,12 @@ Each jump adds a browser history entry, so Back returns to the comment the link 
 in, and the page URL keeps the place. For a link in another review's comment, Back
 returns to the review you were reading instead. When gavel cannot follow a link (no
 such thread, file, or named review, or a line the diff cannot show), it says why at
-the bottom of the page. A named review holds only its captured hunks, so link only
-to lines inside them. A line past the end of a file is not detected: the view waits
+the bottom of the page. A named review loads the lines around its hunks from the
+capture and the repository's copy of each file's old version. It cannot when the
+patch is plain unified (no Git blob IDs), the repository lacks the old version (a
+pull request whose base was never fetched), or `--select` left out an earlier hunk
+that shifts the file's numbering; link only to lines inside such a file's hunks.
+A line past the end of a file is not detected: the view waits
 at the top of the file. The cursor lands on the last line of a range, where a
 comment on that range shows. Percent-encode spaces (`%20`), `&`, `#`, `+`, and `%`
 in file paths and thread IDs.
