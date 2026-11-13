@@ -230,6 +230,36 @@ describe('verdict follow-up notice', () => {
     });
   });
 
+  // The message wraps to two or three lines; leading-7 (1.75rem, 24.5 px at the default 14 px
+  // font size) spaces them apart. leading-6 still read as cramped.
+  it('spaces the message lines widely', () => {
+    render(notice({ step: { kind: 'close', reviews: 5 } }));
+    expect(screen.getByTestId('verdict-toast-detail')).toHaveClass('leading-7');
+  });
+
+  // The status, then what to do: a delivery report that changes does not reflow the next step.
+  it('starts the next step on its own line, under the verdict and its delivery', () => {
+    render(
+      notice({
+        step: { kind: 'switch', name: 'play-b', waiting: 3 },
+        delivery: { status: 'sent', at: '2026-11-12T17:00:00.000Z', via: 'inbox' },
+      }),
+    );
+    const next = screen.getByTestId('verdict-toast-next');
+    expect(next).toHaveClass('block');
+    expect(next).toHaveTextContent(/^play-b and 2 other reviews still need a verdict\.$/);
+  });
+
+  it('shows no next step line while the verdict is being sent', () => {
+    render(
+      notice({
+        step: { kind: 'switch', name: 'play-b', waiting: 2 },
+        delivery: { status: 'pending' },
+      }),
+    );
+    expect(screen.queryByTestId('verdict-toast-next')).toBeNull();
+  });
+
   // What the reviewer acts on stands out; the delivery report is status beside it.
   it('dims only the delivery report, not the verdict or the next step', () => {
     render(

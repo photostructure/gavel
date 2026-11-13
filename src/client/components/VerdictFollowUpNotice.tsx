@@ -120,6 +120,36 @@ export function VerdictFollowUpNotice({
   // A failed send, which needs the resume prompt, may still arrive; what is left waits for it.
   const sending = delivery?.status === 'pending';
   const others = step.kind === 'switch' ? step.waiting - 1 : 0;
+  // On its own line under the verdict and its delivery, so a delivery report that changes does
+  // not reflow it.
+  const next =
+    step.kind === 'switch' ? (
+      !sending && (
+        <>
+          <code>{step.name}</code>
+          {others === 0
+            ? ' still needs a verdict.'
+            : ` and ${others} other ${others === 1 ? 'review' : 'reviews'} still need a verdict.`}
+        </>
+      )
+    ) : step.kind === 'close' ? (
+      !sending &&
+      (step.reviews === 1
+        ? 'You can close this page.'
+        : `All ${step.reviews} reviews have a verdict, so you can close this page.`)
+    ) : step.kind === 'resume' ? (
+      <>
+        {allDone} If the agent hasn't resumed, copy the prompt and paste it into the chat that
+        opened this review.
+        {step.status === 'error' && (
+          <span role="alert" className="mt-1 block text-github-danger">
+            Could not copy the prompt; try again.
+          </span>
+        )}
+      </>
+    ) : (
+      "Copied. Paste it into the agent's chat, then close this page."
+    );
   return (
     <FloatingPortal>
       {/* Non-modal: the page stays usable, and the notice stays in tab order right after the
@@ -158,7 +188,7 @@ export function VerdictFollowUpNotice({
             id={detailId}
             data-testid="verdict-toast-detail"
             aria-live="polite"
-            className="flex items-start gap-2 pr-8"
+            className="flex items-start gap-2 pr-8 leading-7"
           >
             {report && (
               <span className={`shrink-0 ${deliveryColor(report.state)}`}>
@@ -167,35 +197,13 @@ export function VerdictFollowUpNotice({
             )}
             <span className="min-w-0 [overflow-wrap:anywhere]">
               <span className="font-medium">{describeVerdict(verdict)}.</span>{' '}
-              {/* Dimmed: it is status, beside the next step the reviewer acts on. */}
+              {/* Dimmed: it is status; the next step below is what the reviewer acts on. */}
               {report && <span className="text-github-text-secondary">{report.text}</span>}
               {report && ' '}
-              {step.kind === 'switch' ? (
-                !sending && (
-                  <>
-                    <code>{step.name}</code>
-                    {others === 0
-                      ? ' still needs a verdict.'
-                      : ` and ${others} other ${others === 1 ? 'review' : 'reviews'} still need a verdict.`}
-                  </>
-                )
-              ) : step.kind === 'close' ? (
-                !sending &&
-                (step.reviews === 1
-                  ? 'You can close this page.'
-                  : `All ${step.reviews} reviews have a verdict, so you can close this page.`)
-              ) : step.kind === 'resume' ? (
-                <>
-                  {allDone} If the agent hasn't resumed, copy the prompt and paste it into the chat
-                  that opened this review.
-                  {step.status === 'error' && (
-                    <span role="alert" className="mt-1 block text-github-danger">
-                      Could not copy the prompt; try again.
-                    </span>
-                  )}
-                </>
-              ) : (
-                "Copied. Paste it into the agent's chat, then close this page."
+              {next && (
+                <span data-testid="verdict-toast-next" className="block">
+                  {next}
+                </span>
               )}
             </span>
           </p>
