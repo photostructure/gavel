@@ -11,7 +11,8 @@ Claude entry point at `skills/gavel/SKILL.md`.
 ## Human review: end the turn
 
 Serve with `--background`, share the URL, record pending work, and end the turn
-once the current feedback batch is handled. Leave the server running. A live
+once the current feedback batch is handled. Leave the server running until its
+reviews are done (see Approval and completion). A live
 shell process does not establish delivery into an idle chat.
 
 Human review must cause zero idle model turns:
@@ -229,13 +230,14 @@ Read additional protocol docs only for operations not covered here.
 Read and honor the saved summary before committing. For Approve (`verdict: "approve"`),
 read every human message (`origin: user` or absent) in threads without
 `resolution.resolved: true`, including Replied/Noted messages, plus feedback outside gavel. Act on all requests, run checks and
-independent Codex/Claude review, then commit. If a request is impossible or
+independent Codex/Claude review, then commit and close the server as described below. If a request is impossible or
 unclear, explain and do not commit. Nothing tracks completed comments; the
 verdict stays until the user clears it.
 
 For Reject (`verdict: "reject"`), do not revise, recapture, or commit. Ask in this
 session what to do instead and whether to revert, explaining what each revert
-step undoes; see the approval guide for steps. Only the user clears Reject.
+step undoes; see the approval guide for steps. Close the server as described below.
+Only the user clears Reject.
 Put a new attempt in a new named review.
 
 Button approval authorizes a commit, never a push. Immediately before committing,
@@ -243,6 +245,19 @@ read a fresh snapshot and require `approval.verdict: approve`. Approval follows
 recaptures and summary edits; other sessions' staged hunks do not end it. Compare
 the actual commit scope with the approved patch and feedback: shared-tree edits
 gain no permission. Commit without asking again.
+
+Close a server you launched once its reviews are done: each is approved and
+committed or rejected, and each read-only (`--no-lgtm`) review is one the user said
+they are done with or moved on from. Ignore the unnamed `HEAD` bootstrap of a
+detached launch. Send SIGTERM to the `pid` from its `server.ready` or
+`server.background` record (`kill -TERM <pid>`). When a Reject leaves no review on the
+server awaiting a verdict, close it promptly, before or after discussing next steps
+with the user; `review unapply` reads the saved capture without a server. Shutdown
+flushes saved state, so `approval status <sha>` and reopening the same patch still
+find approvals and comments, except what a snapshot's `store.error` says is not saved:
+if it reports one, report it and ask the user before closing. Keep the server running
+while any other review awaits a verdict or feedback, or when the user asked to keep it
+open. Never stop another session's server. Say in your report that you closed it.
 
 See the [approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md)
 for verdict rules. When authorized work is done, end the turn until user feedback.

@@ -269,11 +269,11 @@ Read a fresh snapshot before acting; the user can clear or switch a verdict.
 
 - **Approve** (`verdict: "approve"`): act on every user message in unresolved
   threads, including messages added before the final snapshot, plus feedback
-  outside gavel. Then commit. If a request is impossible or unclear, explain
+  outside gavel. Then commit, and close the server as described below. If a request is impossible or unclear, explain
   and do not commit. Nothing tracks completed comments; the verdict stays until
   cleared. See the [approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md).
 - **Reject** (`verdict: "reject"`): do not revise, recapture, or commit. Ask what
-  to do instead.
+  to do instead, and close the server as described below.
 - **No verdict** (absent or `null`): await the user.
 
 After Reject, ask in this session what the user wants instead, using the review's
@@ -318,5 +318,18 @@ parts that must land together need every approval before their single commit.
 Clearing a verdict ends button approval; after restart, only fresh state counts.
 Chat approval is independent. Silence or tab closure is not approval. Approval
 never authorizes pushing or publishing.
+
+Close a server you launched once its reviews are done: each is approved and
+committed or rejected, and each read-only (`--no-lgtm`) review is one the user said
+they are done with or moved on from. Ignore the unnamed `HEAD` bootstrap of a
+detached launch. Send SIGTERM to the `pid` from its `server.ready` or
+`server.background` record (`kill -TERM <pid>`). When a Reject leaves no review on the
+server awaiting a verdict, close it promptly, before or after discussing next steps
+with the user; `review unapply` reads the saved capture without a server. Shutdown
+flushes saved state, so `approval status <sha>` and reopening the same patch still
+find approvals and comments, except what a snapshot's `store.error` says is not saved:
+if it reports one, report it and ask the user before closing. Keep the server running
+while any other review awaits a verdict or feedback, or when the user asked to keep it
+open. Never stop another session's server. Say in your report that you closed it.
 
 Protocol details: [agent conversations](https://github.com/photostructure/gavel/blob/main/docs/agent-conversations.md).
