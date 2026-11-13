@@ -67,6 +67,8 @@ Give each proposed commit a verdict:
   the required checks and reviews pass.
 - **Reject** stops the agent, which asks you what to do instead and whether to revert.
 
+From the keyboard, Shift+A approves and Shift+X rejects; `?` lists every shortcut.
+
 The agent must run the required checks before committing. See
 [approval modes](docs/approval-modes.md) for details.
 

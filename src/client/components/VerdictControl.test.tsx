@@ -45,10 +45,15 @@ describe('verdict control', () => {
     const approve = buttons().getByRole('button', { name: 'Approve' });
     expect(approve).toHaveAttribute(
       'title',
-      'The agent addresses your comments, runs the required checks and reviews, then commits.',
+      'The agent addresses your comments, runs the required checks and reviews, then commits. (Shift+A)',
+    );
+    const reject = buttons().getByRole('button', { name: 'Reject' });
+    expect(reject).toHaveAttribute(
+      'title',
+      'The agent stops and asks you what to do instead. (Shift+X)',
     );
     fireEvent.click(approve);
-    fireEvent.click(buttons().getByRole('button', { name: 'Reject' }));
+    fireEvent.click(reject);
     expect(onVerdict.mock.calls).toEqual([['approve'], ['reject']]);
   });
 

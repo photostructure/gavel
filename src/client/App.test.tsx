@@ -167,7 +167,7 @@ function commentContext(): string[] {
 }
 
 const APPROVE_TITLE =
-  'The agent addresses your comments, runs the required checks and reviews, then commits.';
+  'The agent addresses your comments, runs the required checks and reviews, then commits. (Shift+A)';
 
 // Helper to render App with HotkeysProvider
 const renderApp = () => {

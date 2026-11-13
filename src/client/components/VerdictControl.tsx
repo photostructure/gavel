@@ -76,7 +76,7 @@ export function VerdictControl({
           aria-pressed={approved}
           disabled={busy || (!approved && (disabled || approveDisabled))}
           aria-busy={busy}
-          title={approved ? clearTitle : approveDescription}
+          title={approved ? clearTitle : `${approveDescription} (Shift+A)`}
           onClick={(event) => (approved ? clear(event) : onVerdict('approve'))}
           className={`${verdictButtonClasses} ${approved ? approvedClasses : approveIdleClasses}`}
         >
@@ -88,7 +88,7 @@ export function VerdictControl({
           aria-pressed={rejected}
           disabled={busy || (!rejected && disabled)}
           aria-busy={busy}
-          title={rejected ? clearTitle : rejectDescription}
+          title={rejected ? clearTitle : `${rejectDescription} (Shift+X)`}
           onClick={(event) => (rejected ? clear(event) : onVerdict('reject'))}
           className={`${verdictButtonClasses} ${rejected ? rejectClasses : rejectIdleClasses}`}
         >

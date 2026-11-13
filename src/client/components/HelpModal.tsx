@@ -279,6 +279,30 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
                 <span className="ui-value">Refresh diff when changes detected</span>
               </div>
               <div className="flex justify-between text-sm">
+                <div className="flex items-center gap-1">
+                  <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
+                    Shift
+                  </kbd>
+                  <span className="text-github-text-muted">+</span>
+                  <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
+                    A
+                  </kbd>
+                </div>
+                <span className="ui-value">Approve this review</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <div className="flex items-center gap-1">
+                  <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
+                    Shift
+                  </kbd>
+                  <span className="text-github-text-muted">+</span>
+                  <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
+                    X
+                  </kbd>
+                </div>
+                <span className="ui-value">Reject this review</span>
+              </div>
+              <div className="flex justify-between text-sm">
                 <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
                   c
                 </kbd>

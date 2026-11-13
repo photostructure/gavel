@@ -35,6 +35,7 @@ export function useKeyboardNavigation({
   onDeleteAllComments,
   onShowCommentsList,
   onRefresh,
+  onVerdict,
   getHoveredFileIndex,
 }: UseKeyboardNavigationProps): UseKeyboardNavigationReturn {
   const [cursor, setCursor] = useState<CursorPosition | null>(null);
@@ -523,6 +524,10 @@ export function useKeyboardNavigation({
     hotkeyOptions,
     [onRefresh],
   );
+
+  // Verdicts take Shift, so a stray letter while reading never approves a commit
+  useHotkeys('shift+a', () => onVerdict?.('approve'), hotkeyOptions, [onVerdict]);
+  useHotkeys('shift+x', () => onVerdict?.('reject'), hotkeyOptions, [onVerdict]);
 
   // Comment creation
   useHotkeys(

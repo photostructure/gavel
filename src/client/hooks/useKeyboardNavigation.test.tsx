@@ -1018,6 +1018,49 @@ describe('useKeyboardNavigation', () => {
     });
   });
 
+  describe('Verdict (shift+a, shift+x)', () => {
+    const renderWithVerdict = (onVerdict: (verdict: 'approve' | 'reject') => void) =>
+      renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: mockFiles,
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed: vi.fn(),
+            reviewedFiles: new Set<string>(),
+            onVerdict,
+          }),
+        { wrapper },
+      );
+
+    it('approves with shift+a and rejects with shift+x, but not with a or x alone', async () => {
+      const user = userEvent.setup();
+      const onVerdict = vi.fn();
+      renderWithVerdict(onVerdict);
+
+      await user.keyboard('ax');
+      expect(onVerdict).not.toHaveBeenCalled();
+
+      await user.keyboard('{Shift>}A{/Shift}{Shift>}X{/Shift}');
+      expect(onVerdict.mock.calls).toEqual([['approve'], ['reject']]);
+    });
+
+    it('gives no verdict while a capital A or X is typed into a comment box', async () => {
+      const user = userEvent.setup();
+      const onVerdict = vi.fn();
+      const textarea = document.createElement('textarea');
+      document.body.appendChild(textarea);
+      textarea.focus();
+      renderWithVerdict(onVerdict);
+
+      await user.keyboard('{Shift>}A{/Shift}{Shift>}X{/Shift}');
+
+      expect(textarea.value).toBe('AX');
+      expect(onVerdict).not.toHaveBeenCalled();
+      document.body.removeChild(textarea);
+    });
+  });
+
   describe('Add Comment (c)', () => {
     it('should trigger comment creation on add/normal lines with c key', async () => {
       const user = userEvent.setup();

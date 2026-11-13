@@ -71,11 +71,13 @@ function server(initialThreads: DiffCommentThread[] = []) {
     version: 1,
     commit: 'abc123',
     clean: false,
+    shipIt: true,
     ledger: new Set<string>(),
     applied: [] as QueuedOp[],
     verdict: undefined as string | undefined,
     staleVerdict: undefined as string | undefined,
     snapshotGate: undefined as Promise<void> | undefined,
+    summaryGate: undefined as Promise<void> | undefined,
     holdApprovalReads: false,
     heldApprovalReads: [] as Array<() => void>,
     fail: false as Outcome,
@@ -127,7 +129,7 @@ function server(initialThreads: DiffCommentThread[] = []) {
         requestedBaseCommitish: 'main',
         requestedTargetCommitish: 'feature',
         files: [{ path: 'a.ts', status: 'modified', additions: 1, deletions: 0, chunks: [] }],
-        shipIt: true,
+        shipIt: state.shipIt,
         clearComments: state.clean,
       } satisfies DiffResponse);
     if (url.pathname === '/api/comments-json') {
@@ -160,8 +162,11 @@ function server(initialThreads: DiffCommentThread[] = []) {
     }
     if (url.pathname === '/api/revisions')
       return Response.json({ specialOptions: [], branches: [], commits: [] });
-    if (url.pathname === '/api/review-summary')
+    if (url.pathname === '/api/review-summary') {
+      // While set, the proposed commit message waits, as a slow read of it would.
+      await state.summaryGate;
       return Response.json({ commitMessage: '', rationale: '', version: 0 });
+    }
     if (url.pathname === '/api/conversation/snapshot') {
       // While set, the list of reviews waits, as a slow read of it would.
       await state.snapshotGate;
@@ -255,18 +260,22 @@ async function settleDeferredBatch(outcome: Outcome, state: ReturnType<typeof se
   await act(async () => state.deferred.shift()!(outcome));
 }
 
+function openFreshPage() {
+  localStorage.clear();
+  window.history.replaceState(null, '', '/?base=main&target=feature');
+  vi.mocked(fetch).mockReset();
+  vi.stubGlobal('WebSocket', MockWebSocket);
+  watch.initiallyConnected = true;
+}
+
+function restoreGlobals() {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+}
+
 describe('comment and verdict changes the server has not confirmed', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    window.history.replaceState(null, '', '/?base=main&target=feature');
-    vi.mocked(fetch).mockReset();
-    vi.stubGlobal('WebSocket', MockWebSocket);
-    watch.initiallyConnected = true;
-  });
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
-  });
+  beforeEach(openFreshPage);
+  afterEach(restoreGlobals);
 
   it('removes an op from the queue once the server confirms it', async () => {
     const state = server();
@@ -802,5 +811,84 @@ describe('comment and verdict changes the server has not confirmed', () => {
     await expectShown('On the server');
     expect(state.batches).toEqual([]);
     expect(savedRecord().threads).toBeUndefined();
+  });
+});
+
+describe('verdict shortcuts', () => {
+  beforeEach(openFreshPage);
+  afterEach(restoreGlobals);
+
+  const verdictsSent = (state: ReturnType<typeof server>) =>
+    state.applied.flatMap((op) => (op.type === 'verdict.set' ? [op.verdict] : []));
+
+  it('approves with Shift+A, as the Approve button does', async () => {
+    const state = server();
+    mount();
+    await waitForServerThreads();
+
+    await userEvent.keyboard('{Shift>}A{/Shift}');
+
+    await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approved$/));
+    expect(verdictsSent(state)).toEqual(['approve']);
+  });
+
+  it('rejects with Shift+X, as the Reject button does', async () => {
+    const state = server();
+    mount();
+    await waitForServerThreads();
+
+    await userEvent.keyboard('{Shift>}X{/Shift}');
+
+    await waitFor(() => expect(state.verdict).toBe('reject'));
+    expect(verdictsSent(state)).toEqual(['reject']);
+  });
+
+  it('sends nothing for the verdict the review already has, so the shortcut never clears it', async () => {
+    const state = server();
+    state.verdict = 'approve';
+    mount();
+    await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approved$/));
+    await waitForServerThreads();
+
+    await userEvent.keyboard('{Shift>}A{/Shift}');
+    // Ops go out in order, so a verdict from the first press would come before this one.
+    await userEvent.keyboard('{Shift>}X{/Shift}');
+
+    await waitFor(() => expect(state.verdict).toBe('reject'));
+    expect(verdictsSent(state)).toEqual(['reject']);
+  });
+
+  it('sends no approval while the Approve button waits for the proposed commit message', async () => {
+    const state = server();
+    let releaseSummary = () => {};
+    state.summaryGate = new Promise((release) => (releaseSummary = release));
+    mount();
+    // Reject needs only the comments; Approve also waits for the summary.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Reject' })).toBeEnabled());
+    expect(approveButton()).toBeDisabled();
+
+    await userEvent.keyboard('{Shift>}A{/Shift}');
+    releaseSummary();
+    await waitForServerThreads();
+    // Ops go out in order, so an approval from the first press would come before this one.
+    await userEvent.keyboard('{Shift>}X{/Shift}');
+
+    await waitFor(() => expect(state.verdict).toBe('reject'));
+    expect(verdictsSent(state)).toEqual(['reject']);
+  });
+
+  it('sends no verdict for a diff opened without the verdict buttons', async () => {
+    const state = server();
+    state.shipIt = false;
+    mount();
+    await screen.findByRole('button', { name: 'Conversation' });
+
+    await userEvent.keyboard('{Shift>}A{/Shift}');
+    // Ops go out in order, so a verdict from the shortcut would come before this comment.
+    await sendGeneralComment('After the shortcut');
+
+    await waitFor(() => expect(state.applied).toHaveLength(1));
+    expect(state.applied.map(({ type }) => type)).toEqual(['thread.add']);
+    expect(screen.queryByRole('group', { name: 'Verdict' })).toBeNull();
   });
 });

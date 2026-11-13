@@ -1054,6 +1054,11 @@ function App() {
       onRefresh: () => {
         reload();
       },
+      // Only a review with the verdict buttons takes a verdict. Unlike its pressed button, the
+      // key for the verdict the review already has does nothing: clearing a verdict takes a click.
+      onVerdict: (verdict) => {
+        if (diffData?.shipIt && approval.verdict !== verdict) void handleVerdict(verdict);
+      },
     });
 
   const previousPresentationRef = useRef({

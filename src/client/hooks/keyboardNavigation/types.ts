@@ -1,3 +1,4 @@
+import type { ReviewVerdict } from '../../../types/conversation';
 import type { DiffFile, DiffSide, DiffViewMode, LineNumber } from '../../../types/diff';
 
 /**
@@ -44,6 +45,7 @@ export interface UseKeyboardNavigationProps {
   onDeleteAllComments?: () => void;
   onShowCommentsList?: () => void;
   onRefresh?: () => void;
+  onVerdict?: (verdict: ReviewVerdict) => void;
   isModalOpen?: boolean;
   getHoveredFileIndex?: () => number | null;
 }
