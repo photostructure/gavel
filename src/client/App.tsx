@@ -2395,6 +2395,7 @@ function App() {
                       diffVersion={diffDataVersion}
                       pendingJump={pendingLineJump?.filePath === file.path ? pendingLineJump : null}
                       contextLoadFailed={hasContextLoadFailed(file)}
+                      repositoryPath={diffData.reviewContext?.repositoryPath}
                     />
                   ) : (
                     <div className="bg-github-bg-secondary border border-github-border rounded-md px-4 py-3">

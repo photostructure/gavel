@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom';
 
 import type { DiffFile } from '../../types/diff';
+import { copyTextToClipboard } from '../utils/clipboard';
 
 import { DiffViewerHeader } from './DiffViewerHeader';
+
+vi.mock('../utils/clipboard', () => ({ copyTextToClipboard: vi.fn(async () => {}) }));
 
 const file: DiffFile = {
   path: 'src/app.ts',
@@ -24,6 +27,32 @@ const baseProps = {
 };
 
 describe('DiffViewerHeader', () => {
+  it.each([
+    { root: '/home/dev/repo', full: '/home/dev/repo/src/app.ts' },
+    { root: 'C:\\work\\repo', full: 'C:\\work\\repo\\src\\app.ts' },
+  ])('copies the full path on a Shift- or Alt-click under $root', ({ root, full }) => {
+    vi.mocked(copyTextToClipboard).mockClear();
+    render(<DiffViewerHeader {...baseProps} repositoryPath={root} />);
+    const copy = screen.getByRole('button', { name: 'Copy file path' });
+    expect(copy).toHaveAttribute(
+      'title',
+      'Copy file path (Shift+Click or Alt+Click for the full path)',
+    );
+    fireEvent.click(copy);
+    fireEvent.click(copy, { shiftKey: true });
+    fireEvent.click(copy, { altKey: true });
+    expect(vi.mocked(copyTextToClipboard).mock.calls).toEqual([['src/app.ts'], [full], [full]]);
+  });
+
+  it('copies the relative path when the diff has no repository, such as a piped patch', () => {
+    vi.mocked(copyTextToClipboard).mockClear();
+    render(<DiffViewerHeader {...baseProps} />);
+    const copy = screen.getByRole('button', { name: 'Copy file path' });
+    expect(copy).toHaveAttribute('title', 'Copy file path');
+    fireEvent.click(copy, { shiftKey: true });
+    expect(vi.mocked(copyTextToClipboard).mock.calls).toEqual([['src/app.ts']]);
+  });
+
   it.each([
     { status: 'renamed', label: 'Renamed from', icon: '.lucide-file-pen' },
     { status: 'copied', label: 'Copied from', icon: '.lucide-files' },

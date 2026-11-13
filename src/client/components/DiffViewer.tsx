@@ -100,6 +100,8 @@ interface DiffViewerProps {
   pendingJump?: LineDraftAnchor | null;
   /** A named review's side of this file failed to load, so its gaps stay labels. */
   contextLoadFailed?: boolean;
+  /** The repository's absolute root, which the header's copy button joins with the path. */
+  repositoryPath?: string;
 }
 
 type LineRange = { start: number; end: number };
@@ -252,6 +254,7 @@ export const DiffViewer = memo(function DiffViewer({
   diffVersion,
   pendingJump,
   contextLoadFailed = false,
+  repositoryPath,
 }: DiffViewerProps) {
   const isCollapsed = collapsedFiles.has(file.path);
   // Expanded context does not survive a reload or a review switch, so a line draft
@@ -471,6 +474,7 @@ export const DiffViewer = memo(function DiffViewer({
         onToggleCollapsed={onToggleCollapsed}
         onToggleAllCollapsed={onToggleAllCollapsed}
         onToggleReviewed={onToggleReviewed}
+        repositoryPath={repositoryPath}
         onOpenInEditor={
           onOpenInEditor && file.status !== 'deleted'
             ? () => onOpenInEditor(file.path, file.chunks[0]?.newStart ?? 1)

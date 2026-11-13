@@ -37,7 +37,15 @@ interface DiffViewerHeaderProps {
   onToggleReviewed: (path: string) => void;
   /** Opens the file in the configured editor; absent when there is no editor or file. */
   onOpenInEditor?: () => void;
+  /** The repository's absolute root, for copying the full path; absent for a piped diff. */
+  repositoryPath?: string;
 }
+
+/** `path` under `root`, with the root's own separator: `\` for a Windows root, else `/`. */
+const fullPath = (root: string, path: string) => {
+  const separator = root.includes('/') ? '/' : '\\';
+  return `${root}${separator}${path.split('/').join(separator)}`;
+};
 
 const getFileIcon = (status: DiffFile['status']) => {
   switch (status) {
@@ -71,6 +79,7 @@ export const DiffViewerHeader = ({
   onToggleAllCollapsed,
   onToggleReviewed,
   onOpenInEditor,
+  repositoryPath,
 }: DiffViewerHeaderProps) => {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -119,10 +128,15 @@ export const DiffViewerHeader = ({
                   ? 'text-github-accent-text'
                   : 'text-github-text-secondary hover:text-github-text-primary'
               }`}
-              onClick={() => {
-                void copyTextToClipboard(file.path)
+              onClick={(event) => {
+                // Shift or Alt means "more", as on the gap arrows: the full path.
+                const copied =
+                  repositoryPath !== undefined && (event.shiftKey || event.altKey)
+                    ? fullPath(repositoryPath, file.path)
+                    : file.path;
+                void copyTextToClipboard(copied)
                   .then(() => {
-                    console.log('File path copied to clipboard:', file.path);
+                    console.log('File path copied to clipboard:', copied);
                     setIsCopied(true);
                     setTimeout(() => setIsCopied(false), 2000);
                   })
@@ -130,7 +144,12 @@ export const DiffViewerHeader = ({
                     console.error('Failed to copy file path:', err);
                   });
               }}
-              title="Copy file path"
+              title={
+                repositoryPath === undefined
+                  ? 'Copy file path'
+                  : 'Copy file path (Shift+Click or Alt+Click for the full path)'
+              }
+              aria-label="Copy file path"
             >
               {isCopied ? <Check size={14} /> : <Copy size={14} />}
             </button>
