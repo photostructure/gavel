@@ -246,18 +246,15 @@ recaptures and summary edits; other sessions' staged hunks do not end it. Compar
 the actual commit scope with the approved patch and feedback: shared-tree edits
 gain no permission. Commit without asking again.
 
-Close a server you launched once its reviews are done: each is approved and
-committed or rejected, and each read-only (`--no-lgtm`) review is one the user said
-they are done with or moved on from. Ignore the unnamed `HEAD` bootstrap of a
-detached launch. Send SIGTERM to the `pid` from its `server.ready` or
-`server.background` record (`kill -TERM <pid>`). When a Reject leaves no review on the
-server awaiting a verdict, close it promptly, before or after discussing next steps
-with the user; `review unapply` reads the saved capture without a server. Shutdown
-flushes saved state, so `approval status <sha>` and reopening the same patch still
-find approvals and comments, except what a snapshot's `store.error` says is not saved:
-if it reports one, report it and ask the user before closing. Keep the server running
-while any other review awaits a verdict or feedback, or when the user asked to keep it
-open. Never stop another session's server. Say in your report that you closed it.
+Close a server you launched once the user has given every review on it a verdict,
+in gavel or in chat, and you have carried that verdict out: committed an Approve,
+or asked about a Reject. A read-only (`--no-lgtm`) review counts once the user
+says they are done with it; the unnamed `HEAD` bootstrap of a detached launch does
+not count. Keep it running if the user asked you to. Send SIGTERM to the `pid`
+from its `server.ready` or `server.background` record (`kill -TERM <pid>`), and
+say in your report that you closed it. If a snapshot's `store.error` says changes
+are not being saved, report it and ask before closing. Never stop another
+session's server.
 
 See the [approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md)
 for verdict rules. When authorized work is done, end the turn until user feedback.
