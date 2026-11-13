@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { type ComponentProps, createElement, memo } from 'react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -29,6 +30,20 @@ vi.mock('./hooks/useFileWatch', () => ({
     };
   },
 }));
+
+// Counts renders of the real DiffViewer, which stays memoized as in production.
+const diffViewerRenders = vi.hoisted(() => ({ count: 0 }));
+vi.mock('./components/DiffViewer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./components/DiffViewer')>();
+  const Real = actual.DiffViewer;
+  return {
+    ...actual,
+    DiffViewer: memo((props: ComponentProps<typeof Real>) => {
+      diffViewerRenders.count++;
+      return createElement(Real, props);
+    }),
+  };
+});
 
 const time = '2026-11-03T00:00:00Z';
 const messages = (id: string, body: string) => [
@@ -214,6 +229,39 @@ describe('navigating unseen agent replies', () => {
     resolve();
 
     await expectUnread(0);
+  });
+
+  // On a large diff, re-rendering every file took seconds each time Conversation opened or closed.
+  it('leaves the diff unrendered when Conversation opens and closes', async () => {
+    inline = true;
+    mount();
+    const rendersBefore = diffViewerRenders.count;
+    await expectUnread(2);
+    await waitFor(() => expect(diffViewerRenders.count).toBeGreaterThan(rendersBefore));
+    const before = diffViewerRenders.count;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation' }));
+    const dialog = await screen.findByRole('dialog', { name: /Conversation/ });
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Conversation/ })).toBeNull());
+
+    expect(diffViewerRenders.count).toBe(before);
+  });
+
+  it('leaves the diff unrendered when a reply is marked read', async () => {
+    inline = true;
+    const rendersBefore = diffViewerRenders.count;
+    mount();
+    await expectUnread(2);
+    await waitFor(() => expect(diffViewerRenders.count).toBeGreaterThan(rendersBefore));
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation' }));
+    await screen.findByRole('dialog', { name: /Conversation/ });
+    const before = diffViewerRenders.count;
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Mark reply as read' })[0]!);
+
+    await expectUnread(1);
+    expect(diffViewerRenders.count).toBe(before);
   });
 
   it('counts replies from every review and opens another review at its unread thread', async () => {

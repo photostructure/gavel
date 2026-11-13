@@ -98,9 +98,12 @@ export function useAgentUpdates(threads: CommentThread[], scope: string | null) 
     },
     [scope, storagePrefix],
   );
-  const updates =
-    scope !== null && state.scope === scope
-      ? allUpdates.filter((update) => state.seen[update.key] !== update.revision)
-      : [];
+  const updates = useMemo(
+    () =>
+      scope !== null && state.scope === scope
+        ? allUpdates.filter((update) => state.seen[update.key] !== update.revision)
+        : [],
+    [scope, state, allUpdates],
+  );
   return { updates, allUpdates, setRead };
 }

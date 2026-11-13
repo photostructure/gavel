@@ -44,6 +44,17 @@ describe('unseen agent updates', () => {
     await waitFor(() => expect(reloaded.result.current.updates).toHaveLength(0));
   });
 
+  // App hands the list to every comment card through agentReadContext, so a new array on each
+  // render would re-render them all.
+  it('returns the same unseen list when nothing has changed', async () => {
+    const threads = [thread];
+    const { result, rerender } = renderHook(() => useAgentUpdates(threads, 'review'));
+    await waitFor(() => expect(result.current.updates).toHaveLength(1));
+    const first = result.current.updates;
+    rerender();
+    expect(result.current.updates).toBe(first);
+  });
+
   it('treats edited agent content as unseen even if its timestamp did not change', async () => {
     const { result, rerender } = renderHook(({ threads }) => useAgentUpdates(threads, 'review'), {
       initialProps: { threads: [thread] },

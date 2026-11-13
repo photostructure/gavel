@@ -1772,18 +1772,22 @@ function App() {
   }, [agentUpdates, setAgentMessageRead]);
   // Resolving says the reviewer is done with a thread, so its agent replies count as read;
   // reopening leaves them read.
-  const handleToggleThreadResolved = useCallback(
-    (threadId: string) => {
-      if (!threads.find((thread) => thread.id === threadId)?.resolution?.resolved) {
-        for (const update of agentUpdates) {
-          if (update.thread.id === threadId) {
-            setAgentMessageRead(update.thread.id, update.message.id, update.revision, true);
-          }
+  const toggleThreadResolvedRef = useRef((_threadId: string) => {});
+  toggleThreadResolvedRef.current = (threadId: string) => {
+    if (!threads.find((thread) => thread.id === threadId)?.resolution?.resolved) {
+      for (const update of agentUpdates) {
+        if (update.thread.id === threadId) {
+          setAgentMessageRead(update.thread.id, update.message.id, update.revision, true);
         }
       }
-      toggleThreadResolved(threadId);
-    },
-    [agentUpdates, setAgentMessageRead, threads, toggleThreadResolved],
+    }
+    toggleThreadResolved(threadId);
+  };
+  // Every file in the diff receives this, so it keeps one identity and reads the latest
+  // threads and unread replies through the ref; a new one re-renders the whole diff.
+  const handleToggleThreadResolved = useCallback(
+    (threadId: string) => toggleThreadResolvedRef.current(threadId),
+    [],
   );
   const markThisReviewRepliesRead = useCallback(() => {
     for (const update of agentUpdates) {
