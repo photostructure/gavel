@@ -106,8 +106,25 @@ describe('useCommentLinks', () => {
       kind: 'line',
       filePath: 'src/a.ts',
       side: 'old',
-      lineNumber: [40, 52],
+      lineNumber: 52,
     });
+    expect(window.location.hash).toBe('#gavel-editor-token=k&file=src/a.ts&line=40-52&side=old');
+  });
+
+  it('opens only the destination line of a wide range', () => {
+    const { result, calls } = setup();
+    act(() => result.current.follow(`#file=src/a.ts&line=1-${Number.MAX_SAFE_INTEGER}`));
+    const anchor = {
+      kind: 'line',
+      filePath: 'src/a.ts',
+      side: 'new',
+      lineNumber: Number.MAX_SAFE_INTEGER,
+    };
+    expect(calls.canShowLine).toHaveBeenCalledWith(anchor);
+    expect(calls.jumpToLine).toHaveBeenCalledWith(anchor);
+    expect(window.location.hash).toBe(
+      `#gavel-editor-token=k&file=src/a.ts&line=1-${Number.MAX_SAFE_INTEGER}`,
+    );
   });
 
   it.each([
@@ -205,6 +222,21 @@ describe('useCommentLinks', () => {
       expect.objectContaining({ lineNumber: 4 }),
       't1',
     );
+  });
+
+  it('opens only the destination line when a range is pasted in the page URL', () => {
+    window.history.replaceState(
+      null,
+      '',
+      `/?review=here#file=src/a.ts&line=1-${Number.MAX_SAFE_INTEGER}`,
+    );
+    const { calls } = setup();
+    expect(calls.jumpToLine).toHaveBeenCalledWith({
+      kind: 'line',
+      filePath: 'src/a.ts',
+      side: 'new',
+      lineNumber: Number.MAX_SAFE_INTEGER,
+    });
   });
 
   it('adds no history entry for a link to the place already shown', () => {

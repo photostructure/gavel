@@ -103,7 +103,9 @@ export function useCommentLinks(options: UseCommentLinksOptions) {
       kind: 'line',
       filePath: place.filePath,
       side: place.side,
-      lineNumber: line,
+      // A range link lands on its last line. Expanding the entire range could open every
+      // hidden gap in a large file, even when the reader only needs that destination.
+      lineNumber: Array.isArray(line) ? line[1] : line,
     };
     if (!canShowLine(anchor)) return { notice: describeLines(line, place.filePath) };
     return { run: () => jumpToLine(anchor) };

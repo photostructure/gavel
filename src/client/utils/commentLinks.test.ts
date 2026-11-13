@@ -22,8 +22,7 @@ describe('parseCommentLink', () => {
     expect(parseCommentLink('#file=a.ts&line=7-7')).toEqual({
       place: { kind: 'file', filePath: 'a.ts', side: 'new', line: 7 },
     });
-    // Any range of real line numbers stays a link, however large: it opens the hidden context
-    // it covers, as Expand all lines does.
+    // Parsing retains the entire range in the URL; navigation opens the final line.
     expect(parseCommentLink(`#file=a.ts&line=1-${Number.MAX_SAFE_INTEGER}`)).toEqual({
       place: { kind: 'file', filePath: 'a.ts', side: 'new', line: [1, Number.MAX_SAFE_INTEGER] },
     });
