@@ -881,6 +881,244 @@ describe('actual CLI launch protocol', () => {
     15000,
   );
 
+  const patch = [
+    'diff --git a/fixture.txt b/fixture.txt',
+    '--- a/fixture.txt',
+    '+++ b/fixture.txt',
+    '@@ -1 +1 @@',
+    '-revision 2',
+    '+finished review',
+    '',
+  ].join('\n');
+
+  // Ground truth: pkill -USR2 -x gavel-server. Windows has no SIGUSR2.
+  describe.skipIf(process.platform === 'win32')('SIGUSR2', () => {
+    const address = ['--host', '127.0.0.1', '--port', '0', '--no-open', '--keep-alive'];
+
+    function untilOutput(
+      fixture: ReturnType<typeof launch>,
+      found: (output: { stdout: string; stderr: string }) => boolean,
+    ): Promise<void> {
+      return new Promise((resolveFound, reject) => {
+        const check = () => {
+          if (found(fixture.output())) resolveFound();
+        };
+        fixture.child.stdout!.on('data', check);
+        fixture.child.stderr!.on('data', check);
+        fixture.child.once('close', () =>
+          reject(new Error(`gavel exited first: ${fixture.output().stderr}`)),
+        );
+        check();
+      });
+    }
+
+    async function ready(fixture: ReturnType<typeof launch>) {
+      const line = () =>
+        fixture
+          .output()
+          .stdout.split('\n')
+          .slice(0, -1)
+          .find((entry) => entry.includes('"type":"server.ready"'));
+      await untilOutput(fixture, () => line() !== undefined);
+      return JSON.parse(line()!) as {
+        port: number;
+        capture?: { version: number; patchDigest: string };
+      };
+    }
+
+    function lastEvent(fixture: ReturnType<typeof launch>): unknown {
+      return JSON.parse(fixture.output().stdout.trim().split('\n').at(-1)!);
+    }
+
+    async function createReview(port: number, name: string): Promise<void> {
+      const create = launch(
+        ['review', 'create', name, '-', '--host', '127.0.0.1', '--port', `${port}`],
+        undefined,
+        {},
+        patch,
+      );
+      expect(await create.closed, create.output().stderr).toBe(0);
+    }
+
+    // Rejects the named review, or with no name the launched one.
+    async function reject(port: number, name?: string): Promise<void> {
+      const origin = `http://127.0.0.1:${port}`;
+      let body: Record<string, unknown> = { verdict: 'reject' };
+      if (name !== undefined) {
+        const capture = (await (await fetch(new URL(`/api/reviews/${name}`, origin))).json()) as {
+          version: number;
+          patchDigest: string;
+        };
+        body = { ...body, captureVersion: capture.version, patchDigest: capture.patchDigest };
+      }
+      const query = name === undefined ? '' : `?review=${name}`;
+      const response = await fetch(new URL(`/api/approval${query}`, origin), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      expect(response.status, await response.text()).toBe(200);
+    }
+
+    // Signals, then waits for the server's `count`th refusal and returns it.
+    async function refusal(fixture: ReturnType<typeof launch>, count: number): Promise<string> {
+      const refusals = () =>
+        fixture
+          .output()
+          .stderr.split('\n')
+          .filter((line) => line.startsWith('gavel server stays up: '));
+      fixture.child.kill('SIGUSR2');
+      await untilOutput(fixture, () => refusals().length >= count);
+      expect(fixture.child.exitCode).toBeNull();
+      return refusals()[count - 1]!;
+    }
+
+    it('stays up until every named review has a verdict', async () => {
+      const fixture = launch(['-', '--review', 'finished', ...address], undefined, {}, patch);
+      try {
+        const { port } = await ready(fixture);
+        await createReview(port, 'second');
+        expect(await refusal(fixture, 1)).toBe(
+          'gavel server stays up: review "finished" has no verdict; review "second" has no verdict',
+        );
+        await reject(port, 'finished');
+        expect(await refusal(fixture, 2)).toBe(
+          'gavel server stays up: review "second" has no verdict',
+        );
+        await reject(port, 'second');
+        fixture.child.kill('SIGUSR2');
+        expect(await fixture.closed).toBe(0);
+        expect(lastEvent(fixture)).toMatchObject({ type: 'server.shutdown', reason: 'SIGUSR2' });
+      } finally {
+        await stop(fixture.child);
+      }
+    }, 15000);
+
+    // The UI gives an unnamed review a verdict tab once its agent proposes a commit message.
+    it('stays up while an unnamed review with a proposed message has no verdict', async () => {
+      const fixture = launch(
+        [...revisions, '--commit-message', 'fix: pending proposal', ...address],
+        undefined,
+        {},
+      );
+      try {
+        const { port } = await ready(fixture);
+        await createReview(port, 'finished');
+        await reject(port, 'finished');
+        // The selection holds abbreviated SHAs.
+        const [target, base] = revisions.map((sha) => sha.slice(0, 7));
+        expect(await refusal(fixture, 1)).toMatch(
+          new RegExp(
+            `^gavel server stays up: review "${base}[0-9a-f]*\\.\\.${target}[0-9a-f]*" has no verdict$`,
+          ),
+        );
+        await reject(port);
+        fixture.child.kill('SIGUSR2');
+        expect(await fixture.closed).toBe(0);
+      } finally {
+        await stop(fixture.child);
+      }
+    }, 15000);
+
+    it('stays up while the server holds no named review', async () => {
+      const fixture = launch(['HEAD', ...address]);
+      try {
+        await ready(fixture);
+        // pkill -x matches this name on Linux and macOS; only Linux shows it in /proc.
+        if (process.platform === 'linux')
+          expect(await readFile(`/proc/${fixture.child.pid}/comm`, 'utf8')).toBe('gavel-server\n');
+        fixture.child.kill('SIGUSR2');
+        await untilOutput(fixture, ({ stderr }) => stderr.includes('no named reviews'));
+        expect(fixture.child.exitCode).toBeNull();
+      } finally {
+        await stop(fixture.child);
+      }
+    }, 15000);
+
+    it('shuts down a read-only server without verdicts', async () => {
+      const fixture = launch(
+        ['-', '--review', 'read-only', '--no-lgtm', ...address],
+        undefined,
+        {},
+        patch,
+      );
+      try {
+        await ready(fixture);
+        fixture.child.kill('SIGUSR2');
+        expect(await fixture.closed).toBe(0);
+        expect(lastEvent(fixture)).toMatchObject({ type: 'server.shutdown', reason: 'SIGUSR2' });
+      } finally {
+        await stop(fixture.child);
+      }
+    }, 15000);
+  });
+
+  // A background server killed without closing left its locks, so other servers kept its
+  // reviews in memory only.
+  it.skipIf(process.platform === 'win32')(
+    'releases a background server’s review locks on SIGTERM',
+    async () => {
+      const store = join(directory, '.git', 'gavel');
+      const ownedBy = async (pid: number): Promise<string[]> => {
+        const owned: string[] = [];
+        for (const folder of ['locks', 'servers']) {
+          let names: string[];
+          try {
+            names = await readdir(join(store, folder));
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+            throw error;
+          }
+          for (const name of names.filter((entry) => entry.endsWith('.json'))) {
+            const path = join(store, folder, name);
+            const owner = JSON.parse(await readFile(path, 'utf8')) as { pid?: number };
+            if (owner.pid === pid) owned.push(path);
+          }
+        }
+        return owned;
+      };
+      const alive = (pid: number) => {
+        try {
+          process.kill(pid, 0);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      const launcher = launch(['HEAD', '--background', '--host', '127.0.0.1', '--port', '0']);
+      let pid: number | undefined;
+      try {
+        expect(await launcher.closed, launcher.output().stderr).toBe(0);
+        const background = JSON.parse(launcher.output().stdout.trim()) as BackgroundServerInfo;
+        pid = background.pid;
+        const create = launch(
+          [
+            'review',
+            'create',
+            'locked',
+            '-',
+            '--host',
+            '127.0.0.1',
+            '--port',
+            `${background.port}`,
+          ],
+          undefined,
+          {},
+          patch,
+        );
+        expect(await create.closed, create.output().stderr).toBe(0);
+        expect(await ownedBy(pid)).not.toEqual([]);
+        process.kill(pid, 'SIGTERM');
+        while (alive(pid)) await new Promise((resolveTick) => setTimeout(resolveTick, 20));
+        expect(await ownedBy(pid)).toEqual([]);
+      } finally {
+        if (pid !== undefined && alive(pid)) process.kill(pid, 'SIGKILL');
+        await stop(launcher.child);
+      }
+    },
+    15000,
+  );
+
   it.skipIf(process.platform === 'win32').each(['SIGINT', 'SIGTERM'] as const)(
     'cancels on the first %s while Git startup is blocked',
     async (signal) => {

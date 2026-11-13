@@ -5,7 +5,7 @@ import { type SimpleGit } from 'simple-git';
 
 import pkg from '../../package.json' with { type: 'json' };
 import { createGitClient } from '../server/git-client.js';
-import { startServer } from '../server/server.js';
+import { startServer, type ServerOptions } from '../server/server.js';
 import { type CommentImport, type DiffSelection } from '../types/diff.js';
 import { createDiffSelection } from '../utils/diffSelection.js';
 import { DiffMode } from '../types/watch.js';
@@ -216,6 +216,13 @@ Editor configuration (set before starting gavel):
     try {
       const isBackgroundChild = process.env[BACKGROUND_CHILD_ENV] === '1';
       const backgroundMode = options.background || isBackgroundChild;
+      // Background servers stop the same way: killed outright, they left their review locks.
+      const onReady: ServerOptions['onReady'] = (server) =>
+        registerShutdownHandlers(
+          server,
+          !options.jsonl && !backgroundMode,
+          options.host || 'localhost',
+        );
       if (options.review !== undefined && !options.conversation) {
         throw new Error('Named reviews require conversation mode; remove --no-conversation');
       }
@@ -378,15 +385,7 @@ Editor configuration (set before starting gavel):
           shipIt: options.shipIt,
           conversation: options.conversation,
           jsonl: options.jsonl && !backgroundMode,
-          onReady: backgroundMode
-            ? undefined
-            : ({ shutdown, port }) =>
-                registerShutdownHandlers(
-                  shutdown,
-                  port,
-                  options.jsonl,
-                  options.host || 'localhost',
-                ),
+          onReady,
           commitMessage: options.commitMessage,
           why: options.why,
           keepAlive: options.keepAlive,
@@ -422,15 +421,7 @@ Editor configuration (set before starting gavel):
           shipIt: options.shipIt,
           conversation: options.conversation,
           jsonl: options.jsonl && !backgroundMode,
-          onReady: backgroundMode
-            ? undefined
-            : ({ shutdown, port }) =>
-                registerShutdownHandlers(
-                  shutdown,
-                  port,
-                  options.jsonl,
-                  options.host || 'localhost',
-                ),
+          onReady,
           commitMessage: options.commitMessage,
           why: options.why,
           keepAlive: options.keepAlive,
@@ -501,10 +492,7 @@ Editor configuration (set before starting gavel):
         shipIt: options.shipIt,
         conversation: options.conversation,
         jsonl: options.jsonl && !backgroundMode,
-        onReady: backgroundMode
-          ? undefined
-          : ({ shutdown, port }) =>
-              registerShutdownHandlers(shutdown, port, options.jsonl, options.host || 'localhost'),
+        onReady,
         commitMessage: options.commitMessage,
         why: options.why,
         keepAlive: options.keepAlive,
@@ -575,18 +563,19 @@ Comment JSON events include type, reviewId, threadId, messageId, cursor, and bod
 void program.parseAsync();
 
 function registerShutdownHandlers(
-  shutdown: (reason: 'SIGINT' | 'SIGTERM' | 'SIGHUP') => Promise<void>,
-  port: number,
-  jsonl: boolean,
+  { shutdown, port, whyNotDone }: Parameters<NonNullable<ServerOptions['onReady']>>[0],
+  printComments: boolean,
   host: string,
 ): void {
+  // `pkill -USR2 -x gavel-server` reaches every server and no other gavel command.
+  process.title = 'gavel-server';
   let closing = false;
-  const stop = async (signal: 'SIGINT' | 'SIGTERM' | 'SIGHUP') => {
+  const stop = async (signal: 'SIGINT' | 'SIGTERM' | 'SIGHUP' | 'SIGUSR2') => {
     if (closing) return;
     closing = true;
     console.error('\n👋 Shutting down gavel server...');
     let exitCode = 0;
-    if (!jsonl) {
+    if (printComments) {
       try {
         const response = await fetch(serverUrl(host, port, '/api/comments-output'), {
           signal: AbortSignal.timeout(3000),
@@ -615,6 +604,12 @@ function registerShutdownHandlers(
   });
   process.on('SIGHUP', () => {
     void stop('SIGHUP');
+  });
+  // Stops only a server that is done, so one pkill can sweep every finished server.
+  process.on('SIGUSR2', () => {
+    const reasons = whyNotDone();
+    if (reasons.length > 0) console.error(`gavel server stays up: ${reasons.join('; ')}`);
+    else void stop('SIGUSR2');
   });
 }
 

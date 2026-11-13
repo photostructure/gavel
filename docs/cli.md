@@ -67,6 +67,21 @@ server and keeps its comments, proposal and verdict. `gavel review delete <name>
 See the
 [conversation protocol](agent-conversations.md#named-captures-for-uncommitted-work).
 
+### Stop finished servers
+
+```sh
+pkill -USR2 -x gavel-server
+```
+
+This stops every gavel server that has a named review and a verdict on every
+review tab, and every `--no-lgtm` server with a named review. Unnamed reviews get
+a tab once their agent proposes a commit message. Other servers keep running, and
+foreground ones print why to stderr, such as `gavel server stays up: review
+"parser-fix" has no verdict`. A server with no named review keeps running, because
+a detached launch has none until its agent adds one. A stopped server's
+`server.shutdown` event has reason `SIGUSR2`. This works on Linux and macOS;
+Windows has no SIGUSR2.
+
 ## GitHub pull requests
 
 ```bash

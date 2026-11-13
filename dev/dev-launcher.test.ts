@@ -200,13 +200,17 @@ if (${JSON.stringify(mode)} === 'burst') {
     writeFileSync('comment-processed', 'done');
   });
   ${shutdownHandlers}
-  registerShutdownHandlers(async (signal) => {
-    await new Promise(resolve => setTimeout(resolve, 100));
-    process.stdout.write(JSON.stringify({ type: 'server.shutdown', reason: signal }) + '\\n');
-    writeFileSync('cli-stopped', signal);
-    clearInterval(keepAlive);
-    process.stdin.destroy();
-  }, 4966, true);
+  registerShutdownHandlers({
+    shutdown: async (signal) => {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      process.stdout.write(JSON.stringify({ type: 'server.shutdown', reason: signal }) + '\\n');
+      writeFileSync('cli-stopped', signal);
+      clearInterval(keepAlive);
+      process.stdin.destroy();
+    },
+    port: 4966,
+    whyNotDone: () => [],
+  }, false, 'localhost');
   announceReady();
   if (${JSON.stringify(mode)} === 'git') {
     spawn('git', ['diff', '--no-index', '--no-ext-diff', '--textconv', 'before.fixture', 'after.fixture'], { stdio: 'ignore' });

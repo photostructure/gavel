@@ -109,7 +109,8 @@ git diff --cached | gavel -
 
 GitHub PRs require an authenticated GitHub CLI (`gh`).
 Use `gavel --help` for all options. See [command-line usage](docs/cli.md) for
-named reviews, PR authentication, piped diffs, initial comments, and editor setup.
+named reviews, stopping finished servers, PR authentication, piped diffs, initial
+comments, and editor setup.
 
 ## HTTPS and remote browsers
 

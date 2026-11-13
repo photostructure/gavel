@@ -17,7 +17,14 @@ interface ServerReadyEvent {
 
 export interface ServerShutdownEvent {
   type: 'server.shutdown';
-  reason: 'closed' | 'client-disconnected' | 'approved' | 'SIGINT' | 'SIGTERM' | 'SIGHUP';
+  reason:
+    | 'closed'
+    | 'client-disconnected'
+    | 'approved'
+    | 'SIGINT'
+    | 'SIGTERM'
+    | 'SIGHUP'
+    | 'SIGUSR2';
   pid: number;
   timestamp: string;
 }

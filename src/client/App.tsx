@@ -24,9 +24,9 @@ import {
   createDiffSelection,
   diffSelectionsEqual,
   getDiffSelectionKey,
-  isWorkingTreeTarget,
   normalizeBaseMode,
 } from '../utils/diffSelection';
+import { verdictTabReviews } from '../utils/reviewTabs';
 
 import { includeDeletedComments } from './utils/commentDeletion';
 import type { CommentSubmitOptions } from './components/CommentForm';
@@ -1543,34 +1543,8 @@ function App() {
           }))
           .reverse(),
       );
-      // Proposed commit messages are what agents ask approval for; a message the server
-      // copied from a browsed commit is not one.
-      const proposals = reviews.filter(
-        ({ review }) =>
-          !review.capture &&
-          Boolean(review.summary.commitMessage.trim()) &&
-          !review.summary.fromCommit,
-      );
-      // A commit that moves HEAD gives an unnamed working-tree review a new base, so a new
-      // review; the old one stays on the server, and its approval lapses once the next edit
-      // changes its diff. Only the newest one per target, with or without a proposal, is
-      // pending. A base browsed for the same target before an agent proposed hides the
-      // older review too; that is unsupported.
-      const newestWorkingTree = new Map(
-        reviews
-          .filter(
-            ({ review }) =>
-              !review.capture && isWorkingTreeTarget(review.selection.targetCommitish),
-          )
-          .map(({ review }) => [review.selection.targetCommitish, review.id]),
-      );
-      const tabbedReviews = reviews.filter(
-        (entry) =>
-          entry.review.capture ||
-          (proposals.includes(entry) &&
-            (!isWorkingTreeTarget(entry.review.selection.targetCommitish) ||
-              newestWorkingTree.get(entry.review.selection.targetCommitish) === entry.review.id)),
-      );
+      const tabs = verdictTabReviews(snapshot.reviews);
+      const tabbedReviews = reviews.filter(({ review }) => tabs.includes(review));
       const requests = tabbedReviews.map(({ review, selection, title }) => ({
         selection,
         name: formatReviewSelection(selection),

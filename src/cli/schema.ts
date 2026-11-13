@@ -375,7 +375,15 @@ const definitions: Record<string, Schema> = {
   }),
   ServerShutdownEvent: object({
     type: { const: 'server.shutdown' },
-    reason: enumeration('closed', 'client-disconnected', 'approved', 'SIGINT', 'SIGTERM', 'SIGHUP'),
+    reason: enumeration(
+      'closed',
+      'client-disconnected',
+      'approved',
+      'SIGINT',
+      'SIGTERM',
+      'SIGHUP',
+      'SIGUSR2',
+    ),
     pid: { type: 'integer', minimum: 1 },
     timestamp,
   }),

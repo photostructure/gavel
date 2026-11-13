@@ -97,6 +97,7 @@ import {
   isWorkingTreeTarget,
   reviewLabel,
 } from '../utils/diffSelection.js';
+import { verdictTabReviews } from '../utils/reviewTabs.js';
 
 export interface ServerOptions {
   namedReview?: NamedReviewStart;
@@ -116,6 +117,8 @@ export interface ServerOptions {
   onReady?: (server: {
     shutdown: (reason: ServerShutdownEvent['reason']) => Promise<void>;
     port: number;
+    /** What keeps this server from being done with its reviews; empty once it is. */
+    whyNotDone: () => string[];
   }) => void;
   commitMessage?: string;
   why?: string;
@@ -2465,6 +2468,17 @@ export async function startServer(options: ServerOptions): Promise<{
     })();
     return shutdownPromise;
   }
+  // Done means every review tab has a verdict, or the server shows none. A server without
+  // named reviews is not done: it may be a detached launch whose agent has yet to add one.
+  function whyNotDone(): string[] {
+    const reviews = conversation?.snapshot().reviews ?? [];
+    if (!reviews.some(({ selection }) => selection.reviewName !== undefined))
+      return ['no named reviews'];
+    if (!options.shipIt) return [];
+    return verdictTabReviews(reviews)
+      .filter(({ approval }) => approval.verdict === undefined)
+      .map(({ selection }) => `review "${reviewLabel(selection)}" has no verdict`);
+  }
   server.once('close', () => {
     flushSaves();
     storeReleased = true;
@@ -2506,7 +2520,7 @@ export async function startServer(options: ServerOptions): Promise<{
 
   // Install caller-owned lifecycle handling only after slow startup, before readiness
   // becomes observable. The CLI retains default signal cancellation during startup.
-  options.onReady?.({ shutdown, port });
+  options.onReady?.({ shutdown, port, whyNotDone });
   if (launchReview) {
     emit({
       type: 'server.ready',
