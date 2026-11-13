@@ -26,6 +26,7 @@ const watch = vi.hoisted(() => ({
   commentsChanged: undefined as (() => Promise<void>) | undefined,
   inboxChanged: undefined as (() => Promise<void>) | undefined,
   reload: undefined as (() => Promise<void>) | undefined,
+  connected: true,
 }));
 vi.mock('./hooks/useFileWatch', () => ({
   useFileWatch: (
@@ -45,7 +46,7 @@ vi.mock('./hooks/useFileWatch', () => ({
     watch.reload = onReload;
     return {
       shouldReload: false,
-      isConnected: true,
+      isConnected: watch.connected,
       error: null,
       reload: onReload,
       watchState: { isWatchEnabled: false, isReloading: false, lastChangeType: null },
@@ -1493,6 +1494,7 @@ describe('after a verdict', () => {
     window.history.replaceState(null, '', '/?review=task-a');
     vi.mocked(fetch).mockReset();
     watch.approvalChanged = undefined;
+    watch.connected = true;
     vi.stubGlobal('WebSocket', MockWebSocket);
     // Fake timers that still advance with real time, so waitFor keeps polling.
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -1832,5 +1834,22 @@ describe('after a verdict', () => {
     const leaveAgain = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(leaveAgain);
     expect(leaveAgain.defaultPrevented).toBe(false);
+  });
+
+  // A page whose server has stopped cannot record a verdict, so asking only gets in the way.
+  it('does not ask before leaving once the page has lost its server', async () => {
+    fixture();
+    const { rerender } = renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    await waitFor(() => expect(bar).toHaveTextContent('2 need a verdict'));
+    watch.connected = false;
+    rerender(
+      <HotkeysProvider initiallyActiveScopes={['navigation']}>
+        <App />
+      </HotkeysProvider>,
+    );
+    const leave = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(leave);
+    expect(leave.defaultPrevented).toBe(false);
   });
 });

@@ -67,8 +67,9 @@ Check these before merging work that touches approval, the header, or review tab
   verdict", and the count reads "2 of 3 need a verdict" / "All 3 have a verdict".
   Tests on other branches that query the old labels will fail after a merge.
 - `App.tsx` adds a `beforeunload` listener that calls `preventDefault` while any
-  review that asks for approval lacks a verdict, next to the existing comment
-  beacon listener.
+  review that asks for approval lacks a verdict and the page is connected to its
+  server, next to the existing comment beacon listener. A page whose server has
+  stopped cannot record a verdict, so it no longer asks (accepted as recommended).
 - `src/client/styles/global.css`: `verdict-pulse-0` / `verdict-pulse-1` keyframes.
 
 ## Lore

@@ -1627,9 +1627,12 @@ function App() {
   });
 
   // Leaving with a review that has no verdict asks first. Browsers show their own wording and
-  // paint the pulse only if the reviewer stays.
+  // paint the pulse only if the reviewer stays. A page that has lost its server cannot record a
+  // verdict, so it does not ask.
   const reviewsNeedVerdict =
-    Boolean(diffData?.shipIt) && approvalRequests.some((review) => !hasVerdict(review.approval));
+    isConnected &&
+    Boolean(diffData?.shipIt) &&
+    approvalRequests.some((review) => !hasVerdict(review.approval));
   const { pulseNow } = verdictFollowUp;
   useEffect(() => {
     if (!reviewsNeedVerdict) return;
