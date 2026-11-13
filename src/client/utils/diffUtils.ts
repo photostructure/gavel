@@ -6,7 +6,7 @@ export { getLanguageFromPath } from './languageDetection';
  * of lines took seconds and slowed every later update of the page. Lines are counted, not their
  * length, so a smaller file of very long lines still renders open.
  */
-export const LARGE_DIFF_CHANGED_LINES = 1024;
+const LARGE_DIFF_CHANGED_LINES = 1024;
 
 export function isLargeDiffFile(file: Pick<DiffFile, 'additions' | 'deletions'>): boolean {
   return file.additions + file.deletions > LARGE_DIFF_CHANGED_LINES;
