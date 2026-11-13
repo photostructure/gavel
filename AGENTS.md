@@ -39,6 +39,10 @@ Changelog: `gavel review rename <name> <new-name>` and `gavel review delete <nam
 
 When adding or changing a feature, update any affected README, documentation, and agent skills in the same change.
 
+## Reviews After Approval
+
+Never recapture a review the user approved, or ask them to approve it again. Changes made after an approval, such as a replay onto a newer `main` or a fix, go in a new review that holds only the diff the user has not seen; for a replay, that is the conflict resolutions. Second-opinion passes after an approval also cover only that diff, and only the batches it touches. When two review rounds patch the same kind of defect, stop and ask whether the design is wrong before writing a third patch.
+
 ## Tooling & Environment
 
 Use `pnpm` for dependency management (avoid mixing with `npm` or `yarn`) and rely on the `mise.toml` pinned versions for local reproducibility. When performance is a concern, run `pnpm perf:*` scripts to benchmark diff rendering before merging significant parser or rendering changes.

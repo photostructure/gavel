@@ -49,9 +49,11 @@ Run `review create` and `review update` from the server's worktree: captures are
 bound to the repository root. Provide `- < <patch>` for each additional patch
 review; with neither `-` nor a redirect, creation captures that worktree's
 uncommitted tree.
-Make authorized source fixes in the owning checkout and refresh the review from
-the server's worktree. Committed work already on `main` uses `--no-lgtm`; commits
-not yet on `main` may still be approved for landing under the shared scope rules.
+Make authorized source fixes in the owning checkout. Before the user approves,
+refresh the review from the server's worktree; after an approval, put the fixes
+in a new review instead (see "Reviews After Approval" in AGENTS.md). Committed
+work already on `main` uses `--no-lgtm`; commits not yet on `main` may still be
+approved for landing under the shared scope rules.
 
 ## Check the UI during development
 
