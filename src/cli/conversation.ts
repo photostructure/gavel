@@ -1,5 +1,7 @@
 import { type Command, InvalidArgumentError } from 'commander';
 
+import type { ConversationSnapshot, ConversationSnapshotReview } from '../types/conversation.js';
+
 import { serverUrl } from './server-url.js';
 
 import { detectStdinSource, readStdin } from './utils.js';
@@ -43,7 +45,11 @@ export function addConversationCommands(comment: Command): void {
     .requiredOption('--port <port>', 'port of a gavel --conversation server', (value: string) =>
       integerInRange(value, 1, 65535),
     )
-    .action(async (options: { port: number; host: string }) => {
+    .option(
+      '--review <name>',
+      'print only the named review; fails when the server has no review by that name',
+    )
+    .action(async (options: { port: number; host: string; review?: string }) => {
       try {
         const response = await fetch(
           serverUrl(options.host, options.port, '/api/conversation/snapshot'),
@@ -52,7 +58,28 @@ export function addConversationCommands(comment: Command): void {
           },
         );
         await checkResponse(response);
-        console.log(JSON.stringify(await response.json()));
+        const snapshot = (await response.json()) as ConversationSnapshot;
+        const name = options.review;
+        if (name === undefined) {
+          console.log(JSON.stringify(snapshot));
+          return;
+        }
+        const named = ({ selection }: ConversationSnapshotReview) => selection.reviewName === name;
+        const reviews = snapshot.reviews.filter(named);
+        if (reviews.length === 0) {
+          throw new Error(
+            `No review named "${name}" on the gavel server at ${serverUrl(options.host, options.port, '/')}`,
+          );
+        }
+        console.log(
+          JSON.stringify({
+            ...snapshot,
+            reviews,
+            ...(snapshot.deletedReviews && {
+              deletedReviews: snapshot.deletedReviews.filter(named),
+            }),
+          }),
+        );
       } catch (error) {
         reportError(error, options.port, options.host);
       }

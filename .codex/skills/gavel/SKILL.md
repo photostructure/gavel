@@ -202,11 +202,15 @@ patches.
 ## Handle one feedback batch
 
 Start with delivered human events. For a manual resume, missing context, or the
-final approval check, run `comment snapshot --host <host> --port <port>`. Save large
-JSON privately in a temporary file; display only selected reviews' metadata,
-pending human messages, and needed context. Do not dump full conversations,
-diffs, or schemas repeatedly. Limit handoffs to IDs, versions, URLs, pending
-revisions, and next actions.
+final approval check, run `comment snapshot --host <host> --port <port>`, adding
+`--review <name>` for one named review; it exits 1 when the server has none by that
+name. Read the output whole rather than filtering it with jq or a script: a filter
+on a wrong path prints nothing, which looks the same as no verdict or no pending
+message. A review's name is `selection.reviewName`, its verdict
+`approval.verdict`, and its messages `threads[].messages[]`. Everything you print
+stays in your session context, so print a full conversation, diff, or schema once,
+not on every step. Limit handoffs to IDs, versions, URLs, pending revisions, and
+next actions.
 
 Handle every unanswered human message, including Delivered, Read, Thinking,
 Replying, and saved pending work; Queued alone misses unfinished claims. Replied

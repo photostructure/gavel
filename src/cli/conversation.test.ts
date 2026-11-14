@@ -205,6 +205,75 @@ describe('conversation commands', () => {
     expect(log).toHaveBeenCalledWith(JSON.stringify(snapshot));
   });
 
+  describe('snapshot --review', () => {
+    const parser = { id: 'review-a', selection: { reviewName: 'parser-fix' }, threads: [] };
+    const docs = { id: 'review-b', selection: { reviewName: 'docs' }, threads: [] };
+    const unnamed = { id: 'review-c', selection: { targetCommitish: 'HEAD' }, threads: [] };
+    const snapshot = {
+      cursor: 'stream:8',
+      store: { error: 'disk full' },
+      reviews: [unnamed, parser, docs],
+      deletedReviews: [
+        { ...parser, id: 'review-old', deletedAt: '2026-11-13T00:00:00.000Z' },
+        { ...docs, id: 'review-older', deletedAt: '2026-11-13T00:00:00.000Z' },
+      ],
+    };
+
+    it('prints only the named review, keeping the top-level state', async () => {
+      fetchMock.mockResolvedValue(new Response(JSON.stringify(snapshot)));
+      await createCommentCommand().parseAsync([
+        'node',
+        'gavel',
+        'snapshot',
+        '--port',
+        '4966',
+        '--review',
+        'parser-fix',
+      ]);
+      expect(log).toHaveBeenCalledWith(
+        JSON.stringify({
+          ...snapshot,
+          reviews: [parser],
+          deletedReviews: [snapshot.deletedReviews[0]],
+        }),
+      );
+      expect(process.exitCode).not.toBe(1);
+    });
+
+    it('adds no deletedReviews when the server sent none', async () => {
+      const live = { cursor: snapshot.cursor, store: snapshot.store, reviews: snapshot.reviews };
+      fetchMock.mockResolvedValue(new Response(JSON.stringify(live)));
+      await createCommentCommand().parseAsync([
+        'node',
+        'gavel',
+        'snapshot',
+        '--port',
+        '4966',
+        '--review',
+        'docs',
+      ]);
+      expect(log).toHaveBeenCalledWith(JSON.stringify({ ...live, reviews: [docs] }));
+    });
+
+    it('fails, naming the server, when no live review has the name', async () => {
+      fetchMock.mockResolvedValue(new Response(JSON.stringify(snapshot)));
+      await createCommentCommand().parseAsync([
+        'node',
+        'gavel',
+        'snapshot',
+        '--port',
+        '4966',
+        '--review',
+        'parser',
+      ]);
+      expect(log).not.toHaveBeenCalled();
+      expect(error).toHaveBeenCalledWith(
+        'Error: No review named "parser" on the gavel server at http://localhost:4966/',
+      );
+      expect(process.exitCode).toBe(1);
+    });
+  });
+
   it('sends exact reply identities and a multiline body as JSON', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true })));
     const reply = {

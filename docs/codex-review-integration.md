@@ -42,7 +42,8 @@ host. No model turn waits for review. Manual handoff remains available:
    prompt** instead. The prompt includes the snapshot command and review URL. A
    listener subscription does not prove delivery into the owning chat.
 4. Codex handles the delivered event batch and its saved pending work within
-   the existing authorization. Use `comment snapshot --host <host> --port <actual-port>`
+   the existing authorization. Use `comment snapshot --host <host> --port <actual-port>`,
+   with `--review <name>` for one named review,
    for a manual resume, missing thread context, or a fresh
    approval check before committing. Preserve exact message revision cursors for receipts
    and replies. Check approval against the current capture and summary.
@@ -53,9 +54,9 @@ host. No model turn waits for review. Manual handoff remains available:
 
 Fetch another snapshot for a conflict, newly delivered human feedback, or the
 final approval check before committing. Do not turn an empty snapshot, tool
-yield, timeout, or cache expiry into another check. Save large snapshots to a
-private temporary file and show the model only the selected reviews' metadata,
-outstanding human messages, and context needed to answer them. Keep handoffs to
+yield, timeout, or cache expiry into another check. Read the snapshot whole
+rather than filtering it with jq or a script: a filter on a wrong path prints
+nothing, which looks the same as no verdict or no pending message. Keep handoffs to
 IDs, versions, URLs, pending revisions, and next actions.
 
 Subagents finish after handing those details to the owning main chat. A review

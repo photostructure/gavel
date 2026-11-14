@@ -203,7 +203,9 @@ output handled. Writing an event to stdout does not prove the agent received it;
 send an explicit Delivered receipt with `comment status` after consumption.
 After output loss or server restart, run `comment snapshot --port <port>` to
 obtain `{reviews,cursor}`. Each review includes its `id` (use as `reviewId`),
-selection, threads, and message IDs. A snapshot recovers current state, including
+selection, threads, and message IDs. `--review <name>` keeps only the reviews and
+`deletedReviews` whose `selection.reviewName` is that name, and exits 1 when no
+current review has it. A snapshot recovers current state, including
 message deletions and edits, rather than missed events. Reconcile outstanding work
 and existing replies, then continue consuming new launch output. `gavel wait
 --after <cursor>` resumes from a stream cursor; see
