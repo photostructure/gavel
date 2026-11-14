@@ -2461,13 +2461,12 @@ export async function startServer(options: ServerOptions): Promise<{
     return shutdownPromise;
   }
   // Done means every review tab has a verdict, or the server shows none. A server without
-  // named reviews is not done: it may be a detached launch whose agent has yet to add one.
+  // tabs is not done: it may be a detached launch whose agent has yet to add its review.
   function whyNotDone(): string[] {
-    const reviews = conversation?.snapshot().reviews ?? [];
-    if (!reviews.some(({ selection }) => selection.reviewName !== undefined))
-      return ['no named reviews'];
+    const tabs = verdictTabReviews(conversation?.snapshot().reviews ?? []);
+    if (tabs.length === 0) return ['no review tabs'];
     if (!options.shipIt) return [];
-    return verdictTabReviews(reviews)
+    return tabs
       .filter(({ approval }) => approval.verdict === undefined)
       .map(({ selection }) => `review "${reviewLabel(selection)}" has no verdict`);
   }

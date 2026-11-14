@@ -73,12 +73,12 @@ See the
 pkill -USR2 -x gavel-server
 ```
 
-This stops every gavel server that has a named review and a verdict on every
-review tab, and every `--no-lgtm` server with a named review. Unnamed reviews get
-a tab once their agent proposes a commit message. Other servers keep running, and
-foreground ones print why to stderr, such as `gavel server stays up: review
-"parser-fix" has no verdict`. A server with no named review keeps running, because
-a detached launch has none until its agent adds one. A stopped server's
+This stops every gavel server whose review tabs all have a verdict, and every
+`--no-lgtm` server with a review tab. Each named review has a tab, and an unnamed
+review gets one once its agent proposes a commit message. Other servers keep
+running, and foreground ones print why to stderr, such as `gavel server stays up:
+review "parser-fix" has no verdict`. A server with no tab keeps running, because a
+detached launch has none until its agent adds its review. A stopped server's
 `server.shutdown` event has reason `SIGUSR2`. This works on Linux and macOS;
 Windows has no SIGUSR2.
 

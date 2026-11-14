@@ -1020,16 +1020,35 @@ describe('actual CLI launch protocol', () => {
       }
     }, 15000);
 
-    it('stays up while the server holds no named review', async () => {
+    // Reviews of existing commits are unnamed, so a server may hold no named review at all.
+    // HEAD~2..HEAD is this test's own pair: the fixture repository saves verdicts per pair.
+    it('shuts down once its only tab, an unnamed review, has a verdict', async () => {
+      const fixture = launch(
+        ['HEAD', revisions[1]!, '--commit-message', 'fix: only tab', ...address],
+        undefined,
+        {},
+      );
+      try {
+        const { port } = await ready(fixture);
+        expect(await refusal(fixture, 1)).toMatch(/has no verdict$/);
+        await reject(port);
+        fixture.child.kill('SIGUSR2');
+        expect(await fixture.closed).toBe(0);
+        expect(lastEvent(fixture)).toMatchObject({ type: 'server.shutdown', reason: 'SIGUSR2' });
+      } finally {
+        await stop(fixture.child);
+      }
+    }, 15000);
+
+    // A detached launch's HEAD bootstrap has no proposal, so no tab, until its agent adds a review.
+    it('stays up while the server holds no review tab', async () => {
       const fixture = launch(['HEAD', ...address]);
       try {
         await ready(fixture);
         // pkill -x matches this name on Linux and macOS; only Linux shows it in /proc.
         if (process.platform === 'linux')
           expect(await readFile(`/proc/${fixture.child.pid}/comm`, 'utf8')).toBe('gavel-server\n');
-        fixture.child.kill('SIGUSR2');
-        await untilOutput(fixture, ({ stderr }) => stderr.includes('no named reviews'));
-        expect(fixture.child.exitCode).toBeNull();
+        expect(await refusal(fixture, 1)).toBe('gavel server stays up: no review tabs');
       } finally {
         await stop(fixture.child);
       }
