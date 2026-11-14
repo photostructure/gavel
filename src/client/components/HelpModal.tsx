@@ -131,6 +131,12 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
                 </div>
                 <span className="ui-value">Jump to last file</span>
               </div>
+              <div className="flex justify-between text-sm">
+                <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
+                  f
+                </kbd>
+                <span className="ui-value">Show/hide the files changed panel</span>
+              </div>
             </div>
           </section>
 

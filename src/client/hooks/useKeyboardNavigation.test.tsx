@@ -1270,6 +1270,31 @@ describe('useKeyboardNavigation', () => {
     });
   });
 
+  describe('File tree (f)', () => {
+    it('toggles the file tree with f', async () => {
+      const user = userEvent.setup();
+      const onToggleFileTree = vi.fn();
+
+      renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: mockFiles,
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed: vi.fn(),
+            reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
+            onToggleFileTree,
+          }),
+        { wrapper },
+      );
+
+      await user.keyboard('f');
+
+      expect(onToggleFileTree).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('Verdict (shift+a, shift+x)', () => {
     const renderWithVerdict = (onVerdict: (verdict: 'approve' | 'reject') => void) =>
       renderHook(

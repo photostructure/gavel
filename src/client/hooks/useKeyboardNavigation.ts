@@ -35,6 +35,7 @@ export function useKeyboardNavigation({
   onCopyAllComments,
   onDeleteAllComments,
   onShowCommentsList,
+  onToggleFileTree,
   onRefresh,
   onVerdict,
   getHoveredFileIndex,
@@ -591,6 +592,9 @@ export function useKeyboardNavigation({
     hotkeyOptions,
     [onShowCommentsList],
   );
+
+  // Show or hide the files changed panel
+  useHotkeys('f', () => onToggleFileTree?.(), hotkeyOptions, [onToggleFileTree]);
 
   return {
     cursor,

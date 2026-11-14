@@ -2378,6 +2378,19 @@ describe('App Component - Sidebar persistence', () => {
       expect(readClientSettings().sidebarOpen).toBe(true);
     });
   });
+
+  it('toggles the file tree with the f key', async () => {
+    renderApp();
+
+    const toggleButton = await screen.findByRole('button', { name: /toggle file tree panel/i });
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF' });
+    await waitFor(() => expect(toggleButton).toHaveAttribute('aria-expanded', 'false'));
+
+    fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF' });
+    await waitFor(() => expect(toggleButton).toHaveAttribute('aria-expanded', 'true'));
+  });
 });
 
 describe('App Component - Mobile sidebar auto-close', () => {

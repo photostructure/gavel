@@ -1117,6 +1117,7 @@ function App() {
         setThreadToReveal(null);
         setIsCommentsListOpen(true);
       },
+      onToggleFileTree: () => setIsFileTreeOpen((open) => !open),
       onRefresh: () => {
         reload();
       },
@@ -2055,7 +2056,7 @@ function App() {
                 type="button"
                 onClick={() => setIsFileTreeOpen(!isFileTreeOpen)}
                 className="inline-flex shrink-0 items-center justify-center rounded p-2 hover:bg-github-bg-tertiary"
-                title={isFileTreeOpen ? 'Collapse file tree' : 'Expand file tree'}
+                title={isFileTreeOpen ? 'Collapse file tree (f)' : 'Expand file tree (f)'}
                 aria-expanded={isFileTreeOpen}
                 aria-controls="file-tree-panel"
                 aria-label="Toggle file tree panel"
