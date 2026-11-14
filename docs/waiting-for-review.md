@@ -44,22 +44,11 @@ process. A `--background` server does not: it detaches from its launcher. Set it
 to `accept` for gavel's messages to start turns in every permission mode.
 
 `GET /api/inbox` reports, for each review, `ready`, `pending`, `sent`
-(`via: "inbox"` or `"prompt"`), `failed` with the error, or
-`unavailable` when the review has no owning session. The header uses the same
-robot control on desktop and phones. A green robot means delivery is
-available; it shows a diagonal sweep while delivering and a green check for
-five seconds after acceptance. Reduced motion disables the sweep. Codex queue
-acceptance gets the same confirmation. A red robot, with crossed-out eyes and a
-bent antenna, means you need to act: delivery failed or went unconfirmed, or
-the page reads **Server unreachable** because it lost its live connection to
-the gavel server or a change failed to send. Clicking it then reconnects, and
-reloads the page if the server restarted. A gray robot means no session owns
-the review (`unavailable`). Acceptance does not mean the agent read the message
-or started a turn.
-
-Click or tap the robot for details, errors, and **Copy resume prompt**. The
-30-pixel control keeps these details out of the phone header. If an older server
-provides no delivery state, use **Conversation → Copy resume prompt**.
+(`via: "inbox"` or `"prompt"`), `failed` with the error, or `unavailable` when
+the review has no owning session. Acceptance does not mean the agent read the
+message or started a turn. The page shows this state in its header robot, whose
+menu offers **Copy resume prompt**; on an older server without delivery state,
+the reviewer uses **Conversation → Copy resume prompt**.
 
 The socket changes when Claude Code restarts. Each server lists its owning
 sessions under `$XDG_RUNTIME_DIR/gavel/sessions/<session-id>/<host>_<port>.json`;

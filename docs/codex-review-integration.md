@@ -95,20 +95,11 @@ remove it; use the manual resume prompt if it is missing or inaccessible. This
 handoff requires the agent to read files on the gavel host. The CLI receives each
 message as one literal argument; gavel does not interpolate it into a shell command.
 
-Claude and Codex use the same header control: a gray robot when no session owns
-the review, a red robot with crossed-out eyes and a bent antenna when delivery
-failed or the page cannot reach the gavel server (**Server unreachable**; click
-it to reconnect), a green robot when delivery is available, a sweep
-while delivering, and a green check for five seconds when the browser observes
-acceptance. Reduced motion disables the sweep. Tap the robot for details and
-**Copy resume prompt**; the phone control occupies only 30 pixels.
-
-**Queued for Codex** in the details confirms that the command saved the
-notification. It does not confirm that a turn started or the agent read it.
-**Codex delivery unconfirmed** shows the error or missing-acknowledgment
-diagnostic, with the red robot. Gavel does not retry an
-attempted write automatically because it may already be saved. After the last
-verdict, the toast offers the resume prompt for manual handoff.
+**Queued for Codex** means the queue command saved the notification, not that a
+turn started or the agent read it. **Codex delivery unconfirmed** carries the
+error or missing-acknowledgment diagnostic. Gavel does not retry an attempted
+write, because it may already be saved. After the last verdict, the toast offers
+the resume prompt for manual handoff.
 
 Validated on Linux with CLI 0.167.1 and desktop runtime 0.167.0-alpha.3.2: plain queue
 started turns in idle chats and deferred busy-chat input until the active turn
