@@ -1591,6 +1591,46 @@ describe('after a verdict', () => {
     expect(screen.queryByRole('dialog', { name: 'Next step' })).not.toBeInTheDocument();
   });
 
+  // The unsaved-changes toast used to float under the verdict toast through its own anchor, and a
+  // review switch left it anchored to the previous review's removed toast, in the window's corner.
+  // In one stack, layout keeps it under whichever verdict toast is open.
+  it('stacks the unsaved-changes toast under the verdict toast after a review switch', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    fixture();
+    renderApp();
+    await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve'));
+    await waitFor(() => expect(nextStep()).toHaveTextContent('Switch to task-b'));
+    fireEvent.click(within(nextStep()).getByRole('button', { name: 'Switch to task-b' }));
+    await waitFor(() => expect(window.location.search).toBe('?review=task-b'));
+    await waitFor(() => expect(verdictButton('Approve')).toBeEnabled());
+    fireEvent.click(verdictButton('Approve'));
+    await waitFor(() => expect(nextStep()).toHaveTextContent('Approved'));
+    const baseFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) =>
+      String(input).startsWith('/api/review-ops')
+        ? Promise.reject(new TypeError('Failed to fetch'))
+        : baseFetch(input, init),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Conversation' }));
+    const composer = within(
+      screen.getByPlaceholderText('Comment or ask about this review…').closest('form')!,
+    );
+    await user.type(composer.getByRole('textbox'), 'Written offline');
+    await user.click(composer.getByRole('button', { name: 'Send' }));
+    await user.click(screen.getByRole('button', { name: 'Close conversation' }));
+
+    const unsaved = (await screen.findByText(/change is not saved to the server/)).closest(
+      '[role="alert"]',
+    )!;
+    const stack = nextStep().closest('[data-toast-stack]');
+    expect(stack).not.toBeNull();
+    expect(stack).toContainElement(unsaved as HTMLElement);
+    // The verdict toast first, so the unsaved-changes toast is below it.
+    expect(nextStep().compareDocumentPosition(unsaved)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
   // Shift+A, then Return: a verdict and the next review without the mouse.
   it('opens the next review on Return after a verdict from the keyboard', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });

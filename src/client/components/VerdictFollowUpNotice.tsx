@@ -1,15 +1,6 @@
-import {
-  FloatingFocusManager,
-  FloatingPortal,
-  autoUpdate,
-  flip,
-  hide,
-  offset,
-  shift,
-  useFloating,
-} from '@floating-ui/react';
+import { FloatingFocusManager, useFloating } from '@floating-ui/react';
 import { CornerDownLeft, X } from 'lucide-react';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import type { ReviewVerdict } from '../../types/conversation';
 import type { ClientInboxDelivery } from '../hooks/useInboxDelivery';
@@ -49,8 +40,8 @@ function describeDelivery(
 /**
  * A toast after a verdict: it names the verdict, says whether it reached the agent, and then what
  * is left: the next review to open, the resume prompt to copy, or that the page can be closed.
- * Undo sits beside the next step. It floats just below the verdict buttons, where the reviewer is
- * looking, from a portal: the header group clips its overflow.
+ * Undo sits beside the next step. It opens in the header's toast stack, just below the verdict
+ * buttons, where the reviewer is looking.
  */
 export function VerdictFollowUpNotice({
   anchor,
@@ -61,13 +52,9 @@ export function VerdictFollowUpNotice({
   onDismiss,
   onProceed,
   onUndo,
-  onElement,
 }: {
-  // The verdict buttons.
+  // The verdict buttons, which keep the toast in tab order right after them.
   anchor: Element | null;
-  // Gets the toast's element while it is open and the verdict buttons are on screen, so another
-  // toast can float below it; null otherwise.
-  onElement?: (element: HTMLElement | null) => void;
   step: VerdictFollowUpStep | null;
   // The open review's verdict.
   verdict: ReviewVerdict | undefined;
@@ -81,31 +68,11 @@ export function VerdictFollowUpNotice({
   // Clears the verdict, as clicking its pressed button does.
   onUndo: () => void;
 }) {
-  const { refs, floatingStyles, middlewareData, context } = useFloating({
+  // Only for FloatingFocusManager; the toast stack positions the toast.
+  const { refs, context } = useFloating({
     open: step !== null,
-    placement: 'bottom-end',
-    // Fixed, so it never adds to the page's scroll size: sliding in from past the right edge, or
-    // widening before it is repositioned, would otherwise flash a horizontal scrollbar.
-    strategy: 'fixed',
     elements: { reference: anchor },
-    whileElementsMounted: autoUpdate,
-    // hide: the header slides away while the diff scrolls on touch screens.
-    middleware: [offset(6), flip(), shift({ padding: 8 }), hide()],
   });
-  const [element, setElement] = useState<HTMLElement | null>(null);
-  const floatingRef = useCallback(
-    (floating: HTMLElement | null) => {
-      refs.setFloating(floating);
-      setElement(floating);
-    },
-    [refs],
-  );
-  // While the header has slid away the toast is only made invisible, which another toast's
-  // hide() cannot see, so it reports no element and the other toast anchors to the header.
-  const referenceHidden = middlewareData.hide?.referenceHidden ?? false;
-  useEffect(() => {
-    onElement?.(referenceHidden ? null : element);
-  }, [element, referenceHidden, onElement]);
   const detailId = useId();
   const nextRef = useRef<HTMLButtonElement>(null);
   const dismissRef = useRef<HTMLButtonElement>(null);
@@ -169,10 +136,10 @@ export function VerdictFollowUpNotice({
       "Copied. Paste it into the agent's chat, then close this page."
     );
   return (
-    <FloatingPortal>
+    <>
       {/* Non-modal: the page stays usable, and the notice stays in tab order right after the
-          verdict buttons, though the portal mounts it at the end of the page. It focuses the
-          button Return should press: the next step, or the X when there is none, never Undo. */}
+          verdict buttons, though the stack's portal mounts it at the end of the page. It focuses
+          the button Return should press: the next step, or the X when there is none, never Undo. */}
       <FloatingFocusManager
         context={context}
         modal={false}
@@ -183,7 +150,7 @@ export function VerdictFollowUpNotice({
         {/* A black shadow cannot show on the dark theme's near-black page, so there a dark ring
             outside the border and a denser shadow set the toast off, as GitHub's dark overlays do. */}
         <div
-          ref={floatingRef}
+          ref={refs.setFloating}
           role="dialog"
           aria-label="Next step"
           aria-describedby={detailId}
@@ -192,12 +159,8 @@ export function VerdictFollowUpNotice({
             event.preventDefault();
             onDismiss();
           }}
-          style={{
-            ...floatingStyles,
-            visibility: middlewareData.hide?.referenceHidden ? 'hidden' : 'visible',
-            maxWidth: 'min(36rem, calc(100vw - 16px))',
-          }}
-          className="verdict-toast z-40 flex flex-col gap-4 rounded-md border border-blue-600 bg-[color-mix(in_srgb,var(--color-blue-600)_14%,var(--color-github-bg-secondary))] [[data-theme=dark]_&]:bg-[color-mix(in_srgb,var(--color-blue-600)_20%,var(--color-github-bg-secondary))] py-3 pr-4 pl-4 text-sm text-github-text-primary shadow-[0_12px_32px_rgb(31_35_40/0.3),0_2px_6px_rgb(31_35_40/0.16)] [[data-theme=dark]_&]:shadow-[0_0_0_1px_rgb(1_4_9/0.9),0_16px_40px_rgb(1_4_9/0.9)]"
+          style={{ maxWidth: 'min(36rem, calc(100vw - 16px))' }}
+          className="verdict-toast relative flex flex-col gap-4 rounded-md border border-blue-600 bg-[color-mix(in_srgb,var(--color-blue-600)_14%,var(--color-github-bg-secondary))] [[data-theme=dark]_&]:bg-[color-mix(in_srgb,var(--color-blue-600)_20%,var(--color-github-bg-secondary))] py-3 pr-4 pl-4 text-sm text-github-text-primary shadow-[0_12px_32px_rgb(31_35_40/0.3),0_2px_6px_rgb(31_35_40/0.16)] [[data-theme=dark]_&]:shadow-[0_0_0_1px_rgb(1_4_9/0.9),0_16px_40px_rgb(1_4_9/0.9)]"
         >
           {/* A toast's usual anatomy: the message, its close X in the top-right corner, and the
               actions below at the right, the primary one last. The X comes last in tab order. */}
@@ -278,6 +241,6 @@ export function VerdictFollowUpNotice({
           </button>
         </div>
       </FloatingFocusManager>
-    </FloatingPortal>
+    </>
   );
 }

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ClientInboxDelivery } from '../hooks/useInboxDelivery';
 
+import { ToastStack } from './ToastStack';
 import { VerdictFollowUpNotice } from './VerdictFollowUpNotice';
 
 type Props = ComponentProps<typeof VerdictFollowUpNotice>;
@@ -28,16 +29,6 @@ describe('verdict follow-up notice', () => {
       {...props}
     />
   );
-
-  // The unsaved-changes toast anchors to this element, so the two stack instead of overlapping.
-  it('reports its element while open, and none once closed', async () => {
-    const onElement = vi.fn();
-    const { rerender } = render(notice({ step: { kind: 'close', reviews: 1 }, onElement }));
-    await waitFor(() => expect(onElement).toHaveBeenLastCalledWith(toast()));
-
-    rerender(notice({ step: null, onElement }));
-    await waitFor(() => expect(onElement).toHaveBeenLastCalledWith(null));
-  });
 
   it('renders nothing without a step', () => {
     render(notice({ step: null }));
@@ -369,30 +360,8 @@ describe('verdict follow-up notice', () => {
     expect(dismiss.querySelector('svg')).toHaveAttribute('width', '20');
   });
 
-  // The header group clips overflow, so the notice floats above the page from a portal,
-  // anchored to the verdict buttons the reviewer just clicked.
-  it('floats outside the header so the header cannot clip it', () => {
-    const header = document.createElement('header');
-    header.style.overflow = 'hidden';
-    document.body.appendChild(header);
-    const verdicts = document.createElement('div');
-    header.appendChild(verdicts);
-    render(notice({ anchor: verdicts, step: { kind: 'close', reviews: 1 } }), {
-      container: header,
-    });
-    expect(header).not.toContainElement(toast());
-  });
-
-  // An absolute toast adds to the page's scroll size while it slides in from past the right edge,
-  // or widens before it is repositioned, so a horizontal scrollbar flashes and the page jumps.
-  // Measured in headless Chromium at 1280 px: scrollWidth reached 1291 during the slide-in.
-  it('stays out of the page scroll size, so it cannot flash a scrollbar', () => {
-    render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
-    expect(toast().style.position).toBe('fixed');
-  });
-
-  // The portal mounts the notice at the end of the page; a keyboard user who just pressed a
-  // verdict button must still reach its buttons with Tab.
+  // The toast stack's portal mounts the notice at the end of the page; a keyboard user who just
+  // pressed a verdict button must still reach its buttons with Tab.
   it('puts its buttons right after the verdict buttons in tab order', async () => {
     const user = userEvent.setup();
     const verdicts = document.createElement('div');
@@ -400,7 +369,9 @@ describe('verdict follow-up notice', () => {
     render(
       <>
         <button type="button">Reject</button>
-        {notice({ anchor: verdicts, step: { kind: 'switch', name: 'task-b', waiting: 1 } })}
+        <ToastStack anchor={verdicts}>
+          {notice({ anchor: verdicts, step: { kind: 'switch', name: 'task-b', waiting: 1 } })}
+        </ToastStack>
         <button type="button">Next control</button>
       </>,
     );

@@ -11,6 +11,19 @@ import App from './App';
 import { storageService } from './services/StorageService';
 import { MockWebSocket } from './utils/liveConnection.testing';
 
+// The element the header's toast stack floats under; happy-dom measures no layout to check.
+const toastStack = vi.hoisted(() => ({ anchor: undefined as Element | null | undefined }));
+vi.mock('./components/ToastStack', async () => {
+  const actual =
+    await vi.importActual<typeof import('./components/ToastStack')>('./components/ToastStack');
+  return {
+    ToastStack: (props: Parameters<typeof actual.ToastStack>[0]) => {
+      toastStack.anchor = props.anchor;
+      return <actual.ToastStack {...props} />;
+    },
+  };
+});
+
 const watch = vi.hoisted(() => ({
   reload: undefined as (() => Promise<void>) | undefined,
   commentsChanged: undefined as (() => Promise<void>) | undefined,
@@ -305,6 +318,21 @@ describe('comment and verdict changes the server has not confirmed', () => {
     expect(queuedBodies()).toEqual(['Not saved yet']);
     expect(state.threads).toEqual([]);
     await expectShown('Not saved yet');
+  });
+
+  // Under the header, the toast's right edge sat 2.5 px right of the verdict toast's, so the
+  // slide up when that toast was dismissed drifted sideways.
+  it('floats the unsaved-changes toast in the stack under the verdict buttons', async () => {
+    const state = server();
+    mount();
+    await waitForServerThreads();
+    state.fail = 'network';
+
+    await sendGeneralComment('Written offline');
+
+    expect((await findNotSavedAlert()).closest('[data-toast-stack]')).not.toBeNull();
+    expect(toastStack.anchor).toContainElement(approveButton());
+    expect(toastStack.anchor?.tagName).not.toBe('HEADER');
   });
 
   it('sends a queued op again when the live connection reopens', async () => {

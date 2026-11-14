@@ -56,6 +56,7 @@ import { CaptureDetails } from './components/CaptureDetails';
 import { AboutPanel } from './components/AboutPanel';
 import { HeaderMenu } from './components/HeaderMenu';
 import { VerdictControl } from './components/VerdictControl';
+import { ToastStack } from './components/ToastStack';
 import { UnsavedChangesToast } from './components/UnsavedChangesToast';
 import { VerdictFollowUpNotice } from './components/VerdictFollowUpNotice';
 import { CommentLinkNotice } from './components/CommentLinkNotice';
@@ -183,7 +184,7 @@ function App() {
   const [isCopiedAll, setIsCopiedAll] = useState(false);
   const [isShipping, setIsShipping] = useState(false);
   const approvalControlRef = useRef<HTMLDivElement>(null);
-  // The same element, as state, so the follow-up notice re-renders once it can anchor to it.
+  // The same element, as state, so the header's toast stack re-renders once it can anchor to it.
   const [verdictAnchor, setVerdictAnchor] = useState<HTMLDivElement | null>(null);
   const setVerdictControl = useCallback((element: HTMLDivElement | null) => {
     approvalControlRef.current = element;
@@ -277,9 +278,8 @@ function App() {
   const { isMobile } = useViewport();
   const reviewChrome = useHideHeaderOnScroll();
   const headerFitRef = useHeaderFit();
-  // The header and the verdict toast, as state, so the unsaved-changes toast can anchor to them.
+  // The header, as state, so the toast stack can anchor to it on pages without verdict buttons.
   const [headerElement, setHeaderElement] = useState<HTMLElement | null>(null);
-  const [verdictToast, setVerdictToast] = useState<HTMLElement | null>(null);
   const headerRef = useCallback(
     (header: HTMLElement | null) => {
       setHeaderElement(header);
@@ -2205,21 +2205,21 @@ function App() {
                   onClear={() => void handleVerdict('clear')}
                 />
               )}
-              <VerdictFollowUpNotice
-                anchor={verdictAnchor}
-                step={verdictFollowUp.step}
-                verdict={approval.verdict}
-                delivery={inboxDelivery.delivery}
-                busy={isShipping || captureReloading}
-                onDismiss={verdictFollowUp.cancel}
-                onProceed={verdictFollowUp.proceed}
-                onUndo={() => void handleVerdict('clear')}
-                onElement={setVerdictToast}
-              />
-              <UnsavedChangesToast
-                anchor={verdictToast ?? headerElement}
-                message={reviewOps.unsaved}
-              />
+              {/* The verdict toast first, so the unsaved-changes toast sits under it and slides
+                  up when it closes. */}
+              <ToastStack anchor={verdictAnchor ?? headerElement}>
+                <VerdictFollowUpNotice
+                  anchor={verdictAnchor}
+                  step={verdictFollowUp.step}
+                  verdict={approval.verdict}
+                  delivery={inboxDelivery.delivery}
+                  busy={isShipping || captureReloading}
+                  onDismiss={verdictFollowUp.cancel}
+                  onProceed={verdictFollowUp.proceed}
+                  onUndo={() => void handleVerdict('clear')}
+                />
+                <UnsavedChangesToast message={reviewOps.unsaved} />
+              </ToastStack>
               {approval.error && (
                 <span role="alert" className="w-full text-xs text-github-danger">
                   {approval.error}
