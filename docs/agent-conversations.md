@@ -372,8 +372,10 @@ these commands act on the server's current selection. The HTTP route is
 Resolution persists with comment history. It emits `thread.resolved` or
 `thread.reopened` and refreshes the browser; deletion emits `thread.deleted`.
 These events do not require comment receipts or replies.
-`comment delete <threadId...> --port <port>` (alias `remove`) still deletes from
-the current selection. Unlike older versions, `comment resolve` no longer deletes.
+`comment delete <threadId...> --review <name> --port <port>` (alias `remove`)
+deletes threads from the named review; without `--review`, it deletes from the
+current selection. Its `--review` takes the review's name, as `comment add` does,
+not the event's reviewId. Unlike older versions, `comment resolve` no longer deletes.
 Delete only when the user explicitly requests removal.
 
 ## Comment progress

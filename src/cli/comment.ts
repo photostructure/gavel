@@ -133,14 +133,20 @@ export function createCommentCommand(): Command {
 
   for (const action of ['resolve', 'reopen', 'delete'] as const) {
     const command = comment.command(action);
-    if (action === 'delete') command.alias('remove');
+    if (action === 'delete')
+      command
+        .alias('remove')
+        .option(
+          '--review <name>',
+          'named review to delete the threads from (default: the review the viewer last loaded)',
+        );
     else command.option('--review <reviewId>', 'review ID from a conversation event');
     command
       .description(
         {
           resolve: 'Mark comment threads resolved while preserving their messages',
           reopen: 'Reopen resolved comment threads while preserving their messages',
-          delete: 'Delete comment threads from the current review selection',
+          delete: 'Delete comment threads and their messages',
         }[action],
       )
       .argument('<threadIds...>', 'thread IDs')
@@ -157,10 +163,15 @@ export function createCommentCommand(): Command {
                   status: 'ok' | 'notFound' | 'error';
                   error?: string;
                 }> => {
+                  const threadPath = `/api/comments/${encodeURIComponent(threadId)}`;
                   const response = await serverFetch(
                     opts.host,
                     opts.port,
-                    `/api/comments/${encodeURIComponent(threadId)}${action === 'delete' ? '' : '/resolution'}`,
+                    action !== 'delete'
+                      ? `${threadPath}/resolution`
+                      : opts.review === undefined
+                        ? threadPath
+                        : `${threadPath}?review=${encodeURIComponent(opts.review)}`,
                     action === 'delete'
                       ? { method: 'DELETE' }
                       : {
@@ -180,10 +191,7 @@ export function createCommentCommand(): Command {
                   const errorBody = (await response.json().catch(() => ({}))) as {
                     error?: string;
                   };
-                  if (
-                    response.status === 404 &&
-                    (action === 'delete' || errorBody.error?.startsWith('Thread not found'))
-                  ) {
+                  if (response.status === 404 && errorBody.error?.startsWith('Thread not found')) {
                     return { threadId, status: 'notFound' };
                   }
                   return {

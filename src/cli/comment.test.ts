@@ -77,12 +77,12 @@ describe('createCommentCommand', () => {
   describe('resolve subcommand', () => {
     const resolveCommand = command.commands.find((c) => c.name() === 'resolve')!;
 
-    it('only offers review selection for commands that support it', () => {
+    it('offers review selection for every thread command', () => {
       expect(
         command.commands
           .find((c) => c.name() === 'delete')!
           .options.some((o) => o.long === '--review'),
-      ).toBe(false);
+      ).toBe(true);
       expect(resolveCommand.options.some((o) => o.long === '--review')).toBe(true);
       expect(
         command.commands
@@ -392,6 +392,48 @@ describe('comment subcommand integration', () => {
         notFound: [],
         errors: [],
       });
+    });
+
+    it('deletes threads from the named review given by --review', async () => {
+      mockFetch.mockResolvedValue(
+        jsonResponse({ success: true, threadId: 'thread-1', version: 2 }),
+      );
+      await createCommentCommand().parseAsync([
+        'node',
+        'gavel',
+        'delete',
+        '--port',
+        '4966',
+        '--review',
+        'second task',
+        'thread-1',
+      ]);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:4966/api/comments/thread-1?review=second%20task',
+        { method: 'DELETE', headers: { 'X-Gavel-Token': loadAccessToken() } },
+      );
+      expect(JSON.parse(consoleOutput[0]!)).toMatchObject({ success: true, deleted: ['thread-1'] });
+    });
+
+    it('reports an unknown named review as an error instead of a missing thread', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ error: 'Named review not found' }, 404));
+      await createCommentCommand().parseAsync([
+        'node',
+        'gavel',
+        'delete',
+        '--port',
+        '4966',
+        '--review',
+        'misspelled',
+        'thread-1',
+      ]);
+      expect(JSON.parse(consoleOutput[0]!)).toEqual({
+        success: false,
+        deleted: [],
+        notFound: [],
+        errors: [{ threadId: 'thread-1', error: 'Named review not found' }],
+      });
+      expect(process.exit).toHaveBeenCalledWith(1);
     });
 
     it('URL-encodes thread IDs', async () => {
