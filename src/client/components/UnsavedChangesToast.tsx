@@ -8,7 +8,7 @@ import {
   useFloating,
 } from '@floating-ui/react';
 import { X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * A toast for changes this browser could not send to the server. It looks like the verdict
@@ -28,7 +28,7 @@ export function UnsavedChangesToast({
   // Once the changes are sent, the same message after a later failure shows again.
   if (message === null && dismissed !== null) setDismissed(null);
   const open = message !== null && message !== dismissed;
-  const { refs, floatingStyles, middlewareData } = useFloating({
+  const { refs, floatingStyles, middlewareData, isPositioned } = useFloating({
     open,
     placement: 'bottom-end',
     // Fixed, as the verdict toast is, so it never adds to the page's scroll size.
@@ -37,6 +37,16 @@ export function UnsavedChangesToast({
     whileElementsMounted: autoUpdate,
     middleware: [offset(6), flip(), shift({ padding: 8 }), hide()],
   });
+  // It glides to a new place, as when the verdict toast above it is dismissed or opens, but not
+  // to its first one: that transition would start from the window's top-left corner. Switching
+  // the transition on a frame after that place is painted keeps it out of the transition.
+  const [glide, setGlide] = useState(false);
+  if (!isPositioned && glide) setGlide(false);
+  useEffect(() => {
+    if (!isPositioned) return;
+    const frame = requestAnimationFrame(() => setGlide(true));
+    return () => cancelAnimationFrame(frame);
+  }, [isPositioned]);
   if (!open) return null;
   return (
     <FloatingPortal>
@@ -44,6 +54,7 @@ export function UnsavedChangesToast({
       <div
         ref={refs.setFloating}
         role="alert"
+        data-glide={glide || undefined}
         style={{
           ...floatingStyles,
           visibility: middlewareData.hide?.referenceHidden ? 'hidden' : 'visible',

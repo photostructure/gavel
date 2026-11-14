@@ -148,6 +148,20 @@
   }
 }
 
+/* The unsaved-changes toast glides to its new place when the verdict toast above it opens or
+   is dismissed. Floating UI positions it with `transform`. The theme-change transition below
+   matches its classes and would replace a Tailwind transition, so this rule is more specific
+   and repeats that transition's colors. */
+@media (prefers-reduced-motion: no-preference) {
+  .unsaved-toast[data-glide] {
+    transition:
+      transform 0.2s ease-out,
+      background-color 0.3s ease,
+      color 0.3s ease,
+      border-color 0.3s ease;
+  }
+}
+
 @media (pointer: coarse) {
   .review-toolbar button,
   .review-menu button,
