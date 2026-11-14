@@ -1,7 +1,7 @@
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { HotkeysProvider } from 'react-hotkeys-hook';
+import { HotkeysProvider, useHotkeys } from 'react-hotkeys-hook';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import type { CommentThread } from '../../types/diff';
@@ -435,5 +435,31 @@ describe('CommentsListModal', () => {
     );
 
     expect(screen.getByText('No comments yet')).toBeInTheDocument();
+  });
+
+  it('keeps its scroll position while it slides out', () => {
+    const scrollIntoView = vi.fn();
+    vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(scrollIntoView);
+    const props = {
+      onClose: vi.fn(),
+      onNavigate: vi.fn(),
+      comments: mockThreads,
+      onToggleThreadResolved: mockRemoveThread,
+      onRemoveThread: vi.fn(),
+      onGenerateThreadPrompt: mockGenerateThreadPrompt,
+      onReplyToThread: mockReplyToThread,
+      onRemoveMessage: mockRemoveMessage,
+      onUpdateMessage: mockUpdateMessage,
+    };
+    const { rerender } = render(<CommentsListModal isOpen {...props} />, { wrapper });
+    const next = vi
+      .mocked(useHotkeys)
+      .mock.calls.filter(([keys]) => keys === 'j, down')
+      .at(-1)?.[1] as () => void;
+    act(() => next());
+    scrollIntoView.mockClear();
+    rerender(<CommentsListModal isOpen={false} {...props} />);
+    expect(document.getElementById('conversation-panel')).not.toBeNull();
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });

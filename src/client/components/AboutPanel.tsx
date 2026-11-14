@@ -55,11 +55,14 @@ function ReleaseStatus({ latest }: { latest: LatestRelease }) {
 }
 
 export function AboutPanel({
+  closing = false,
   context,
   onClose,
   onShowShortcuts,
   updateCheckDisabledBy,
 }: {
+  /** True while About slides out: it stays rendered but takes no input. */
+  closing?: boolean;
   context?: ReviewContextData;
   onClose: () => void;
   onShowShortcuts: () => void;
@@ -76,6 +79,7 @@ export function AboutPanel({
   const panel = useRef<HTMLDivElement>(null);
   const { enableScope, disableScope } = useHotkeysContext();
   useEffect(() => {
+    if (closing) return;
     const previous = document.activeElement;
     panel.current?.focus();
     disableScope('navigation');
@@ -108,10 +112,15 @@ export function AboutPanel({
       enableScope('navigation');
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
     };
-  }, [onClose, enableScope, disableScope]);
+  }, [closing, onClose, enableScope, disableScope]);
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+    <div
+      className="slide-over-root fixed inset-0 z-50 flex justify-end"
+      data-closing={closing ? '' : undefined}
+      inert={closing}
+      aria-hidden={closing || undefined}
+    >
+      <div className="slide-over-backdrop absolute inset-0 bg-black/50" onClick={onClose} />
       <div
         id="about-panel"
         ref={panel}
@@ -125,7 +134,7 @@ export function AboutPanel({
           event.preventDefault();
           onShowShortcuts();
         }}
-        className="review-panel relative h-full w-full max-w-lg overflow-y-auto border-l border-github-border bg-github-bg-primary p-5 text-github-text-primary shadow-lg"
+        className="slide-over review-panel relative h-full w-full max-w-lg overflow-y-auto border-l border-github-border bg-github-bg-primary p-5 text-github-text-primary shadow-lg"
       >
         <div className="mb-5 flex items-start justify-between gap-3">
           {/* min-w-0 lets the upgrade commands scroll inside the panel instead of widening it. */}

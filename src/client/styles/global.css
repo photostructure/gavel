@@ -278,6 +278,42 @@ body,
     border-color 0.3s ease;
 }
 
+/* About, Conversation, and the phone file tree slide in from the right and back out over
+   0.3s, the SLIDE_OVER_MS that useSlideOver keeps a closing panel rendered for. These rules
+   follow the theme-change rule above, which matches the same elements, so they replace its
+   transition and repeat its colors. */
+@media (prefers-reduced-motion: no-preference) {
+  .slide-over {
+    transition:
+      translate 0.3s ease-in-out,
+      background-color 0.3s ease,
+      color 0.3s ease,
+      border-color 0.3s ease;
+  }
+  .slide-over-backdrop {
+    transition: opacity 0.3s ease-in-out;
+  }
+  @starting-style {
+    .slide-over-root .slide-over {
+      translate: 100% 0;
+    }
+    .slide-over-backdrop {
+      opacity: 0;
+    }
+  }
+  .slide-over-root[data-closing] .slide-over {
+    translate: 100% 0;
+  }
+  .slide-over-root[data-closing] .slide-over-backdrop {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide-over-root[data-closing] {
+    display: none;
+  }
+}
+
 /* The file tree row of the file at the top of the diff, in the blue-500 that
    marks the selected item in the comments list. Unlayered, so it also beats the
    row's hover background. */

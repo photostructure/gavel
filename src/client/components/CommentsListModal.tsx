@@ -17,6 +17,7 @@ import { CommentLinkContext, type FollowCommentLink } from '../contexts/CommentL
 import { hasActiveTextSelection } from '../utils/domUtils';
 import { useDraftAnchors } from '../hooks/useCommentDrafts';
 import type { AgentUpdate } from '../hooks/useAgentUpdates';
+import { useSlideOver } from '../hooks/useSlideOver';
 
 import { CommentForm, type CommentSubmitOptions } from './CommentForm';
 import { CommentThreadCard } from './CommentThreadCard';
@@ -300,6 +301,11 @@ export function CommentsListModal({
     [onToggleThreadResolved, otherReviewByThread],
   );
 
+  // The selection resets on opening, not closing, so the panel keeps its place as it slides out.
+  useEffect(() => {
+    if (isOpen) setSelectedIndex(0);
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen) {
       enableScope('comments-list');
@@ -307,7 +313,6 @@ export function CommentsListModal({
     } else {
       enableScope('navigation');
       disableScope('comments-list');
-      setSelectedIndex(0);
     }
 
     return () => {
@@ -365,11 +370,19 @@ export function CommentsListModal({
     }
   }, [selectedIndex]);
 
-  if (!isOpen) return null;
+  const { rendered, openings } = useSlideOver(isOpen);
+  if (!rendered) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+    <div
+      // Each opening mounts fresh drafts and composers, even one during the slide out.
+      key={openings}
+      className="slide-over-root fixed inset-0 z-50 flex items-stretch justify-end"
+      data-closing={isOpen ? undefined : ''}
+      inert={!isOpen}
+      aria-hidden={isOpen ? undefined : true}
+    >
+      <div className="slide-over-backdrop absolute inset-0 bg-black/50" onClick={onClose} />
       <div
         id="conversation-panel"
         ref={dialogRef}
@@ -410,7 +423,7 @@ export function CommentsListModal({
             first?.focus();
           }
         }}
-        className="relative flex h-full w-full max-w-2xl flex-col overflow-hidden border border-github-border bg-github-bg-primary shadow-lg"
+        className="slide-over relative flex h-full w-full max-w-2xl flex-col overflow-hidden border border-github-border bg-github-bg-primary shadow-lg"
       >
         <div className="sticky top-0 border-b border-github-border bg-github-bg-primary px-6 py-4">
           <div className="mb-3 flex items-center justify-between">

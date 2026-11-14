@@ -72,6 +72,7 @@ import { useLazyDiffRendering } from './hooks/useLazyDiffRendering';
 import { useReviewApproval } from './hooks/useReviewApproval';
 import { type ReviewOpAnswer, useReviewOps } from './hooks/useReviewOps';
 import { useReviewSummary } from './hooks/useReviewSummary';
+import { useSlideOver } from './hooks/useSlideOver';
 import { useVerdictFollowUp } from './hooks/useVerdictFollowUp';
 import { useReviewPresence } from './hooks/useReviewPresence';
 import { useViewedFiles } from './hooks/useViewedFiles';
@@ -197,6 +198,7 @@ function App() {
   const [threadToFocus, setThreadToFocus] = useState<string | null>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const closeAbout = useCallback(() => setIsAboutOpen(false), []);
+  const aboutSlide = useSlideOver(isAboutOpen);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
   // A "Go to line" or comment link jump waiting for its line to appear; see
@@ -2277,7 +2279,7 @@ function App() {
               id="file-tree-panel"
               className={`bg-github-bg-secondary overflow-y-auto flex flex-col ${
                 isMobile
-                  ? 'fixed inset-y-0 right-0 z-40 w-[min(85vw,360px)] border-l border-github-border transition-transform duration-300 ease-out'
+                  ? 'fixed inset-y-0 right-0 z-40 w-[min(85vw,360px)] border-l border-github-border slide-over'
                   : 'relative border-r border-github-border'
               }`}
               style={{
@@ -2285,11 +2287,7 @@ function App() {
                 minWidth: isMobile ? '0px' : '200px',
                 maxWidth: isMobile ? 'none' : '600px',
                 height: '100%',
-                transform: isMobile
-                  ? isFileTreeOpen
-                    ? 'translateX(0)'
-                    : 'translateX(100%)'
-                  : undefined,
+                translate: isMobile ? (isFileTreeOpen ? '0' : '100%') : undefined,
               }}
             >
               <div className="flex-1 overflow-y-auto">
@@ -2476,8 +2474,10 @@ function App() {
         )}
 
         <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
-        {isAboutOpen && (
+        {aboutSlide.rendered && (
           <AboutPanel
+            key={aboutSlide.openings}
+            closing={!isAboutOpen}
             context={diffData.reviewContext}
             updateCheckDisabledBy={diffData.updateCheckDisabledBy}
             onClose={closeAbout}
