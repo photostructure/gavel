@@ -118,7 +118,8 @@ The link gavel prints when it starts ends in `#gavel-token=…`. Every request f
 review data carries that token, so a browser or program that knows only the port
 gets an access screen instead of your code. Your browser remembers the token for
 that address once you open the full link, so later links without it, such as
-bookmarks and links in comments, keep working.
+bookmarks and links in comments, keep working. On a new address, the access
+screen's **Copy prompt for your agent** button copies a request for the full link.
 
 All of your gavel servers and commands share one token, kept in
 `~/.gavel/access-token` (or `$GAVEL_CONFIG_DIR/access-token`). To replace it,
