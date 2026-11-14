@@ -3,6 +3,7 @@ packages:
 allowBuilds:
   '@parcel/watcher': true
   esbuild: true
+  snyk: false
 
 onlyBuiltDependencies:
   - '@parcel/watcher'

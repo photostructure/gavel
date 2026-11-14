@@ -11,7 +11,7 @@ The TypeScript sources live under `src`, split by runtime: `src/cli` handles com
 - `pnpm build` — generate the CLI bundle and production web assets via TypeScript project references and Vite.
 - `pnpm test` / `pnpm test:watch` — execute the Vitest suite once or in watch mode.
 - `pnpm check` and `pnpm format` — run oxlint type-aware checks and check oxfmt formatting before you commit; `pnpm check:fix` and `pnpm format:fix` apply the fixes.
-- `make preflight` (or `pnpm run preflight`) — the full pre-release check: update dependencies and pinned GitHub Actions, format, lint (oxlint and knip), build, and test.
+- `make preflight` (or `pnpm run preflight`) — the full pre-release check: update dependencies and pinned GitHub Actions, format, lint (oxlint and knip), build, test, and scan production dependencies with Snyk (`pnpm run snyk`, which needs `pnpm exec snyk auth` first).
 
 ## Coding Style & Naming Conventions
 
