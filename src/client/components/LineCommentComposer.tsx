@@ -19,10 +19,8 @@ export interface LineTarget {
 export const lastLineOf = (lineNumber: LineNumber) =>
   Array.isArray(lineNumber) ? lineNumber[1] : lineNumber;
 
-export const numberOn = (
-  line: Pick<DiffLine, 'oldLineNumber' | 'newLineNumber'>,
-  side: DiffSide,
-) => (side === 'old' ? line.oldLineNumber : line.newLineNumber);
+export const numberOn = (line: Pick<DiffLine, 'oldLineNumber' | 'newLineNumber'>, side: DiffSide) =>
+  side === 'old' ? line.oldLineNumber : line.newLineNumber;
 
 const rangeOf = (lineNumber: LineNumber): [number, number] =>
   Array.isArray(lineNumber) ? lineNumber : [lineNumber, lineNumber];
