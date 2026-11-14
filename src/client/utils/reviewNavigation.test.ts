@@ -9,7 +9,7 @@ import {
 
 describe('review browser locations', () => {
   beforeEach(() =>
-    window.history.replaceState({ kept: true }, '', '/?theme=dark#editor-session=token'),
+    window.history.replaceState({ kept: true }, '', '/?theme=dark#gavel-token=token'),
   );
 
   it('loads a named review without requiring or trusting revision parameters', () => {
@@ -35,7 +35,7 @@ describe('review browser locations', () => {
       'replace',
     );
     expect(window.location.search).toBe('?theme=dark&review=task-a');
-    expect(window.location.hash).toBe('#editor-session=token');
+    expect(window.location.hash).toBe('#gavel-token=token');
     expect(window.history.state).toEqual({ kept: true });
     const first = window.location.href;
     writeReviewLocation(

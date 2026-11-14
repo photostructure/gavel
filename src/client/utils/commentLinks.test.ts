@@ -138,7 +138,7 @@ describe('withoutLinkPlace', () => {
   });
 
   it('leaves other fragments untouched', () => {
-    for (const hash of ['#summary', '#file', '#editor-session=token', '']) {
+    for (const hash of ['#summary', '#file', '#gavel-token=token', '']) {
       expect(withoutLinkPlace(hash)).toBe(hash);
     }
   });
