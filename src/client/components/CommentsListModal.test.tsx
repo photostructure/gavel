@@ -188,6 +188,31 @@ describe('CommentsListModal', () => {
     expect(screen.getByText('src/file2.ts:20-25')).toBeInTheDocument();
   });
 
+  it("rounds the selected thread's ring as its card is rounded", () => {
+    render(
+      <CommentsListModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onNavigate={vi.fn()}
+        comments={mockThreads}
+        onToggleThreadResolved={mockRemoveThread}
+        onGenerateThreadPrompt={mockGenerateThreadPrompt}
+        onReplyToThread={mockReplyToThread}
+        onRemoveMessage={mockRemoveMessage}
+        onUpdateMessage={mockUpdateMessage}
+      />,
+      { wrapper },
+    );
+
+    // A smaller radius on the ring than on the card leaves a gap at each corner.
+    const ring = screen.getByRole('dialog').querySelector('.ring-blue-500');
+    const card = ring?.querySelector('[data-comment-thread-id]');
+    const radius = (element: Element | null | undefined) =>
+      Array.from(element?.classList ?? []).filter((name) => /^rounded(-|$)/.test(name));
+    expect(radius(card)).toEqual(['rounded-md']);
+    expect(radius(ring)).toEqual(radius(card));
+  });
+
   it('heads the panel with its title, then actions, then filters, outside the scrolling threads', () => {
     render(
       <CommentsListModal

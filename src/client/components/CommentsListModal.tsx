@@ -595,7 +595,7 @@ export function CommentsListModal({
                                   commentRefs.current[index] = el;
                                 }}
                                 className={
-                                  selectedIndex === index ? 'rounded ring-4 ring-blue-500' : ''
+                                  selectedIndex === index ? 'rounded-md ring-4 ring-blue-500' : ''
                                 }
                               >
                                 <CommentThreadCard
