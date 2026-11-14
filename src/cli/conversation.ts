@@ -2,6 +2,8 @@ import { type Command, InvalidArgumentError } from 'commander';
 
 import type { ConversationSnapshot, ConversationSnapshotReview } from '../types/conversation.js';
 
+import { reviewLabel } from '../utils/diffSelection.js';
+
 import { serverUrl } from './server-url.js';
 
 import { detectStdinSource, readStdin } from './utils.js';
@@ -46,8 +48,8 @@ export function addConversationCommands(comment: Command): void {
       integerInRange(value, 1, 65535),
     )
     .option(
-      '--review <name>',
-      'print only the named review; fails when the server has no review by that name',
+      '--review <review>',
+      'print only the review with this name, inbox label (base..target), or ID; fails when the server has none',
     )
     .action(async (options: { port: number; host: string; review?: string }) => {
       try {
@@ -64,11 +66,12 @@ export function addConversationCommands(comment: Command): void {
           console.log(JSON.stringify(snapshot));
           return;
         }
-        const named = ({ selection }: ConversationSnapshotReview) => selection.reviewName === name;
+        const named = ({ id, selection }: ConversationSnapshotReview) =>
+          id === name || reviewLabel(selection) === name;
         const reviews = snapshot.reviews.filter(named);
         if (reviews.length === 0) {
           throw new Error(
-            `No review named "${name}" on the gavel server at ${serverUrl(options.host, options.port, '/')}`,
+            `No review with the name, label, or ID "${name}" on the gavel server at ${serverUrl(options.host, options.port, '/')}`,
           );
         }
         console.log(

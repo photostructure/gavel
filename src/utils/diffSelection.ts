@@ -40,6 +40,11 @@ export function diffSelectionsEqual(
   );
 }
 
+/** How inbox events, server messages, and `comment snapshot --review` name a review. */
+export function reviewLabel({ reviewName, baseCommitish, targetCommitish }: DiffSelection): string {
+  return reviewName ?? `${baseCommitish}..${targetCommitish}`;
+}
+
 export function getDiffSelectionKey(selection: DiffSelection): string {
   if (selection.reviewName) return JSON.stringify(['named-review', selection.reviewName]);
   return `${selection.baseCommitish}:${selection.targetCommitish}:${normalizeBaseMode(selection.baseMode)}`;

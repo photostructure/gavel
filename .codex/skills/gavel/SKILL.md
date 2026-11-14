@@ -203,8 +203,9 @@ patches.
 
 Start with delivered human events. For a manual resume, missing context, or the
 final approval check, run `comment snapshot --host <host> --port <port>`, adding
-`--review <name>` for one named review; it exits 1 when the server has none by that
-name. Read the output whole rather than filtering it with jq or a script: a filter
+`--review <review>` for one review: its name, `reviewId`, or inbox label
+(`<base>..<target>` for an unnamed review). It exits 1 when the server has no such
+review. Read the output whole rather than filtering it with jq or a script: a filter
 on a wrong path prints nothing, which looks the same as no verdict or no pending
 message. A review's name is `selection.reviewName`, its verdict
 `approval.verdict`, and its messages `threads[].messages[]`. Everything you print

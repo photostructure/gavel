@@ -4,8 +4,8 @@ import { networkInterfaces, tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
 import type { ConversationSnapshot, ConversationStreamEvent } from '../types/conversation.js';
-import type { DiffSelection } from '../types/diff.js';
 import type { InboxDelivery } from '../types/presence.js';
+import { reviewLabel } from '../utils/diffSelection.js';
 
 import {
   codexTargetFromEnv,
@@ -146,10 +146,6 @@ function verdictLabel(review: SnapshotReview): string {
     case undefined:
       return 'no verdict';
   }
-}
-
-function reviewLabel({ reviewName, baseCommitish, targetCommitish }: DiffSelection): string {
-  return reviewName ?? `${baseCommitish}..${targetCommitish}`;
 }
 
 // The fields an agent acts on: IDs and the revision cursor to reply with, what the reviewer said,

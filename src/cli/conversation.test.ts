@@ -208,7 +208,11 @@ describe('conversation commands', () => {
   describe('snapshot --review', () => {
     const parser = { id: 'review-a', selection: { reviewName: 'parser-fix' }, threads: [] };
     const docs = { id: 'review-b', selection: { reviewName: 'docs' }, threads: [] };
-    const unnamed = { id: 'review-c', selection: { targetCommitish: 'HEAD' }, threads: [] };
+    const unnamed = {
+      id: 'review-c',
+      selection: { baseCommitish: '437ce25', targetCommitish: 'fb65c61' },
+      threads: [],
+    };
     const snapshot = {
       cursor: 'stream:8',
       store: { error: 'disk full' },
@@ -255,6 +259,25 @@ describe('conversation commands', () => {
       expect(log).toHaveBeenCalledWith(JSON.stringify({ ...live, reviews: [docs] }));
     });
 
+    it.each([
+      ['its ID', 'review-c'],
+      ['the label inbox events give it', '437ce25..fb65c61'],
+    ])('selects an unnamed review by %s', async (_, review) => {
+      fetchMock.mockResolvedValue(new Response(JSON.stringify(snapshot)));
+      await createCommentCommand().parseAsync([
+        'node',
+        'gavel',
+        'snapshot',
+        '--port',
+        '4966',
+        '--review',
+        review,
+      ]);
+      expect(log).toHaveBeenCalledWith(
+        JSON.stringify({ ...snapshot, reviews: [unnamed], deletedReviews: [] }),
+      );
+    });
+
     it('fails, naming the server, when no live review has the name', async () => {
       fetchMock.mockResolvedValue(new Response(JSON.stringify(snapshot)));
       await createCommentCommand().parseAsync([
@@ -268,7 +291,7 @@ describe('conversation commands', () => {
       ]);
       expect(log).not.toHaveBeenCalled();
       expect(error).toHaveBeenCalledWith(
-        'Error: No review named "parser" on the gavel server at http://localhost:4966/',
+        'Error: No review with the name, label, or ID "parser" on the gavel server at http://localhost:4966/',
       );
       expect(process.exitCode).toBe(1);
     });

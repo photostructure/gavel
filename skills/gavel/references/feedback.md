@@ -15,10 +15,12 @@ turn.
 <gavel-command> comment snapshot --host <host> --port <api-port>
 ```
 
-Add `--review <name>` to print only that named review, still with the top-level
-`cursor` and `store`; it exits 1 when the server has no review by that name. Read
-the output whole, without jq or a script: a filter on a wrong path prints nothing,
-which looks the same as no verdict or no pending message. A review's name is
+Add `--review <review>` to print only one review, still with the top-level
+`cursor` and `store`. It takes the review's name, its `reviewId`, or the `review`
+label inbox events give it (`<base>..<target>` for an unnamed review), and exits 1
+when the server has no such review. Read the output whole, without jq or a script:
+a filter on a wrong path prints nothing, which looks the same as no verdict or no
+pending message. A review's name is
 `selection.reviewName`, its verdict `approval.verdict`, and its messages
 `threads[].messages[]`.
 

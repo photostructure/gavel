@@ -308,9 +308,8 @@ up as a new named review.
 
 Approve on your review authorizes a commit. After addressing comments, passing
 required checks, and independent Codex/Claude reviewers LAND the final code,
-read a fresh `comment snapshot` (`--review <name>` for a named review)
-immediately before committing; require
-`approval.verdict: approve`. Approval follows recaptures and summary edits;
+read a fresh `comment snapshot --review <review>` immediately before committing;
+require `approval.verdict: approve`. Approval follows recaptures and summary edits;
 other sessions' staged hunks do not end it.
 
 Commit only the approved capture and requested fixes, using the saved message.

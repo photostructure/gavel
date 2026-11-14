@@ -43,7 +43,7 @@ host. No model turn waits for review. Manual handoff remains available:
    listener subscription does not prove delivery into the owning chat.
 4. Codex handles the delivered event batch and its saved pending work within
    the existing authorization. Use `comment snapshot --host <host> --port <actual-port>`,
-   with `--review <name>` for one named review,
+   with `--review <review>` (a name, `reviewId`, or inbox label) for one review,
    for a manual resume, missing thread context, or a fresh
    approval check before committing. Preserve exact message revision cursors for receipts
    and replies. Check approval against the current capture and summary.

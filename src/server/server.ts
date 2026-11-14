@@ -95,6 +95,7 @@ import {
   diffSelectionsEqual,
   getDiffSelectionKey,
   isWorkingTreeTarget,
+  reviewLabel,
 } from '../utils/diffSelection.js';
 
 export interface ServerOptions {
@@ -280,8 +281,6 @@ export async function startServer(options: ServerOptions): Promise<{
     const saved = reviewStore.load(key);
     return saved && key === cleanKey ? { ...saved, threads: [], progress: [] } : saved;
   }
-  const reviewLabel = (selection: DiffSelection) =>
-    selection.reviewName ?? `${selection.baseCommitish}..${selection.targetCommitish}`;
   const reviewKey = (selection: DiffSelection) =>
     savedReviewKey(
       repositoryId,
