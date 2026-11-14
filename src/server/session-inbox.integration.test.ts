@@ -4,7 +4,7 @@ import { createServer, type Server } from 'node:net';
 import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { fetch } from 'undici';
+import { fetch, startServer } from './test-access-token.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DiffResponse } from '../types/diff.js';
@@ -12,7 +12,6 @@ import type { InboxDelivery } from '../types/presence.js';
 import { DiffMode } from '../types/watch.js';
 
 import { captureWorkingTree } from './review-capture.js';
-import { startServer } from './server.js';
 
 describe('pushing review activity to the owning session', () => {
   let root: string;

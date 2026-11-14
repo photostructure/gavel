@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { loadAccessToken } from '../server/access-token.js';
+
 import { collectPending } from './pending';
 
 describe('collectPending', () => {
@@ -52,6 +54,7 @@ describe('collectPending', () => {
       'http://localhost:4966/api/inbox/attach',
       expect.objectContaining({
         method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
         body: JSON.stringify({
           sessionId: 'session-a',
           socket: '/run/user/1000/cc-socks/42.sock',

@@ -112,10 +112,23 @@ Use `gavel --help` for all options. See [command-line usage](docs/cli.md) for
 named reviews, stopping finished servers, PR authentication, piped diffs, initial
 comments, and editor setup.
 
+## Access token
+
+The link gavel prints when it starts ends in `#gavel-token=…`. Every request for
+review data carries that token, so a browser or program that knows only the port
+gets an access screen instead of your code. Your browser remembers the token for
+that address once you open the full link, so later links without it, such as
+bookmarks and links in comments, keep working.
+
+All of your gavel servers and commands share one token, kept in
+`~/.gavel/access-token` (or `$GAVEL_CONFIG_DIR/access-token`). To replace it,
+delete that file, restart your gavel servers, and open the new link one prints.
+
 ## HTTPS and remote browsers
 
-You can review from a phone or another computer. gavel has no built-in login;
-put it behind an authenticated HTTPS proxy or tunnel before exposing it.
+You can review from a phone or another computer. The access token is a shared
+secret, not a login: anyone holding a launch link gets in. Put gavel behind an
+authenticated HTTPS proxy or tunnel before exposing it.
 See [remote browser setup](docs/server-addresses.md#https-and-remote-browsers).
 
 ## Update check

@@ -261,7 +261,7 @@ describe('MarkdownDiffViewer', () => {
       expect(screen.getByRole('button', { name: 'Full Preview' })).toBeInTheDocument();
     });
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/blob/docs%2Fguide.md?ref=HEAD');
+    expect(global.fetch).toHaveBeenCalledWith('/api/blob/docs%2Fguide.md?ref=HEAD', undefined);
   });
 
   it('does not show Full Preview tab when prefetch fails', async () => {
@@ -443,8 +443,8 @@ describe('MarkdownDiffViewer two-side fetch', () => {
       expect(global.fetch).toHaveBeenCalledTimes(2);
     });
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/blob/docs%2Fguide.md?ref=HEAD~1');
-    expect(global.fetch).toHaveBeenCalledWith('/api/blob/docs%2Fguide.md?ref=HEAD');
+    expect(global.fetch).toHaveBeenCalledWith('/api/blob/docs%2Fguide.md?ref=HEAD~1', undefined);
+    expect(global.fetch).toHaveBeenCalledWith('/api/blob/docs%2Fguide.md?ref=HEAD', undefined);
   });
 
   it('fetches only the target blob for an added file', async () => {
@@ -456,7 +456,7 @@ describe('MarkdownDiffViewer two-side fetch', () => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/blob/docs%2Fguide.md?ref=HEAD');
+    expect(global.fetch).toHaveBeenCalledWith('/api/blob/docs%2Fguide.md?ref=HEAD', undefined);
   });
 
   it('fetches only the base blob for a deleted file', async () => {
@@ -470,7 +470,7 @@ describe('MarkdownDiffViewer two-side fetch', () => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/blob/old.md?ref=HEAD~1');
+    expect(global.fetch).toHaveBeenCalledWith('/api/blob/old.md?ref=HEAD~1', undefined);
   });
 
   it('shows the Full Preview tab and renders base content for a deleted file', async () => {

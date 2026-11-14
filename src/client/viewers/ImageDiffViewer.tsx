@@ -4,6 +4,7 @@ import { DEFAULT_DIFF_VIEW_MODE } from '../../utils/diffMode';
 import { isVideoFile } from '../utils/imageUtils';
 
 import type { DiffViewerBodyProps } from './types';
+import { apiFetch, withAccessTokenQuery } from '../utils/accessToken';
 
 interface MediaInfo {
   width?: number;
@@ -60,7 +61,7 @@ function MediaPanelBody({ label, src, alt, isVideo, inline }: MediaPanelProps) {
   // The element reports dimensions; fetching the file again gives its size.
   const recordInfo = async (width: number, height: number) => {
     try {
-      const response = await fetch(src);
+      const response = await apiFetch(src);
       const blob = await response.blob();
       setInfo({ width, height, size: blob.size });
     } catch (error) {
@@ -133,7 +134,7 @@ export function ImageDiffViewer({
     const query = capture
       ? `review=${encodeURIComponent(capture.name)}&version=${capture.version}&side=${side}`
       : `ref=${encodeURIComponent(side === 'old' ? baseCommitish || 'HEAD~1' : targetCommitish || 'HEAD')}`;
-    return `/api/blob/${encodeURIComponent(path)}?${query}`;
+    return withAccessTokenQuery(`/api/blob/${encodeURIComponent(path)}?${query}`);
   };
 
   // For deleted files, show only the old version

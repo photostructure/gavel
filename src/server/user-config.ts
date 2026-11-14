@@ -13,12 +13,12 @@ const CONFIG_VERSION = 1 as const;
 // Generous ceiling for the user config; anything larger is a bug or abuse.
 export const MAX_USER_CONFIG_BYTES = 64 * 1024;
 
+export function getUserConfigDir(): string {
+  return process.env.GAVEL_CONFIG_DIR?.trim() || join(homedir(), '.gavel');
+}
+
 export function getUserConfigPath(): string {
-  const configDir = process.env.GAVEL_CONFIG_DIR?.trim();
-  if (configDir) {
-    return join(configDir, 'config.json');
-  }
-  return join(homedir(), '.gavel', 'config.json');
+  return join(getUserConfigDir(), 'config.json');
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -67,7 +67,7 @@ to update an existing task. Read its current metadata before updating:
 
 ```sh
 gavel review create docs-update --port 4966 --pathspec docs
-curl --fail --silent http://localhost:4966/api/reviews/parser-fix
+curl --fail --silent -H "X-Gavel-Token: $(cat "${GAVEL_CONFIG_DIR:-$HOME/.gavel}/access-token")" http://localhost:4966/api/reviews/parser-fix
 gavel review update parser-fix --port 4966 --expected-version 1 --pathspec src --pathspec ':(exclude)src/generated/**'
 ```
 
@@ -164,9 +164,12 @@ The first `server.ready` event includes `port`, `url`, `launchUrl`, `pid`, `revi
 `selection`, `reviewId`, and `timestamp`. Named reviews also include `capture`
 metadata: `name`, `version`, `patchDigest`, `baseCommit`, and `repositoryId`.
 Use its actual API port for companion commands: 4966 may be occupied, and the Vite UI port is not the API port.
-`url` is the API origin without an editor token. For production launches, give
-the reviewing user `launchUrl`: its fragment carries the editor-session token
-needed for open-in-editor actions. In development, the review UI is the Vite tab
+`url` is the API origin without the access token; never give it to the user. Give
+the reviewing user `launchUrl` unchanged: its `#gavel-token=…` fragment carries the
+access token, without which the page shows only an access screen. Every `/api`
+request needs that token in the `X-Gavel-Token` header; companion commands read it
+from `~/.gavel/access-token` (or `$GAVEL_CONFIG_DIR/access-token`) themselves.
+In development, the review UI is the Vite tab
 opened by `pnpm run dev`; preserve the query and fragment from `launchUrl` when
 constructing a link on the Vite origin.
 `server.shutdown` includes `reason`, `pid`, and `timestamp`.

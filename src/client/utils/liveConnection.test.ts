@@ -44,6 +44,20 @@ describe('live connection', () => {
     expect(MockWebSocket.latest().close).toHaveBeenCalledOnce();
   });
 
+  it('names the access token in the socket URL, since a WebSocket cannot set a header', () => {
+    window.history.replaceState(null, '', '/#gavel-token=live-token');
+    try {
+      const unsubscribe = subscribe();
+      expect(new URL(MockWebSocket.latest().url).searchParams.get('gavel-token')).toBe(
+        'live-token',
+      );
+      unsubscribe();
+    } finally {
+      window.history.replaceState(null, '', '/');
+      localStorage.clear();
+    }
+  });
+
   it('connects straight to the API server in development', () => {
     vi.stubEnv('VITE_GAVEL_API_URL', 'http://localhost:4969');
     subscribe();

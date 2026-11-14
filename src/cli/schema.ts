@@ -346,8 +346,16 @@ const definitions: Record<string, Schema> = {
       capture: ref('NamedReviewMetadata'),
       type: { const: 'server.ready' },
       port: { type: 'integer', minimum: 1, maximum: 65535 },
-      url: string,
-      launchUrl: string,
+      url: {
+        type: 'string',
+        description:
+          'API origin for companion commands. It lacks the access token: never give it to the user.',
+      },
+      launchUrl: {
+        type: 'string',
+        description:
+          'The link to give the user, unchanged: its #gavel-token fragment is the access token.',
+      },
       pid: { type: 'integer', minimum: 1 },
       reviewContext: ref('ReviewContext'),
       selection: ref('DiffSelection'),
@@ -369,7 +377,11 @@ const definitions: Record<string, Schema> = {
   ServerBackgroundEvent: object({
     type: { const: 'server.background' },
     port: { type: 'integer', minimum: 1, maximum: 65535 },
-    url: string,
+    url: {
+      type: 'string',
+      description:
+        'The link to give the user, unchanged: its #gavel-token fragment is the access token.',
+    },
     pid: { type: 'integer', minimum: 1 },
     timestamp,
   }),

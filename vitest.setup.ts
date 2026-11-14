@@ -1,17 +1,21 @@
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { afterAll, vi } from 'vitest';
 import { Agent, setGlobalDispatcher } from 'undici';
 
 // Disable keep-alive for tests to prevent ECONNRESET errors
 // Use pipelining=0 instead of keepAlive=false for this version of undici
 setGlobalDispatcher(new Agent({ pipelining: 0 }));
 
-// Keep servers under test away from the developer's ~/.gavel/config.json. Nothing
-// creates this directory; tests that save settings point GAVEL_CONFIG_DIR at their own.
-process.env.GAVEL_CONFIG_DIR = join(tmpdir(), `gavel-test-config-${process.pid}`);
+// Keep servers and CLI commands under test away from the developer's ~/.gavel. Loading the
+// access token creates this directory, so each test file removes it when it finishes; tests
+// that save settings point GAVEL_CONFIG_DIR at their own.
+const testConfigDirectory = join(tmpdir(), `gavel-test-config-${process.pid}`);
+process.env.GAVEL_CONFIG_DIR = testConfigDirectory;
+afterAll(() => rmSync(testConfigDirectory, { recursive: true, force: true }));
 
 // Tests often run inside a Claude Code session. Without these, servers and CLIs under test
 // cannot register with that session or send its inbox their test reviews' activity.

@@ -1,6 +1,8 @@
 // Auto-viewed patterns live in the server's ~/.gavel/config.json, shared by
 // every browser; /api/diff returns them with the files they apply to.
 
+import { apiFetch } from '../utils/accessToken';
+
 const SAVE_DELAY_MS = 300;
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -14,7 +16,7 @@ export function saveAutoViewedPatterns(patterns: string[]): void {
   saveTimer = setTimeout(() => {
     saveTimer = null;
     void (async () => {
-      const response = await fetch('/api/auto-viewed-patterns', {
+      const response = await apiFetch('/api/auto-viewed-patterns', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ patterns }),

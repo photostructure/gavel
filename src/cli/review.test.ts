@@ -17,6 +17,7 @@ import type { ReviewCapture } from '../types/review.js';
 import { createReviewCommand, resolveNamedReview, validateReviewName } from './review.js';
 import { findSavedCapture, revertCapture, type RevertResult } from './unapply.js';
 import { detectStdinSource, readStdin } from './utils.js';
+import { loadAccessToken } from '../server/access-token.js';
 
 vi.mock('../server/review-capture.js', () => ({
   capturePatch: vi.fn(),
@@ -259,7 +260,7 @@ describe('named review CLI', () => {
       'http://localhost:4983/api/reviews',
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
         body: JSON.stringify({ name: 'task-b', capture, inbox: null }),
       }),
     );
@@ -314,7 +315,7 @@ describe('named review CLI', () => {
       'http://10.1.1.24:4983/api/reviews/task/rename',
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
         body: JSON.stringify({ name: 'better' }),
       }),
     );
@@ -383,7 +384,7 @@ describe('named review CLI', () => {
       'http://localhost:4983/api/reviews/task/capture',
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
         body: JSON.stringify({ expectedVersion: 3, capture }),
       }),
     );

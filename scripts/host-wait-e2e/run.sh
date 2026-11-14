@@ -49,7 +49,9 @@ PIDS=()
 
 log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$LOG"; }
 fail() { log "FAIL: $*"; exit 1; }
-api() { curl -sf "http://$HOST:$PORT$1"; }
+# Every /api request carries this user's access token, which gavel creates when it first starts.
+token() { cat "${GAVEL_CONFIG_DIR:-$HOME/.gavel}/access-token"; }
+api() { curl -sf -H "X-Gavel-Token: $(token)" "http://$HOST:$PORT$1"; }
 
 cleanup() {
   for pid in "${PIDS[@]}"; do kill "$pid" 2>/dev/null || true; done
@@ -105,7 +107,7 @@ user_comment() { # <file> <line> <body> [thread-id]
     | {threads, baseVersion: .version,
        captureVersion: $cap[0].version, patchDigest: $cap[0].patchDigest}' \
     "$WORK/threads.json" > "$WORK/post.json" || return 1
-  curl -sf -X POST -H 'Content-Type: application/json' --data @"$WORK/post.json" \
+  curl -sf -X POST -H 'Content-Type: application/json' -H "X-Gavel-Token: $(token)" --data @"$WORK/post.json" \
     "http://$HOST:$PORT/api/comments?review=$REVIEW" > /dev/null || return 1
   echo "$id"
 }
@@ -119,7 +121,7 @@ approve() {
       if length == 1 then .[0] else error("expected one review named \($r)") end') || return 1
   jq -nc --argjson cap "$cap" --argjson sv "$summary" \
     '{verdict: "approve", summaryVersion: $sv, captureVersion: $cap.version, patchDigest: $cap.patchDigest}' |
-    curl -sf -X PUT -H 'Content-Type: application/json' --data @- \
+    curl -sf -X PUT -H 'Content-Type: application/json' -H "X-Gavel-Token: $(token)" --data @- \
       "http://$HOST:$PORT/api/approval?review=$REVIEW" | jq -e '.verdict == "approve"' > /dev/null
 }
 
@@ -182,10 +184,10 @@ fi
 
 # Hold reviewer presence open the way a browser tab does: one WebSocket on /api/live.
 node -e 'const live = new WebSocket(process.argv[1]); live.onclose = () => process.exit(1);' \
-  "ws://$HOST:$PORT/api/live?tab=e2e&visible=true" &
+  "ws://$HOST:$PORT/api/live?tab=e2e&visible=true&gavel-token=$(token)" &
 HEARTBEAT=$!
 PIDS+=("$HEARTBEAT")
-connected() { curl -s "http://$HOST:$PORT/api/presence" | jq -r .reviewers.connected; }
+connected() { api /api/presence | jq -r .reviewers.connected; }
 for _ in $(seq 20); do [ "$(connected)" -ge 1 ] && break; sleep 0.5; done
 [ "$(connected)" -ge 1 ] || fail "the simulated browser tab did not connect"
 

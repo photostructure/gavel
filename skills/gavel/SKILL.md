@@ -123,17 +123,19 @@ capture, including in submodules, narrow the paths or explicitly prepare a patch
 or capture artifact.
 
 Retain a foreground server's process handle. Read `server.ready` for the API
-port, PID, and review identity; share `launchUrl`, including its editor-session
-fragment. Use that host/API port for companion commands, never Vite's UI port.
+port, PID, and review identity; give the user `launchUrl` unchanged. Its
+`#gavel-token=…` fragment is the access token; without it the page shows only an
+access screen. Use that host/API port for companion commands, never Vite's UI port.
 JSONL is the default; diagnostics go to stderr. Named reviews and JSONL require
 conversation APIs; unnamed reviews can disable both with `--no-jsonl --no-conversation`.
 Use `--keep-alive` for review rounds and `--no-lgtm` for read-only reviews.
 
 `--background` detaches without opening a browser or streaming stdout. Share the `url` in its
-`server.background` record; recover state through snapshots. It cannot read a named
+`server.background` record, keeping its `#gavel-token=…` fragment; recover state through snapshots. It cannot read a named
 patch from stdin: launch unnamed on `HEAD --background --keep-alive` without
 `--comment`, `--commit-message`, or `--why`. Then create the named review from
-stdin, add comments and summary, and set the URL's `review` query to its name.
+stdin, add comments and summary, and put the `review` query before the fragment:
+`<url origin>/?review=<name>#gavel-token=<token>`.
 This keeps the bootstrap from becoming a review tab.
 
 **About** identifies the launching agent/session from the environment and, for
@@ -239,7 +241,7 @@ Reconcile a snapshot after missed output, restart, or HTTP 409.
 
 ## Wait for feedback
 
-Record pending work, share the URL, and end the turn. No polling, sleeps, timed
+Record pending work, share `launchUrl` (or the background record's `url`), and end the turn. No polling, sleeps, timed
 waits, Monitors, custom waiters, or `<gavel-command> wait`.
 
 In Claude Code, servers launched with `CLAUDE_CODE_MESSAGING_SOCKET` and
@@ -261,7 +263,7 @@ the user to paste **Copy resume prompt** into this chat or send a message when
 ready. Copying alone does not resume the agent.
 
 Subagents never wait: return a launch command and capture artifact, or a detached
-server's URL, review IDs, API port, and pending work to the main session.
+server's `url` with its token fragment, review IDs, API port, and pending work to the main session.
 
 ## Act on verdicts
 

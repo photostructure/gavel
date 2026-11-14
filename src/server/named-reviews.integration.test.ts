@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { fetch } from 'undici';
+import { fetch, startServer } from './test-access-token.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationSnapshot, ReviewApproval, ReviewSummary } from '../types/conversation.js';
@@ -13,7 +13,6 @@ import type { CapturedFile, NamedReviewMetadata, ReviewCapture } from '../types/
 
 import { NamedReviewStore } from './named-reviews.js';
 import { capturePatch, captureWorkingTree } from './review-capture.js';
-import { startServer } from './server.js';
 
 interface ReviewResponse extends NamedReviewMetadata {
   reviewId: string;

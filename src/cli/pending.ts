@@ -3,12 +3,14 @@ import { join } from 'node:path';
 
 import { Command } from 'commander';
 
+import { loadAccessToken } from '../server/access-token.js';
 import {
   inboxRuntimeDir,
   inboxTargetFromEnv,
   privateDirectory,
   registryRoot,
 } from '../server/session-inbox.js';
+import { ACCESS_TOKEN_HEADER } from '../utils/accessToken.js';
 
 import { serverUrl } from './server-url.js';
 import { detectStdinSource, readStdin } from './utils.js';
@@ -79,7 +81,7 @@ export async function collectPending(options: {
       const url = serverUrl(registration.host, registration.port, '/api/inbox/attach');
       const response = await options.fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', [ACCESS_TOKEN_HEADER]: loadAccessToken() },
         body: JSON.stringify(target),
         signal: AbortSignal.timeout(2000),
       });

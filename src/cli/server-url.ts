@@ -1,5 +1,8 @@
 import { InvalidArgumentError } from 'commander';
 
+import { loadAccessToken } from '../server/access-token.js';
+import { ACCESS_TOKEN_HEADER } from '../utils/accessToken.js';
+
 export function parseServerPort(value: string): number {
   const port = Number(value);
   if (!/^\d+$/.test(value) || !Number.isInteger(port) || port < 1 || port > 65535)
@@ -18,4 +21,18 @@ export function serverUrl(host: string, port: number, path: string): string {
   } catch {
     throw new Error('Expected a server hostname or IP address for --host');
   }
+}
+
+/** `fetch` from a companion command, carrying this user's access token. */
+export function serverFetch(
+  host: string,
+  port: number,
+  path: string,
+  init: Omit<RequestInit, 'headers'> & { headers?: Record<string, string> } = {},
+  accessToken: string = loadAccessToken(),
+): Promise<Response> {
+  return fetch(serverUrl(host, port, path), {
+    ...init,
+    headers: { ...init.headers, [ACCESS_TOKEN_HEADER]: accessToken },
+  });
 }

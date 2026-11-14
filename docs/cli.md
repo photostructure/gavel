@@ -194,5 +194,3 @@ template must pass `%file` or `%file:%line` as a separate argument; `%line` is r
 selected line. `%file` becomes the absolute repository file path. Arguments are
 passed directly to the executable without a shell. Restart gavel to change the
 editor.
-Use the full URL printed by gavel when opening a review manually; its fragment
-authorizes editor launches for that server session.

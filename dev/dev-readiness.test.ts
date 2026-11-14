@@ -76,7 +76,7 @@ await import('../worker.js');
           join(directory, 'dist/cli/index.js'),
           `
 import { existsSync, writeFileSync } from 'node:fs';
-const ready = { type: 'server.ready', url: 'http://localhost:4966', launchUrl: 'http://localhost:4966?mode=fixture#gavel-editor-token=capability', port: 4966 };
+const ready = { type: 'server.ready', url: 'http://localhost:4966', launchUrl: 'http://localhost:4966?mode=fixture#gavel-token=capability', port: 4966 };
 if (${jsonl}) process.stdout.write(JSON.stringify(ready) + '\\n');
 else process.stderr.write('🚀 gavel server started on ' + ready.launchUrl + '\\n');
 if (${JSON.stringify(mode)} === 'burst') {
@@ -132,7 +132,7 @@ if (${JSON.stringify(mode)} === 'burst') {
         ]);
         expect(JSON.parse(await readFile(join(directory, 'vite-env'), 'utf8'))).toEqual({
           apiUrl: 'http://localhost:4966',
-          openPath: '/?mode=fixture#gavel-editor-token=capability',
+          openPath: '/?mode=fixture#gavel-token=capability',
         });
         expect(stderr).toContain('compiler diagnostic');
         expect(stderr).toContain('vite diagnostic');

@@ -29,8 +29,6 @@ interface EditorOption {
 export const CUSTOM_EDITOR_ID: EditorOptionId = 'custom';
 export const NONE_EDITOR_ID: EditorOptionId = 'none';
 export const DEFAULT_EDITOR_ID: EditorOptionId = 'vscode';
-export const EDITOR_SESSION_FRAGMENT_KEY = 'gavel-editor-token';
-export const EDITOR_SESSION_HEADER = 'X-Gavel-Editor-Token';
 
 export const EDITOR_OPTIONS: readonly [EditorOption, ...EditorOption[]] = [
   {

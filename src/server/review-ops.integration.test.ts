@@ -14,7 +14,7 @@ import { promises as fsPromises } from 'node:fs';
 import { connect } from 'node:net';
 import { join } from 'node:path';
 
-import { fetch } from 'undici';
+import { fetch, startServer } from './test-access-token.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -31,7 +31,6 @@ import { FileWatcherService } from './file-watcher.js';
 import { GitDiffParser } from './git-diff.js';
 import { captureWorkingTree } from './review-capture.js';
 import { ReviewStore, type SavedReview } from './review-store.js';
-import { startServer } from './server.js';
 
 const now = '2026-11-08T12:00:00.000Z';
 const later = '2026-11-08T13:00:00.000Z';

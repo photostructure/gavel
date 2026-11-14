@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createWaitCommand } from './wait.js';
+import { loadAccessToken } from '../server/access-token.js';
 
 const presence = { reviewers: { connected: 1, visible: 1 }, listeners: 0 };
 const snapshot = { cursor: 'stream:0', reviews: [], presence };
@@ -289,6 +290,25 @@ describe('gavel wait', () => {
     expect(
       fetchMock.mock.calls.every(([url]) => String(url).startsWith('http://10.1.1.24:4966/')),
     ).toBe(true);
+    for (const [, init] of fetchMock.mock.calls)
+      expect(init?.headers).toEqual({ 'X-Gavel-Token': loadAccessToken() });
+  });
+
+  // Ground truth: `gavel wait --host http://localhost --port 4966` on main exits 1 with this error.
+  it('reports a malformed --host as a usage error, not a dead server', async () => {
+    await createWaitCommand().parseAsync([
+      'node',
+      'gavel',
+      '--host',
+      'http://localhost',
+      '--port',
+      '4966',
+    ]);
+    expect(process.exitCode).toBe(1);
+    expect(error).toHaveBeenCalledWith(
+      'Error: Expected a server hostname or IP address for --host',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('stops after a reviewer disconnects instead of polling indefinitely', async () => {

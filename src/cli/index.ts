@@ -5,6 +5,7 @@ import { type SimpleGit } from 'simple-git';
 
 import pkg from '../../package.json' with { type: 'json' };
 import { createGitClient } from '../server/git-client.js';
+import { loadAccessToken } from '../server/access-token.js';
 import { startServer, type ServerOptions } from '../server/server.js';
 import { type CommentImport, type DiffSelection } from '../types/diff.js';
 import { createDiffSelection } from '../utils/diffSelection.js';
@@ -27,7 +28,7 @@ import { createApprovalCommand } from './approval.js';
 import { createIdleCommand } from './idle.js';
 import { createPendingCommand } from './pending.js';
 import { createSchemaCommand } from './schema.js';
-import { serverUrl } from './server-url.js';
+import { serverFetch } from './server-url.js';
 import { createWaitCommand } from './wait.js';
 import { createReviewCommand, resolveNamedReview } from './review.js';
 import { getPrPatch, getPrCommentImports } from './github.js';
@@ -214,6 +215,9 @@ Editor configuration (set before starting gavel):
   )
   .action(async (commitish: string, compareWith: string | undefined, options: CliOptions) => {
     try {
+      // Loaded once: the shutdown handler asks this server for its comments with the token it
+      // started with, even after the file was deleted to rotate it.
+      const accessToken = loadAccessToken();
       const isBackgroundChild = process.env[BACKGROUND_CHILD_ENV] === '1';
       const backgroundMode = options.background || isBackgroundChild;
       // Background servers stop the same way: killed outright, they left their review locks.
@@ -222,6 +226,7 @@ Editor configuration (set before starting gavel):
           server,
           !options.jsonl && !backgroundMode,
           options.host || 'localhost',
+          accessToken,
         );
       if (options.review !== undefined && !options.conversation) {
         throw new Error('Named reviews require conversation mode; remove --no-conversation');
@@ -371,6 +376,7 @@ Editor configuration (set before starting gavel):
         });
 
         const { launchUrl, port, isEmpty } = await startServer({
+          accessToken,
           namedReview,
           title: options.title,
           agent: options.agent,
@@ -413,6 +419,7 @@ Editor configuration (set before starting gavel):
         // Start server with stdin diff (including --pr patch)
 
         const { launchUrl, port } = await startServer({
+          accessToken,
           stdinDiff,
           preferredPort: options.port,
           host: options.host,
@@ -483,6 +490,7 @@ Editor configuration (set before starting gavel):
       }
 
       const { launchUrl, port, isEmpty } = await startServer({
+        accessToken,
         selection,
         explicitTarget: hasPositionalArgs,
         preferredPort: options.port,
@@ -547,6 +555,8 @@ program.addHelpText(
 Agent protocol:
   A foreground server emits JSONL on stdout; diagnostics and prompts use stderr.
   Use the host and API port from server.ready.url for companion commands.
+  Give the user server.ready.launchUrl unchanged: its #gavel-token fragment is
+  the access token, without which the page shows only an access screen.
   gavel schema                  JSON Schema for events and all protocol definitions
   gavel schema summary          Commit-message/TLDR edit request schema
   gavel comment reply --help    Exact-thread reply payload
@@ -566,6 +576,7 @@ function registerShutdownHandlers(
   { shutdown, port, whyNotDone }: Parameters<NonNullable<ServerOptions['onReady']>>[0],
   printComments: boolean,
   host: string,
+  accessToken: string,
 ): void {
   // `pkill -USR2 -x gavel-server` reaches every server and no other gavel command.
   process.title = 'gavel-server';
@@ -577,9 +588,13 @@ function registerShutdownHandlers(
     let exitCode = 0;
     if (printComments) {
       try {
-        const response = await fetch(serverUrl(host, port, '/api/comments-output'), {
-          signal: AbortSignal.timeout(3000),
-        });
+        const response = await serverFetch(
+          host,
+          port,
+          '/api/comments-output',
+          { signal: AbortSignal.timeout(3000) },
+          accessToken,
+        );
         if (response.ok) {
           const comments = await response.text();
           if (comments.trim()) console.log(comments);

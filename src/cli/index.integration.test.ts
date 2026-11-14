@@ -10,7 +10,7 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises';
-import { closeSync, openSync, watch } from 'node:fs';
+import { closeSync, openSync, rmSync, watch } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { devNull, tmpdir } from 'node:os';
@@ -20,6 +20,7 @@ import { createRequire } from 'node:module';
 import { fetch } from 'undici';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { loadAccessToken } from '../server/access-token.js';
 import type { ServerEvent } from '../types/events.js';
 import type { DiffResponse, RevisionsResponse } from '../types/diff.js';
 import type { BackgroundServerInfo } from './background.js';
@@ -108,6 +109,13 @@ beforeAll(async () => {
 afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
+
+/** Asks a launched server's API with the access token its launch URL carries. */
+function fetchLaunched(path: string, launchUrl: string) {
+  const token = new URLSearchParams(new URL(launchUrl).hash.slice(1)).get('gavel-token');
+  if (!token) throw new Error(`Launch URL has no access token: ${launchUrl}`);
+  return fetch(new URL(path, launchUrl), { headers: { 'X-Gavel-Token': token } });
+}
 
 function launch(
   args: string[],
@@ -385,7 +393,7 @@ describe('actual CLI launch protocol', () => {
           port: expect.any(Number),
           pid: expect.any(Number),
         });
-        const response = await fetch(new URL('/api/diff', background!.url));
+        const response = await fetchLaunched('/api/diff', background!.url);
         const diff = (await response.json()) as DiffResponse;
         expect(response.ok).toBe(true);
         expect(diff.reviewContext?.source).toBe('stdin');
@@ -461,7 +469,7 @@ describe('actual CLI launch protocol', () => {
         const output = fixture.output().stdout.trim();
         if (output) background = JSON.parse(output) as BackgroundServerInfo;
         expect(exitCode, fixture.output().stderr).toBe(0);
-        const response = await fetch(new URL('/api/diff', background!.url));
+        const response = await fetchLaunched('/api/diff', background!.url);
         const diff = (await response.json()) as DiffResponse;
         expect(diff.reviewContext).toMatchObject(expected);
       } finally {
@@ -480,7 +488,7 @@ describe('actual CLI launch protocol', () => {
       const output = fixture.output().stdout.trim();
       if (output) background = JSON.parse(output) as BackgroundServerInfo;
       expect(exitCode, fixture.output().stderr).toBe(0);
-      const response = await fetch(new URL('/api/revisions', background!.url));
+      const response = await fetchLaunched('/api/revisions', background!.url);
       const revisionOptions = (await response.json()) as RevisionsResponse;
       // The launch names the commits HEAD~1^ and HEAD~1 resolved to, so a later HEAD
       // does not move it.
@@ -943,9 +951,13 @@ describe('actual CLI launch protocol', () => {
     // Rejects the named review, or with no name the launched one.
     async function reject(port: number, name?: string): Promise<void> {
       const origin = `http://127.0.0.1:${port}`;
+      // The launched server shares this process's GAVEL_CONFIG_DIR, so its token.
+      const tokenHeader = { 'X-Gavel-Token': loadAccessToken() };
       let body: Record<string, unknown> = { verdict: 'reject' };
       if (name !== undefined) {
-        const capture = (await (await fetch(new URL(`/api/reviews/${name}`, origin))).json()) as {
+        const capture = (await (
+          await fetch(new URL(`/api/reviews/${name}`, origin), { headers: tokenHeader })
+        ).json()) as {
           version: number;
           patchDigest: string;
         };
@@ -954,7 +966,7 @@ describe('actual CLI launch protocol', () => {
       const query = name === undefined ? '' : `?review=${name}`;
       const response = await fetch(new URL(`/api/approval${query}`, origin), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...tokenHeader },
         body: JSON.stringify(body),
       });
       expect(response.status, await response.text()).toBe(200);
@@ -1133,6 +1145,50 @@ describe('actual CLI launch protocol', () => {
       } finally {
         if (pid !== undefined && alive(pid)) process.kill(pid, 'SIGKILL');
         await stop(launcher.child);
+      }
+    },
+    15000,
+  );
+
+  // Ground truth: rm "$GAVEL_CONFIG_DIR/access-token" while the server runs, then SIGHUP it.
+  it.skipIf(process.platform === 'win32')(
+    'flushes human-readable comments after the token file is deleted to rotate it',
+    async () => {
+      const configDirectory = await mkdtemp(join(directory, 'config-'));
+      const fixture = launch(
+        [
+          ...revisions,
+          '--host',
+          '127.0.0.1',
+          '--port',
+          '0',
+          '--no-open',
+          '--keep-alive',
+          '--no-jsonl',
+          '--comment',
+          JSON.stringify({
+            type: 'thread',
+            filePath: 'fixture.txt',
+            position: { side: 'new', line: 1 },
+            body: 'Keep this comment after a token rotation',
+          }),
+        ],
+        undefined,
+        { GAVEL_CONFIG_DIR: configDirectory },
+      );
+      let signalled = false;
+      fixture.child.stderr?.on('data', () => {
+        if (!signalled && fixture.output().stderr.includes('gavel server started on')) {
+          signalled = true;
+          rmSync(join(configDirectory, 'access-token'));
+          fixture.child.kill('SIGHUP');
+        }
+      });
+      try {
+        expect(await fixture.closed).toBe(0);
+        expect(fixture.output().stdout).toContain('Keep this comment after a token rotation');
+      } finally {
+        await stop(fixture.child);
       }
     },
     15000,

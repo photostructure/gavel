@@ -5,6 +5,7 @@ import { type DiffFile } from '../../types/diff';
 import { getPrismLanguageFromFilename } from '../utils/languageDetection';
 import { loadPrismLanguage } from '../utils/languageLoader';
 import Prism from '../utils/prism';
+import { apiFetch } from '../utils/accessToken';
 
 type LineTokensGetter = (lineNumber: number) => Token[] | null;
 
@@ -21,7 +22,7 @@ const MAX_WHOLE_FILE_LINES = 2000;
 
 async function fetchBlobText(filePath: string, ref: string): Promise<string | null> {
   try {
-    const response = await fetch(
+    const response = await apiFetch(
       `/api/blob/${encodeURIComponent(filePath)}?ref=${encodeURIComponent(ref)}`,
     );
     if (!response.ok) return null;

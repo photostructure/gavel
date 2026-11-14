@@ -11,7 +11,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Set environment variable to skip fetch mocking
 process.env.VITEST_SERVER_TEST = 'true';
 
-import { startServer, type ServerOptions } from './server.js';
+import { fetch as rawFetch } from 'undici';
+import { fetch, startServer, TEST_ACCESS_TOKEN, type ServerOptions } from './test-access-token.js';
 import { createSchemaCommand } from '../cli/schema.js';
 import { createCommentCommand } from '../cli/comment.js';
 import type { ServerEvent } from '../types/events.js';
@@ -74,8 +75,7 @@ function capturedEvents(port: number, skip = 0) {
   return { events: events.slice(skip), count: events.length };
 }
 
-// Add fetch polyfill for Node.js test environment
-const { fetch } = await import('undici');
+// CLI commands under test use the global fetch; it carries the test access token too.
 globalThis.fetch = fetch as any;
 const parserInstances = vi.hoisted(() => [] as any[]);
 
@@ -183,7 +183,7 @@ vi.mock('./git-diff.js', () => {
 });
 
 const liveUrl = (url: string, query: Record<string, string>) =>
-  `${url.replace(/^http/, 'ws')}/api/live?${new URLSearchParams(query)}`;
+  `${url.replace(/^http/, 'ws')}/api/live?${new URLSearchParams({ ...query, 'gavel-token': TEST_ACCESS_TOKEN })}`;
 
 async function openLive(
   url: string,
@@ -1027,7 +1027,7 @@ describe('Server Integration Tests', () => {
 
   describe('API endpoints', () => {
     let port: number;
-    let editorToken: string;
+    let launchUrl: string;
 
     beforeEach(async () => {
       const result = await startServer({
@@ -1036,32 +1036,52 @@ describe('Server Integration Tests', () => {
       });
       servers.push(result.server);
       port = result.port;
-      editorToken =
-        new URLSearchParams(new URL(result.launchUrl).hash.slice(1)).get('gavel-editor-token') ??
-        '';
+      launchUrl = result.launchUrl;
     });
 
-    it('requires the session credential before launching an editor', async () => {
-      const response = await fetch(`http://localhost:${port}/api/open-in-editor`, {
+    it('puts the access token in the launch link fragment', () => {
+      expect(new URL(launchUrl).hash).toBe(`#gavel-token=${TEST_ACCESS_TOKEN}`);
+    });
+
+    it.each([
+      ['no token', {}],
+      ['an empty token', { 'X-Gavel-Token': '' }],
+      ['a different token of the same length', { 'X-Gavel-Token': 'gavel_test_token_00001' }],
+    ])('refuses an API request with %s', async (_label, headers) => {
+      for (const path of ['/api/diff', '/api/comments-json', '/api/blob/test.js?ref=HEAD']) {
+        const response = await rawFetch(`http://localhost:${port}${path}`, { headers });
+        expect(response.status).toBe(401);
+      }
+      const posted = await rawFetch(`http://localhost:${port}/api/open-in-editor`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: 'test.js', line: 1 }),
+      });
+      expect(posted.status).toBe(401);
+    });
+
+    it('serves the app shell without a token and refuses a large body before parsing it', async () => {
+      expect((await rawFetch(`http://localhost:${port}/`)).status).not.toBe(401);
+      const posted = await rawFetch(`http://localhost:${port}/api/reviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: 'test.js', line: 1 }),
+        body: `{"name":"x","capture":"${'x'.repeat(17 * 1024 * 1024)}"}`,
       });
-      expect(response.status).toBe(403);
-      expect(editorToken).toMatch(/^[A-Za-z0-9_-]{22}$/);
+      expect(posted.status).toBe(401);
     });
 
-    it('rejects a different session credential of the expected length', async () => {
-      const wrongToken = `${editorToken[0] === 'A' ? 'B' : 'A'}${editorToken.slice(1)}`;
-      const response = await fetch(`http://localhost:${port}/api/open-in-editor`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Gavel-Editor-Token': wrongToken,
-        },
-        body: JSON.stringify({ filePath: 'test.js', line: 1 }),
-      });
-      expect(response.status).toBe(403);
+    it('accepts the token in the header or, for media sources, the query', async () => {
+      expect(
+        (
+          await rawFetch(`http://localhost:${port}/api/diff`, {
+            headers: { 'X-Gavel-Token': TEST_ACCESS_TOKEN },
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (await rawFetch(`http://localhost:${port}/api/diff?gavel-token=${TEST_ACCESS_TOKEN}`))
+          .status,
+      ).toBe(200);
     });
 
     it('rejects client-selected editor commands and arguments', async () => {
@@ -1069,7 +1089,6 @@ describe('Server Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Gavel-Editor-Token': editorToken,
         },
         body: JSON.stringify({
           filePath: 'test.js',
@@ -1093,10 +1112,6 @@ describe('Server Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Gavel-Editor-Token':
-            new URLSearchParams(new URL(configured.launchUrl).hash.slice(1)).get(
-              'gavel-editor-token',
-            ) ?? '',
         },
         body: JSON.stringify({ filePath: 'test.js', line: 1 }),
       });
@@ -1160,10 +1175,6 @@ describe('Server Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Gavel-Editor-Token':
-            new URLSearchParams(new URL(configured.launchUrl).hash.slice(1)).get(
-              'gavel-editor-token',
-            ) ?? '',
         },
         body: JSON.stringify({ filePath: 'test.js', line: 1 }),
       });
@@ -2814,7 +2825,7 @@ describe('Server Integration Tests', () => {
         await new Promise<void>((resolve, reject) => {
           socket.once('connect', () =>
             socket.write(
-              'GET /api/live?tab=probe&visible=true&server=another-server HTTP/1.1\r\n' +
+              `GET /api/live?tab=probe&visible=true&server=another-server&gavel-token=${TEST_ACCESS_TOKEN} HTTP/1.1\r\n` +
                 'Host: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
                 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n',
             ),
@@ -2884,21 +2895,24 @@ describe('Server Integration Tests', () => {
     });
 
     it.each([
-      '/api/live?tab=bad%20id&visible=true',
-      '/api/live?tab=tab',
-      '/api/other?tab=tab&visible=true',
-    ])('refuses the upgrade request %s', async (path) => {
+      ['/api/live?tab=bad%20id&visible=true', 400],
+      ['/api/live?tab=tab', 400],
+      ['/api/other?tab=tab&visible=true', 400],
+      ['/api/live?tab=tab&visible=true&gavel-token=', 401],
+      ['/api/live?tab=tab&visible=true&gavel-token=gavel_test_token_00001', 401],
+    ])('refuses the upgrade request %s', async (path, expected) => {
       const result = await startServer({ preferredPort: 0, keepAlive: true });
       servers.push(result.server);
       try {
-        const live = new WebSocket(`${result.url.replace(/^http/, 'ws')}${path}`);
+        const token = path.includes('gavel-token=') ? '' : `&gavel-token=${TEST_ACCESS_TOKEN}`;
+        const live = new WebSocket(`${result.url.replace(/^http/, 'ws')}${path}${token}`);
         const status = await new Promise<number | string>((resolve) => {
           live.once('unexpected-response', (_request, response) =>
             resolve(response.statusCode ?? 0),
           );
           live.once('error', (error) => resolve(String(error)));
         });
-        expect(status).toBe(400);
+        expect(status).toBe(expected);
       } finally {
         await result.shutdown('closed');
       }

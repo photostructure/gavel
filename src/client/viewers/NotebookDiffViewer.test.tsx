@@ -109,8 +109,14 @@ describe('NotebookDiffViewer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Full Preview' }));
 
     expect(await screen.findByText('Notebook title')).toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledWith('/api/blob/docs%2Fnotebook.ipynb?ref=HEAD~1');
-    expect(global.fetch).toHaveBeenCalledWith('/api/blob/docs%2Fnotebook.ipynb?ref=HEAD');
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/blob/docs%2Fnotebook.ipynb?ref=HEAD~1',
+      undefined,
+    );
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/blob/docs%2Fnotebook.ipynb?ref=HEAD',
+      undefined,
+    );
   });
 
   it('does not show Full Preview tab when notebook content cannot be fetched', async () => {

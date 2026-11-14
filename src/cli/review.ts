@@ -13,7 +13,7 @@ import { inboxTargetFromEnv, type InboxTarget } from '../server/session-inbox.js
 import type { NamedReviewStart, ReviewCapture, ReviewCaptureUpdate } from '../types/review.js';
 import { validateReviewName } from '../utils/review-name.js';
 
-import { serverUrl } from './server-url.js';
+import { serverUrl, serverFetch } from './server-url.js';
 import { findSavedCapture, revertCapture, type RevertResult } from './unapply.js';
 
 import { detectStdinSource, readStdin } from './utils.js';
@@ -304,7 +304,7 @@ export function createReviewCommand(): Command {
   ).action(async (name: string, patchSource: string | undefined, options: SourceOptions) => {
     try {
       const namedReview = await resolveCommandReview(name, patchSource, options);
-      const response = await fetch(serverUrl(options.host, options.port, '/api/reviews'), {
+      const response = await serverFetch(options.host, options.port, '/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // The review's feedback goes to this session's inbox, or, with null, to no session.
@@ -334,12 +334,10 @@ export function createReviewCommand(): Command {
     .action(async (name: string, patchSource: string | undefined, options: UpdateOptions) => {
       try {
         const namedReview = await resolveCommandReview(name, patchSource, options);
-        const response = await fetch(
-          serverUrl(
-            options.host,
-            options.port,
-            `/api/reviews/${encodeURIComponent(namedReview.name)}/capture`,
-          ),
+        const response = await serverFetch(
+          options.host,
+          options.port,
+          `/api/reviews/${encodeURIComponent(namedReview.name)}/capture`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -449,12 +447,10 @@ fallback, rejected, stash, stat}.
       .argument('<new-name>'),
   ).action(async (name: string, newName: string, options: ServerOptions) => {
     try {
-      const response = await fetch(
-        serverUrl(
-          options.host,
-          options.port,
-          `/api/reviews/${encodeURIComponent(validateReviewName(name))}/rename`,
-        ),
+      const response = await serverFetch(
+        options.host,
+        options.port,
+        `/api/reviews/${encodeURIComponent(validateReviewName(name))}/rename`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -479,12 +475,10 @@ fallback, rejected, stash, stat}.
       .argument('<name>'),
   ).action(async (name: string, options: ServerOptions) => {
     try {
-      const response = await fetch(
-        serverUrl(
-          options.host,
-          options.port,
-          `/api/reviews/${encodeURIComponent(validateReviewName(name))}`,
-        ),
+      const response = await serverFetch(
+        options.host,
+        options.port,
+        `/api/reviews/${encodeURIComponent(validateReviewName(name))}`,
         { method: 'DELETE', signal: AbortSignal.timeout(30000) },
       );
       console.log(JSON.stringify(await readResponse(response, name)));

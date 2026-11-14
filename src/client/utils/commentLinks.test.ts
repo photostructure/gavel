@@ -43,11 +43,11 @@ describe('parseCommentLink', () => {
     });
   });
 
-  it('ignores the editor token that the launch URL carries in the fragment', () => {
-    expect(parseCommentLink('#gavel-editor-token=abc&thread=tour-2')).toEqual({
+  it('ignores the access token that the launch URL carries in the fragment', () => {
+    expect(parseCommentLink('#gavel-token=abc&thread=tour-2')).toEqual({
       place: { kind: 'thread', threadId: 'tour-2' },
     });
-    expect(parseCommentLink('#gavel-editor-token=abc')).toBeNull();
+    expect(parseCommentLink('#gavel-token=abc')).toBeNull();
   });
 
   it('leaves links that are not gavel links alone', () => {
@@ -101,13 +101,13 @@ describe('parseCommentLink', () => {
 });
 
 describe('withLinkPlace', () => {
-  it('replaces the place and keeps the editor token', () => {
+  it('replaces the place and keeps the access token', () => {
     expect(
-      withLinkPlace('#gavel-editor-token=abc&file=a.ts&line=3', {
+      withLinkPlace('#gavel-token=abc&file=a.ts&line=3', {
         kind: 'thread',
         threadId: 'tour-2',
       }),
-    ).toBe('#gavel-editor-token=abc&thread=tour-2');
+    ).toBe('#gavel-token=abc&thread=tour-2');
   });
 
   it('writes a file place that reads back the same', () => {
@@ -133,9 +133,7 @@ describe('withLinkPlace', () => {
 
 describe('withoutLinkPlace', () => {
   it('removes only the place', () => {
-    expect(withoutLinkPlace('#gavel-editor-token=k&file=a/b.ts&line=3')).toBe(
-      '#gavel-editor-token=k',
-    );
+    expect(withoutLinkPlace('#gavel-token=k&file=a/b.ts&line=3')).toBe('#gavel-token=k');
     expect(withoutLinkPlace('#thread=t1')).toBe('');
   });
 

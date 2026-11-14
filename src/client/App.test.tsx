@@ -930,6 +930,7 @@ describe('App Component - Clear Comments Functionality', () => {
 
       expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
         '/api/comments-json?base=HEAD%5E&target=HEAD',
+        undefined,
       );
     });
   });
@@ -1194,7 +1195,7 @@ describe('App Component - Editor launch', () => {
   ])('sends only the file and line $name', async ({ navigateToAnchor }) => {
     vi.clearAllMocks();
     mockComments = [];
-    window.history.replaceState({}, '', '/#gavel-editor-token=test-capability');
+    window.history.replaceState({}, '', '/#gavel-token=test-capability');
     mockFetch({
       ...mockDiffResponse,
       files: [
@@ -1237,7 +1238,7 @@ describe('App Component - Editor launch', () => {
         '/api/open-in-editor',
         expect.objectContaining({
           method: 'POST',
-          headers: expect.objectContaining({ 'X-Gavel-Editor-Token': 'test-capability' }),
+          headers: expect.objectContaining({ 'X-Gavel-Token': 'test-capability' }),
           body: JSON.stringify({ filePath: mockDiffResponse.files[0]!.path, line: 1 }),
         }),
       );
@@ -2425,7 +2426,7 @@ describe('App Component - Review navigation', () => {
     window.history.replaceState(
       { retained: true },
       '',
-      '/?base=chosen-base&target=chosen-tip&baseMode=merge-base&retained=yes#gavel-editor-token=fixture',
+      '/?base=chosen-base&target=chosen-tip&baseMode=merge-base&retained=yes#gavel-token=fixture',
     );
     mockFetch({
       ...mockDiffResponse,
@@ -2449,7 +2450,7 @@ describe('App Component - Review navigation', () => {
       expect(new URLSearchParams(window.location.search).get('base')).toBe('chosen-base'),
     );
     expect(new URLSearchParams(window.location.search).get('retained')).toBe('yes');
-    expect(window.location.hash).toBe('#gavel-editor-token=fixture');
+    expect(window.location.hash).toBe('#gavel-token=fixture');
     expect(window.history.state).toMatchObject({ retained: true });
   });
 

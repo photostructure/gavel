@@ -35,16 +35,28 @@ API address for its live connection, so it is not the target for these recipes.
 
 The proxy must pass WebSocket upgrades on `/api/live`, which carries each tab's live
 updates and presence, and must not cache `/api/*`. `--keep-alive` prevents a dropped browser connection
-from ending the review. gavel has no built-in login: anyone who can reach the
-service can access the review and its enabled actions. Use an authenticated proxy
-for private repositories; HTTPS alone does not restrict access.
+from ending the review. Without the access token from the launch link, a browser
+sees only an access screen and `/api/*` answers 401, but the token is a shared
+secret, not a login: anyone holding a launch link can access the review and its
+enabled actions. Image and video requests and the `/api/live` upgrade carry the
+token in their query string, so keep the proxy from logging query strings. Use
+an authenticated proxy for private repositories; HTTPS alone does not restrict
+access.
+
+The launch link names `localhost`, so a reviewing device opens the proxy's origin
+instead, keeping the launch link's query and `#gavel-token=…` fragment: for
+`http://localhost:4966/?review=parser-fix#gavel-token=<token>`, open
+`https://review.example.com/?review=parser-fix#gavel-token=<token>`. The token is
+also in `~/.gavel/access-token` on the repository machine. That browser then
+remembers the token for the proxy's origin.
 
 ### Cloudflare Tunnel (`cloudflared`)
 
 For ongoing remote reviews, use a [named Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/get-started/)
 with a hostname such as `review.example.com`, routed to service type HTTP at
 `localhost:4966`. Configure a Cloudflare Access policy for the intended reviewers
-before exposing private code, and open the resulting HTTPS hostname. Keep `/api/*`
+before exposing private code, and open the resulting HTTPS hostname with the launch
+link's query and token fragment, as above. Keep `/api/*`
 uncached and confirm live updates using the checks below.
 
 [Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)
@@ -68,7 +80,8 @@ https://10-1-1-24.local-ip.sh:8443 {
 ```
 
 Run `caddy run --config Caddyfile`, allow the reviewing device to reach port 8443,
-and open `https://10-1-1-24.local-ip.sh:8443`. Caddy's `tls internal` uses a local CA;
+and open `https://10-1-1-24.local-ip.sh:8443/#gavel-token=<token>`, adding the launch
+link's query if it has one. Caddy's `tls internal` uses a local CA;
 install and trust its root certificate on each reviewing device before using the
 page. Alternatively, configure a certificate trusted by those devices with Caddy's
 [`tls` directive](https://caddyserver.com/docs/caddyfile/directives/tls).
@@ -80,8 +93,8 @@ or bypassing a certificate warning, is not a substitute for trusted HTTPS.
 
 ### Check copying and live conversations
 
-Open the HTTPS page without a certificate warning, choose Copy prompt from a
-comment's ⋯ menu, and paste into a text editor. For conversations, start foreground gavel with `--keep-alive`
+Open the HTTPS page without a certificate warning, adding the token fragment on
+the first visit. Choose Copy prompt from a comment's ⋯ menu, and paste into a text editor. For conversations, start foreground gavel with `--keep-alive`
 on the repository machine and retain its JSONL stdout. Submit a comment from the
 remote browser, verify it appears in the launch output, then send a
 [reply](agent-conversations.md) and confirm it appears without refreshing.

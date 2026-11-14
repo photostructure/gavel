@@ -14,7 +14,7 @@ import {
 import { devNull, hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { fetch } from 'undici';
+import { fetch, startServer } from './test-access-token.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationSnapshot, ReviewApproval, ReviewSummary } from '../types/conversation.js';
@@ -27,7 +27,6 @@ import { findApprovals } from '../cli/approval.js';
 
 import { captureWorkingTree } from './review-capture.js';
 import { ReviewStore, savedReviewKey, type ReviewOwner, type SavedReview } from './review-store.js';
-import { startServer } from './server.js';
 
 const now = '2026-11-07T12:00:00.000Z';
 const message = 'fix: keep approvals across restarts';

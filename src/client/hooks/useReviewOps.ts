@@ -4,6 +4,7 @@ import type { DiffCommentThread } from '../../types/diff';
 import type { ReviewOp, ReviewOpResult, ReviewOpsResponse } from '../../types/reviewOps';
 import { createId } from '../../utils/createId';
 import { applyReviewOp } from '../../utils/reviewOps';
+import { apiFetch } from '../utils/accessToken';
 
 // queuedAt stamps the change on this page until the server's answer replaces it.
 export type QueuedOp = ReviewOp & { id: string; queuedAt: string };
@@ -122,7 +123,7 @@ export function useReviewOps(
     if (batch.length === 0) return;
     let answer: ReviewOpsResponse;
     try {
-      const response = await fetch(`/api/review-ops?${query}`, {
+      const response = await apiFetch(`/api/review-ops?${query}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ repositoryId, ops: batch }),
@@ -186,7 +187,7 @@ export function useReviewOps(
   const refresh = useCallback(async () => {
     if (!scope || query === null) return;
     try {
-      const response = await fetch(`/api/comments-json?${query}`);
+      const response = await apiFetch(`/api/comments-json?${query}`);
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
       showSnapshot(scope, (await response.json()) as Snapshot);
       if (activeScope.current === scope) setLoadError(null);

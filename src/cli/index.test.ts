@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+import { TEST_ACCESS_TOKEN } from '../server/test-access-token.js';
 import { DiffMode } from '../types/watch.js';
 import pkg from '../../package.json' with { type: 'json' };
 
@@ -173,6 +174,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             selection: options.mergeBase
               ? { targetCommitish, baseCommitish, baseMode: 'merge-base' }
               : { targetCommitish, baseCommitish },
@@ -185,6 +187,7 @@ describe('CLI index.ts', () => {
       await program.parseAsync([...args], { from: 'user' });
 
       expect(mockStartServer).toHaveBeenCalledWith({
+        accessToken: TEST_ACCESS_TOKEN,
         selection: expectedSelection,
         preferredPort: undefined,
         host: '',
@@ -251,6 +254,7 @@ describe('CLI index.ts', () => {
           let baseCommitish = commitish + '^';
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             selection: options.mergeBase
               ? { targetCommitish, baseCommitish, baseMode: 'merge-base' }
               : { targetCommitish, baseCommitish },
@@ -266,6 +270,7 @@ describe('CLI index.ts', () => {
       await program.parseAsync([...args], { from: 'user' });
 
       const expectedCall = {
+        accessToken: TEST_ACCESS_TOKEN,
         selection: expectedOptions.mergeBase
           ? { targetCommitish: 'HEAD', baseCommitish: 'HEAD^', baseMode: 'merge-base' }
           : { targetCommitish: 'HEAD', baseCommitish: 'HEAD^' },
@@ -300,6 +305,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             selection: { targetCommitish: commitish, baseCommitish: `${commitish}^` },
             contextLines: options.context,
           });
@@ -329,6 +335,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             stdinDiff: getPrPatch(options.pr),
             contextLines: options.context,
           });
@@ -365,6 +372,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             stdinDiff: 'diff --git a/file.ts b/file.ts',
             contextLines: options.context,
           });
@@ -398,6 +406,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             stdinDiff: getPrPatch(options.pr),
           });
         });
@@ -433,6 +442,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             stdinDiff: 'diff --git a/file.ts b/file.ts',
           });
         });
@@ -483,7 +493,7 @@ describe('CLI index.ts', () => {
             return;
           }
 
-          await startServer({ selection });
+          await startServer({ accessToken: TEST_ACCESS_TOKEN, selection });
         });
 
       await program.parseAsync(['working', '--merge-base'], { from: 'user' });
@@ -554,6 +564,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             selection: { targetCommitish: commitish, baseCommitish: 'staged' },
             preferredPort: options.port,
             host: options.host,
@@ -585,6 +596,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             selection: { targetCommitish: commitish, baseCommitish: commitish + '^' },
             preferredPort: options.port,
             host: options.host,
@@ -622,6 +634,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             selection: { targetCommitish: commitish, baseCommitish: 'staged' },
             preferredPort: options.port,
             host: options.host,
@@ -661,6 +674,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             selection: { targetCommitish: commitish, baseCommitish: 'staged' },
             preferredPort: options.port,
             host: options.host,
@@ -734,6 +748,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             stdinDiff: getPrPatch(options.pr),
             preferredPort: options.port,
             host: options.host,
@@ -755,6 +770,7 @@ describe('CLI index.ts', () => {
       expect(mockGetPrPatch).toHaveBeenCalledWith(prUrl);
       expect(mockGetPrCommentImports).toHaveBeenCalledWith(prUrl);
       expect(mockStartServer).toHaveBeenCalledWith({
+        accessToken: TEST_ACCESS_TOKEN,
         stdinDiff: prPatch,
         preferredPort: undefined,
         host: '',
@@ -818,6 +834,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             stdinDiff: getPrPatch(options.pr),
             preferredPort: options.port,
             host: options.host,
@@ -832,6 +849,7 @@ describe('CLI index.ts', () => {
         'Warning: Failed to load PR review comments: gh api graphql failed',
       );
       expect(mockStartServer).toHaveBeenCalledWith({
+        accessToken: TEST_ACCESS_TOKEN,
         stdinDiff: prPatch,
         preferredPort: undefined,
         host: '',
@@ -887,6 +905,7 @@ describe('CLI index.ts', () => {
         .action(async (commitish: string, options: any) => {
           const commentImports = actualParseCommentOptions(options.comment);
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             selection: { targetCommitish: commitish, baseCommitish: `${commitish}^` },
             preferredPort: options.port,
             host: options.host,
@@ -904,6 +923,7 @@ describe('CLI index.ts', () => {
       );
 
       expect(mockStartServer).toHaveBeenCalledWith({
+        accessToken: TEST_ACCESS_TOKEN,
         selection: { targetCommitish: 'HEAD', baseCommitish: 'HEAD^' },
         preferredPort: undefined,
         host: '',
@@ -1017,6 +1037,7 @@ describe('CLI index.ts', () => {
             }
 
             await startServer({
+              accessToken: TEST_ACCESS_TOKEN,
               selection: {
                 targetCommitish: commitish,
                 baseCommitish: compareWith || commitish + '^',
@@ -1066,6 +1087,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             selection: {
               targetCommitish: commitish,
               baseCommitish: compareWith || commitish + '^',
@@ -1115,6 +1137,7 @@ describe('CLI index.ts', () => {
           }
 
           await startServer({
+            accessToken: TEST_ACCESS_TOKEN,
             selection: {
               targetCommitish: commitish,
               baseCommitish: compareWith || commitish + '^',

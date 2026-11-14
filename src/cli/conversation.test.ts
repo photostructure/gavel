@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createCommentCommand } from './comment.js';
 import { readStdin, detectStdinSource } from './utils.js';
+import { loadAccessToken } from '../server/access-token.js';
 
 vi.mock('./utils.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./utils.js')>()),
@@ -318,7 +319,7 @@ describe('conversation commands', () => {
       'http://localhost:4966/api/conversation/reply',
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
         body: JSON.stringify(reply),
       }),
     );

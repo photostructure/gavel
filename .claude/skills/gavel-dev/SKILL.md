@@ -43,7 +43,8 @@ Report build failures as failures, not as the user being away.
 Launch from the reviewed Git root, with the shared skill's targets and flags:
 use a supplied patch for isolated uncommitted work or the SHA for committed work.
 Use the same launcher for companion commands. Share `server.ready.launchUrl`, or
-the detached server's `server.background.url`, including its editor-session fragment.
+the detached server's `server.background.url`, unchanged: its `#gavel-token=…` fragment
+is the access token, without which the page shows only an access screen.
 
 Run `review create` and `review update` from the server's worktree: captures are
 bound to the repository root. Provide `- < <patch>` for each additional patch
@@ -63,7 +64,7 @@ and does not support `--background`; retain its handle.
 
 Companion commands use the API port from `server.ready`, not the Vite port.
 The API URL serves a development placeholder. Use the Vite UI origin printed on
-stderr, preserving the query and editor-session fragment from `launchUrl` when
+stderr, preserving the query and `#gavel-token=…` fragment from `launchUrl` when
 composing a URL.
 
 For human review, follow the shared skill's "Wait for feedback" section. A server

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { type DiffResponse } from '../../types/diff';
 import { getFileElementId } from '../utils/domUtils';
+import { apiFetch } from '../utils/accessToken';
 
 const INITIAL_RENDERED_FILE_COUNT = 8;
 const LAZY_RENDER_ROOT_MARGIN = '1200px 0px';
@@ -321,7 +322,7 @@ export function useLazyDiffRendering({
       generatedStatusCheckedRef.current.add(cacheKey);
 
       const encodedPath = encodeURIComponent(file.path);
-      fetch(`/api/generated-status/${encodedPath}?ref=${encodeURIComponent(ref)}`)
+      apiFetch(`/api/generated-status/${encodedPath}?ref=${encodeURIComponent(ref)}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((payload: { isGenerated?: unknown } | null) => {
           if (!payload || payload.isGenerated !== true) return;

@@ -3,7 +3,7 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { fetch } from 'undici';
+import { fetch, startServer } from './test-access-token.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationSnapshot, ReviewApproval } from '../types/conversation.js';
@@ -11,7 +11,6 @@ import type { DiffResponse } from '../types/diff.js';
 import { DiffMode } from '../types/watch.js';
 
 import { GitDiffParser } from './git-diff.js';
-import { startServer } from './server.js';
 
 describe('approval of a staged review', () => {
   let root: string;

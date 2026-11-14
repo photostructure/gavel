@@ -1,6 +1,6 @@
 import { toCommentThread } from '../utils/commentThreads.js';
 import { spawn } from 'child_process';
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'crypto';
 import { type Server } from 'http';
 import type { AddressInfo } from 'net';
 import { hostname } from 'os';
@@ -51,12 +51,11 @@ import {
   buildEditorSpawnSpec,
   CUSTOM_EDITOR_ID,
   EDITOR_OPTIONS,
-  EDITOR_SESSION_FRAGMENT_KEY,
-  EDITOR_SESSION_HEADER,
   NONE_EDITOR_ID,
   parseEditorArgsTemplate,
   resolveEditorOption,
 } from '../utils/editorOptions.js';
+import { ACCESS_TOKEN_HEADER, ACCESS_TOKEN_PARAM } from '../utils/accessToken.js';
 import { getFileExtension } from '../utils/fileUtils.js';
 import { applyReviewOp, parseReviewOp, parseReviewOpBatch } from '../utils/reviewOps.js';
 
@@ -100,6 +99,8 @@ import {
 import { verdictTabReviews } from '../utils/reviewTabs.js';
 
 export interface ServerOptions {
+  /** Every `/api` request and live WebSocket must carry this token; see `loadAccessToken`. */
+  accessToken: string;
   namedReview?: NamedReviewStart;
   selection?: DiffSelection;
   // The command line named the commit-ish rather than defaulting to HEAD.
@@ -308,8 +309,15 @@ export async function startServer(options: ServerOptions): Promise<{
   const initialNamedReview = options.namedReview
     ? createNamedReview(options.namedReview.name, options.namedReview.capture)
     : undefined;
-  const editorSessionToken = randomBytes(16).toString('base64url');
-  const editorSessionTokenBytes = Buffer.from(editorSessionToken);
+  const accessTokenBytes = Buffer.from(options.accessToken);
+  const hasAccessToken = (supplied: unknown): boolean => {
+    if (typeof supplied !== 'string') return false;
+    const suppliedBytes = Buffer.from(supplied);
+    return (
+      suppliedBytes.length === accessTokenBytes.length &&
+      timingSafeEqual(suppliedBytes, accessTokenBytes)
+    );
+  };
   // Privacy opt-outs that stop About from asking registry.npmjs.org for the latest release.
   // DO_NOT_TRACK, DNT, and GPC count only as 1 or true, as PhotoStructure reads them;
   // NO_UPDATE_NOTIFIER counts whenever it is set, as the update-notifier package documents.
@@ -538,6 +546,15 @@ export async function startServer(options: ServerOptions): Promise<{
       }
       next(error);
     };
+  // Checked before any body is parsed. `<img>` and `<video>` sources cannot set a header, so
+  // they name the token in the query instead.
+  app.use('/api', (req, res, next) => {
+    if (hasAccessToken(req.get(ACCESS_TOKEN_HEADER) ?? req.query[ACCESS_TOKEN_PARAM])) {
+      next();
+      return;
+    }
+    res.status(401).json({ error: 'Missing or wrong gavel access token' });
+  });
   app.use(
     '/api/reviews',
     express.json({ limit: '16mb' }),
@@ -1995,15 +2012,6 @@ export async function startServer(options: ServerOptions): Promise<{
       return;
     }
 
-    const suppliedTokenBytes = Buffer.from(req.get(EDITOR_SESSION_HEADER) ?? '');
-    if (
-      suppliedTokenBytes.length !== editorSessionTokenBytes.length ||
-      !timingSafeEqual(suppliedTokenBytes, editorSessionTokenBytes)
-    ) {
-      res.status(403).json({ error: 'Open in editor is not authorized' });
-      return;
-    }
-
     const { filePath, line, editor } = (req.body ?? {}) as {
       filePath?: unknown;
       line?: unknown;
@@ -2348,6 +2356,11 @@ export async function startServer(options: ServerOptions): Promise<{
       refuse('400 Bad Request');
       return;
     }
+    // Browsers cannot set headers on a WebSocket, so the token comes in the query.
+    if (!hasAccessToken(requestUrl.searchParams.get(ACCESS_TOKEN_PARAM))) {
+      refuse('401 Unauthorized');
+      return;
+    }
     const tab = requestUrl.searchParams.get('tab');
     const visible = requestUrl.searchParams.get('visible');
     if (
@@ -2429,7 +2442,7 @@ export async function startServer(options: ServerOptions): Promise<{
     });
   }
 
-  const launchUrl = `${url}${initialNamedReview ? `?review=${encodeURIComponent(initialNamedReview.metadata.name)}` : ''}#${EDITOR_SESSION_FRAGMENT_KEY}=${editorSessionToken}`;
+  const launchUrl = `${url}${initialNamedReview ? `?review=${encodeURIComponent(initialNamedReview.metadata.name)}` : ''}#${ACCESS_TOKEN_PARAM}=${options.accessToken}`;
 
   let shutdownEmitted = false;
   function outputShutdown(reason: ServerShutdownEvent['reason']) {

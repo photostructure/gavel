@@ -6,6 +6,7 @@ import {
 } from '../../types/live';
 import { createId } from '../../utils/createId';
 
+import { withAccessTokenQuery } from './accessToken';
 import { resolveEventSourceUrl } from './eventSourceUrl';
 
 export interface LiveListener {
@@ -41,7 +42,7 @@ function liveUrl(): string {
   // Reconnect only to the server this page started with; its port may now serve another review.
   if (serverId) query.set('server', serverId);
   url.search = query.toString();
-  return url.toString();
+  return withAccessTokenQuery(url.toString());
 }
 
 function reportVisibility() {

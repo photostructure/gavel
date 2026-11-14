@@ -19,7 +19,6 @@ import {
 } from '../types/diff';
 import { DEFAULT_DIFF_VIEW_MODE, normalizeDiffViewMode } from '../utils/diffMode';
 import { toCommentThread } from '../utils/commentThreads';
-import { EDITOR_SESSION_FRAGMENT_KEY, EDITOR_SESSION_HEADER } from '../utils/editorOptions';
 import {
   createDiffSelection,
   diffSelectionsEqual,
@@ -112,6 +111,7 @@ import {
 } from './utils/mergedChunks';
 import { buildFileLineIndex, isThreadOutdated } from './utils/outdatedComments';
 import { hideWhitespaceChanges, remapWhitespaceCursor } from './utils/ignoreWhitespace';
+import { apiFetch } from './utils/accessToken';
 
 const EMPTY_COMMENT_THREADS: CommentThread[] = [];
 const EMPTY_FILES: DiffFile[] = [];
@@ -158,9 +158,6 @@ const parseSidebarOpen = (value: unknown): boolean | null =>
 
 const getInitialFileTreeOpen = () => parseSidebarOpen(readClientSettings().sidebarOpen) ?? true;
 
-const readEditorSessionToken = (): string | null =>
-  new URLSearchParams(window.location.hash.slice(1)).get(EDITOR_SESSION_FRAGMENT_KEY);
-
 // The legacy punctuation escape conflates dots with literal _2e_. Preserve safe caches.
 function getNamedReviewStorageRef(name: string): string {
   if (!name.includes('.') && !name.includes('_2e_')) return `review:${name}`;
@@ -171,15 +168,6 @@ function getNamedReviewStorageRef(name: string): string {
 }
 
 function App() {
-  const [editorSessionToken, setEditorSessionToken] = useState(readEditorSessionToken);
-  useEffect(() => {
-    const captureLaunchToken = () => {
-      const nextToken = readEditorSessionToken();
-      if (nextToken) setEditorSessionToken(nextToken);
-    };
-    window.addEventListener('hashchange', captureLaunchToken);
-    return () => window.removeEventListener('hashchange', captureLaunchToken);
-  }, []);
   const [diffData, setDiffData] = useState<DiffResponse | null>(null);
   const [diffDataVersion, setDiffDataVersion] = useState(0);
   // Bumped only by an explicit reload, not by display toggles that refetch the diff
@@ -1330,7 +1318,7 @@ function App() {
           if (requestedSelection?.retained) params.set('retainedReview', '1');
         }
 
-        const response = await fetch(`/api/diff?${params}`, {
+        const response = await apiFetch(`/api/diff?${params}`, {
           signal: controller.signal,
         });
         if (!response.ok) {
@@ -1471,7 +1459,7 @@ function App() {
 
   // Fetch revision options on mount
   useEffect(() => {
-    fetch('/api/revisions')
+    apiFetch('/api/revisions')
       .then((res) => (res.ok ? res.json() : null))
       .then((data: RevisionsResponse | null) => {
         setRevisionOptions(data);
@@ -1491,7 +1479,7 @@ function App() {
   const loadRecentReviews = useCallback(async () => {
     const requestId = ++recentReviewsRequestRef.current;
     try {
-      const response = await fetch('/api/conversation/snapshot');
+      const response = await apiFetch('/api/conversation/snapshot');
       if (!response.ok) return;
       const snapshot = (await response.json()) as ConversationSnapshot;
       if (requestId !== recentReviewsRequestRef.current) return;
@@ -1955,40 +1943,34 @@ function App() {
     return () => cancelAnimationFrame(frame);
   }, [threadToReveal, pendingLineJump, cursor, scrollToElement]);
 
-  const handleOpenInEditor = useCallback(
-    async (filePath: string, lineNumber: number) => {
-      try {
-        const response = await fetch('/api/open-in-editor', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(editorSessionToken ? { [EDITOR_SESSION_HEADER]: editorSessionToken } : {}),
-          },
-          body: JSON.stringify({
-            filePath,
-            line: lineNumber,
-          }),
-        });
+  const handleOpenInEditor = useCallback(async (filePath: string, lineNumber: number) => {
+    try {
+      const response = await apiFetch('/api/open-in-editor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filePath,
+          line: lineNumber,
+        }),
+      });
 
-        if (!response.ok) {
-          const payload: unknown = await response.json().catch(() => null);
-          let message = response.statusText;
-          if (
-            payload &&
-            typeof payload === 'object' &&
-            'error' in payload &&
-            typeof (payload as { error?: unknown }).error === 'string'
-          ) {
-            message = (payload as { error: string }).error;
-          }
-          console.error('Failed to open file in editor:', message);
+      if (!response.ok) {
+        const payload: unknown = await response.json().catch(() => null);
+        let message = response.statusText;
+        if (
+          payload &&
+          typeof payload === 'object' &&
+          'error' in payload &&
+          typeof (payload as { error?: unknown }).error === 'string'
+        ) {
+          message = (payload as { error: string }).error;
         }
-      } catch (error) {
-        console.error('Failed to open file in editor:', error);
+        console.error('Failed to open file in editor:', message);
       }
-    },
-    [editorSessionToken],
-  );
+    } catch (error) {
+      console.error('Failed to open file in editor:', error);
+    }
+  }, []);
 
   const handleGlobalClick = (e: React.MouseEvent) => {
     // Clear cursor position
@@ -2036,7 +2018,7 @@ function App() {
 
   const allFilesViewed =
     diffData.files.length > 0 && viewedFilesInDiffCount === diffData.files.length;
-  const canOpenInEditor = diffData.openInEditorAvailable !== false && Boolean(editorSessionToken);
+  const canOpenInEditor = diffData.openInEditorAvailable !== false;
 
   return (
     <ReviewProviders

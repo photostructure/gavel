@@ -1,5 +1,5 @@
 import type { DiffSide, LineNumber } from '../../types/diff';
-import { EDITOR_SESSION_FRAGMENT_KEY } from '../../utils/editorOptions';
+import { ACCESS_TOKEN_PARAM } from '../../utils/accessToken';
 
 // Links in comment bodies that move around gavel: the query names a named review
 // (`?review=api-split`), and the fragment names a place in the review (`#thread=tour-2`,
@@ -37,7 +37,7 @@ function parsePlace(fragment: string): CommentLinkPlace | { error: string } | nu
   const params = new URLSearchParams(fragment);
   if (!PLACE_KEYS.some((key) => params.has(key))) return null;
   for (const key of params.keys()) {
-    if (key !== EDITOR_SESSION_FRAGMENT_KEY && !(PLACE_KEYS as readonly string[]).includes(key))
+    if (key !== ACCESS_TOKEN_PARAM && !(PLACE_KEYS as readonly string[]).includes(key))
       return { error: `${CANNOT} it has an unknown part, "${key}".` };
   }
   const thread = params.get('thread');
@@ -85,11 +85,11 @@ export function parseCommentLink(href: string): CommentLink | { error: string } 
   return { review, place };
 }
 
-/** A fragment (with its `#`, or empty) naming `place`, keeping only the editor token of `hash`. */
+/** A fragment (with its `#`, or empty) naming `place`, keeping only the access token of `hash`. */
 export function withLinkPlace(hash: string, place: CommentLinkPlace | undefined): string {
-  const token = new URLSearchParams(hash.replace(/^#/, '')).get(EDITOR_SESSION_FRAGMENT_KEY);
+  const token = new URLSearchParams(hash.replace(/^#/, '')).get(ACCESS_TOKEN_PARAM);
   const params = new URLSearchParams();
-  if (token !== null) params.set(EDITOR_SESSION_FRAGMENT_KEY, token);
+  if (token !== null) params.set(ACCESS_TOKEN_PARAM, token);
   if (place?.kind === 'thread') params.set('thread', place.threadId);
   if (place?.kind === 'file') {
     params.set('file', place.filePath);

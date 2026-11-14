@@ -171,7 +171,7 @@ writeFileSync('cli.pid', String(process.pid));
 const ready = {
   type: 'server.ready',
   url: 'http://localhost:4966',
-  launchUrl: 'http://localhost:4966?review=agent-task#gavel-editor-token=fixture-capability',
+  launchUrl: 'http://localhost:4966?review=agent-task#gavel-token=fixture-capability',
   port: 4966,
 };
 const announceReady = () => {
@@ -286,7 +286,7 @@ describe.skipIf(process.platform === 'win32')('development launcher subprocess o
         };
         expect(viteEnv).toEqual({
           apiUrl: 'http://localhost:4966',
-          openPath: '/?review=agent-task#gavel-editor-token=fixture-capability',
+          openPath: '/?review=agent-task#gavel-token=fixture-capability',
         });
       } finally {
         await fixture.cleanup();

@@ -1021,7 +1021,9 @@ describe('named captures in the browser', () => {
     const state = fixture();
     state.showReviewB = false;
     renderApp();
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/conversation/snapshot'));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith('/api/conversation/snapshot', undefined),
+    );
     expect(
       screen.queryByRole('navigation', { name: 'Reviews on this server' }),
     ).not.toBeInTheDocument();
@@ -1426,7 +1428,9 @@ describe('named captures in the browser', () => {
       },
     ];
     renderApp();
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/conversation/snapshot'));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith('/api/conversation/snapshot', undefined),
+    );
     expect(await screen.findByRole('button', { name: /^Revision menu:/ })).toBeVisible();
   });
 

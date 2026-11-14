@@ -51,6 +51,26 @@ describe('ImageDiffViewer', () => {
       expect(screen.getByRole('img')).toHaveAttribute('src', '/api/blob/test.jpg?ref=HEAD~1');
     });
 
+    it('names the access token in the image source, since an <img> cannot set a header', () => {
+      window.history.replaceState(null, '', '/#gavel-token=img-token');
+      try {
+        renderViewer({
+          path: 'test.jpg',
+          status: 'added',
+          additions: 1,
+          deletions: 0,
+          chunks: [],
+        });
+        expect(screen.getByRole('img')).toHaveAttribute(
+          'src',
+          '/api/blob/test.jpg?ref=HEAD&gavel-token=img-token',
+        );
+      } finally {
+        window.history.replaceState(null, '', '/');
+        localStorage.clear();
+      }
+    });
+
     it('renders added image correctly', () => {
       const addedFile: DiffFile = {
         path: 'test.jpg',

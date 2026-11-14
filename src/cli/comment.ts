@@ -4,7 +4,7 @@ import { parseCommentImportValue } from '../utils/commentImports.js';
 
 import { detectStdinSource, readStdin } from './utils.js';
 import { addConversationCommands } from './conversation.js';
-import { parseServerPort, serverUrl } from './server-url.js';
+import { parseServerPort, serverUrl, serverFetch } from './server-url.js';
 
 interface CommentAddOptions {
   host: string;
@@ -71,7 +71,7 @@ export function createCommentCommand(): Command {
             ? '/api/comment-imports'
             : `/api/comment-imports?review=${encodeURIComponent(opts.review)}`;
 
-        const response = await fetch(serverUrl(opts.host, opts.port, path), {
+        const response = await serverFetch(opts.host, opts.port, path, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(imports),
@@ -109,10 +109,11 @@ export function createCommentCommand(): Command {
     .action(async (opts: { host: string; port: number; format: string }) => {
       try {
         const endpoint = opts.format === 'json' ? '/api/comments-json' : '/api/comments-output';
-        const response = await fetch(serverUrl(opts.host, opts.port, endpoint));
+        const response = await serverFetch(opts.host, opts.port, endpoint);
 
         if (!response.ok) {
-          console.error('Error: Failed to retrieve comments');
+          const errorBody = (await response.json().catch(() => ({}))) as { error?: string };
+          console.error(`Error: ${errorBody.error ?? 'Failed to retrieve comments'}`);
           process.exit(1);
         }
 
@@ -156,12 +157,10 @@ export function createCommentCommand(): Command {
                   status: 'ok' | 'notFound' | 'error';
                   error?: string;
                 }> => {
-                  const response = await fetch(
-                    serverUrl(
-                      opts.host,
-                      opts.port,
-                      `/api/comments/${encodeURIComponent(threadId)}${action === 'delete' ? '' : '/resolution'}`,
-                    ),
+                  const response = await serverFetch(
+                    opts.host,
+                    opts.port,
+                    `/api/comments/${encodeURIComponent(threadId)}${action === 'delete' ? '' : '/resolution'}`,
                     action === 'delete'
                       ? { method: 'DELETE' }
                       : {

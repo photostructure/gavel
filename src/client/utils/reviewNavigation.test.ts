@@ -80,11 +80,11 @@ describe('review browser locations', () => {
   });
 
   it("drops a comment link's place when the review changes, and keeps it otherwise", () => {
-    window.history.replaceState(null, '', '/?review=a#gavel-editor-token=k&thread=t2');
+    window.history.replaceState(null, '', '/?review=a#gavel-token=k&thread=t2');
     writeReviewLocation({ baseCommitish: '', targetCommitish: '', reviewName: 'a' }, 'replace');
-    expect(window.location.hash).toBe('#gavel-editor-token=k&thread=t2');
+    expect(window.location.hash).toBe('#gavel-token=k&thread=t2');
     writeReviewLocation({ baseCommitish: '', targetCommitish: '', reviewName: 'b' }, 'replace');
     expect(window.location.search).toBe('?review=b');
-    expect(window.location.hash).toBe('#gavel-editor-token=k');
+    expect(window.location.hash).toBe('#gavel-token=k');
   });
 });

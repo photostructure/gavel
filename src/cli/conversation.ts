@@ -4,7 +4,7 @@ import type { ConversationSnapshot, ConversationSnapshotReview } from '../types/
 
 import { reviewLabel } from '../utils/diffSelection.js';
 
-import { serverUrl } from './server-url.js';
+import { serverUrl, serverFetch } from './server-url.js';
 
 import { detectStdinSource, readStdin } from './utils.js';
 
@@ -53,8 +53,10 @@ export function addConversationCommands(comment: Command): void {
     )
     .action(async (options: { port: number; host: string; review?: string }) => {
       try {
-        const response = await fetch(
-          serverUrl(options.host, options.port, '/api/conversation/snapshot'),
+        const response = await serverFetch(
+          options.host,
+          options.port,
+          '/api/conversation/snapshot',
           {
             signal: AbortSignal.timeout(30000),
           },
@@ -101,8 +103,10 @@ export function addConversationCommands(comment: Command): void {
           throw new Error('Provide review summary JSON as an argument or via stdin');
         }
         const body: unknown = JSON.parse(json ?? (await readStdin()));
-        const response = await fetch(
-          serverUrl(options.host, options.port, '/api/conversation/summary'),
+        const response = await serverFetch(
+          options.host,
+          options.port,
+          '/api/conversation/summary',
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -132,15 +136,12 @@ export function addConversationCommands(comment: Command): void {
           throw new Error('Provide status JSON as an argument or via stdin');
         }
         const body: unknown = JSON.parse(json ?? (await readStdin()));
-        const response = await fetch(
-          serverUrl(options.host, options.port, '/api/conversation/status'),
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(30000),
-          },
-        );
+        const response = await serverFetch(options.host, options.port, '/api/conversation/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(30000),
+        });
         await checkResponse(response);
         console.log(JSON.stringify(await response.json()));
       } catch (error) {
@@ -161,15 +162,12 @@ export function addConversationCommands(comment: Command): void {
           throw new Error('Provide reply JSON as an argument or via stdin');
         }
         const body: unknown = JSON.parse(json ?? (await readStdin()));
-        const response = await fetch(
-          serverUrl(options.host, options.port, '/api/conversation/reply'),
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(30000),
-          },
-        );
+        const response = await serverFetch(options.host, options.port, '/api/conversation/reply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(30000),
+        });
         await checkResponse(response);
         console.log(JSON.stringify(await response.json()));
       } catch (error) {

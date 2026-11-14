@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ReviewApproval } from '../../types/conversation';
+import { apiFetch } from '../utils/accessToken';
 
 /**
  * Server-owned approval of the displayed review. A recapture, summary edit, or diff change keeps
@@ -23,7 +24,7 @@ export function useReviewApproval(url: string | null) {
     if (!url || activeUrl.current !== url) return;
     const id = ++requestId.current;
     try {
-      const response = await fetch(url, { cache: 'no-store' });
+      const response = await apiFetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error('Could not load approval');
       const approval = (await response.json()) as ReviewApproval | null;
       if (typeof approval !== 'object' || approval === null)

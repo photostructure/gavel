@@ -65,11 +65,15 @@ describe('review listener indicator', () => {
       'https://review.local/api/conversation/snapshot over HTTPS',
     );
     expect(vi.mocked(copyTextToClipboard).mock.lastCall?.[0]).not.toContain('--port 443');
+    // Every /api route needs the access token; the prompt names where it is, not its value.
+    expect(vi.mocked(copyTextToClipboard).mock.lastCall?.[0]).toContain(
+      'X-Gavel-Token header holding the contents of ${GAVEL_CONFIG_DIR:-$HOME/.gavel}/access-token',
+    );
   });
 
-  it('omits the editor-session fragment and retains the named review URL', async () => {
+  it('omits the access token fragment and retains the named review URL', async () => {
     const previous = window.location.href;
-    window.history.replaceState(null, '', '/?review=task-a#editor-session=secret');
+    window.history.replaceState(null, '', '/?review=task-a#gavel-token=secret');
     try {
       render(<ReviewPresenceIndicator presence={null} />);
       fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt' }));

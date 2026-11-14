@@ -1,6 +1,9 @@
 import { Command, InvalidArgumentError } from 'commander';
 import { randomUUID } from 'node:crypto';
 
+import { loadAccessToken } from '../server/access-token.js';
+import { ACCESS_TOKEN_HEADER } from '../utils/accessToken.js';
+
 import { serverUrl } from './server-url.js';
 
 import type {
@@ -41,10 +44,13 @@ async function request<T>(
   signal: AbortSignal,
   host: string,
 ): Promise<T> {
+  // Built before the request, so a bad --host or token file is not reported as a dead server.
   const url = serverUrl(host, port, `/api/conversation/${path}`);
+  const accessToken = loadAccessToken();
   let response: Response;
   try {
     response = await fetch(url, {
+      headers: { [ACCESS_TOKEN_HEADER]: accessToken },
       signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
     });
     // Read the body under the same deadline as the headers.

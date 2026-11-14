@@ -14,6 +14,7 @@ import { extractMarkdownText, isElementWithCodeProps, isSafeUrl } from '../utils
 import { PreviewModeTabs, type PreviewMode } from './PreviewModeTabs';
 import { TextDiffViewer } from './TextDiffViewer';
 import type { DiffViewerBodyProps } from './types';
+import { apiFetch } from '../utils/accessToken';
 
 type PreviewBlockType = 'add' | 'delete' | 'change' | 'context';
 
@@ -753,7 +754,7 @@ export function MarkdownDiffViewer(props: DiffViewerBodyProps) {
     const fetchBlob = async (source: PreviewSource): Promise<string | null> => {
       if (!source) return null;
       const encodedPath = encodeURIComponent(source.path);
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/blob/${encodedPath}?ref=${encodeURIComponent(source.ref)}`,
       );
       if (!response.ok) {

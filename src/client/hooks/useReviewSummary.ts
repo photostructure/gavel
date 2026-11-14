@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ReviewSummary } from '../../types/conversation';
+import { apiFetch } from '../utils/accessToken';
 
 const isSummary = (value: unknown): value is ReviewSummary => {
   if (!value || typeof value !== 'object') return false;
@@ -25,7 +26,7 @@ export function useReviewSummary(url: string | null) {
     if (!url || activeUrl.current !== url) return;
     const id = ++requestId.current;
     try {
-      const response = await fetch(url, { cache: 'no-store' });
+      const response = await apiFetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error('Could not load change summary');
       const summary: unknown = await response.json();
       if (!isSummary(summary)) throw new Error('Invalid change summary');

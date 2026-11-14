@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { createCommentCommand } from './comment.js';
+import { loadAccessToken } from '../server/access-token.js';
 
 describe('createCommentCommand', () => {
   const command = createCommentCommand();
@@ -198,7 +199,7 @@ describe('comment subcommand integration', () => {
         'http://localhost:4966/api/comment-imports',
         expect.objectContaining({
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
         }),
       );
       expect(consoleOutput[0]).toContain('"success":true');
@@ -277,7 +278,9 @@ describe('comment subcommand integration', () => {
       const command = createCommentCommand();
       await command.parseAsync(['node', 'gavel', 'get', '--port', '4966']);
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:4966/api/comments-output');
+      expect(mockFetch).toHaveBeenCalledWith('http://localhost:4966/api/comments-output', {
+        headers: { 'X-Gavel-Token': loadAccessToken() },
+      });
       expect(consoleOutput[0]).toBe('Comments output text');
     });
 
@@ -287,7 +290,9 @@ describe('comment subcommand integration', () => {
       const command = createCommentCommand();
       await command.parseAsync(['node', 'gavel', 'get', '--port', '4966', '--format', 'json']);
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:4966/api/comments-json');
+      expect(mockFetch).toHaveBeenCalledWith('http://localhost:4966/api/comments-json', {
+        headers: { 'X-Gavel-Token': loadAccessToken() },
+      });
       expect(consoleOutput[0]).toContain('"threads"');
     });
 
@@ -322,7 +327,7 @@ describe('comment subcommand integration', () => {
         'http://localhost:4966/api/comments/abc123/resolution',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
           body: JSON.stringify({ resolved: true }),
         },
       );
@@ -330,7 +335,7 @@ describe('comment subcommand integration', () => {
         'http://localhost:4966/api/comments/def456/resolution',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
           body: JSON.stringify({ resolved: true }),
         },
       );
@@ -361,7 +366,7 @@ describe('comment subcommand integration', () => {
         'http://localhost:4966/api/comments/thread-1/resolution',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
           body: JSON.stringify({ resolved: false, reviewId: 'review-2' }),
         },
       );
@@ -379,6 +384,7 @@ describe('comment subcommand integration', () => {
 
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:4966/api/comments/abc123', {
         method: 'DELETE',
+        headers: { 'X-Gavel-Token': loadAccessToken() },
       });
       expect(JSON.parse(consoleOutput[0]!)).toEqual({
         success: true,
@@ -398,7 +404,7 @@ describe('comment subcommand integration', () => {
         'http://localhost:4966/api/comments/a%2Fb%20c/resolution',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
           body: JSON.stringify({ resolved: true }),
         },
       );

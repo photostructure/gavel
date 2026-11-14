@@ -7,6 +7,7 @@ import {
   type ExpandedLinesState,
   type FileExpandedState,
 } from '../../types/diff';
+import { apiFetch } from '../utils/accessToken';
 
 const DEFAULT_EXPAND_COUNT = 20;
 const EMPTY_EXPANDED_STATE: ExpandedLinesState = {};
@@ -69,7 +70,7 @@ function blobUrl(
 }
 
 async function fetchFileContent(url: string): Promise<{ lines: string[]; totalLines: number }> {
-  const response = await fetch(url);
+  const response = await apiFetch(url);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch file content: ${response.statusText}`);
@@ -96,7 +97,7 @@ async function fetchLineCount(
   if (newRef) params.set('newRef', newRef);
   if (oldPath && oldPath !== filePath) params.set('oldPath', oldPath);
 
-  const response = await fetch(`/api/line-count/${encodedPath}?${params}`);
+  const response = await apiFetch(`/api/line-count/${encodedPath}?${params}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch line count: ${response.statusText}`);
   }

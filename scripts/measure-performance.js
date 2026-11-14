@@ -66,7 +66,6 @@ async function getGitInfo() {
 async function startGavelServer(size, options = {}) {
   log('Starting gavel server...', colors.blue);
 
-  let actualPort = config.port;
   let diffInput;
 
   // Use provided gavel path or default
@@ -107,12 +106,10 @@ async function startGavelServer(size, options = {}) {
       const output = data.toString().trim();
       log(`  Server output: ${output}`, colors.cyan);
 
-      // Extract actual port from output
-      const portMatch = output.match(/http:\/\/localhost:(\d+)/);
-      if (portMatch) {
-        actualPort = parseInt(portMatch[1]);
-        resolve(actualPort);
-      }
+      // server.ready's launchUrl carries the access token, under whatever fragment name the
+      // build under test uses; without it a current build shows only an access screen.
+      const launchMatch = output.match(/"launchUrl":"([^"]+)"/);
+      if (launchMatch) resolve(launchMatch[1]);
     });
 
     gavelProcess.stderr.on('data', (data) => {
@@ -120,13 +117,14 @@ async function startGavelServer(size, options = {}) {
     });
   });
 
-  // Wait for server to start and get actual port
-  const port = await Promise.race([
+  // Wait for server to start and get its launch URL
+  const launchUrl = await Promise.race([
     serverStarted,
-    new Promise((resolve) => setTimeout(() => resolve(actualPort), 5000)),
+    new Promise((resolve) => setTimeout(() => resolve(undefined), 5000)),
   ]);
+  if (!launchUrl) throw new Error('gavel did not print its launch URL within 5 seconds');
 
-  return { process: gavelProcess, port, diffInput };
+  return { process: gavelProcess, launchUrl, diffInput };
 }
 
 async function measureKeyboardNavigation(page) {
@@ -248,11 +246,7 @@ async function measurePerformance(size, options = {}) {
     const isWarmup = i < warmupIterations;
     log(`\nIteration ${i + 1}/${totalIterations}${isWarmup ? ' (warm-up)' : ''}`, colors.blue);
 
-    const {
-      process: gavelProcess,
-      port: actualPort,
-      diffInput,
-    } = await startGavelServer(size, options);
+    const { process: gavelProcess, launchUrl, diffInput } = await startGavelServer(size, options);
     const iterationMetrics = {
       iteration: isWarmup ? i + 1 : i + 1 - warmupIterations,
       phase: isWarmup ? 'warmup' : 'measured',
@@ -289,7 +283,7 @@ async function measurePerformance(size, options = {}) {
 
       // Navigate to gavel
       const loadStartTime = Date.now();
-      await page.goto(`http://localhost:${actualPort}`, {
+      await page.goto(launchUrl, {
         waitUntil: 'domcontentloaded',
         timeout: 30000,
       });
