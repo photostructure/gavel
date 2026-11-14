@@ -29,6 +29,16 @@ describe('verdict follow-up notice', () => {
     />
   );
 
+  // The unsaved-changes toast anchors to this element, so the two stack instead of overlapping.
+  it('reports its element while open, and none once closed', async () => {
+    const onElement = vi.fn();
+    const { rerender } = render(notice({ step: { kind: 'close', reviews: 1 }, onElement }));
+    await waitFor(() => expect(onElement).toHaveBeenLastCalledWith(toast()));
+
+    rerender(notice({ step: null, onElement }));
+    await waitFor(() => expect(onElement).toHaveBeenLastCalledWith(null));
+  });
+
   it('renders nothing without a step', () => {
     render(notice({ step: null }));
     expect(screen.queryByRole('dialog', { name: 'Next step' })).not.toBeInTheDocument();

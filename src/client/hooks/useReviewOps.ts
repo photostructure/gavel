@@ -232,14 +232,26 @@ export function useReviewOps(
   }, [base, queue, scope]);
 
   const loaded = base?.scope === scope;
-  const alert =
+  // Shown in a toast of its own, since it can stay up for as long as the server is unreachable.
+  const unsaved =
     failure && queue.length > 0
       ? `${queue.length === 1 ? '1 change is' : `${queue.length} changes are`} not saved to the server (${failure}). Gavel sends ${queue.length === 1 ? 'it' : 'them'} again with your next change, when you reload, or when the live connection reopens.`
-      : rejection
-        ? `The server refused a change: ${rejection}`
-        : !loaded && loadError
-          ? `Could not load comments: ${loadError}`
-          : null;
+      : null;
+  const alert = rejection
+    ? `The server refused a change: ${rejection}`
+    : !loaded && loadError
+      ? `Could not load comments: ${loadError}`
+      : null;
 
-  return { loaded, threads, waiting: queue.length > 0, enqueue, refresh, retry, retarget, alert };
+  return {
+    loaded,
+    threads,
+    waiting: queue.length > 0,
+    enqueue,
+    refresh,
+    retry,
+    retarget,
+    alert,
+    unsaved,
+  };
 }

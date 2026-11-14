@@ -368,9 +368,10 @@ describe('useReviewOps', () => {
 
     await act(async () => void (await result.current.enqueue(add('waiting')).sent));
 
-    expect(result.current.alert).toContain(
+    expect(result.current.unsaved).toContain(
       'Gavel sends it again with your next change, when you reload, or when the live connection reopens.',
     );
+    expect(result.current.alert).toBeNull();
   });
 
   it('shows a failed first comments read in the alert', async () => {

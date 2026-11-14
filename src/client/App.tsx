@@ -57,6 +57,7 @@ import { CaptureDetails } from './components/CaptureDetails';
 import { AboutPanel } from './components/AboutPanel';
 import { HeaderMenu } from './components/HeaderMenu';
 import { VerdictControl } from './components/VerdictControl';
+import { UnsavedChangesToast } from './components/UnsavedChangesToast';
 import { VerdictFollowUpNotice } from './components/VerdictFollowUpNotice';
 import { CommentLinkNotice } from './components/CommentLinkNotice';
 import { ReviewProviders } from './contexts/ReviewProviders';
@@ -286,6 +287,16 @@ function App() {
   const { isMobile } = useViewport();
   const reviewChrome = useHideHeaderOnScroll();
   const headerFitRef = useHeaderFit();
+  // The header and the verdict toast, as state, so the unsaved-changes toast can anchor to them.
+  const [headerElement, setHeaderElement] = useState<HTMLElement | null>(null);
+  const [verdictToast, setVerdictToast] = useState<HTMLElement | null>(null);
+  const headerRef = useCallback(
+    (header: HTMLElement | null) => {
+      setHeaderElement(header);
+      return headerFitRef(header);
+    },
+    [headerFitRef],
+  );
   const topVisibleFile = useTopVisibleFile(diffScrollContainerRef, diffData?.files ?? EMPTY_FILES);
 
   const commentsContextKey = useMemo(() => {
@@ -2071,7 +2082,7 @@ function App() {
         >
           <div ref={reviewChrome.headerRef} className="flex min-h-0 flex-col overflow-hidden">
             <header
-              ref={headerFitRef}
+              ref={headerRef}
               className="review-toolbar group/header flex shrink-0 flex-wrap items-stretch justify-end gap-1 border-b border-github-border bg-github-bg-secondary px-3 py-2 text-sm text-github-text-primary md:gap-2"
               data-testid="compact-review-header"
             >
@@ -2244,6 +2255,11 @@ function App() {
                 onDismiss={verdictFollowUp.cancel}
                 onProceed={verdictFollowUp.proceed}
                 onUndo={() => void handleVerdict('clear')}
+                onElement={setVerdictToast}
+              />
+              <UnsavedChangesToast
+                anchor={verdictToast ?? headerElement}
+                message={reviewOps.unsaved}
               />
               {approval.error && (
                 <span role="alert" className="w-full text-xs text-github-danger">

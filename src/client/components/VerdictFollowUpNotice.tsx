@@ -9,7 +9,7 @@ import {
   useFloating,
 } from '@floating-ui/react';
 import { CornerDownLeft, X } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import type { ReviewVerdict } from '../../types/conversation';
 import type { ClientInboxDelivery } from '../hooks/useInboxDelivery';
@@ -61,9 +61,13 @@ export function VerdictFollowUpNotice({
   onDismiss,
   onProceed,
   onUndo,
+  onElement,
 }: {
   // The verdict buttons.
   anchor: Element | null;
+  // Gets the toast's element while it is open and the verdict buttons are on screen, so another
+  // toast can float below it; null otherwise.
+  onElement?: (element: HTMLElement | null) => void;
   step: VerdictFollowUpStep | null;
   // The open review's verdict.
   verdict: ReviewVerdict | undefined;
@@ -88,6 +92,20 @@ export function VerdictFollowUpNotice({
     // hide: the header slides away while the diff scrolls on touch screens.
     middleware: [offset(6), flip(), shift({ padding: 8 }), hide()],
   });
+  const [element, setElement] = useState<HTMLElement | null>(null);
+  const floatingRef = useCallback(
+    (floating: HTMLElement | null) => {
+      refs.setFloating(floating);
+      setElement(floating);
+    },
+    [refs],
+  );
+  // While the header has slid away the toast is only made invisible, which another toast's
+  // hide() cannot see, so it reports no element and the other toast anchors to the header.
+  const referenceHidden = middlewareData.hide?.referenceHidden ?? false;
+  useEffect(() => {
+    onElement?.(referenceHidden ? null : element);
+  }, [element, referenceHidden, onElement]);
   const detailId = useId();
   const nextRef = useRef<HTMLButtonElement>(null);
   const dismissRef = useRef<HTMLButtonElement>(null);
@@ -165,7 +183,7 @@ export function VerdictFollowUpNotice({
         {/* A black shadow cannot show on the dark theme's near-black page, so there a dark ring
             outside the border and a denser shadow set the toast off, as GitHub's dark overlays do. */}
         <div
-          ref={refs.setFloating}
+          ref={floatingRef}
           role="dialog"
           aria-label="Next step"
           aria-describedby={detailId}

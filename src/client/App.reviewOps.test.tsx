@@ -290,7 +290,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
     await expectShown('Saved');
   });
 
-  it('keeps a failed op queued, shows it, and says so in the header', async () => {
+  it('keeps a failed op queued, shows it, and says so in a toast', async () => {
     const state = server();
     mount();
     await waitForServerThreads();
@@ -300,7 +300,8 @@ describe('comment and verdict changes the server has not confirmed', () => {
 
     const alert = await findNotSavedAlert();
     expect(alert).toHaveTextContent('503 Service Unavailable');
-    expect(alert.closest('header')).not.toBeNull();
+    expect(alert).toHaveClass('unsaved-toast');
+    expect(alert.closest('header')).toBeNull();
     expect(queuedBodies()).toEqual(['Not saved yet']);
     expect(state.threads).toEqual([]);
     await expectShown('Not saved yet');
