@@ -2376,9 +2376,10 @@ export async function startServer(options: ServerOptions): Promise<{
       // ws reports a malformed frame as an error event, even on a socket being refused.
       live.on('error', () => live.terminate());
       const expectedServer = requestUrl.searchParams.get('server');
-      // A reconnecting tab can reach another review's server on a reused port.
+      // A reconnecting tab can reach another review's server on a reused port. The reason names
+      // this server's repository, so the tab can tell its own restarted server from another one.
       if (expectedServer && expectedServer !== liveServerId) {
-        live.close(LIVE_OTHER_SERVER, 'different server');
+        live.close(LIVE_OTHER_SERVER, repositoryId);
         return;
       }
       connectLiveTab(live, tab, visible === 'true');

@@ -8,7 +8,10 @@ import type { WatchEvent } from './watch.js';
  */
 export const LIVE_PATH = '/api/live';
 
-/** The close code a server sends a tab that reconnects expecting a different server. */
+/**
+ * The close code a server sends a tab that reconnects expecting a different server. The close
+ * reason is the refusing server's repository ID.
+ */
 export const LIVE_OTHER_SERVER = 4000;
 
 export type LiveServerMessage =

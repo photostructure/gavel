@@ -2783,8 +2783,17 @@ describe('Server Integration Tests', () => {
         const other = new WebSocket(
           liveUrl(result.url, { tab: 'tab', visible: 'true', server: 'another-server' }),
         );
-        const code = await new Promise<number>((resolve) => other.once('close', resolve));
+        const [code, reason] = await new Promise<[number, string]>((resolve) =>
+          other.once('close', (closeCode, closeReason) =>
+            resolve([closeCode, closeReason.toString()]),
+          ),
+        );
         expect(code).toBe(LIVE_OTHER_SERVER);
+        // The repository, so a tab can tell this review's restarted server from another review.
+        const { repositoryId } = (await (await fetch(`${result.url}/api/diff`)).json()) as {
+          repositoryId: string;
+        };
+        expect(reason).toBe(repositoryId);
         expect(await presence()).toMatchObject({ reviewers: { connected: 0 } });
         const again = await openLive(result.url, {
           tab: 'tab',

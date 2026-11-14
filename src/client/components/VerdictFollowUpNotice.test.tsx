@@ -221,6 +221,12 @@ describe('verdict follow-up notice', () => {
       expect(line()).toHaveTextContent(
         /^Approved\. No agent session gets messages from this review\. You can close this page\.$/,
       );
+      // Nothing is wrong, so the robot is awake, in gray.
+      expect(line().querySelector('[data-delivery-state]')).toHaveAttribute(
+        'data-delivery-state',
+        'unattended',
+      );
+      expect(line().querySelector('[data-robot]')).toHaveAttribute('data-robot', 'awake');
     });
 
     // A server older than the inbox reports no delivery.

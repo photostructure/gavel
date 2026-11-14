@@ -10,6 +10,8 @@ vi.mock('../utils/clipboard', () => ({
   copyTextToClipboard: vi.fn().mockResolvedValue(undefined),
 }));
 
+const onReconnect = vi.fn();
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllEnvs();
@@ -22,37 +24,162 @@ for (const [name, Component] of [
 ] as const) {
   describe(`${name} agent delivery`, () => {
     it('renders nothing for servers without delivery state', () => {
-      const { container } = render(<Component delivery={undefined} />);
+      const { container } = render(
+        <Component
+          server="reachable"
+          onReconnect={onReconnect}
+
+          delivery={undefined}
+        />,
+      );
       expect(container).toBeEmptyDOMElement();
     });
 
+    // One question per glance: will verdicts and comments reach the agent? A green awake robot
+    // says yes, a red dead one says the reviewer must act, and a gray awake one says no agent
+    // session takes them, which needs nothing from the reviewer.
     it.each([
-      [{ status: 'ready' }, 'Agent available', 'available'],
-      [{ status: 'ready', transport: 'queue' }, 'Agent available', 'available'],
-      [{ status: 'unavailable' }, 'Agent disconnected', 'disconnected'],
-      [{ status: 'failed', at: '', error: 'connect ENOENT' }, 'Agent disconnected', 'disconnected'],
+      [{ status: 'ready' }, 'Agent available', 'available', 'awake', 'text-github-accent-text'],
+      [
+        { status: 'ready', transport: 'queue' },
+        'Agent available',
+        'available',
+        'awake',
+        'text-github-accent-text',
+      ],
+      [
+        { status: 'unavailable' },
+        'No agent session',
+        'unattended',
+        'awake',
+        'text-github-text-muted',
+      ],
+      [
+        { status: 'failed', at: '', error: 'connect ENOENT' },
+        'Agent disconnected',
+        'disconnected',
+        'dead',
+        'text-github-danger',
+      ],
       [
         { status: 'uncertain', at: '', error: 'missing receipt' },
         'Delivery unconfirmed',
         'uncertain',
+        'dead',
+        'text-github-danger',
       ],
-      [{ status: 'pending' }, 'Delivering to agent', 'delivering'],
-      [{ status: 'pending', transport: 'queue' }, 'Delivering to agent', 'delivering'],
-    ] satisfies [InboxDelivery, string, string][])(
+      [
+        { status: 'pending' },
+        'Delivering to agent',
+        'delivering',
+        'awake',
+        'text-github-accent-text',
+      ],
+      [
+        { status: 'pending', transport: 'queue' },
+        'Delivering to agent',
+        'delivering',
+        'awake',
+        'text-github-accent-text',
+      ],
+    ] satisfies [InboxDelivery, string, string, string, string][])(
       'shows %j in one icon button',
-      (delivery, label, state) => {
-        const { container } = render(<Component delivery={delivery} />);
+      (delivery, label, state, robot, color) => {
+        const { container } = render(
+          <Component
+            server="reachable"
+            onReconnect={onReconnect}
+
+            delivery={delivery}
+          />,
+        );
         expect(screen.getAllByRole('button')).toHaveLength(1);
-        expect(screen.getByRole('button', { name: label })).toHaveClass('agent-delivery-button');
+        expect(screen.getByRole('button', { name: label })).toHaveClass(
+          'agent-delivery-button',
+          color,
+        );
         expect(container.querySelector('[data-delivery-state]')).toHaveAttribute(
           'data-delivery-state',
           state,
         );
+        expect(container.querySelector('[data-robot]')).toHaveAttribute('data-robot', robot);
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
         expect(screen.queryByText('Copy resume prompt')).not.toBeInTheDocument();
         expect(container.querySelector('.animate-pulse')).not.toBeInTheDocument();
       },
     );
+
+    // The delivery state is the server's last report; with the server gone, nothing reaches the
+    // agent, whatever that report said.
+    it.each([
+      { status: 'ready' },
+      { status: 'pending' },
+      { status: 'sent', at: '', via: 'inbox', receivedAt: 0 },
+    ] satisfies InboxDelivery[])('shows the server as unreachable over %j', (delivery) => {
+      const { container } = render(
+        <Component delivery={delivery} server="unreachable" onReconnect={onReconnect} />,
+      );
+      expect(screen.getByRole('button', { name: 'Server unreachable' })).toHaveClass(
+        'text-github-danger',
+      );
+      expect(container.querySelector('[data-delivery-state]')).toHaveAttribute(
+        'data-delivery-state',
+        'unreachable',
+      );
+      expect(container.querySelector('[data-robot]')).toHaveAttribute('data-robot', 'dead');
+    });
+
+    it('says in its menu that the server is unreachable', () => {
+      render(
+        <Component delivery={{ status: 'ready' }} server="unreachable" onReconnect={onReconnect} />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Server unreachable' }));
+      expect(screen.getByText(/^The gavel server is unreachable\. /)).toBeInTheDocument();
+    });
+
+    // A click on the robot is the reviewer asking to reconnect, and still opens its details.
+    it.each(['unreachable', 'reconnecting'] as const)(
+      'reconnects and opens its menu when clicked while the server is %s',
+      (server) => {
+        render(
+          <Component delivery={{ status: 'ready' }} server={server} onReconnect={onReconnect} />,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Server unreachable' }));
+        expect(onReconnect).toHaveBeenCalledOnce();
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      },
+    );
+
+    it('opens its menu without reconnecting while the server is reachable', () => {
+      render(
+        <Component delivery={{ status: 'ready' }} server="reachable" onReconnect={onReconnect} />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Agent available' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(onReconnect).not.toHaveBeenCalled();
+    });
+
+    it('says in its menu that another review now runs at its address', () => {
+      render(
+        <Component delivery={{ status: 'ready' }} server="replaced" onReconnect={onReconnect} />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Server unreachable' }));
+      expect(
+        screen.getByText(/^Another gavel review now runs at this address/),
+      ).toBeInTheDocument();
+    });
+
+    it('says in its menu that it is reconnecting', () => {
+      render(
+        <Component
+          delivery={{ status: 'ready' }}
+          server="reconnecting"
+          onReconnect={onReconnect}
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Server unreachable' }));
+      expect(screen.getByText(/^Reconnecting to the gavel server… /)).toBeInTheDocument();
+    });
 
     it.each(['sent', 'queued'] as const)(
       'briefly confirms %s, expires, and confirms the next receipt',
@@ -63,13 +190,34 @@ for (const [name, Component] of [
           status === 'sent'
             ? { status, at, via: 'inbox', receivedAt: Date.now() }
             : { status, at, transport: 'queue', receivedAt: Date.now() };
-        const { rerender } = render(<Component delivery={delivery(new Date().toISOString())} />);
+        const { rerender } = render(
+          <Component
+            server="reachable"
+            onReconnect={onReconnect}
+
+            delivery={delivery(new Date().toISOString())}
+          />,
+        );
         expect(screen.getByRole('button', { name: 'Delivered to agent' })).toBeInTheDocument();
         act(() => vi.advanceTimersByTime(5_000));
         expect(screen.getByRole('button', { name: 'Agent available' })).toBeInTheDocument();
-        rerender(<Component delivery={delivery(new Date().toISOString())} />);
+        rerender(
+          <Component
+            server="reachable"
+            onReconnect={onReconnect}
+
+            delivery={delivery(new Date().toISOString())}
+          />,
+        );
         expect(screen.getByRole('button', { name: 'Delivered to agent' })).toBeInTheDocument();
-        rerender(<Component delivery={{ status: 'pending' }} />);
+        rerender(
+          <Component
+            server="reachable"
+            onReconnect={onReconnect}
+
+            delivery={{ status: 'pending' }}
+          />,
+        );
         expect(screen.getByRole('button', { name: 'Delivering to agent' })).toBeInTheDocument();
         act(() => vi.advanceTimersByTime(5_000));
         expect(screen.getByRole('button', { name: 'Delivering to agent' })).toBeInTheDocument();
@@ -83,6 +231,9 @@ for (const [name, Component] of [
       vi.setSystemTime(new Date('2026-11-13T00:00:00Z'));
       render(
         <Component
+          server="reachable"
+          onReconnect={onReconnect}
+
           delivery={{
             status: 'queued',
             at: '2026-11-13T00:01:00Z',
@@ -99,6 +250,9 @@ for (const [name, Component] of [
     it.each(['sent', 'queued'] as const)('does not replay an old %s receipt on mount', (status) => {
       render(
         <Component
+          server="reachable"
+          onReconnect={onReconnect}
+
           delivery={
             status === 'sent'
               ? { status, at: '2020-01-01', via: 'inbox' }
@@ -115,13 +269,24 @@ for (const [name, Component] of [
         'does not confirm a running turn',
       ],
       [{ status: 'sent', at: '2020-01-01', via: 'inbox' }, 'not that the agent has read it'],
-      [{ status: 'failed', at: '', error: 'connect ENOENT' }, 'connect ENOENT'],
+      // A failed send usually means the chat restarted; the reviewer may still have it open.
+      [
+        { status: 'failed', at: '', error: 'connect ENOENT' },
+        "Gavel could not reach the agent's chat (connect ENOENT). Copy the resume prompt and paste it into that chat, or into a new chat if it was closed or archived.",
+      ],
       [{ status: 'uncertain', at: '', error: 'missing receipt' }, 'missing receipt'],
     ] satisfies [InboxDelivery, string][])(
       'opens details and recovery for %j',
       async (delivery, detail) => {
         vi.stubEnv('VITE_GAVEL_API_URL', 'http://10.1.1.24:4966');
-        render(<Component delivery={delivery} />);
+        render(
+          <Component
+            server="reachable"
+            onReconnect={onReconnect}
+
+            delivery={delivery}
+          />,
+        );
         const trigger = screen.getByRole('button');
         fireEvent.click(trigger);
         expect(await screen.findByRole('dialog')).toHaveTextContent(detail);

@@ -82,10 +82,14 @@ a turn even when it is idle; a bot icon left of the review name in the header
 shows whether the latest one was sent.
 Codex ends its turn while you review. With a supported `codex queue` CLI on the
 server, gavel queues your verdicts and comments for the chat that opened the
-review. For both agents, the robot shows availability, sweeps while delivering,
-and briefly shows a green check after acceptance. After a verdict, the toast
-under the verdict buttons shows the same robot and says whether the verdict was
-sent, and once it is, that you can close the page. Tap the header robot for delivery details;
+review. For both agents, the robot is green while your verdicts and comments
+will reach the agent, sweeps while delivering, and briefly shows a green check
+after acceptance. It turns red, with crossed-out eyes and a bent antenna, when
+you need to act: the gavel server is unreachable or delivery failed. Click it to
+see what went wrong and what to do; while the server is unreachable, the click
+also reconnects. After a verdict, the toast under the verdict buttons shows the
+same robot and says whether the verdict was sent, and once it is, that you can close the page.
+Tap the header robot for delivery details;
 **Queued for Codex** confirms saved input, not a running turn. Keep that
 chat open and use separate gavel servers for Codex and Claude Code. If the chat
 stays idle, tap the robot and choose **Copy resume prompt**, and paste it into the

@@ -385,6 +385,20 @@ describe('useFileWatch', () => {
       expect(result.current.watchState.connectionStatus).toBe('disconnected');
       expect(result.current.error).toBe('Lost connection to file watch service');
     });
+
+    it('reports another review at this address when a reconnect finds another repository', async () => {
+      const { result } = renderHook(() => useFileWatch());
+      await waitFor(() => expect(result.current.isConnected).toBe(true));
+      act(() => sockets()[0]!.drop(LIVE_OTHER_SERVER, 'repo-2'));
+      expect(result.current.otherReview).toBe(false);
+
+      act(() => result.current.reconnect('repo-1'));
+      expect(result.current.reconnecting).toBe(true);
+      act(() => sockets().at(-1)!.drop(LIVE_OTHER_SERVER, 'repo-2'));
+
+      expect(result.current.otherReview).toBe(true);
+      expect(result.current.watchState.connectionStatus).toBe('disconnected');
+    });
   });
 
   describe('cleanup', () => {

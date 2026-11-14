@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DiffMode, type ClientWatchState, type WatchEvent } from '../../types/watch.js';
-import { subscribeLive } from '../utils/liveConnection';
+import { reconnectLive, subscribeLive } from '../utils/liveConnection';
 
 interface FileWatchHook {
   shouldReload: boolean;
   isConnected: boolean;
+  // The live connection closed and is trying again.
+  reconnecting: boolean;
+  // A reconnect the reviewer asked for found another repository's gavel server at this address.
+  otherReview: boolean;
+  // Tries the live connection again now; see reconnectLive.
+  reconnect: (repositoryId: string) => void;
   error: string | null;
   reload: () => void;
   watchState: ClientWatchState;
@@ -48,6 +54,7 @@ export function useFileWatch(
   });
 
   const [error, setError] = useState<string | null>(null);
+  const [otherReview, setOtherReview] = useState(false);
 
   useEffect(
     () =>
@@ -56,6 +63,7 @@ export function useFileWatch(
           console.log('Connected to file watch service');
           setWatchState((prev) => ({ ...prev, connectionStatus: 'connected' }));
           setError(null);
+          setOtherReview(false);
           // Recover approval changes missed while this browser was disconnected.
           void callbacksRef.current.onApprovalChanged?.();
           void callbacksRef.current.onSummaryChanged?.();
@@ -111,8 +119,9 @@ export function useFileWatch(
               break;
           }
         },
-        onLost: (retrying) => {
+        onLost: (retrying, foundOtherReview = false) => {
           console.log('File watch connection lost');
+          setOtherReview(foundOtherReview);
           setWatchState((prev) => ({
             ...prev,
             connectionStatus: retrying ? 'reconnecting' : 'disconnected',
@@ -160,6 +169,9 @@ export function useFileWatch(
   return {
     shouldReload: watchState.shouldReload,
     isConnected: watchState.connectionStatus === 'connected',
+    reconnecting: watchState.connectionStatus === 'reconnecting',
+    otherReview,
+    reconnect: reconnectLive,
     error,
     reload: handleReload,
     watchState,

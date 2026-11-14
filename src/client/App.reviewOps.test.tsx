@@ -4,6 +4,7 @@ import { HotkeysProvider } from 'react-hotkeys-hook';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DiffCommentThread, DiffResponse } from '../types/diff';
+import type { InboxDelivery } from '../types/presence';
 import type { ReviewOp, ReviewOpResult } from '../types/reviewOps';
 import { applyReviewOp } from '../utils/reviewOps';
 
@@ -29,6 +30,9 @@ const watch = vi.hoisted(() => ({
   commentsChanged: undefined as (() => Promise<void>) | undefined,
   approvalChanged: undefined as (() => Promise<void>) | undefined,
   setConnected: undefined as ((connected: boolean) => void) | undefined,
+  reconnect: vi.fn(),
+  setReconnecting: undefined as ((reconnecting: boolean) => void) | undefined,
+  setOtherReview: undefined as ((otherReview: boolean) => void) | undefined,
   // useFileWatch starts disconnected and connects once the page loads.
   initiallyConnected: true,
 }));
@@ -41,13 +45,20 @@ vi.mock('./hooks/useFileWatch', async () => {
       onApprovalChanged: () => Promise<void>,
     ) => {
       const [isConnected, setConnected] = useState(watch.initiallyConnected);
+      const [reconnecting, setReconnecting] = useState(false);
+      const [otherReview, setOtherReview] = useState(false);
       watch.reload = onReload;
       watch.commentsChanged = onCommentsChanged;
       watch.approvalChanged = onApprovalChanged;
       watch.setConnected = setConnected;
+      watch.setReconnecting = setReconnecting;
+      watch.setOtherReview = setOtherReview;
       return {
         shouldReload: false,
         isConnected,
+        reconnecting,
+        otherReview,
+        reconnect: watch.reconnect,
         error: null,
         reload: vi.fn(),
         watchState: { isWatchEnabled: false, isReloading: false, lastChangeType: null },
@@ -101,6 +112,8 @@ function server(initialThreads: DiffCommentThread[] = []) {
     // While set, the next comments read waits for a release call, then reads the threads.
     deferNextRead: false,
     deferredReads: [] as Array<() => void>,
+    // The open review's delivery to its agent, which shows the header robot.
+    inbox: { status: 'ready' } as InboxDelivery,
   };
   const apply = (ops: QueuedOp[]) =>
     ops.map((op): ReviewOpResult => {
@@ -173,6 +186,16 @@ function server(initialThreads: DiffCommentThread[] = []) {
         await new Promise<void>((release) => state.heldApprovalReads.push(release));
       return Response.json(state.verdict ? { verdict: state.verdict } : {});
     }
+    if (url.pathname === '/api/inbox')
+      return Response.json({
+        reviews: [
+          {
+            id: 'review',
+            selection: { baseCommitish: 'main', targetCommitish: 'feature' },
+            delivery: state.inbox,
+          },
+        ],
+      });
     if (url.pathname === '/api/revisions')
       return Response.json({ specialOptions: [], branches: [], commits: [] });
     if (url.pathname === '/api/review-summary') {
@@ -279,6 +302,7 @@ function openFreshPage() {
   vi.mocked(fetch).mockReset();
   vi.stubGlobal('WebSocket', MockWebSocket);
   watch.initiallyConnected = true;
+  watch.reconnect.mockClear();
 }
 
 function restoreGlobals() {
@@ -349,6 +373,100 @@ describe('comment and verdict changes the server has not confirmed', () => {
     await waitFor(() => expect(notSavedAlert()).toBeNull());
     expect(bodiesOf(state.threads)).toEqual(['Written offline']);
     expect(queued()).toEqual([]);
+  });
+
+  // The robot reports the server's last delivery state, which says nothing while the server is
+  // gone. Both placements render, as on the page; CSS shows one.
+  it('shows the server as unreachable while a change fails to send, until it is sent', async () => {
+    const state = server();
+    mount();
+    await waitForServerThreads();
+    expect((await screen.findAllByRole('button', { name: 'Agent available' }))[0]).toBeVisible();
+    state.fail = 'network';
+
+    await sendGeneralComment('Written offline');
+
+    await findNotSavedAlert();
+    expect(screen.getAllByRole('button', { name: 'Server unreachable' })).toHaveLength(2);
+    state.fail = false;
+    reconnect();
+    await waitFor(() => expect(notSavedAlert()).toBeNull());
+    expect(screen.getAllByRole('button', { name: 'Agent available' })).toHaveLength(2);
+  });
+
+  it('shows the server as unreachable while the live connection is lost', async () => {
+    server();
+    mount();
+    await waitForServerThreads();
+    await screen.findAllByRole('button', { name: 'Agent available' });
+
+    act(() => watch.setConnected?.(false));
+    expect(screen.getAllByRole('button', { name: 'Server unreachable' })).toHaveLength(2);
+
+    act(() => watch.setConnected?.(true));
+    expect(screen.getAllByRole('button', { name: 'Agent available' })).toHaveLength(2);
+  });
+
+  // Clicking the robot is the reviewer asking for the server again: the live connection
+  // reconnects, and changes that failed to send go again without waiting for the next change.
+  it('reconnects and sends waiting changes when the reviewer clicks the unreachable robot', async () => {
+    const state = server();
+    mount();
+    await waitForServerThreads();
+    state.fail = 'network';
+    await sendGeneralComment('Written offline');
+    await findNotSavedAlert();
+    state.fail = false;
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Server unreachable' })[0]!);
+
+    expect(watch.reconnect).toHaveBeenCalledOnce();
+    await waitFor(() => expect(notSavedAlert()).toBeNull());
+    expect(bodiesOf(state.threads)).toEqual(['Written offline']);
+  });
+
+  it('says the robot is reconnecting while the lost live connection retries', async () => {
+    server();
+    mount();
+    await waitForServerThreads();
+    await screen.findAllByRole('button', { name: 'Agent available' });
+
+    act(() => {
+      watch.setConnected?.(false);
+      watch.setReconnecting?.(true);
+    });
+    await userEvent.click(screen.getAllByRole('button', { name: 'Server unreachable' })[0]!);
+
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      /^Server unreachableReconnecting to the gavel server… /,
+    );
+    expect(watch.reconnect).toHaveBeenCalledOnce();
+  });
+
+  it('asks to reconnect to this review and says when another review holds the address', async () => {
+    server();
+    mount();
+    await waitForServerThreads();
+    await screen.findAllByRole('button', { name: 'Agent available' });
+    act(() => watch.setConnected?.(false));
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Server unreachable' })[0]!);
+    expect(watch.reconnect).toHaveBeenCalledExactlyOnceWith('repo');
+    act(() => watch.setOtherReview?.(true));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      /Another gavel review now runs at this address/,
+    );
+  });
+
+  // useFileWatch starts disconnected while the page loads; that is not a lost server.
+  it('does not show the server as unreachable before the live connection first opens', async () => {
+    watch.initiallyConnected = false;
+    server();
+    mount();
+    await waitForServerThreads();
+    expect(await screen.findAllByRole('button', { name: 'Agent available' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Server unreachable' })).toBeNull();
   });
 
   it('sends a queued op again when the review loads', async () => {

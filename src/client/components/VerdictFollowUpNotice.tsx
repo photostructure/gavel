@@ -30,7 +30,7 @@ function describeDelivery(
     case 'failed':
       return { state: 'disconnected', text: `Not sent: ${delivery.error}.` };
     case 'unavailable':
-      return { state: 'disconnected', text: 'No agent session gets messages from this review.' };
+      return { state: 'unattended', text: 'No agent session gets messages from this review.' };
     case 'ready':
     case undefined:
       return undefined;

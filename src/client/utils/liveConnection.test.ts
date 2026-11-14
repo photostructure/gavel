@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LIVE_OTHER_SERVER } from '../../types/live';
 import { DiffMode } from '../../types/watch';
 
-import { subscribeLive, type LiveListener } from './liveConnection';
+import { reconnectLive, subscribeLive, type LiveListener } from './liveConnection';
 import { MockWebSocket } from './liveConnection.testing';
 
 describe('live connection', () => {
@@ -25,6 +25,7 @@ describe('live connection', () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   it('shares one socket among subscribers and closes it with the last one', () => {
@@ -105,13 +106,13 @@ describe('live connection', () => {
     MockWebSocket.latest().open('server-1');
     for (let attempt = 1; attempt <= 5; attempt += 1) {
       MockWebSocket.latest().drop();
-      expect(onLost).toHaveBeenLastCalledWith(true);
+      expect(onLost).toHaveBeenLastCalledWith(true, false);
       vi.advanceTimersByTime(3000);
       expect(MockWebSocket.instances).toHaveLength(attempt + 1);
       expect(new URL(MockWebSocket.latest().url).searchParams.get('server')).toBe('server-1');
     }
     MockWebSocket.latest().drop();
-    expect(onLost).toHaveBeenLastCalledWith(false);
+    expect(onLost).toHaveBeenLastCalledWith(false, false);
     vi.advanceTimersByTime(3000);
     expect(MockWebSocket.instances).toHaveLength(6);
     const late = { onLost: vi.fn() };
@@ -127,10 +128,112 @@ describe('live connection', () => {
     MockWebSocket.latest().open(null);
     expect(listener.onOpen).not.toHaveBeenCalled();
     MockWebSocket.latest().drop(LIVE_OTHER_SERVER);
-    expect(listener.onLost).toHaveBeenCalledExactlyOnceWith(false);
+    expect(listener.onLost).toHaveBeenCalledExactlyOnceWith(false, false);
     expect(listener.onOpen).not.toHaveBeenCalled();
     vi.advanceTimersByTime(3000);
     expect(MockWebSocket.instances).toHaveLength(1);
+  });
+
+  // A reviewer who clicks the header robot after the page gave up gets a fresh round of retries.
+  it('reconnects at once when asked after giving up, then retries five more times', () => {
+    vi.useFakeTimers();
+    const listener = { onOpen: vi.fn(), onLost: vi.fn() };
+    subscribe(listener);
+    MockWebSocket.latest().open('server-1');
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      MockWebSocket.latest().drop();
+      vi.advanceTimersByTime(3000);
+    }
+    MockWebSocket.latest().drop();
+    expect(listener.onLost).toHaveBeenLastCalledWith(false, false);
+    expect(MockWebSocket.instances).toHaveLength(6);
+
+    reconnectLive('repo-1');
+
+    expect(MockWebSocket.instances).toHaveLength(7);
+    expect(listener.onLost).toHaveBeenLastCalledWith(true);
+    expect(new URL(MockWebSocket.latest().url).searchParams.get('server')).toBe('server-1');
+    MockWebSocket.latest().drop();
+    vi.advanceTimersByTime(3000);
+    expect(MockWebSocket.instances).toHaveLength(8);
+    MockWebSocket.latest().open('server-1');
+    expect(listener.onOpen).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips the wait between automatic retries when asked to reconnect', () => {
+    vi.useFakeTimers();
+    subscribe();
+    MockWebSocket.latest().open('server-1');
+    MockWebSocket.latest().drop();
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    reconnectLive('repo-1');
+
+    expect(MockWebSocket.instances).toHaveLength(2);
+    vi.advanceTimersByTime(3000);
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it('does not open another socket while one is open or opening', () => {
+    subscribe();
+    reconnectLive('repo-1');
+    expect(MockWebSocket.instances).toHaveLength(1);
+    MockWebSocket.latest().open('server-1');
+    reconnectLive('repo-1');
+    expect(MockWebSocket.instances).toHaveLength(1);
+  });
+
+  // A restarted server refuses a page that expects its predecessor, and only a reload loads the
+  // new server's state; the page's queued changes and drafts are kept in localStorage.
+  it('reloads the page when a reconnect the reviewer asked for reaches this review restarted', () => {
+    vi.useFakeTimers();
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {});
+    subscribe();
+    MockWebSocket.latest().open('server-1');
+    MockWebSocket.latest().drop();
+    vi.advanceTimersByTime(3000);
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-1');
+    expect(reload).not.toHaveBeenCalled();
+
+    reconnectLive('repo-1');
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-1');
+
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  // The server may come back only on one of the retries after the reviewer's click.
+  it('still reloads when this review restarted answers a later retry after the click', () => {
+    vi.useFakeTimers();
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {});
+    subscribe();
+    MockWebSocket.latest().open('server-1');
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-2');
+
+    reconnectLive('repo-1');
+    MockWebSocket.latest().drop();
+    vi.advanceTimersByTime(3000);
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-1');
+
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  // gavel's default port is reused by the next review started anywhere; reloading into it would
+  // hide this review's waiting changes, which localStorage keeps under this review's repository.
+  it('keeps the page and reports another review when the refusing server serves another repository', () => {
+    vi.useFakeTimers();
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {});
+    const onLost = vi.fn();
+    subscribe({ onLost });
+    MockWebSocket.latest().open('server-1');
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-2');
+
+    reconnectLive('repo-1');
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-2');
+
+    expect(reload).not.toHaveBeenCalled();
+    expect(onLost).toHaveBeenLastCalledWith(false, true);
+    vi.advanceTimersByTime(3000);
+    expect(MockWebSocket.instances).toHaveLength(2);
   });
 
   it('reports current visibility once the server greets the tab', () => {

@@ -44,7 +44,11 @@ import { codeInFiles } from './components/LineCommentComposer';
 import { Logo } from './components/Logo';
 import { ReloadButton } from './components/ReloadButton';
 import { ReviewSummaryPanel } from './components/ReviewSummaryPanel';
-import { AgentDeliveryAlert, AgentDeliveryStatus } from './components/AgentDeliveryStatus';
+import {
+  AgentDeliveryAlert,
+  AgentDeliveryStatus,
+  type ServerState,
+} from './components/AgentDeliveryStatus';
 import { ReviewPresenceIndicator } from './components/ReviewPresenceIndicator';
 import { DraftBadge } from './components/DraftBadge';
 import { UnreadBadge } from './components/UnreadBadge';
@@ -1048,15 +1052,16 @@ function App() {
   }, [refreshInboxDelivery]);
 
   // File watch for reload functionality - initialize with callback
-  const { shouldReload, reload, watchState, isConnected } = useFileWatch(
-    handleWatchReload,
-    handleCommentsChanged,
-    handleApprovalChanged,
-    handleSummaryChanged,
-    handleCaptureChanged,
-    refreshInboxDelivery,
-    handleReviewsChanged,
-  );
+  const { shouldReload, reload, watchState, isConnected, reconnecting, otherReview, reconnect } =
+    useFileWatch(
+      handleWatchReload,
+      handleCommentsChanged,
+      handleApprovalChanged,
+      handleSummaryChanged,
+      handleCaptureChanged,
+      refreshInboxDelivery,
+      handleReviewsChanged,
+    );
   // Changes that failed to reach the server go again once the live connection opens, after a
   // drop or while changes wait. A first connect with nothing waiting follows the load, which
   // already read the review.
@@ -1078,6 +1083,30 @@ function App() {
       );
     connectionRef.current = 'open';
   }, [isConnected, retryReviewOps]);
+  // The header robot shows the server's last delivery report, which says nothing once the server
+  // is gone: a live connection lost after it opened, or a change that failed to send. The
+  // connection starts closed while the page loads, which is not a lost server. connectionRef
+  // above tracks the same opening for retries; this copy is state because it changes the page.
+  const [connectedOnce, setConnectedOnce] = useState(false);
+  if (isConnected && !connectedOnce) setConnectedOnce(true);
+  const server: ServerState =
+    !isConnected && connectedOnce && reconnecting
+      ? 'reconnecting'
+      : !isConnected && otherReview
+        ? 'replaced'
+        : (isConnected || !connectedOnce) && reviewOps.unsaved === null
+          ? 'reachable'
+          : 'unreachable';
+  // The reviewer clicked the robot: try the live connection again, and send the changes that
+  // failed without waiting for the next change.
+  // The repository keys this page's waiting changes, as it does for useReviewOps above.
+  const repositoryId = diffData?.repositoryId ?? 'default';
+  const reconnectServer = useCallback(() => {
+    reconnect(repositoryId);
+    retryReviewOps().catch((commentsError: unknown) =>
+      console.error('Failed to refresh comments from server:', commentsError),
+    );
+  }, [reconnect, repositoryId, retryReviewOps]);
 
   // Track which file the mouse is over so `v` works without a cursor
   const hoveredFileIndexRef = useRef<number | null>(null);
@@ -2081,7 +2110,11 @@ function App() {
                   </span>
                 )}
               </div>
-              <AgentDeliveryStatus delivery={inboxDelivery.delivery} />
+              <AgentDeliveryStatus
+                delivery={inboxDelivery.delivery}
+                server={server}
+                onReconnect={reconnectServer}
+              />
               {/* While an agent asks for approval, the tabs are the way between reviews. Picking
               another comparison would create a review the tabs can't place. */}
               {revisionOptions && approvalRequests.length === 0 ? (
@@ -2230,7 +2263,11 @@ function App() {
                   {settingsSaveError}
                 </span>
               )}
-              <AgentDeliveryAlert delivery={inboxDelivery.delivery} />
+              <AgentDeliveryAlert
+                delivery={inboxDelivery.delivery}
+                server={server}
+                onReconnect={reconnectServer}
+              />
               {reviewOps.alert && (
                 <span role="alert" className="w-full text-xs text-github-danger">
                   {reviewOps.alert}

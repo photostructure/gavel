@@ -43,8 +43,8 @@ export class MockWebSocket {
     this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(message) }));
   }
 
-  drop(code = 1006): void {
+  drop(code = 1006, reason = ''): void {
     this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.({ code } as CloseEvent);
+    this.onclose?.({ code, reason } as CloseEvent);
   }
 }

@@ -13,8 +13,12 @@ export interface LiveListener {
   /** The server greeted this page, first or after a reconnect to the same server. */
   onOpen?(): void;
   onMessage?(message: LiveServerMessage): void;
-  /** The connection closed; `retrying` is false once the page needs a reload. */
-  onLost?(retrying: boolean): void;
+  /**
+   * The connection closed; `retrying` is false once the page needs a reload. `otherReview` is
+   * true when a reconnect the reviewer asked for found another repository's server at this
+   * address.
+   */
+  onLost?(retrying: boolean, otherReview?: boolean): void;
 }
 
 const MAX_RECONNECTS = 5;
@@ -32,6 +36,9 @@ let attempts = 0;
 let gaveUp = false;
 // Set once the current socket's server says hello; the socket opening alone is not enough.
 let greeted = false;
+// While a reconnect the reviewer asked for has not reached a server yet, the repository ID of
+// this page's review; a restarted server for it refuses the page with that ID.
+let reloadFor: string | undefined;
 
 const isVisible = () => document.visibilityState === 'visible';
 
@@ -64,6 +71,7 @@ function connect() {
       serverId = message.serverId;
       attempts = 0;
       greeted = true;
+      reloadFor = undefined;
       reportVisibility();
       for (const listener of [...listeners]) listener.onOpen?.();
       return;
@@ -80,9 +88,20 @@ function connect() {
     socket = undefined;
     greeted = false;
     latest.clear();
-    const retrying = event.code !== LIVE_OTHER_SERVER && attempts < MAX_RECONNECTS;
+    const refused = event.code === LIVE_OTHER_SERVER;
+    // The reviewer asked to reconnect and this review's restarted server answered; only a reload
+    // loads it. Another repository's server keeps the page, whose waiting changes it would hide.
+    if (refused && reloadFor !== undefined && event.reason === reloadFor) {
+      window.location.reload();
+      return;
+    }
+    const otherReview = refused && reloadFor !== undefined;
+    const retrying = !refused && attempts < MAX_RECONNECTS;
+    // The reviewer's request lasts through the automatic retries, which may be the ones a
+    // restarted server answers, and ends when a server answers or the retries run out.
+    if (!retrying) reloadFor = undefined;
     gaveUp = !retrying;
-    for (const listener of [...listeners]) listener.onLost?.(retrying);
+    for (const listener of [...listeners]) listener.onLost?.(retrying, otherReview);
     if (!retrying) return;
     attempts += 1;
     reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
@@ -100,7 +119,26 @@ function reset() {
   attempts = 0;
   gaveUp = false;
   greeted = false;
+  reloadFor = undefined;
   document.removeEventListener('visibilitychange', reportVisibility);
+}
+
+/**
+ * Tries the live connection again now, for a reviewer who asks: after it gave up, or while it
+ * waits between automatic retries. It retries five more times. A server that answers but is not
+ * the one this page started with refuses it, naming its repository: the page reloads when that
+ * is `repositoryId`, this review's restarted server, and otherwise reports another review at this
+ * address. Queued changes and comment drafts are kept in localStorage. Nothing happens while a
+ * socket is open or opening.
+ */
+export function reconnectLive(repositoryId: string): void {
+  if (socket || listeners.size === 0) return;
+  clearTimeout(reconnectTimer);
+  attempts = 0;
+  gaveUp = false;
+  reloadFor = repositoryId;
+  for (const listener of [...listeners]) listener.onLost?.(true);
+  connect();
 }
 
 /** Subscribes to the page's live connection, opening it for the first subscriber. */
