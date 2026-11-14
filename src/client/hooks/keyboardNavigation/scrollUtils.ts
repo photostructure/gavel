@@ -9,8 +9,10 @@ import { SCROLL_CONSTANTS } from './types';
 export function createScrollToElement() {
   // 'smooth' animates the scroll, so a reader who followed a link sees the view move. Returns
   // whether the view moves, so a caller can wait for a smooth scroll to end.
-  return (elementId: string, behavior: ScrollBehavior = 'auto'): boolean => {
-    const element = document.getElementById(elementId);
+  // Takes an element where its id is not unique: Conversation renders its own copy of each
+  // comment card under the same id.
+  return (target: string | HTMLElement, behavior: ScrollBehavior = 'auto'): boolean => {
+    const element = typeof target === 'string' ? document.getElementById(target) : target;
     if (!element) return false;
 
     // The main scrollable container is always the same in this app

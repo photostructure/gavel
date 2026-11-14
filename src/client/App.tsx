@@ -67,7 +67,7 @@ import { CommentLinkNotice } from './components/CommentLinkNotice';
 import { ReviewProviders } from './contexts/ReviewProviders';
 import { useAppearanceSettings } from './hooks/useAppearanceSettings';
 import { filesWithDrafts, useDraftCount, type LineDraftAnchor } from './hooks/useCommentDrafts';
-import { useCommentLinks } from './hooks/useCommentLinks';
+import { threadLineAnchor, useCommentLinks } from './hooks/useCommentLinks';
 import { useDiffComments } from './hooks/useDiffComments';
 import { useExpandedLines, type MergedChunk } from './hooks/useExpandedLines';
 import { useFileWatch } from './hooks/useFileWatch';
@@ -1865,13 +1865,15 @@ function App() {
     [replyToThread],
   );
 
+  // A thread opened from Conversation lands as a link to it does (jumpToThread below): its
+  // file opens if Viewed collapsed it, the cursor moves to its line without scrolling, and the
+  // thread reveal scrolls its card in and rings it.
   const handleNavigateToComment = (thread: CommentThread) => {
-    if (!diffData) return;
-
-    const position = findCommentPosition(thread, navigableFiles);
-    if (position) {
-      setCursorPosition(position);
-    }
+    if (thread.scope === 'review') return;
+    const anchor = threadLineAnchor(thread);
+    if (!canShowLinkedLine(anchor)) return;
+    handleNavigateToDraftLine(anchor, 'none');
+    setThreadToReveal(thread.id);
   };
 
   // A draft's or comment link's line may sit in hidden context that DiffViewer has not
@@ -1958,18 +1960,20 @@ function App() {
   // A thread jump moves the cursor to the thread's line without scrolling; this scrolls the
   // comment card below it to the top third of the screen when the card is not fully visible.
   // The card renders with its line, so this waits until any pending line jump has landed and
-  // the card exists.
+  // the card exists in the diff: Conversation, still sliding closed, holds a copy of the card
+  // under the same id.
   const scrollToElement = useMemo(() => createScrollToElement(), []);
   useEffect(() => {
     if (!threadToReveal || pendingLineJump) return;
     const frame = requestAnimationFrame(() => {
-      const elementId = `comment-thread-${threadToReveal}`;
-      const card = document.getElementById(elementId);
+      const card = diffScrollContainerRef.current?.querySelector<HTMLElement>(
+        `#${CSS.escape(`comment-thread-${threadToReveal}`)}`,
+      );
       if (!card) return;
       setThreadToReveal(null);
       // The glow holds while a smooth scroll brings the card in, so it is still there on arrival.
       const behavior = linkScrollBehavior();
-      const scrolling = scrollToElement(elementId, behavior) && behavior === 'smooth';
+      const scrolling = scrollToElement(card, behavior) && behavior === 'smooth';
       glowLinkTarget(card, scrolling ? diffScrollContainerRef.current : null);
     });
     return () => cancelAnimationFrame(frame);

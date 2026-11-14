@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,10 +17,10 @@ vi.mock('./hooks/keyboardNavigation/scrollUtils', async (importOriginal) => {
     ...actual,
     createScrollToElement: () => {
       const scroll = actual.createScrollToElement();
-      return (elementId: string, behavior?: ScrollBehavior) => {
-        scrolled.push(elementId);
+      return (target: string | HTMLElement, behavior?: ScrollBehavior) => {
+        scrolled.push(typeof target === 'string' ? target : target.id);
         behaviors.push(behavior);
-        scroll(elementId, behavior);
+        scroll(target, behavior);
       };
     },
   };
@@ -231,7 +231,7 @@ describe('links in comments', () => {
     // moving when the card's position was measured.
     await waitFor(() => expect(scrolled).toEqual(['comment-thread-tour-2']));
     expect(behaviors).toEqual(['smooth']);
-    // A brief glow shows which comment the link led to.
+    // A brief ring shows which comment the link led to.
     expect(document.getElementById('comment-thread-tour-2')).toHaveClass('comment-link-glow');
     const requests = diffRequests();
 
@@ -240,6 +240,37 @@ describe('links in comments', () => {
     await waitFor(() => expect(cursorText()).toContain('new task-a'));
     // Only the place changed, so the review does not reload.
     expect(diffRequests()).toEqual(requests);
+  });
+
+  // Opens Conversation and clicks tour-2 there; it lands as a link to tour-2 does: one scroll,
+  // to the card, and the ring on the card in the diff, not on the panel's copy.
+  const expectPanelClickRingsTour2 = async () => {
+    fireEvent.click(await screen.findByRole('button', { name: 'Conversation' }));
+    const panel = await screen.findByRole('dialog');
+    scrolled.length = 0;
+    fireEvent.click(within(panel).getByText('The old line.', { exact: false }));
+    await waitFor(() => expect(cursorText()).toContain('old task-a'));
+    await waitFor(() => expect(scrolled).toEqual(['comment-thread-tour-2']));
+    const diffCards = Array.from(document.querySelectorAll('#comment-thread-tour-2')).filter(
+      (card) => !card.closest('[role="dialog"]'),
+    );
+    expect(diffCards).toHaveLength(1);
+    expect(diffCards[0]).toHaveClass('comment-link-glow');
+  };
+
+  it('rings the comment a Conversation panel click leads to', async () => {
+    renderApp();
+    await expectPanelClickRingsTour2();
+  });
+
+  it('opens a Viewed file to ring the comment a Conversation panel click leads to', async () => {
+    renderApp();
+    const markViewed = await screen.findByRole('button', { name: 'Viewed' });
+    await waitFor(() => expect(markViewed).toBeEnabled());
+    fireEvent.click(markViewed);
+    // Viewed collapses the file, and its comment card with it.
+    await waitFor(() => expect(document.getElementById('comment-thread-tour-2')).toBeNull());
+    await expectPanelClickRingsTour2();
   });
 
   it('keeps a Git comparison following its refs when Back returns within it', async () => {

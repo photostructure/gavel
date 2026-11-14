@@ -222,7 +222,7 @@ describe('unread conversations', () => {
     );
     const message = screen.getByText('Reply shared-id 0').closest('[data-comment-message-id]');
     await waitFor(() => expect(message).toHaveFocus());
-    expect(message).toHaveClass('ring-2');
+    expect(message).toHaveClass('ring-4');
     const b = { ...thread('shared-id'), resolution: { resolved: true, updatedAt: time } };
     rerender(
       <CommentsListModal {...props} readScope="review-b" comments={[b]} unreadUpdates={[]} />,
@@ -231,7 +231,7 @@ describe('unread conversations', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Expand thread' }));
     expect(
       screen.getByText('Reply shared-id 0').closest('[data-comment-message-id]'),
-    ).not.toHaveClass('ring-2');
+    ).not.toHaveClass('ring-4');
   });
 
   it('keeps Tab focus inside Conversation and restores the opener on close', () => {

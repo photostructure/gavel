@@ -8,6 +8,18 @@ import { writeLocationHash } from '../utils/reviewNavigation';
 
 import type { LineDraftAnchor } from './useCommentDrafts';
 
+/** The line a jump to a line thread lands on. */
+export function threadLineAnchor(
+  thread: Extract<CommentThread, { file: string }>,
+): LineDraftAnchor {
+  return {
+    kind: 'line',
+    filePath: thread.file,
+    side: thread.side ?? 'new',
+    lineNumber: thread.line,
+  };
+}
+
 interface UseCommentLinksOptions {
   // The open review's diff and comments have loaded. Switching review must make this false
   // in the same render, so a jump waiting for another review does not resolve against this one.
@@ -78,12 +90,7 @@ export function useCommentLinks(options: UseCommentLinksOptions) {
       const thread = threads.find((candidate) => candidate.id === place.threadId);
       if (!thread) return { notice: `No comment "${place.threadId}" in this review.` };
       if (thread.scope === 'review') return { run: () => focusInConversation(thread.id) };
-      const anchor: LineDraftAnchor = {
-        kind: 'line',
-        filePath: thread.file,
-        side: thread.side ?? 'new',
-        lineNumber: thread.line,
-      };
+      const anchor = threadLineAnchor(thread);
       // An outdated thread's line may be gone from the diff; Conversation still shows it.
       if (!canShowLine(anchor)) return { run: () => focusInConversation(thread.id) };
       return { run: () => jumpToThread(anchor, thread.id) };

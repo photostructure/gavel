@@ -248,7 +248,7 @@ function ThreadMessageItem({
       ref={messageElement}
       tabIndex={-1}
       data-comment-message-id={message.id}
-      className={`flow-root ${highlighted ? 'rounded ring-2 ring-blue-500 ring-offset-2 ring-offset-github-bg-tertiary' : ''}`}
+      className={`flow-root ${highlighted ? 'rounded ring-4 ring-blue-500 ring-offset-2 ring-offset-github-bg-tertiary' : ''}`}
       // Following a link means the reader read the message. A gavel link's handler stops the
       // click before onClick below, and onClick skips other links, so the read mark goes here.
       onClickCapture={(event) => {

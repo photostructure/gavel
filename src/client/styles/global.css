@@ -88,35 +88,31 @@
   }
 }
 
-/* The comment a link led to: the glow comes up at once and holds while the view scrolls to
-   it; linkTargetGlow.ts then throbs it once on arrival and fades it over its FADE_MS. The
-   throb changes only the glow, never the card's position or size. */
+/* The comment a link led to gets the 4px blue-500 ring (Tailwind's ring-4) that marks the
+   selected thread in the Conversation panel. The ring comes up at once and holds while the
+   view scrolls to it; linkTargetGlow.ts then throbs it once on arrival and fades it over
+   its FADE_MS. It is a box-shadow, so it never moves or resizes the card. */
 @keyframes comment-link-glow {
   from {
-    box-shadow:
-      0 0 0 2px rgb(37 99 235 / 0%),
-      0 0 16px 6px rgb(37 99 235 / 0%);
+    box-shadow: 0 0 0 4px transparent;
   }
 }
-/* The throb on arrival: the held glow dims out, comes back, and dims out again. */
+/* The throb on arrival: the held ring goes out and comes back, holds, and fades. */
 @keyframes comment-link-glow-fade {
-  25%,
-  to {
-    box-shadow:
-      0 0 0 2px rgb(37 99 235 / 0%),
-      0 0 16px 6px rgb(37 99 235 / 0%);
+  15% {
+    box-shadow: 0 0 0 4px transparent;
   }
-  55% {
-    box-shadow:
-      0 0 0 2px rgb(37 99 235 / 75%),
-      0 0 16px 6px rgb(37 99 235 / 40%);
+  30%,
+  60% {
+    box-shadow: 0 0 0 4px var(--color-blue-500);
+  }
+  to {
+    box-shadow: 0 0 0 4px transparent;
   }
 }
 .comment-link-glow,
 .comment-link-glow-fade {
-  box-shadow:
-    0 0 0 2px rgb(37 99 235 / 75%),
-    0 0 16px 6px rgb(37 99 235 / 40%);
+  box-shadow: 0 0 0 4px var(--color-blue-500);
 }
 .comment-link-glow {
   animation: comment-link-glow 0.25s ease-out;
