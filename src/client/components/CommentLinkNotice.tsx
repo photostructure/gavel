@@ -12,7 +12,7 @@ export function CommentLinkNotice({
   return (
     <div role="status" aria-label="Link not followed">
       {message && (
-        <div className="fixed bottom-4 left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-md border border-github-border bg-github-bg-secondary py-2 pr-2 pl-4 text-sm text-github-text-primary shadow-2xl">
+        <div className="comment-link-notice fixed bottom-4 left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-md border border-github-border bg-github-bg-secondary py-2 pr-2 pl-4 text-sm text-github-text-primary shadow-2xl">
           <span className="min-w-0">{message}</span>
           <button
             type="button"
