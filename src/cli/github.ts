@@ -393,16 +393,16 @@ export function getPrCommentImports(prArg: string): Promise<CommentImport[]> {
         hostname,
         '-f',
         `query=${PR_REVIEW_THREADS_GRAPHQL_QUERY}`,
-        '-F',
+        '-f',
         `owner=${owner}`,
-        '-F',
+        '-f',
         `repo=${repo}`,
         '-F',
         `number=${pullNumber}`,
       ];
 
       if (endCursor) {
-        args.push('-F', `endCursor=${endCursor}`);
+        args.push('-f', `endCursor=${endCursor}`);
       }
 
       const stdout = execFileSync('gh', args, {

@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { execFileSync } from 'child_process';
 
-import { parseGitHubPrUrl, parsePrCommentImportsResponse } from './github';
+import { getPrCommentImports, parseGitHubPrUrl, parsePrCommentImportsResponse } from './github';
+
+vi.mock('child_process', () => ({ execFileSync: vi.fn() }));
 
 function createReviewComment(overrides: Record<string, unknown> = {}) {
   return {
@@ -38,6 +41,45 @@ afterEach(() => {
 });
 
 describe('CLI GitHub utils', () => {
+  it('passes remote cursors as raw strings rather than gh file-input fields', async () => {
+    const run = vi.mocked(execFileSync);
+    run
+      .mockReturnValueOnce(
+        JSON.stringify({
+          data: {
+            repository: {
+              pullRequest: {
+                reviewThreads: {
+                  nodes: [],
+                  pageInfo: { hasNextPage: true, endCursor: '@/private/file' },
+                },
+              },
+            },
+          },
+        }),
+      )
+      .mockReturnValueOnce(
+        JSON.stringify({
+          data: {
+            repository: {
+              pullRequest: {
+                reviewThreads: {
+                  nodes: [],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
+              },
+            },
+          },
+        }),
+      );
+    await expect(getPrCommentImports('https://example.com/owner/repo/pull/1')).resolves.toEqual([]);
+    const args = run.mock.calls[1]?.[1];
+    expect(args).toEqual(expect.arrayContaining(['-f', 'endCursor=@/private/file']));
+    expect(args?.[args.indexOf('endCursor=@/private/file') - 1]).toBe('-f');
+    expect(args?.[args.indexOf('owner=owner') - 1]).toBe('-f');
+    expect(args?.[args.indexOf('repo=repo') - 1]).toBe('-f');
+    expect(args?.[args.indexOf('number=1') - 1]).toBe('-F');
+  });
   describe('parsePrCommentImportsResponse', () => {
     it('imports unresolved inline threads, sorts comments, and skips non-importable threads', () => {
       const response = {
