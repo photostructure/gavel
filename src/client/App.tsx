@@ -188,6 +188,8 @@ function App() {
   const [settingsSaveError, setSettingsSaveError] = useState<string | null>(null);
   useEffect(() => onSettingsSaveError(setSettingsSaveError), []);
   const [isCopiedAll, setIsCopiedAll] = useState(false);
+  const copyAllTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(copyAllTimer.current), []);
   const [isShipping, setIsShipping] = useState(false);
   const approvalControlRef = useRef<HTMLDivElement>(null);
   // The same element, as state, so the header's toast stack re-renders once it can anchor to it.
@@ -1871,7 +1873,8 @@ function App() {
       });
       await copyTextToClipboard(prompt);
       setIsCopiedAll(true);
-      setTimeout(() => setIsCopiedAll(false), 2000);
+      clearTimeout(copyAllTimer.current);
+      copyAllTimer.current = setTimeout(() => setIsCopiedAll(false), 2000);
     } catch (error) {
       console.error('Failed to copy all comments prompt:', error);
     }

@@ -13,7 +13,7 @@ import {
   Square,
   UnfoldVertical,
 } from 'lucide-react';
-import { type MouseEvent, useState } from 'react';
+import { type MouseEvent, useEffect, useRef, useState } from 'react';
 
 import type { DiffFile } from '../../types/diff';
 import { copyTextToClipboard } from '../utils/clipboard';
@@ -82,6 +82,8 @@ export const DiffViewerHeader = ({
   repositoryPath,
 }: DiffViewerHeaderProps) => {
   const [isCopied, setIsCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(copyTimer.current), []);
 
   const toggleCollapsed = (e: MouseEvent) => {
     if (e.altKey) {
@@ -138,7 +140,8 @@ export const DiffViewerHeader = ({
                   .then(() => {
                     console.log('File path copied to clipboard:', copied);
                     setIsCopied(true);
-                    setTimeout(() => setIsCopied(false), 2000);
+                    clearTimeout(copyTimer.current);
+                    copyTimer.current = setTimeout(() => setIsCopied(false), 2000);
                   })
                   .catch((err) => {
                     console.error('Failed to copy file path:', err);

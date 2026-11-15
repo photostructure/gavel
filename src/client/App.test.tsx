@@ -787,6 +787,32 @@ describe('App Component - Clear Comments Functionality', () => {
         });
       });
     });
+    it('keeps "Copied All!" for 2 s after the latest click', async () => {
+      mockComments = [
+        createMockThread({ id: 'test-1', filePath: 'test.ts', line: 10, body: 'Test comment' }),
+      ];
+      renderApp();
+      fireEvent.click(await screen.findByRole('button', { name: 'Conversation' }));
+      const copy = await screen.findByTitle('Copy all 1 comments to AI coding agent');
+      vi.useFakeTimers();
+      try {
+        const click = () =>
+          act(async () => {
+            fireEvent.click(copy);
+          });
+        await click();
+        expect(copy).toHaveTextContent('Copied All!');
+        act(() => vi.advanceTimersByTime(1500));
+        await click();
+        // The first click's reset would fire here, 2 s after it.
+        act(() => vi.advanceTimersByTime(1000));
+        expect(copy).toHaveTextContent('Copied All!');
+        act(() => vi.advanceTimersByTime(1000));
+        expect(copy).toHaveTextContent('Copy All Prompt (1)');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('Cleanup All Prompt Button', () => {

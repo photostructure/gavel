@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom';
 
@@ -51,6 +51,30 @@ describe('DiffViewerHeader', () => {
     expect(copy).toHaveAttribute('title', 'Copy file path');
     fireEvent.click(copy, { shiftKey: true });
     expect(vi.mocked(copyTextToClipboard).mock.calls).toEqual([['src/app.ts']]);
+  });
+
+  it('keeps the copied check for 2 s after the latest click', async () => {
+    vi.useFakeTimers();
+    try {
+      render(<DiffViewerHeader {...baseProps} />);
+      const copy = screen.getByRole('button', { name: 'Copy file path' });
+      const click = () =>
+        act(async () => {
+          fireEvent.click(copy);
+        });
+      const showsCheck = () => copy.querySelector('.lucide-check') !== null;
+      await click();
+      expect(showsCheck()).toBe(true);
+      act(() => vi.advanceTimersByTime(1500));
+      await click();
+      // The first click's reset would fire here, 2 s after it.
+      act(() => vi.advanceTimersByTime(1000));
+      expect(showsCheck()).toBe(true);
+      act(() => vi.advanceTimersByTime(1000));
+      expect(showsCheck()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each([
