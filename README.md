@@ -185,7 +185,3 @@ The question marker and explicit thread deletion incorporate
 ## 📄 License
 
 MIT
-
-The bundled screenshot `public/lgtm.png` comes from
-[this video](https://www.youtube.com/watch?v=3TNpOD6bov8). The image belongs to
-its respective rights holders and is not covered by this project's MIT license.
