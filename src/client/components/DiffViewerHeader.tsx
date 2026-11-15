@@ -138,7 +138,6 @@ export const DiffViewerHeader = ({
                     : file.path;
                 void copyTextToClipboard(copied)
                   .then(() => {
-                    console.log('File path copied to clipboard:', copied);
                     setIsCopied(true);
                     clearTimeout(copyTimer.current);
                     copyTimer.current = setTimeout(() => setIsCopied(false), 2000);
