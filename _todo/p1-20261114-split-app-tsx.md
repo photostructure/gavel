@@ -136,19 +136,19 @@ Absorbed by existing modules:
 
 New hooks:
 
-| Hook                     | Takes                                                                                                                                                                          | About |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- |
-| `useSidebarLayout`       | 129-131, 197, 199-200, `handleMouseDown` 1313-1335, persist effects 1481-1499, `handleMobileFileSelected` 800-802                                                              | 70    |
-| `useDiffDisplaySettings` | diffMode / ignoreWhitespace 181-182, 804-812, mobile-unified effect 1475-1479, edited auto-viewed patterns from 517-525 (not the server fallback), `settingsSaveError` 186-187 | 45    |
-| `usePageTitle`           | 1769-1782                                                                                                                                                                      | 15    |
-| `useReviewList`          | 223-234, `loadRecentReviews` 1520-1623                                                                                                                                         | 120   |
-| `useLiveReviewEvents`    | Live-event handlers 1009-1061, `useFileWatch` + retry + `connectedOnce` + `server` + `reconnectServer` 1063-1118                                                               | 110   |
-| `useVerdict`             | `isShipping`, verdict anchor 188-196, `stopCelebrationRef` 236, 417-515, follow-up wiring 1687-1705                                                                            | 150   |
-| `usePresentedFiles`      | 814-899, 945-1001 (expanded lines, merged chunks, canonical / navigable files, line index, display threads, `threadsByFile`)                                                   | 145   |
-| `useFileCollapse`        | 208, 216-218, 557-657, 679-798 (collapse state and reviewed toggles)                                                                                                           | 235   |
-| `useLineJumps`           | 209-215, 1182-1225, 1878-1990 (calls `useCommentLinks`)                                                                                                                        | 165   |
-| `useReviewSelection`     | Derived keys in 252-352 (not the appearance, viewport, header, `useTopVisibleFile` and `useDraftCount` calls at 280-294 and 313), generation counter 396-416                   | 120   |
-| `useDiffLoader`          | `diffData` state 177-180, loading / error, `selectedRevision` 237-251, `fetchDiffData` 1337-1473, revisions fetch 1501-1518, `handleRevisionChange` + popstate 1625-1678       | 230   |
+| Hook                     | Takes                                                                                                                                                                                                            | About |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `useSidebarLayout`       | 129-131, 199, 201-209 (takes `isMobile` from `useViewport`; the breakpoint reset must stay in render, not an effect), `handleMouseDown` 1322-1344, persist effects 1490-1509, `handleMobileFileSelected` 809-811 | 80    |
+| `useDiffDisplaySettings` | diffMode / ignoreWhitespace 181-182, 804-812, mobile-unified effect 1475-1479, edited auto-viewed patterns from 517-525 (not the server fallback), `settingsSaveError` 186-187                                   | 45    |
+| `usePageTitle`           | 1769-1782                                                                                                                                                                                                        | 15    |
+| `useReviewList`          | 223-234, `loadRecentReviews` 1520-1623                                                                                                                                                                           | 120   |
+| `useLiveReviewEvents`    | Live-event handlers 1009-1061, `useFileWatch` + retry + `connectedOnce` + `server` + `reconnectServer` 1063-1118                                                                                                 | 110   |
+| `useVerdict`             | `isShipping`, verdict anchor 188-196, `stopCelebrationRef` 236, 417-515, follow-up wiring 1687-1705                                                                                                              | 150   |
+| `usePresentedFiles`      | 814-899, 945-1001 (expanded lines, merged chunks, canonical / navigable files, line index, display threads, `threadsByFile`)                                                                                     | 145   |
+| `useFileCollapse`        | 208, 216-218, 557-657, 679-798 (collapse state and reviewed toggles)                                                                                                                                             | 235   |
+| `useLineJumps`           | 209-215, 1182-1225, 1878-1990 (calls `useCommentLinks`)                                                                                                                                                          | 165   |
+| `useReviewSelection`     | Derived keys in 252-352 (not the appearance, viewport, header, `useTopVisibleFile` and `useDraftCount` calls at 280-294 and 313), generation counter 396-416                                                     | 120   |
+| `useDiffLoader`          | `diffData` state 177-180, loading / error, `selectedRevision` 237-251, `fetchDiffData` 1337-1473, revisions fetch 1501-1518, `handleRevisionChange` + popstate 1625-1678                                         | 230   |
 
 New components:
 
