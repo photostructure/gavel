@@ -2392,6 +2392,13 @@ describe('App Component - Sidebar persistence', () => {
     mockFetch(mockDiffResponse);
   });
 
+  it('opens the file tree by default on a wide screen', async () => {
+    renderApp();
+
+    const toggleButton = await screen.findByRole('button', { name: /toggle file tree panel/i });
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('restores file tree open state from the settings cookie', async () => {
     saveClientSettings({ sidebarOpen: false });
 
@@ -2443,13 +2450,23 @@ describe('App Component - Mobile sidebar auto-close', () => {
     vi.mocked(useViewport).mockReturnValue({ isMobile: false, isDesktop: true });
   });
 
+  it('starts with the sidebar closed on mobile, even when the cookie saved it open', async () => {
+    saveClientSettings({ sidebarOpen: true });
+    mockFetch(mockDiffResponse);
+    renderApp();
+
+    const toggleButton = await screen.findByRole('button', { name: /toggle file tree panel/i });
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('expands the selected file and closes the sidebar on mobile', async () => {
     mockViewedFiles = new Set(['test.ts']);
     mockFetch(mockDiffResponse);
     renderApp();
 
-    // Sidebar toggle button
     const toggleButton = await screen.findByRole('button', { name: /toggle file tree panel/i });
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(toggleButton);
     expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
 
     await screen.findByTitle('Expand file (Alt+Click to expand all)');
@@ -2463,6 +2480,33 @@ describe('App Component - Mobile sidebar auto-close', () => {
       expect(screen.getByTitle('Collapse file (Alt+Click to collapse all)')).toBeInTheDocument();
     });
     expect(mockToggleFileViewed).not.toHaveBeenCalled();
+    // Opening and closing the drawer on a phone leaves the wide-screen setting alone.
+    expect(readClientSettings().sidebarOpen).toBeUndefined();
+  });
+
+  it('closes the sidebar when the window narrows and restores it when it widens', async () => {
+    vi.mocked(useViewport).mockReturnValue({ isMobile: false, isDesktop: true });
+    mockFetch(mockDiffResponse);
+    const view = renderApp();
+    const toggleButton = await screen.findByRole('button', { name: /toggle file tree panel/i });
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
+
+    vi.mocked(useViewport).mockReturnValue({ isMobile: true, isDesktop: false });
+    view.rerender(
+      <HotkeysProvider initiallyActiveScopes={['navigation']}>
+        <App />
+      </HotkeysProvider>,
+    );
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
+
+    vi.mocked(useViewport).mockReturnValue({ isMobile: false, isDesktop: true });
+    view.rerender(
+      <HotkeysProvider initiallyActiveScopes={['navigation']}>
+        <App />
+      </HotkeysProvider>,
+    );
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
+    expect(readClientSettings().sidebarOpen).toBeUndefined();
   });
 });
 

@@ -162,7 +162,9 @@ const getInitialSidebarWidth = () =>
 const parseSidebarOpen = (value: unknown): boolean | null =>
   typeof value === 'boolean' ? value : null;
 
-const getInitialFileTreeOpen = () => parseSidebarOpen(readClientSettings().sidebarOpen) ?? true;
+// On a phone the file tree is a drawer over the diff, so it starts closed there.
+const getInitialFileTreeOpen = (isMobile: boolean) =>
+  !isMobile && (parseSidebarOpen(readClientSettings().sidebarOpen) ?? true);
 
 // The legacy punctuation escape conflates dots with literal _2e_. Preserve safe caches.
 function getNamedReviewStorageRef(name: string): string {
@@ -196,7 +198,15 @@ function App() {
   }, []);
   const [sidebarWidth, setSidebarWidth] = useState(getInitialSidebarWidth);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isFileTreeOpen, setIsFileTreeOpen] = useState(getInitialFileTreeOpen);
+  const { isMobile } = useViewport();
+  const [isFileTreeOpen, setIsFileTreeOpen] = useState(() => getInitialFileTreeOpen(isMobile));
+  // Crossing the phone breakpoint applies the same default as a fresh load. This runs during
+  // render, not in an effect, so the save effect below never sees the drawer's state on a wide screen.
+  const [fileTreeLayoutIsMobile, setFileTreeLayoutIsMobile] = useState(isMobile);
+  if (fileTreeLayoutIsMobile !== isMobile) {
+    setFileTreeLayoutIsMobile(isMobile);
+    setIsFileTreeOpen(getInitialFileTreeOpen(isMobile));
+  }
   const [isDragging, setIsDragging] = useState(false);
   const [isCommentsListOpen, setIsCommentsListOpen] = useState(false);
   // Conversation unmounts while a review loads, so the thread to open afterwards waits here.
@@ -279,7 +289,6 @@ function App() {
     : diffData?.commit;
 
   const { settings, updateSettings } = useAppearanceSettings();
-  const { isMobile } = useViewport();
   const reviewChrome = useHideHeaderOnScroll();
   const headerFitRef = useHeaderFit();
   // The header, as state, so the toast stack can anchor to it on pages without verdict buttons.
@@ -1489,14 +1498,15 @@ function App() {
     saveClientSettings({ sidebarWidth });
   }, [sidebarWidth]);
 
+  // The cookie holds the wide-screen choice; opening and closing the phone drawer leaves it alone.
   const savedSidebarOpenRef = useRef(isFileTreeOpen);
   useEffect(() => {
-    if (isFileTreeOpen === savedSidebarOpenRef.current) {
+    if (isMobile || isFileTreeOpen === savedSidebarOpenRef.current) {
       return;
     }
     savedSidebarOpenRef.current = isFileTreeOpen;
     saveClientSettings({ sidebarOpen: isFileTreeOpen });
-  }, [isFileTreeOpen]);
+  }, [isFileTreeOpen, isMobile]);
 
   // Fetch revision options on mount
   useEffect(() => {
