@@ -192,8 +192,8 @@ beforeEach(() => {
 });
 
 const mockDiffResponse: DiffResponse = {
-  commit: 'abc123',
-  baseCommitish: 'HEAD^',
+  commit: 'abcd123',
+  baseCommitish: '123abcd',
   targetCommitish: 'HEAD',
   requestedBaseCommitish: 'HEAD^',
   requestedTargetCommitish: 'HEAD',
@@ -974,7 +974,7 @@ describe('App Component - Clear Comments Functionality', () => {
       });
 
       expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
-        '/api/comments-json?base=HEAD%5E&target=HEAD',
+        `/api/comments-json?base=${mockDiffResponse.baseCommitish}&target=HEAD`,
         undefined,
       );
     });
@@ -1321,7 +1321,7 @@ describe('App Component - Ship it', () => {
     await waitFor(() => {
       expect(sentOps()).toEqual([
         expect.objectContaining({
-          url: '/api/review-ops?base=HEAD%5E&target=HEAD',
+          url: `/api/review-ops?base=${mockDiffResponse.baseCommitish}&target=HEAD`,
           type: 'verdict.set',
           verdict: 'approve',
           summaryVersion: 0,
@@ -1447,7 +1447,7 @@ describe('App Component - Approval celebration', () => {
       }
       if (url.startsWith('/api/diff')) {
         const params = new URL(url, 'http://localhost').searchParams;
-        const base = params.get('base') ?? 'HEAD^';
+        const base = params.get('base') ?? mockDiffResponse.baseCommitish;
         const target = params.get('target') ?? 'HEAD';
         return Promise.resolve(
           Response.json({
@@ -1490,7 +1490,7 @@ describe('App Component - Approval celebration', () => {
     await waitFor(() => expect(window.location.search).toContain('base=main'));
     await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approve$/));
 
-    navigate('?base=HEAD%5E&target=HEAD');
+    navigate(`?base=${mockDiffResponse.baseCommitish}&target=HEAD`);
     await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approved$/));
     expect(bursts).toBe(1);
 
@@ -2221,7 +2221,7 @@ describe('App Component - Merge-base selection', () => {
     expect(vi.mocked(useViewedFiles)).toHaveBeenCalledWith(
       '1234567',
       '98664e1',
-      'abc123',
+      mockDiffResponse.commit,
       undefined,
       response.files,
       undefined,
