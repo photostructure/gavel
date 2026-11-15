@@ -1737,9 +1737,6 @@ function App() {
     if (diffData?.clearComments && !hasCleanedRef.current) {
       hasCleanedRef.current = true;
       clearViewedFiles();
-      console.log(
-        '✅ All existing comments and viewed files cleared as requested via --clean flag',
-      );
     }
   }, [diffData?.clearComments, clearViewedFiles]);
 

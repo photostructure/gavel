@@ -926,27 +926,6 @@ describe('App Component - Clear Comments Functionality', () => {
       });
     });
 
-    it('should log message when clearing comments via CLI flag', async () => {
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      const responseWithClearFlag: DiffResponse = {
-        ...mockDiffResponse,
-        clearComments: true,
-      };
-
-      mockFetch(responseWithClearFlag);
-
-      renderApp();
-
-      await waitFor(() => {
-        expect(consoleLogSpy).toHaveBeenCalledWith(
-          '✅ All existing comments and viewed files cleared as requested via --clean flag',
-        );
-      });
-
-      consoleLogSpy.mockRestore();
-    });
-
     it('hydrates comments from the server comment session on startup', async () => {
       const serverThreads = [
         createMockThread({
