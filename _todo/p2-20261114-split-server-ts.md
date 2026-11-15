@@ -33,12 +33,11 @@ Next: after `p1-20261114-delete-dead-code.md`, `p1-20261114-remove-backward-comp
 - [ ] Deletions and duplicate removal in place (step 1)
 - [ ] Extractions, one commit each (steps 2-6)
 - [ ] `server.test.ts` split (with each step, then step 7)
-- [ ] `docs/structure.md` and `docs/test.md` updated
 - [ ] Reviewed
 
 ## Required reading
 
-- `AGENTS.md`, `docs/structure.md`, `docs/test.md`, `p1-20261114-refactor-arc.md`
+- `AGENTS.md`, `p1-20261114-refactor-arc.md`
 - `p3-20261114-server-modules.md` tasks 5 and 6: the `digest` and line-validation
   helpers there overlap the comment-payload and hash items below; do whichever lands
   first and update the other plan

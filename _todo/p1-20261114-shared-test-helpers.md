@@ -29,7 +29,7 @@ Next: task 1.
 
 ## Required reading
 
-- `AGENTS.md`, `docs/test.md`, `p1-20261114-refactor-arc.md`
+- `AGENTS.md`, `p1-20261114-refactor-arc.md`
 - `src/server/test-access-token.ts` and `src/client/utils/liveConnection.testing.ts`
   (existing test-only modules in `src/`)
 - `_todo/p3-20261110-git-env-config-isolation.md` (same Git environment

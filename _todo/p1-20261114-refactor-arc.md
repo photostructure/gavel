@@ -70,8 +70,7 @@ Defects the audit found are in their own placeholder TPPs and do not wait for th
 
   The splits add files, so the file count is not a target.
 
-- `make preflight` passes, and `docs/structure.md` and `docs/test.md` describe the new
-  layout.
+- `make preflight` passes.
 
 ## Lore
 

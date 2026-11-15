@@ -29,12 +29,11 @@ Next: after `p1-20261114-delete-dead-code.md`, `p1-20261114-remove-backward-comp
 - [ ] Deletions and duplicate removal in place (step 1)
 - [ ] Extractions, one commit each, in the order below (steps 2-12)
 - [ ] `App.test.tsx` split along the new modules (step 13)
-- [ ] `docs/structure.md` updated
 - [ ] Reviewed
 
 ## Required reading
 
-- `AGENTS.md`, `docs/structure.md`, `p1-20261114-refactor-arc.md`
+- `AGENTS.md`, `p1-20261114-refactor-arc.md`
 - `p1-20261114-delete-dead-code.md` and `p1-20261114-remove-backward-compat.md`: they
   delete App.tsx code this plan would otherwise move (`branchToHash` arguments,
   `getNamedReviewStorageRef`, the legacy-thread copy at 1736-1765)

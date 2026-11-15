@@ -33,6 +33,8 @@ The codebase uses strict TypeScript (`tsconfig.strictest`) and 2-space indentati
 
 Vitest with the `happy-dom` environment drives unit and integration coverage, and React work should lean on Testing Library helpers. Place new tests alongside the implementation using the `name.test.ts[x]` pattern and prefer descriptive `describe` blocks tied to features. Ensure asynchronous flows await their assertions and cover both CLI (`src/cli`) and server (`src/server`) branches when they change; use `pnpm test --no-file-parallelism` if watchers behave flakily in CI.
 
+Git and CLI integration tests run real subprocesses against temporary repositories, as `src/cli/index.integration.test.ts` does. Keep their Git configuration and environment apart from the developer's, and never stage or commit in the working checkout from a test. Give server tests their own saved-reviews directory and a free loopback port, as `src/server/server.test.ts` does. In teardown, close servers, event streams, watchers, and child processes, and remove only the temporary directories the test created. Leave the files under `docs/syntax-sample/` as they are: they are rendering samples, not prose.
+
 ## Commit & Pull Request Guidelines
 
 Git history mixes lightweight descriptions with Conventional Commit prefixes—follow the pattern where it clarifies intent: `fix: guard empty diff (#123)` or `feat(cli): add --port flag`. Keep commits focused, include context in the body, and reference issues with `#id` when relevant. Before opening a PR, ensure `pnpm check`, `pnpm test`, and `pnpm build` succeed locally. PRs should outline motivation, implementation notes, manual verification steps, and UI changes (attach refreshed `docs/images` assets or screenshots for web updates).

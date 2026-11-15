@@ -24,7 +24,7 @@ Next: task 1.
 
 ## Required reading
 
-- `AGENTS.md`, `docs/structure.md`, `p1-20261114-refactor-arc.md`
+- `AGENTS.md`, `p1-20261114-refactor-arc.md`
 - `src/server/git-client.ts:1-10` (says direct Git invocations should agree with
   simple-git's environment)
 - `_todo/p3-20261110-git-env-config-isolation.md`
