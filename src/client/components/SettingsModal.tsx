@@ -343,9 +343,12 @@ export function SettingsModal({
                   label="Ignore Whitespace"
                 />
                 <div>
-                  <label className="block text-sm ui-heading mb-2">Font Size</label>
+                  <label htmlFor="font-size" className="block text-sm ui-heading mb-2">
+                    Font Size
+                  </label>
                   <div className="flex items-center gap-3">
                     <input
+                      id="font-size"
                       type="range"
                       min="9"
                       max="20"
@@ -364,8 +367,11 @@ export function SettingsModal({
                 </div>
 
                 <div>
-                  <label className="block text-sm ui-heading mb-2">Font Family</label>
+                  <label htmlFor="font-family" className="block text-sm ui-heading mb-2">
+                    Font Family
+                  </label>
                   <select
+                    id="font-family"
                     value={settings.fontFamily}
                     onChange={(e) => onSettingsChange({ ...settings, fontFamily: e.target.value })}
                     className="w-full p-2 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary text-sm"
@@ -432,8 +438,11 @@ export function SettingsModal({
                 </div>
 
                 <div>
-                  <label className="block text-sm ui-heading mb-2">Syntax Highlighting Theme</label>
+                  <label htmlFor="syntax-theme" className="block text-sm ui-heading mb-2">
+                    Syntax Highlighting Theme
+                  </label>
                   <select
+                    id="syntax-theme"
                     value={settings.syntaxTheme}
                     onChange={(e) =>
                       onSettingsChange({

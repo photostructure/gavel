@@ -102,6 +102,26 @@ describe('SettingsModal', () => {
     expect(screen.getByRole('button', { name: /^System/ })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('names the font size, font family, and syntax theme controls by their labels', () => {
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        settings={baseSettings}
+        onSettingsChange={vi.fn()}
+        autoViewedPatterns={[]}
+        onAutoViewedPatternsChange={vi.fn()}
+        {...diffProps}
+      />,
+      { wrapper },
+    );
+    expect(screen.getByLabelText('Font Size')).toBe(screen.getByRole('slider'));
+    expect(screen.getByLabelText('Font Family')).toHaveValue(baseSettings.fontFamily);
+    expect(screen.getByLabelText('Syntax Highlighting Theme')).toHaveValue(
+      baseSettings.syntaxTheme,
+    );
+  });
+
   it('lets the font size go down to 9 px', () => {
     render(
       <SettingsModal
