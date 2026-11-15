@@ -62,6 +62,7 @@ function MediaPanelBody({ label, src, alt, isVideo, inline }: MediaPanelProps) {
   const recordInfo = async (width: number, height: number) => {
     try {
       const response = await apiFetch(src);
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
       const blob = await response.blob();
       setInfo({ width, height, size: blob.size });
     } catch (error) {

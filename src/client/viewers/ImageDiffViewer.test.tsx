@@ -29,6 +29,7 @@ describe('ImageDiffViewer', () => {
     vi.clearAllMocks();
     // Mock fetch to return a blob with size
     (global.fetch as any).mockResolvedValue({
+      ok: true,
       blob: () => Promise.resolve({ size: 1024 }),
     });
   });
@@ -286,6 +287,25 @@ describe('ImageDiffViewer', () => {
         expect(screen.getByText(/W: 800px \| H: 600px/)).toBeInTheDocument();
         expect(screen.getByText(/1\.0 KB/)).toBeInTheDocument();
       });
+    });
+
+    it('shows no size when the server refuses the file', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      (global.fetch as any).mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        blob: () => Promise.resolve({ size: 57 }),
+      });
+      renderViewer({ path: 'test.jpg', status: 'added', additions: 1, deletions: 0, chunks: [] });
+
+      fireEvent.load(screen.getByRole('img'));
+
+      await waitFor(() =>
+        expect(consoleError).toHaveBeenCalledWith('Failed to get media info:', expect.any(Error)),
+      );
+      expect(screen.queryByText(/57 B/)).not.toBeInTheDocument();
+      consoleError.mockRestore();
     });
   });
 });
