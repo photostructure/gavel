@@ -9,38 +9,46 @@ All notable changes to this project will be documented in this file.
 - The verdicts are **Approve** and **Reject**, replacing **Approve as-is**, **Approve after comments**, and **Not yet**. Approve tells the agent to address your comments and commit, and it survives recaptures; only you can clear a Reject (see [approval modes](docs/approval-modes.md)).
 - The approval JSON in `/api/approval`, `comment snapshot`, `review.approval` events, and `gavel approval status` carries one `verdict` field (`approve` or `reject`) in place of `approved`, `requested`, `mode`, `notYet`, `conditionalSupported`, `conditions`, `baselineCapture`, and `diffDigest`. `review.approval` events and `gavel approval status` also lose their top-level `approved`, and `gavel approval status` loses `name` (read `selection.reviewName`).
 - `PUT /api/approval` sets a verdict and `DELETE /api/approval` clears it; `POST /api/approval`, `/api/approval/conditional`, `/api/approval/not-yet`, `gavel comment address`, and `gavel schema address` are gone.
-- **Change summary** is read-only and sits at the top of the diff; to change the proposed message, ask the agent in a comment, and it writes the new one with `gavel comment summary`. `POST /api/review-summary` is gone.
-- Each browser tab uses one WebSocket, `/api/live`, in place of `/api/watch`, `/api/heartbeat`, and `POST /api/presence`, so six tabs on one server now load instead of two. Proxies in front of gavel must pass WebSocket upgrades on `/api/live`.
-- **Copy Prompt**, **Copy All Prompt**, `/api/comments-output`, and the comments printed at shutdown use XML-style tags instead of label lines and `=====` separators. Copied prompts also give the repository and agent session they came from, and **Copy Prompt** names the review when the server has several.
-- `review create` and `review update` exit with an error when stdin is a pipe, socket, or file and none of `-`, `--capture`, `--pathspec`, or `--include-untracked` is given. To capture the uncommitted tree from a script that leaves stdin open, redirect stdin from `/dev/null`.
+- **Change summary** is read-only and sits at the top of the diff; ask the agent in a comment for a different message. `POST /api/review-summary` is gone.
+- Each browser tab uses one WebSocket, `/api/live`, replacing `/api/watch`, `/api/heartbeat`, and `POST /api/presence`, so more than two tabs per server load. Proxies must pass WebSocket upgrades on `/api/live`.
+- **Copy Prompt**, **Copy All Prompt**, `/api/comments-output`, and the comments printed at shutdown use XML-style tags instead of label lines and `=====` separators. Copied prompts also name their repository and agent session.
+- `review create` and `review update` fail when stdin is a pipe, socket, or file and none of `-`, `--capture`, `--pathspec`, or `--include-untracked` is given; to capture the working tree from such a script, redirect stdin from `/dev/null`.
 - `POST /api/comments` accepts only JSON bodies, merges when `baseVersion` is omitted instead of replacing every thread, and returns HTTP 400 for an invalid `baseVersion` or a body with neither `threads` nor `comments`.
+- The page and every `/api` request require the access token from the launch link (`#gavel-token=…`), which the browser remembers per address. Scripts must send `X-Gavel-Token` with the contents of `~/.gavel/access-token`; `X-Gavel-Editor-Token` and `#gavel-editor-token` are gone. See [access token](README.md#access-token).
+- Without `--port`, a server picks a port in 10081–32767 from its agent session and repository instead of 4966, so a restarted review usually keeps its address. Pass `--port 4966` for the old one.
 
 ### New features
 
-- `gavel review rename <name> <new-name>` and `gavel review delete <name>` rename or remove a named review on a running server. A deleted review's comments stay readable in **Conversation** until the server stops.
-- `gavel review unapply <name>` reverts a named review's patch with `git apply -R`, for example after a **Reject**, and `gavel review reapply <name>` applies it again. Unapply stashes the tracked files first and reports any hunk it could not revert.
-- A review opened from Claude Code sends your verdicts and comments to the session that opened it, which starts a turn even when idle, and a review opened from Codex queues them for its chat. A robot icon in the header shows whether the latest one arrived, and its menu has **Copy resume prompt**.
+- `gavel review rename` and `gavel review delete` rename or remove a named review on a running server; a deleted review's comments stay in **Conversation** until the server stops.
+- `gavel review unapply <name>` reverts a named review's patch, for example after a **Reject**, and reports hunks it could not revert; `gavel review reapply <name>` applies it again.
+- Verdicts and comments go to the Claude Code session that opened the review, even when it is idle, or are queued for the Codex chat that opened it.
+- The header's robot icon turns red when verdicts and comments won't reach the agent, and orange when another review's server holds the address; its menu says what to do, and a click reconnects to an unreachable server.
+- **Copy resume prompt** in the robot's menu names the review's agent session, host, and repository, and a chat that is not that session asks you to confirm before it continues.
+- The access screen's **Copy prompt for your agent** button asks your agent for the page's full link with its access token.
 - `gavel pending` prints review activity that never reached a Claude Code session, for example after the session restarted. Run it from `UserPromptSubmit` and `SessionStart` hooks; see [waiting for review](docs/waiting-for-review.md).
+- `gavel comment snapshot --review <name>` prints only that review and exits 1 if there is none; it also accepts a `reviewId` or inbox label. `gavel comment delete --review <name>` deletes threads from a named review.
+- `pkill -USR2 -x gavel-server` stops every server whose review tabs all have a verdict, and every `--no-lgtm` server with a review tab; others keep running. Background servers now release review locks on SIGTERM.
 - Links in comments jump to a comment (`#thread=<id>`), to lines of a file (`#file=<path>&line=40-52`), or into another named review (`?review=<name>#…`), and Back returns to the link. See [links in comments](docs/cli.md#links-in-comments).
 - **Why this change** in **Change summary** shows its text as Markdown, so links in it work.
-- **Conversation** lists and counts agent replies from every review on the server, and clicking another review's thread opens that review. Read marks are now saved per repository, so replies you already read show as unread once.
-- A new agent reply pulses the unread count on **Conversation** and puts the count in the browser tab's title. Review tabs and the comment counts in **Files changed** show a blue dot while they have unread replies.
-- Shift+A approves and Shift+X rejects the open review.
+- **Conversation** lists and counts agent replies from every review on the server. Read marks are now saved per repository, so replies you already read show as unread once.
+- A new agent reply pulses **Conversation**'s unread count and shows in the tab title, and review tabs and **Files changed** mark unread replies with a blue dot.
+- Shift+A approves and Shift+X rejects the open review, and `f` shows or hides the **Files changed** panel.
 - Dragging on line numbers selects a range and opens a comment form for it.
 - Unsent comment drafts survive closing the tab and are shared between tabs on the same review. A draft untouched for 7 days is deleted.
-- Comments and verdicts made while the server is unreachable stay in the browser and are sent when it answers, and the header says while changes are unsaved.
+- Comments and verdicts made while the server is unreachable wait in the browser and are sent when it answers; a toast says so and offers **Send again now**.
 - Named reviews expand the lines between and around hunks, and **Expand all lines** shows the whole file, unless gavel cannot rebuild that file from the capture.
 - Named reviews show binary image and WebM video diffs, and the image viewer plays WebM videos in live diffs too.
 - Shift+Click or Alt+Click on a gap's arrow expands the whole gap, and clicking the bar beside the arrows does what the arrow does.
 - A button beside each file's name opens the file in your editor. Shift+Click or Alt+Click on the copy button copies the file's absolute path.
-- **About** shows the running version, or, for a development build, the commit and uncommitted-changes hash it was built from; `node dev/build-info.js` prints the same values for the current checkout. **About** also links to [How gavel works](https://photostructure.com/coding/gavel/).
-- After a verdict, a toast under the verdict buttons offers **Undo** and the next review and says whether the verdict reached the agent; gavel no longer switches reviews or closes the tab by itself. Return takes the toast's next step and Escape dismisses it.
+- **About** shows the running version, links to the changelog under **What's new**, and says whether npm has a newer release; `NO_UPDATE_NOTIFIER=1`, `DO_NOT_TRACK=1`, or Global Privacy Control skips that check.
+- **About** links to [How gavel works](https://photostructure.com/coding/gavel/) and, on a development build, shows the commit and uncommitted-changes hash it came from, as `node dev/build-info.js` does for the checkout.
+- After a verdict, a toast offers **Undo** and the next review; Return takes the next step and Escape dismisses it. gavel no longer switches reviews or closes the tab on its own.
 - The review tabs stay full size on one row that scrolls sideways, and an **All reviews** button at its end lists every review, with a bar counting each verdict.
 - The review header fits itself to its width: it drops button labels, then the review name, then the logo, before it folds **Approve** and **Reject** into a menu.
 - Clicking a comment moves the line cursor to its line, and the file list highlights the cursor's file, or **Change summary** while it is at the top of the diff.
 - Files with more than 1,024 changed lines start collapsed with a **Load diff** button, so very large diffs open quickly.
 - Back returns to the review you were reading before you switched reviews.
-- The gavel skills have agents pass a short `--title` on every launch, link reading-guide comments into a tour, revert a rejected change with `gavel review unapply`, and stop the server once its reviews are done. Claude Code agents no longer run `gavel wait`, which remains for custom integrations, and agents read `comment snapshot` without a jq filter.
+- The gavel skills have agents title every launch, link guide comments into a tour, undo a rejected change with `gavel review unapply`, and stop the server once every verdict is carried out. Claude Code agents no longer run `gavel wait`.
 
 ### Bug fixes and polish
 
@@ -50,23 +58,28 @@ All notable changes to this project will be documented in this file.
 - Diffs read the same under any `diff.noPrefix`, `diff.srcPrefix`, `diff.dstPrefix`, `diff.submodule`, or `core.quotePath` setting. Copies are labeled as copies, and a type change, such as a file replaced by a symlink, is one modified file.
 - Files with non-UTF-8 names appear under Git's quoted form instead of collapsing into one path, a path containing `/dev/null` stays modified, and a file with content conflicts is listed without its conflict hunks.
 - The **Viewed** button follows gavel's theme setting instead of the operating system's.
+- The file tree starts closed on phones, and closing the phone drawer no longer hides the tree the next time a wide window loads.
+- Dockerfiles, Makefiles, TOML, INI, Lua, R, nginx configs, `.gitignore`, C/C++ headers and `.cc`/`.cxx` sources, and `.markdown` files are syntax highlighted.
 - A working-tree review no longer takes a commit's message as its proposed commit message when both diffs load at once.
 - Opening another review ends the approval animation.
 - Closing a page whose server has stopped no longer asks you to confirm leaving.
 - The keyboard help says Shift+R refreshes the diff at any time.
-- The header's View menu is gone: Split/Unified and Ignore Whitespace are at the top of **Settings** → **Appearance**, and the browser now remembers Ignore Whitespace. The font size goes down to 9 px.
+- Split/Unified and Ignore Whitespace moved from the header's View menu to the top of **Settings** → **Appearance**, and Ignore Whitespace is now remembered. Font size goes down to 9 px.
 - **Reject** is violet (orange in deuteranopia mode), and the verdict menu marks **Approve** with a green check.
-- **Settings** dims the page like the sidebars, closes on Escape or an outside click, keeps Tab inside, takes keyboard focus when it opens, and is announced to screen readers as a dialog. The **Keyboard Shortcuts** panel also takes focus when it opens.
+- **Settings** dims the page, closes on Escape or an outside click, keeps focus inside, and is announced as a dialog. **Keyboard Shortcuts** also takes focus when it opens.
 - **Keyboard shortcuts** and **Star on GitHub** moved from the bottom of the file list to the top of **About**, which groups its details under **This review**, **Server**, and **Build**.
 - Clicking anywhere on a file or comment-thread header row expands or collapses it, and the file header's buttons take clicks that land just outside them.
 - Comment text uses the card's full width and the interface's sans-serif font. Resolve and a ⋯ menu sit in the thread heading, and each reply has its own ⋯ menu.
 - The **Agreed**, **Still unclear**, and **Disagree** buttons are gone. Type a reply, or resolve the thread, which marks its agent replies read.
 - The read dot in a thread's heading acts on every agent message in the thread, and the jump-to-unread dot shows only on collapsed threads.
-- The cursor keys stop at the first and last line of the review instead of wrapping, move through a Viewed file you expanded, skip a file you collapsed, and in split view enter a new or deleted file.
+- The cursor keys stop at the review's first and last line instead of wrapping, enter expanded Viewed files and, in split view, new or deleted files, and skip collapsed files.
+- The comment a link or **Conversation** click leads to gets a blue ring that throbs once, and its file opens even when marked Viewed.
+- Toasts share the comment cards' look and sit under the verdict buttons, above **Conversation**. The "Link not followed" notice moved there from the bottom of the window and closes after 8 seconds.
+- The **About** and **Conversation** panels and the phone file tree slide in and out over 0.3 s, and toasts slide in; with reduced motion they appear at once.
 - The expand arrows between hunks follow GitHub's convention: up reveals lines above the hunk below it, and down reveals lines below the hunk above it.
 - Green text and icons in the dark theme are brighter, and the **Change summary** labels and **Conversation** headings match the size of other panel headings.
 - The documentation, CLI help, and server output say "approve" and "verdict" instead of "LGTM"; the CLI aliases still work.
-- The README is shorter and explains how agents make the case for their code, under the tagline "Your agent makes the case for its code. You give the verdict.", which **About** also shows. Its screenshots show the current UI, and its logo stays visible on npm's dark theme.
+- The README is shorter, its screenshots show the current UI, and its logo stays visible on npm's dark theme.
 
 ## [6.0.0] - 2026-11-08
 
