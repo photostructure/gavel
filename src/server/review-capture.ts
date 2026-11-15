@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 import type { CapturedFile, CapturedHunk, ReviewCapture } from '../types/review.js';
 
-import { applyGitDelta, forwardBinaryHunk } from './binary-patch.js';
+import { applyGitDelta, forwardBinaryHunk, MAX_REVIEW_BLOB_BYTES } from './binary-patch.js';
 import { PATCH_HEADER_OPTIONS, QUOTE_PATH_CONFIG } from './git-client.js';
 
 export const MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
@@ -504,9 +504,6 @@ export function validateCapture(value: unknown): ReviewCapture {
     throw new Error('Review capture catalogue does not match its patch');
   return capture;
 }
-
-/** Largest repository blob a review serves; a capture's 8 MiB limit applies to its patch only. */
-const MAX_REVIEW_BLOB_BYTES = 64 * 1024 * 1024;
 
 async function readBlob(repositoryRoot: string, object: string): Promise<Buffer> {
   const { stdout } = await execFileAsync('git', [...GIT_OPTIONS, 'cat-file', 'blob', object], {

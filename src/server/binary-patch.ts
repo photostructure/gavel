@@ -1,5 +1,8 @@
 import { inflateSync } from 'node:zlib';
 
+/** Shared ceiling for Git blobs and reconstructed binary files. */
+export const MAX_REVIEW_BLOB_BYTES = 64 * 1024 * 1024;
+
 /** One `literal` or `delta` block of a `GIT binary patch`, inflated. */
 interface BinaryHunk {
   kind: 'literal' | 'delta';
@@ -41,12 +44,13 @@ export function forwardBinaryHunk(lines: string[]): BinaryHunk {
   if (!match?.[1] || !match[2]) throw new Error('Malformed binary patch');
   const kind = match[1] as BinaryHunk['kind'];
   const size = Number(match[2]);
+  if (size > MAX_REVIEW_BLOB_BYTES) throw new Error('Binary patch exceeds the 64 MiB blob limit');
   const parts: Buffer[] = [];
   for (const line of lines.slice(1)) {
     if (line === '') break;
     parts.push(decodeBase85Line(line));
   }
-  const data = inflateSync(Buffer.concat(parts));
+  const data = inflateSync(Buffer.concat(parts), { maxOutputLength: MAX_REVIEW_BLOB_BYTES });
   if (data.length !== size) throw new Error('Binary patch size does not match its contents');
   return { kind, data };
 }
@@ -66,7 +70,10 @@ export function applyGitDelta(base: Buffer, delta: Buffer): Buffer {
     return value;
   };
   if (readSize() !== base.length) throw new Error('Binary delta does not match its base');
-  const result = Buffer.alloc(readSize());
+  const resultSize = readSize();
+  if (resultSize > MAX_REVIEW_BLOB_BYTES)
+    throw new Error('Binary delta exceeds the 64 MiB blob limit');
+  const result = Buffer.alloc(resultSize);
   let written = 0;
   while (position < delta.length) {
     const opcode = delta.readUInt8(position++);
