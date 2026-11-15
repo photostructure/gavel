@@ -2907,7 +2907,7 @@ describe('Server Integration Tests', () => {
       const result = await startServer({ preferredPort: 0, keepAlive: true });
       servers.push(result.server);
       try {
-        const socket = connect(result.port, '127.0.0.1');
+        const socket = connect(result.port, 'localhost');
         await new Promise<void>((resolve, reject) => {
           socket.once('connect', () =>
             socket.write(
@@ -2936,7 +2936,9 @@ describe('Server Integration Tests', () => {
       try {
         for (const target of ['/api/other?tab=tab&visible=true', '//%']) {
           await new Promise<void>((resolve, reject) => {
-            const socket = connect(result.port, '127.0.0.1', () =>
+            // Dial the name startServer binds, not 127.0.0.1: Node binds "localhost" to the
+            // first address dns.lookup returns, which is ::1 on the ubuntu-24.04 CI runner.
+            const socket = connect(result.port, 'localhost', () =>
               socket.write(
                 `GET ${target} HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\n` +
                   'Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n' +
@@ -2962,7 +2964,7 @@ describe('Server Integration Tests', () => {
       servers.push(result.server);
       try {
         const reply = await new Promise<string>((resolve, reject) => {
-          const socket = connect(result.port, '127.0.0.1', () =>
+          const socket = connect(result.port, 'localhost', () =>
             socket.write(
               'GET //% HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
                 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n',
