@@ -47,6 +47,10 @@ Never recapture a review the user approved, or ask them to approve it again. Cha
 
 Use `pnpm` for dependency management (avoid mixing with `npm` or `yarn`) and rely on the `mise.toml` pinned versions for local reproducibility. When performance is a concern, run `pnpm perf:*` scripts to benchmark diff rendering before merging significant parser or rendering changes.
 
+## Plans (TPPs)
+
+Technical Project Plans live in `_todo/` until they are finished, then move to `_done/` under the same name. Name a new plan `p<N>-YYYYMMDD-short-description.md`: `N` is its priority (1 high-impact work to start soon, 2 planned near-term work, 3 worthwhile but not imminent, 4 nice-to-have with no timeline), and the date is the day it was written. Its frontmatter carries a matching `priority: p<N>` line. To change a plan's priority, rename the file, update that line, and rewrite every link to the old name. Link to other plans by basename.
+
 ## Upstream PRs and Issues
 
 Before examining or adopting upstream changes, read [UPSTREAM.md](UPSTREAM.md).
