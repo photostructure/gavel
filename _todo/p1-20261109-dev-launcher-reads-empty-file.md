@@ -1,5 +1,6 @@
 ---
 title: Stop dev-launcher.test.ts from reading the fixture's file before it is written
+priority: p1
 section: Tests
 ---
 

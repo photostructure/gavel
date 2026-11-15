@@ -1,5 +1,6 @@
 ---
 title: Explain when review listening stops
+priority: p4
 section: Agent integration
 ---
 
@@ -16,4 +17,4 @@ or keeping a model active. Preserve the current immediate handback on Codex unti
 its host can deliver this safely. Decide whether a host can post the message
 without inference; account for any final model turn explicitly. Do not promise
 listening that the host cannot provide. Coordinate with
-[host-enforced limits](2026-11-09-enforce-idle-review-token-limits.md).
+[host-enforced limits](p3-20261109-idle-review-token-limits.md).

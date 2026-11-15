@@ -1,5 +1,6 @@
 ---
 title: Find why a DiffChunk range-comment test failed once
+priority: p3
 section: Tests
 ---
 

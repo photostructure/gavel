@@ -44,4 +44,4 @@ given.
   intent, and neither measured host needs it.
 
 The same hazard on the `--review` launch is tracked in
-[its own TPP](../_todo/2026-11-09-reject-piped-input-on-review-launch.md).
+[its own TPP](../_todo/p3-20261109-reject-piped-input-on-launch.md).

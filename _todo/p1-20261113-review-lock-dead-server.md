@@ -1,5 +1,6 @@
 ---
 title: Let a running server take over a review whose lock belongs to a dead server
+priority: p1
 section: Server
 ---
 

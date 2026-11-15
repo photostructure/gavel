@@ -1,5 +1,6 @@
 ---
 title: Refuse or place a comment anchored outside a named review's hunks
+priority: p2
 section: Server and CLI
 ---
 

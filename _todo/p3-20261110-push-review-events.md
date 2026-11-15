@@ -1,5 +1,6 @@
 ---
 title: Push review verdicts and comments into the owning Claude Code session
+priority: p3
 section: Agent integration
 ---
 

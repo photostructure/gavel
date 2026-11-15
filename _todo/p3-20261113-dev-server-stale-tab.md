@@ -1,5 +1,6 @@
 ---
 title: Stop a stale dev tab from adding its review to, or shutting down, the next dev server
+priority: p3
 section: Server
 ---
 

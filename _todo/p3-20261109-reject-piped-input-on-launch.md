@@ -1,5 +1,6 @@
 ---
 title: Reject piped input when a named review launch omits the stdin marker
+priority: p3
 section: CLI
 ---
 

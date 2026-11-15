@@ -1,5 +1,6 @@
 ---
 title: Use blue, not green, for selection and emphasis that is not approval
+priority: p3
 section: Appearance
 ---
 

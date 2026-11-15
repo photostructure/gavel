@@ -40,7 +40,7 @@ Docs: `docs/agent-conversations.md` "Saved reviews".
 
 ## Follow-ups
 
-- `_todo/2026-11-07-server-only-review-state.md`: drop the browser's copy of sent
+- `_todo/p2-20261107-server-only-review-state.md`: drop the browser's copy of sent
   comments, add an outbox for unconfirmed changes, and move Viewed and read marks
   to the server.
 - `_done/2026-11-07-approval-verdict-field.md`: one verdict field instead of

@@ -1,5 +1,6 @@
 ---
 title: Show an SVG both rendered and as a text diff
+priority: p4
 section: Viewers
 ---
 

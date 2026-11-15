@@ -1,5 +1,6 @@
 ---
 title: Stabilize the Conversation render-count test in App.agentUpdates.test.tsx
+priority: p1
 section: Tests
 ---
 

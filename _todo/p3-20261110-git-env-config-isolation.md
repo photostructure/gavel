@@ -1,5 +1,6 @@
 ---
 title: Capture and unapply Git calls ignore GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM
+priority: p3
 section: Review capture
 ---
 

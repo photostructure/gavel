@@ -1,5 +1,6 @@
 ---
 title: Show every conflicted file in an unstaged review, with its conflict hunks
+priority: p3
 section: Git integration
 ---
 

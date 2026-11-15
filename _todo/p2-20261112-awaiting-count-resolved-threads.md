@@ -1,5 +1,6 @@
 ---
 title: Leave resolved threads out of the agent's "awaiting an answer" count
+priority: p2
 section: Agent conversations
 ---
 

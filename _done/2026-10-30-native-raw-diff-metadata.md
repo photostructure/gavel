@@ -17,7 +17,7 @@ Reference: [Git raw output format](https://git-scm.com/docs/git-diff#_raw_output
 
 ## Outcome
 
-Done as narrowed (accepted as recommended, 5D-9 A and 5D-10 A). Gaps left for later: `2026-11-08-conflicted-files-in-the-review.md`.
+Done as narrowed (accepted as recommended, 5D-9 A and 5D-10 A). Gaps left for later: `p3-20261108-conflicted-files-in-review.md`.
 
 - [x] Red, then green against real git: `pnpm vitest run src/server/git-diff.metadata.test.ts src/server/git-diff.capture.test.ts`
 - [x] Reviewed with `coding:second-opinion`: LAND on base `f3e74c3`. Codex and Claude on the server batch; Codex skipped on the client batch (front-end; the maintainer's standing instruction).

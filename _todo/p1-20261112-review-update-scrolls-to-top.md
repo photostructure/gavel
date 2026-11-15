@@ -1,5 +1,6 @@
 ---
 title: Keep the reviewer's scroll position when the agent updates the review
+priority: p1
 section: Web UI
 ---
 

@@ -1,5 +1,6 @@
 ---
 title: Show a verdict the server has not confirmed on the verdict buttons
+priority: p2
 section: Web UI
 ---
 

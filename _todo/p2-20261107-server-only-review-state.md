@@ -1,5 +1,6 @@
 ---
 title: Keep review state on the server, with a browser queue for unconfirmed changes
+priority: p2
 section: Review server
 ---
 

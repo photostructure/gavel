@@ -1,5 +1,6 @@
 ---
 title: Offer a fix prompt when a new agent session takes over a review
+priority: p4
 section: Web UI
 ---
 

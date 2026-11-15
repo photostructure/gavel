@@ -1,5 +1,6 @@
 ---
 title: Enforce idle-review token limits outside the model
+priority: p3
 section: Agent integration
 ---
 

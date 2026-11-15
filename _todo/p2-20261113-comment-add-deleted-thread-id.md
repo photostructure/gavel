@@ -1,5 +1,6 @@
 ---
 title: Report it when comment add skips a thread whose ID was deleted
+priority: p2
 section: Server and CLI
 ---
 
