@@ -99,6 +99,7 @@ function CopyResumePrompt() {
 }
 
 export type DeliveryState =
+  | 'replaced'
   | 'unreachable'
   | 'disconnected'
   | 'uncertain'
@@ -111,12 +112,15 @@ export type DeliveryState =
 const isDead = (state: DeliveryState) =>
   state === 'unreachable' || state === 'disconnected' || state === 'uncertain';
 
+type RobotLook = 'awake' | 'dead' | 'asking';
+
 /**
  * A robot head drawn on Lucide's 24-unit grid with its 2-unit round strokes, to sit beside the
  * header's Lucide icons. Awake, its antenna stands up with a knob on the end; dead, the antenna
- * is bent over and its eyes are crosses where the awake eyes are.
+ * is bent over and its eyes are crosses where the awake eyes are; asking, its eyes are awake and
+ * its antenna curls into a question mark.
  */
-function Robot({ dead, className }: { dead: boolean; className?: string }) {
+function Robot({ look, className }: { look: RobotLook; className?: string }) {
   return (
     <svg
       width={18}
@@ -127,12 +131,12 @@ function Robot({ dead, className }: { dead: boolean; className?: string }) {
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
-      data-robot={dead ? 'dead' : 'awake'}
+      data-robot={look}
       className={className}
     >
       <rect width={16} height={12} x={4} y={8} rx={2} />
       <path d="M2 12.5v3M22 12.5v3" />
-      {dead ? (
+      {look === 'dead' ? (
         <>
           <path d="M12 8V4H8" />
           <circle cx={7} cy={4} r={1} />
@@ -140,8 +144,14 @@ function Robot({ dead, className }: { dead: boolean; className?: string }) {
         </>
       ) : (
         <>
-          <path d="M12 8V4" />
-          <circle cx={12} cy={3} r={1} />
+          {look === 'asking' ? (
+            <path d="M9.5 3.5a2.5 2.5 0 1 1 4.27 1.77C12.6 6.1 12 6.8 12 8" />
+          ) : (
+            <>
+              <path d="M12 8V4" />
+              <circle cx={12} cy={3} r={1} />
+            </>
+          )}
           <path d="M9 13v2M15 13v2" />
         </>
       )}
@@ -152,15 +162,17 @@ function Robot({ dead, className }: { dead: boolean; className?: string }) {
 /**
  * The robot answers one question: will verdicts and comments reach the agent? Awake in green
  * when they will, swept while sending, checked once received; dead in red when the reviewer must
- * act, and the menu says why and what to do; awake in gray when no agent session takes them.
+ * act, and the menu says why and what to do; awake in gray when no agent session takes them; asking
+ * in orange when another review holds this address, since this review's server may still run at
+ * another one.
  */
 export function DeliveryGlyph({ state }: { state: DeliveryState }) {
   return (
     <span className="relative inline-flex" data-delivery-state={state} aria-hidden="true">
-      <Robot dead={isDead(state)} />
+      <Robot look={isDead(state) ? 'dead' : state === 'replaced' ? 'asking' : 'awake'} />
       {state === 'delivering' && (
         <Robot
-          dead={false}
+          look="awake"
           className="agent-delivery-sweep absolute inset-0 text-github-text-primary"
         />
       )}
@@ -176,9 +188,11 @@ export function DeliveryGlyph({ state }: { state: DeliveryState }) {
 export const deliveryColor = (state: DeliveryState) =>
   isDead(state)
     ? 'text-github-danger'
-    : state === 'unattended'
-      ? 'text-github-text-muted'
-      : 'text-github-accent-text';
+    : state === 'replaced'
+      ? 'text-github-warning'
+      : state === 'unattended'
+        ? 'text-github-text-muted'
+        : 'text-github-accent-text';
 
 /**
  * Whether this page can reach the gavel server: `reconnecting` while the live connection retries,
@@ -208,38 +222,45 @@ function DeliveryControl({
   const unattended = delivery.status === 'unavailable';
   const uncertain = delivery.status === 'uncertain';
   const pending = delivery.status === 'pending';
-  const state: DeliveryState = unreachable
-    ? 'unreachable'
-    : disconnected
-      ? 'disconnected'
-      : unattended
-        ? 'unattended'
-        : uncertain
-          ? 'uncertain'
-          : pending
-            ? 'delivering'
-            : recent
-              ? 'delivered'
-              : 'available';
-  const label = unreachable
-    ? 'Server unreachable'
-    : disconnected
-      ? 'Agent disconnected'
-      : unattended
-        ? 'No agent session'
-        : uncertain
-          ? 'Delivery unconfirmed'
-          : pending
-            ? 'Delivering to agent'
-            : recent
-              ? 'Delivered to agent'
-              : 'Agent available';
+  const replaced = server === 'replaced';
+  const state: DeliveryState = replaced
+    ? 'replaced'
+    : unreachable
+      ? 'unreachable'
+      : disconnected
+        ? 'disconnected'
+        : unattended
+          ? 'unattended'
+          : uncertain
+            ? 'uncertain'
+            : pending
+              ? 'delivering'
+              : recent
+                ? 'delivered'
+                : 'available';
+  const label = replaced
+    ? 'Another review at this address'
+    : unreachable
+      ? 'Server unreachable'
+      : disconnected
+        ? 'Agent disconnected'
+        : unattended
+          ? 'No agent session'
+          : uncertain
+            ? 'Delivery unconfirmed'
+            : pending
+              ? 'Delivering to agent'
+              : recent
+                ? 'Delivered to agent'
+                : 'Agent available';
   const report = describe(delivery);
-  const status = unreachable
-    ? server === 'replaced'
-      ? "Another gavel review now runs at this address, so this page cannot reach its own server. Verdicts and comments wait in this browser, and only this review's gavel server at this address can receive them."
-      : `${server === 'reconnecting' ? 'Reconnecting to the gavel server…' : 'The gavel server is unreachable. If it stopped, ask the agent to reopen this review or start gavel again, then click the robot.'} Verdicts and comments wait in this browser. Gavel sends them again with your next change, when you reload, or when the live connection reopens.`
-    : `${report.label}. ${report.detail}`;
+  const status = replaced
+    ? "Verdicts and comments wait in this browser until this review's server is back at this address."
+    : unreachable
+      ? server === 'reconnecting'
+        ? 'Reconnecting to the gavel server… Verdicts and comments wait in this browser until it answers.'
+        : 'The gavel server is unreachable. If it stopped, ask the agent to reopen this review, then click the robot. Verdicts and comments wait in this browser until then.'
+      : `${report.label}. ${report.detail}`;
   return (
     <HeaderMenu
       open={open}

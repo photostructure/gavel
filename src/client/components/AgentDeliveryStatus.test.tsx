@@ -134,7 +134,11 @@ for (const [name, Component] of [
         <Component delivery={{ status: 'ready' }} server="unreachable" onReconnect={onReconnect} />,
       );
       fireEvent.click(screen.getByRole('button', { name: 'Server unreachable' }));
-      expect(screen.getByText(/^The gavel server is unreachable\. /)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'The gavel server is unreachable. If it stopped, ask the agent to reopen this review, then click the robot. Verdicts and comments wait in this browser until then.',
+        ),
+      ).toBeInTheDocument();
     });
 
     // A click on the robot is the reviewer asking to reconnect, and still opens its details.
@@ -159,13 +163,31 @@ for (const [name, Component] of [
       expect(onReconnect).not.toHaveBeenCalled();
     });
 
-    it('says in its menu that another review now runs at its address', () => {
+    // The server may still run elsewhere, so the robot's antenna asks where, in warning orange.
+    it('shows a robot whose antenna is a question mark when another review holds its address', () => {
+      const { container } = render(
+        <Component delivery={{ status: 'ready' }} server="replaced" onReconnect={onReconnect} />,
+      );
+      expect(screen.getByRole('button', { name: 'Another review at this address' })).toHaveClass(
+        'text-github-warning',
+      );
+      expect(container.querySelector('[data-delivery-state]')).toHaveAttribute(
+        'data-delivery-state',
+        'replaced',
+      );
+      expect(container.querySelector('[data-robot]')).toHaveAttribute('data-robot', 'asking');
+    });
+
+    it('says in its menu where verdicts and comments wait when another review holds its address', () => {
       render(
         <Component delivery={{ status: 'ready' }} server="replaced" onReconnect={onReconnect} />,
       );
-      fireEvent.click(screen.getByRole('button', { name: 'Server unreachable' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Another review at this address' }));
+      expect(onReconnect).toHaveBeenCalledOnce();
       expect(
-        screen.getByText(/^Another gavel review now runs at this address/),
+        screen.getByText(
+          "Verdicts and comments wait in this browser until this review's server is back at this address.",
+        ),
       ).toBeInTheDocument();
     });
 
@@ -178,7 +200,11 @@ for (const [name, Component] of [
         />,
       );
       fireEvent.click(screen.getByRole('button', { name: 'Server unreachable' }));
-      expect(screen.getByText(/^Reconnecting to the gavel server… /)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'Reconnecting to the gavel server… Verdicts and comments wait in this browser until it answers.',
+        ),
+      ).toBeInTheDocument();
     });
 
     it.each(['sent', 'queued'] as const)(

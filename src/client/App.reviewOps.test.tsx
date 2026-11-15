@@ -480,7 +480,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
     act(() => watch.setOtherReview?.(true));
 
     expect(screen.getByRole('dialog')).toHaveTextContent(
-      /Another gavel review now runs at this address/,
+      /^Another review at this addressVerdicts and comments wait in this browser/,
     );
   });
 
