@@ -1,33 +1,82 @@
 import { X } from 'lucide-react';
 import { useState } from 'react';
 
+import type { UnsavedChanges } from '../hooks/useReviewOps';
+import { DeliveryGlyph, deliveryColor } from './AgentDeliveryStatus';
+import {
+  toastActionsClasses,
+  toastButtonClasses,
+  toastClasses,
+  toastDetailClasses,
+  toastDismissClasses,
+  toastGlyphCellClasses,
+  toastTitleClasses,
+} from './toastStyles';
+
 /**
- * A toast for changes this browser could not send to the server. It looks like the verdict
- * toast, in orange, and sits in the header's toast stack, under the verdict toast while that is
- * open. It takes no focus, since it can open while the reviewer is typing a comment. Dismissing
- * it hides this message; a different one, such as a new count, shows it again.
+ * A toast for changes this browser could not send to the server. It shares the look of the other
+ * toasts and sits in the header's toast stack. It takes no focus, since it can open while the
+ * reviewer is typing a comment. Dismissing it hides this count and failure; a different one, such
+ * as a new count, shows it again.
  */
-export function UnsavedChangesToast({ message }: { message: string | null }) {
+export function UnsavedChangesToast({
+  unsaved,
+  onSendNow,
+}: {
+  unsaved: UnsavedChanges | null;
+  // Settles once the attempt ends, whether or not the changes went through.
+  onSendNow: () => Promise<void>;
+}) {
   const [dismissed, setDismissed] = useState<string | null>(null);
-  // Once the changes are sent, the same message after a later failure shows again.
-  if (message === null && dismissed !== null) setDismissed(null);
-  if (message === null || message === dismissed) return null;
+  // A send that fails again leaves the same count and failure, so the button says it is trying.
+  const [sending, setSending] = useState(false);
+  // Once the changes are sent, the same count and failure after a later failure show again.
+  if (unsaved === null && dismissed !== null) setDismissed(null);
+  if (unsaved === null) return null;
+  // A NUL cannot appear in the count, so the key tells every count and failure apart.
+  const key = `${unsaved.count}\u0000${unsaved.failure}`;
+  if (key === dismissed) return null;
+  const several = unsaved.count > 1;
   return (
-    // The verdict toast's frame and shadows, with orange for its blue.
-    <div
-      role="alert"
-      style={{ maxWidth: 'min(36rem, calc(100vw - 16px))' }}
-      className="unsaved-toast relative rounded-md border border-orange-600 bg-[color-mix(in_srgb,var(--color-orange-600)_14%,var(--color-github-bg-secondary))] [[data-theme=dark]_&]:bg-[color-mix(in_srgb,var(--color-orange-600)_20%,var(--color-github-bg-secondary))] py-3 pr-4 pl-4 text-sm text-github-text-primary shadow-[0_12px_32px_rgb(31_35_40/0.3),0_2px_6px_rgb(31_35_40/0.16)] [[data-theme=dark]_&]:shadow-[0_0_0_1px_rgb(1_4_9/0.9),0_16px_40px_rgb(1_4_9/0.9)]"
-    >
-      <p className="pr-8 leading-7 [overflow-wrap:anywhere]">{message}</p>
+    <div role="alert" className={toastClasses('warning')}>
+      <div className={toastGlyphCellClasses}>
+        {/* The header's robot shows this dead robot while a change fails to send. */}
+        <span className={deliveryColor('unreachable')}>
+          <DeliveryGlyph state="unreachable" />
+        </span>
+      </div>
+      <div className="col-start-2 row-start-1">
+        <p className={toastTitleClasses}>
+          {several ? `${unsaved.count} changes not saved` : '1 change not saved'}
+        </p>
+        <p className={toastDetailClasses}>
+          {`Sending failed (${unsaved.failure}). Gavel sends ${several ? 'them' : 'it'} again with your next change, when you reload, or when the live connection reopens.`}
+        </p>
+      </div>
+      <div className={toastActionsClasses}>
+        {/* Not disabled: a disabled button drops its focus to the page. */}
+        <button
+          type="button"
+          aria-disabled={sending || undefined}
+          onClick={() => {
+            if (sending) return;
+            setSending(true);
+            void onSendNow().finally(() => setSending(false));
+          }}
+          className={`${toastButtonClasses} aria-disabled:opacity-60`}
+        >
+          {sending ? 'Sending…' : 'Send again now'}
+        </button>
+      </div>
+      {/* After the actions in the DOM, so it comes last in tab order; the grid places it top right. */}
       <button
         type="button"
-        onClick={() => setDismissed(message)}
+        onClick={() => setDismissed(key)}
         aria-label="Dismiss"
         title="Dismiss"
-        className="absolute top-1.5 right-1.5 p-1 text-github-text-secondary transition-colors hover:text-github-text-primary"
+        className={`col-start-3 row-start-1 ${toastDismissClasses}`}
       >
-        <X size={20} aria-hidden="true" />
+        <X size={16} aria-hidden="true" />
       </button>
     </div>
   );

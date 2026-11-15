@@ -1966,6 +1966,12 @@ function App() {
       setIsCommentsListOpen(true);
     },
   });
+  // The link notice sits in the header's toast stack, which hides with the header on touch
+  // screens; shown there, it would close itself unseen.
+  const { revealHeader } = reviewChrome;
+  useEffect(() => {
+    if (commentLinks.notice !== null) revealHeader();
+  }, [commentLinks.notice, revealHeader]);
 
   // A thread jump moves the cursor to the thread's line without scrolling; this scrolls the
   // comment card below it to the top third of the screen when the card is not fully visible.
@@ -2253,8 +2259,8 @@ function App() {
                   onClear={() => void handleVerdict('clear')}
                 />
               )}
-              {/* The verdict toast first, so the unsaved-changes toast sits under it and slides
-                  up when it closes. */}
+              {/* The verdict toast first, under the verdict buttons it follows; the toasts below
+                  it slide up when it closes. */}
               <ToastStack anchor={verdictAnchor ?? headerElement}>
                 <VerdictFollowUpNotice
                   anchor={verdictAnchor}
@@ -2266,7 +2272,11 @@ function App() {
                   onProceed={verdictFollowUp.proceed}
                   onUndo={() => void handleVerdict('clear')}
                 />
-                <UnsavedChangesToast message={reviewOps.unsaved} />
+                <UnsavedChangesToast unsaved={reviewOps.unsaved} onSendNow={reviewOps.sendNow} />
+                <CommentLinkNotice
+                  message={commentLinks.notice}
+                  onDismiss={commentLinks.dismissNotice}
+                />
               </ToastStack>
               {approval.error && (
                 <span role="alert" className="w-full text-xs text-github-danger">
@@ -2604,7 +2614,6 @@ function App() {
           onUpdateMessage={updateMessage}
           syntaxTheme={settings.syntaxTheme}
         />
-        <CommentLinkNotice message={commentLinks.notice} onDismiss={commentLinks.dismissNotice} />
       </div>
     </ReviewProviders>
   );

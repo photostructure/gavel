@@ -86,7 +86,7 @@ export function RevisionDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[55] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-github-bg-secondary border border-github-border rounded-lg shadow-lg w-full max-w-lg mx-4">
         <div className="flex items-center justify-between p-4 border-b border-github-border">

@@ -40,9 +40,11 @@ export function ToastStack({ anchor, children }: { anchor: Element | null; child
           ...floatingStyles,
           visibility: middlewareData.hide?.referenceHidden ? 'hidden' : 'visible',
         }}
-        // The stack is as wide as its widest toast; the space beside a narrower one, and the gap
-        // between them, let clicks and selection through to the page.
-        className="pointer-events-none z-40 flex flex-col items-end gap-1.5 [&>*]:pointer-events-auto"
+        // The gap between the toasts lets clicks and selection through to the page. At z-50 the
+        // portal, which comes after the app's root, paints above Conversation, where a link that
+        // cannot be followed opens its toast; the centered dialogs (z-[55]), and the tooltips and
+        // the revision pickers those dialogs open (z-[60]), paint above the toasts.
+        className="pointer-events-none z-50 flex flex-col items-end gap-3 [&>*]:pointer-events-auto"
       >
         {children}
       </div>

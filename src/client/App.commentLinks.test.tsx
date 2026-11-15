@@ -322,6 +322,8 @@ describe('links in comments', () => {
     renderApp();
     fireEvent.click(await screen.findByRole('link', { name: 'gone' }));
     expect(notice()).toHaveTextContent('No comment "nope" in this review.');
+    // In the header's toast stack with the other toasts, not at the bottom of the window.
+    expect(notice().closest('[data-toast-stack]')).not.toBeNull();
     fireEvent.click(screen.getByRole('link', { name: 'far' }));
     // This capture's patch names no old blob, so it cannot show lines outside its hunks.
     await waitFor(() =>

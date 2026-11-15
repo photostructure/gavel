@@ -5,6 +5,23 @@ import { describe, expect, it, vi } from 'vitest';
 import { RevisionDetailModal } from './RevisionDetailModal';
 
 describe('RevisionDetailModal', () => {
+  // The header's toasts float at z-50 above Conversation; this dialog sits above them, below the
+  // tooltips (z-[60]), so a toast cannot cover it or take its clicks.
+  it('sits above the header toasts', () => {
+    render(
+      <HotkeysProvider>
+        <RevisionDetailModal
+          isOpen
+          onClose={vi.fn()}
+          options={{ specialOptions: [], branches: [], commits: [] }}
+          selection={{ baseCommitish: 'HEAD', targetCommitish: '.' }}
+          onApply={vi.fn()}
+        />
+      </HotkeysProvider>,
+    );
+    expect(document.querySelector('.fixed.inset-0')).toHaveClass('z-[55]');
+  });
+
   it('clears hidden merge-base state when applying', () => {
     const onApply = vi.fn();
 

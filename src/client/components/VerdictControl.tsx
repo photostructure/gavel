@@ -14,11 +14,9 @@ const VERDICT_NAMES: Record<ReviewVerdict, string> = {
 export const describeVerdict = (verdict: ReviewVerdict | undefined) =>
   verdict && VERDICT_NAMES[verdict];
 
-// The verdict follow-up notice sizes its buttons with these too.
-export const verdictButtonClasses =
+const verdictButtonClasses =
   'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-60';
-// The verdict follow-up notice's secondary buttons use this too.
-export const idleClasses = 'border-github-border bg-github-bg-tertiary text-github-text-primary';
+const idleClasses = 'border-github-border bg-github-bg-tertiary text-github-text-primary';
 // Idle buttons look alike, so none reads as already chosen; hover shows which way each goes.
 // Only the border tints (doubled by an inset ring): green or violet text on this background is
 // too faint to read.

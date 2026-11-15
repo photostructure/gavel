@@ -1622,9 +1622,7 @@ describe('after a verdict', () => {
     await user.click(composer.getByRole('button', { name: 'Send' }));
     await user.click(screen.getByRole('button', { name: 'Close conversation' }));
 
-    const unsaved = (await screen.findByText(/change is not saved to the server/)).closest(
-      '[role="alert"]',
-    )!;
+    const unsaved = (await screen.findByText(/change not saved/)).closest('[role="alert"]')!;
     const stack = nextStep().closest('[data-toast-stack]');
     expect(stack).not.toBeNull();
     expect(stack).toContainElement(unsaved as HTMLElement);

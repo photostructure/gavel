@@ -127,20 +127,47 @@
   }
 }
 
-/* The verdict follow-up toast slides in from the right. It animates `translate`, not
-   `transform`, which the toast stack animates to slide a toast into its new place. */
-@keyframes verdict-toast-in {
+/* Each toast slides in from the right over 0.3s, as the side panels do. It animates `translate`,
+   not `transform`, which the toast stack animates to slide a toast into its new place. */
+@keyframes toast-in {
   from {
     translate: 100% 0;
     opacity: 0;
   }
 }
-.verdict-toast {
-  animation: verdict-toast-in 0.3s ease-out;
+.toast {
+  animation: toast-in 0.3s ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
-  .verdict-toast {
+  .toast {
     animation: none;
+  }
+}
+
+/* A toast that closes by itself drains its left bar from the bottom up over 8s, and the bar's
+   animationend closes it. Hovering the toast or focusing inside it pauses the countdown. With
+   reduced motion the bar stays full, but the still animation still ends after 8s. */
+@keyframes toast-countdown {
+  to {
+    transform: scaleY(0);
+  }
+}
+@keyframes toast-countdown-still {
+  to {
+    opacity: 1;
+  }
+}
+.toast-countdown {
+  transform-origin: top;
+  animation: toast-countdown 8s linear forwards;
+}
+.toast:hover .toast-countdown,
+.toast:focus-within .toast-countdown {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-countdown {
+    animation-name: toast-countdown-still;
   }
 }
 
@@ -181,6 +208,7 @@
   --color-github-accent: #238636;
   --color-github-accent-text: #3fb950;
   --color-github-danger: #da3633;
+  --color-github-danger-text: #ff7b72;
   --color-github-warning: #d29922;
   --color-verdict-reject: #8957e5;
 
@@ -293,28 +321,6 @@ body,
 @media (prefers-reduced-motion: reduce) {
   .slide-over-root[data-closing] {
     display: none;
-  }
-}
-
-/* The unsaved-changes toast slides in from the right as the verdict toast does, and the link
-   notice rises from the bottom edge, both over 0.3s. The link notice animates `transform`
-   because Tailwind's -translate-x-1/2 centers it with `translate`. */
-@keyframes comment-link-notice-in {
-  from {
-    transform: translateY(calc(100% + 1rem));
-    opacity: 0;
-  }
-}
-.unsaved-toast {
-  animation: verdict-toast-in 0.3s ease-out;
-}
-.comment-link-notice {
-  animation: comment-link-notice-in 0.3s ease-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  .unsaved-toast,
-  .comment-link-notice {
-    animation: none;
   }
 }
 

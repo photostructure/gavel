@@ -1,36 +1,42 @@
 import { FloatingFocusManager, useFloating } from '@floating-ui/react';
-import { CornerDownLeft, X } from 'lucide-react';
+import { Check, CornerDownLeft, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import type { ReviewVerdict } from '../../types/conversation';
 import type { ClientInboxDelivery } from '../hooks/useInboxDelivery';
 import type { VerdictFollowUpStep } from '../hooks/useVerdictFollowUp';
 
-import { type DeliveryState, DeliveryGlyph, deliveryColor } from './AgentDeliveryStatus';
-import { describeVerdict, idleClasses, verdictButtonClasses } from './VerdictControl';
+import {
+  type ToastKind,
+  toastActionsClasses,
+  toastButtonClasses,
+  toastClasses,
+  toastDetailClasses,
+  toastDismissClasses,
+  toastGlyphCellClasses,
+  toastGlyphClasses,
+  toastTitleClasses,
+} from './toastStyles';
+import { describeVerdict } from './VerdictControl';
 
-// An unpressed verdict button, with a neutral hover: the verdict buttons' green and violet
-// hovers say which verdict a click gives.
-const secondaryClasses = `${verdictButtonClasses} shrink-0 ${idleClasses} enabled:hover:border-github-text-secondary`;
-
-// What became of the open review's latest verdict or comment, in the header robot's terms. A
+// What became of the open review's latest verdict or comment, as the header robot reports it. A
 // server without an inbox reports nothing, and ready means nothing is waiting to go.
 function describeDelivery(
   delivery: ClientInboxDelivery | undefined,
-): { state: DeliveryState; text: string } | undefined {
+): { failed: boolean; text: string } | undefined {
   switch (delivery?.status) {
     case 'pending':
-      return { state: 'delivering', text: 'Sending to the agent…' };
+      return { failed: false, text: 'Sending to the agent…' };
     case 'sent':
-      return { state: 'delivered', text: 'Sent to the agent.' };
+      return { failed: false, text: 'Sent to the agent.' };
     case 'queued':
-      return { state: 'delivered', text: 'Queued for Codex.' };
+      return { failed: false, text: 'Queued for Codex.' };
     case 'uncertain':
-      return { state: 'uncertain', text: "Codex didn't confirm it got this." };
+      return { failed: true, text: "Codex didn't confirm it got this." };
     case 'failed':
-      return { state: 'disconnected', text: `Not sent: ${delivery.error}.` };
+      return { failed: true, text: `Not sent: ${delivery.error}.` };
     case 'unavailable':
-      return { state: 'unattended', text: 'No agent session gets messages from this review.' };
+      return { failed: false, text: 'No agent session gets messages from this review.' };
     case 'ready':
     case undefined:
       return undefined;
@@ -102,6 +108,9 @@ export function VerdictFollowUpNotice({
       ? 'This review has a verdict.'
       : `All ${step.reviews} reviews have a verdict.`);
   const report = describeDelivery(delivery);
+  // An undone verdict, say from another tab, leaves a gray toast with no glyph.
+  const kind: ToastKind = verdict ?? 'info';
+  const Glyph = verdict === 'approve' ? Check : verdict === 'reject' ? X : undefined;
   // A failed send, which needs the resume prompt, may still arrive; what is left waits for it.
   const sending = delivery?.status === 'pending';
   const others = step.kind === 'switch' ? step.waiting - 1 : 0;
@@ -127,7 +136,7 @@ export function VerdictFollowUpNotice({
         {allDone} If the agent hasn't resumed, copy the prompt and paste it into the chat that
         opened this review.
         {step.status === 'error' && (
-          <span role="alert" className="mt-1 block text-github-danger">
+          <span role="alert" className="mt-1 block text-github-danger-text">
             Could not copy the prompt; try again.
           </span>
         )}
@@ -147,8 +156,6 @@ export function VerdictFollowUpNotice({
         returnFocus={false}
         closeOnFocusOut={false}
       >
-        {/* A black shadow cannot show on the dark theme's near-black page, so there a dark ring
-            outside the border and a denser shadow set the toast off, as GitHub's dark overlays do. */}
         <div
           ref={refs.setFloating}
           role="dialog"
@@ -159,40 +166,53 @@ export function VerdictFollowUpNotice({
             event.preventDefault();
             onDismiss();
           }}
-          style={{ maxWidth: 'min(36rem, calc(100vw - 16px))' }}
-          className="verdict-toast relative flex flex-col gap-4 rounded-md border border-blue-600 bg-[color-mix(in_srgb,var(--color-blue-600)_14%,var(--color-github-bg-secondary))] [[data-theme=dark]_&]:bg-[color-mix(in_srgb,var(--color-blue-600)_20%,var(--color-github-bg-secondary))] py-3 pr-4 pl-4 text-sm text-github-text-primary shadow-[0_12px_32px_rgb(31_35_40/0.3),0_2px_6px_rgb(31_35_40/0.16)] [[data-theme=dark]_&]:shadow-[0_0_0_1px_rgb(1_4_9/0.9),0_16px_40px_rgb(1_4_9/0.9)]"
+          className={toastClasses(kind)}
         >
-          {/* A toast's usual anatomy: the message, its close X in the top-right corner, and the
-              actions below at the right, the primary one last. The X comes last in tab order. */}
-          {/* A live region, so a delivery report that changes after the toast opens is read out. */}
-          <p
+          {/* The cell stays without a glyph, so the message keeps its column. */}
+          <span className={`col-start-1 row-start-1 ${toastGlyphCellClasses}`}>
+            {Glyph && <Glyph size={16} aria-hidden="true" className={toastGlyphClasses[kind]} />}
+          </span>
+          {/* A live region, so a delivery report that changes after the toast opens is read out.
+              The spaces between its lines keep the words apart in its text, which also describes
+              the dialog. */}
+          <div
             id={detailId}
             data-testid="verdict-toast-detail"
             aria-live="polite"
-            className="flex items-start gap-2 pr-8 leading-7"
+            className="col-start-2 row-start-1 min-w-0"
           >
+            {verdict && <div className={toastTitleClasses}>{describeVerdict(verdict)}</div>}{' '}
+            {/* Dimmed: it is status, and the header's robot just above shows the same state; the
+                next step below is what the reviewer acts on. A verdict that did not reach the agent
+                turns red, as the robot does, in a shade that stays readable on the toast's tint. */}
             {report && (
-              <span className={`shrink-0 ${deliveryColor(report.state)}`}>
-                <DeliveryGlyph state={report.state} />
-              </span>
+              <div
+                data-testid="verdict-toast-delivery"
+                className={
+                  report.failed
+                    ? 'text-github-danger-text [overflow-wrap:anywhere]'
+                    : toastDetailClasses
+                }
+              >
+                {report.text}
+              </div>
             )}
-            <span className="min-w-0 [overflow-wrap:anywhere]">
-              <span className="font-medium">{describeVerdict(verdict)}.</span>{' '}
-              {/* Dimmed: it is status; the next step below is what the reviewer acts on. */}
-              {report && <span className="text-github-text-secondary">{report.text}</span>}
-              {report && ' '}
-              {next && (
-                <span data-testid="verdict-toast-next" className="block">
-                  {next}
-                </span>
-              )}
-            </span>
-          </p>
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <button type="button" onClick={onUndo} disabled={busy} className={secondaryClasses}>
+            {report && ' '}
+            {/* 8px under a delivery report; without one, the title's margin spaces it. */}
+            {next && (
+              <div
+                data-testid="verdict-toast-next"
+                className={`${report ? 'mt-2' : ''} text-github-text-primary [overflow-wrap:anywhere]`}
+              >
+                {next}
+              </div>
+            )}
+          </div>
+          <div className={toastActionsClasses}>
+            <button type="button" onClick={onUndo} disabled={busy} className={toastButtonClasses}>
               Undo
             </button>
-            {/* Blue, not green: green means approval on the verdict buttons beside it. */}
+            {/* Blue, not green: green means approval on the verdict buttons. */}
             {hasNext && (
               <button
                 ref={nextRef}
@@ -206,7 +226,7 @@ export function VerdictFollowUpNotice({
                     ? `Switch to ${step.name} (Return)`
                     : 'Copy resume prompt (Return)'
                 }
-                className={`group ${verdictButtonClasses} min-w-0 max-w-full shrink-0 border-blue-600 bg-blue-600 text-white hover:opacity-90 aria-disabled:opacity-60`}
+                className="group inline-flex h-7 min-w-0 max-w-full items-center gap-1.5 whitespace-nowrap rounded-md border border-blue-600 bg-blue-600 px-3 text-sm font-medium text-white hover:opacity-90 aria-disabled:opacity-60"
               >
                 {step.kind === 'switch' ? (
                   <>
@@ -228,16 +248,17 @@ export function VerdictFollowUpNotice({
               </button>
             )}
           </div>
-          {/* The sidebars' close button. */}
+          {/* Last in the DOM, so it comes after the actions in tab order; the grid shows it
+              beside the message. */}
           <button
             ref={dismissRef}
             type="button"
             onClick={onDismiss}
             aria-label="Dismiss"
             title="Dismiss"
-            className="absolute top-1.5 right-1.5 p-1 text-github-text-secondary transition-colors hover:text-github-text-primary"
+            className={`col-start-3 row-start-1 ${toastDismissClasses}`}
           >
-            <X size={20} aria-hidden="true" />
+            <X size={16} aria-hidden="true" />
           </button>
         </div>
       </FloatingFocusManager>

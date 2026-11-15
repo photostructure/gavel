@@ -9,6 +9,9 @@ import { apiFetch } from '../utils/accessToken';
 // queuedAt stamps the change on this page until the server's answer replaces it.
 export type QueuedOp = ReviewOp & { id: string; queuedAt: string };
 
+/** How many changes wait in this browser, and why the last attempt to send them failed. */
+export type UnsavedChanges = { count: number; failure: string };
+
 /** The server's answer, or that another tab got its answer. */
 export type ReviewOpAnswer = ReviewOpResult | 'elsewhere';
 
@@ -235,11 +238,10 @@ export function useReviewOps(
   }, [base, queue, scope]);
 
   const loaded = base?.scope === scope;
-  // Shown in a toast of its own, since it can stay up for as long as the server is unreachable.
-  const unsaved =
-    failure && queue.length > 0
-      ? `${queue.length === 1 ? '1 change is' : `${queue.length} changes are`} not saved to the server (${failure}). Gavel sends ${queue.length === 1 ? 'it' : 'them'} again with your next change, when you reload, or when the live connection reopens.`
-      : null;
+  // Shown in a toast of its own, since it can stay up for as long as the server is unreachable;
+  // the toast words the count and the failure message.
+  const unsaved: UnsavedChanges | null =
+    failure && queue.length > 0 ? { count: queue.length, failure } : null;
   const alert = rejection
     ? `The server refused a change: ${rejection}`
     : !loaded && loadError
@@ -253,6 +255,10 @@ export function useReviewOps(
     enqueue,
     refresh,
     retry,
+    // Sends the waiting changes now, for the unsaved-changes toast's button; it settles once they
+    // are sent or the send fails. Unlike `retry`, it does not reload the comments, so it does not
+    // reject while the server is down.
+    sendNow: flush,
     retarget,
     alert,
     unsaved,

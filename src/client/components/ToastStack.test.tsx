@@ -56,6 +56,18 @@ describe('ToastStack', () => {
     expect(stack()).toHaveClass('pointer-events-none', '[&>*]:pointer-events-auto');
   });
 
+  // A link clicked in Conversation that cannot be followed opens its toast while Conversation
+  // covers the page at z-50. The stack's portal comes after the app's root in the document, so
+  // at the same z-index it paints above it; at z-40 the toast closed unseen under the panel.
+  it('floats above Conversation and the other full-page panels', () => {
+    render(
+      <ToastStack anchor={null}>
+        <div role="alert">Toast</div>
+      </ToastStack>,
+    );
+    expect(stack()).toHaveClass('z-50');
+  });
+
   // A review switch remounts the verdict buttons. Floating UI's `elements.reference` keeps the
   // first element it was given, so the stack stayed with the removed buttons, which measure as a
   // zero box, and its toasts sat in the window's top-left corner.

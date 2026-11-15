@@ -66,6 +66,16 @@ describe('RevisionSelector', () => {
     expect(commitButton).toHaveClass('border-l-diff-selected-border');
   });
 
+  // The detailed-diff dialog sits at z-[55], above the header toasts; at z-50 this list opened
+  // under the dialog's backdrop, and a click on it closed the dialog.
+  it('opens its list above the dialogs, on the tooltips layer', () => {
+    render(<RevisionSelector label="Base" value="main" onChange={vi.fn()} options={options} />);
+    fireEvent.click(screen.getByRole('button', { name: /Base:/ }));
+    expect(
+      screen.getByRole('button', { name: 'Staging Area' }).closest('.z-\\[60\\]'),
+    ).not.toBeNull();
+  });
+
   it('filters options by the search query', () => {
     render(<RevisionSelector label="Base" value="main" onChange={vi.fn()} options={options} />);
 

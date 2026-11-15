@@ -45,6 +45,24 @@ const diffProps = {
 } satisfies Partial<React.ComponentProps<typeof SettingsModal>>;
 
 describe('SettingsModal', () => {
+  // The header's toasts float at z-50 above Conversation; this dialog sits above them, below the
+  // tooltips (z-[60]), so a toast cannot cover it or take its clicks.
+  it('sits above the header toasts', () => {
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        settings={baseSettings}
+        onSettingsChange={vi.fn()}
+        autoViewedPatterns={[]}
+        onAutoViewedPatternsChange={vi.fn()}
+        {...diffProps}
+      />,
+      { wrapper },
+    );
+    expect(document.querySelector('.fixed.inset-0')).toHaveClass('z-[55]');
+  });
+
   it('shows appearance settings by default and the editor note in the system section', () => {
     render(
       <SettingsModal

@@ -22,6 +22,8 @@ const DARK_THEME_VALUES = {
   // Green text needs more contrast than the accent fill, which carries white text.
   '--color-github-accent-text': '#3fb950',
   '--color-github-danger': '#da3633',
+  // Red text needs more contrast than the danger fill, as on a toast's tinted background.
+  '--color-github-danger-text': '#ff7b72',
   '--color-github-warning': '#d29922',
   // Violet rather than the danger red that error messages use.
   '--color-verdict-reject': '#8957e5',
@@ -55,6 +57,7 @@ const LIGHT_THEME_VALUES = {
   '--color-github-accent': '#1f883d',
   '--color-github-accent-text': '#1f883d',
   '--color-github-danger': '#cf222e',
+  '--color-github-danger-text': '#a40e26',
   '--color-github-warning': '#bf8700',
   '--color-verdict-reject': '#8250df',
   '--color-diff-addition-bg': '#d1f4cd',
@@ -154,6 +157,7 @@ const DEUTERANOPIA_DARK_OVERRIDES: Record<string, string> = {
   '--color-github-accent': '#58a6ff',
   '--color-github-accent-text': '#58a6ff',
   '--color-github-danger': '#d29922',
+  '--color-github-danger-text': '#e3b341',
   // Orange, because this mode spends blue on Approve.
   '--color-verdict-reject': '#d29922',
   '--color-diff-addition-bg': '#0c2d6b',
@@ -166,6 +170,7 @@ const DEUTERANOPIA_LIGHT_OVERRIDES: Record<string, string> = {
   '--color-github-accent': '#0969da',
   '--color-github-accent-text': '#0969da',
   '--color-github-danger': '#bf8700',
+  '--color-github-danger-text': '#7d4e00',
   '--color-verdict-reject': '#bf8700',
   '--color-diff-addition-bg': '#ddf4ff',
   '--color-diff-addition-border': '#0969da',

@@ -462,6 +462,46 @@ describe('App Component - Clear Comments Functionality', () => {
     }
   });
 
+  // The link notice sits in the header's toast stack, which hides with the header; a notice
+  // that opened there would close itself after 8 seconds without being seen.
+  it('shows the review header again when a link cannot be followed', async () => {
+    const matchMedia = window.matchMedia.bind(window);
+    const spy = vi.spyOn(window, 'matchMedia').mockImplementation((query) =>
+      query === MEDIA_QUERIES.autoHideHeader
+        ? ({
+            matches: true,
+            addEventListener: () => {},
+            removeEventListener: () => {},
+          } as unknown as MediaQueryList)
+        : matchMedia(query),
+    );
+    try {
+      renderApp();
+      await screen.findByRole('button', { name: 'Settings' });
+      const chrome = screen.getByTestId('review-chrome');
+      const diff = screen.getByRole('main');
+      Object.defineProperty(diff, 'scrollHeight', { value: 5000 });
+      Object.defineProperty(diff, 'clientHeight', { value: 300 });
+      Object.defineProperty(diff, 'scrollTop', { value: 200 });
+      fireEvent.scroll(diff);
+      expect(chrome).toHaveAttribute('data-hidden', 'true');
+
+      act(() => {
+        window.history.pushState(null, '', '#thread=nope');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+
+      await waitFor(() =>
+        expect(screen.getByRole('status', { name: 'Link not followed' })).toHaveTextContent(
+          'No comment "nope"',
+        ),
+      );
+      expect(chrome).toHaveAttribute('data-hidden', 'false');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('highlights the sidebar row of the file at the top of the scrolled diff', async () => {
     const file = (path: string) => ({
       path,
@@ -1631,9 +1671,7 @@ describe('App Component - Ship it delivery', () => {
       await waitFor(() => expect(button).toBeEnabled());
       fireEvent.click(button);
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        '1 change is not saved to the server',
-      );
+      expect(await screen.findByRole('alert')).toHaveTextContent('1 change not saved');
       expect(screen.getByRole('button', { name: /^(Approve|Approved)$/ })).toBeEnabled();
     },
   );

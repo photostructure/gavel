@@ -162,8 +162,8 @@ shown in **Conversation**, points into that comment's review.
 Each jump adds a browser history entry, so Back returns to the comment the link was
 in, and the page URL keeps the place. For a link in another review's comment, Back
 returns to the review you were reading instead. When gavel cannot follow a link (no
-such thread, file, or named review, or a line the diff cannot show), it says why at
-the bottom of the page. A named review loads the lines around its hunks from the
+such thread, file, or named review, or a line the diff cannot show), it says why in a
+toast at the top right, which closes after 8 seconds unless the pointer or keyboard focus is on it. A named review loads the lines around its hunks from the
 capture and the repository's copy of each file's old version. It cannot when the
 patch is plain unified (no Git blob IDs), the repository lacks the old version (a
 pull request whose base was never fetched), or `--select` left out an earlier hunk

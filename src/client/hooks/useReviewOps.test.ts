@@ -383,18 +383,40 @@ describe('useReviewOps', () => {
     expect(result.current.alert).toBeNull();
   });
 
-  it('names what sends waiting changes again', async () => {
+  it('reports how many changes wait and why their send failed', async () => {
     const { answers } = server();
     answers['/api/review-ops']!.push({ status: 503, version: 1, threads: [] });
     const { result } = mount();
     await waitFor(() => expect(result.current.loaded).toBe(true));
+    expect(result.current.unsaved).toBeNull();
 
     await act(async () => void (await result.current.enqueue(add('waiting')).sent));
 
-    expect(result.current.unsaved).toContain(
-      'Gavel sends it again with your next change, when you reload, or when the live connection reopens.',
-    );
+    // The mocked 503 carries no status text.
+    expect(result.current.unsaved).toEqual({ count: 1, failure: '503 ' });
     expect(result.current.alert).toBeNull();
+  });
+
+  it('sends the waiting changes again on request, without reloading the comments', async () => {
+    const { answers, sent } = server();
+    answers['/api/review-ops']!.push({ status: 503, version: 1, threads: [] });
+    const { result } = mount();
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    await act(async () => void (await result.current.enqueue(add('waiting')).sent));
+    const reads = vi
+      .mocked(fetch)
+      .mock.calls.filter(([input]) => String(input).startsWith('/api/comments-json')).length;
+
+    await act(async () => result.current.sendNow());
+
+    expect(sent).toHaveLength(2);
+    expect(sent[1]!.map((op) => op.id)).toEqual(sent[0]!.map((op) => op.id));
+    expect(result.current.unsaved).toBeNull();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([input]) => String(input).startsWith('/api/comments-json')),
+    ).toHaveLength(reads);
   });
 
   it('shows a failed first comments read in the alert', async () => {

@@ -205,7 +205,7 @@ export function RevisionSelector({
             <div
               ref={refs.setFloating}
               style={floatingStyles}
-              className="bg-github-bg-secondary border border-github-border rounded shadow-lg z-50 w-[360px] overflow-y-auto"
+              className="bg-github-bg-secondary border border-github-border rounded shadow-lg z-[60] w-[360px] overflow-y-auto"
               {...getFloatingProps()}
             >
               {/* Search box */}

@@ -35,9 +35,9 @@ describe('verdict follow-up notice', () => {
     expect(screen.queryByRole('dialog', { name: 'Next step' })).not.toBeInTheDocument();
   });
 
-  // A toast's usual anatomy: the message, with its close X in the top-right corner, above the
-  // actions, which sit at the right with the primary one last, in the bottom-right corner.
-  it('puts the message above its actions, and the close X in the top-right corner', () => {
+  // The comment cards' look, shared by every toast: a grid of glyph, message, and close X, with
+  // the actions under the message, the primary one last.
+  it('puts the glyph, message, and close X in a row, with the actions under the message', () => {
     render(
       notice({
         step: { kind: 'switch', name: 'task-b', waiting: 1 },
@@ -47,18 +47,39 @@ describe('verdict follow-up notice', () => {
     const message = screen.getByTestId('verdict-toast-detail');
     const next = screen.getByRole('button', { name: 'Switch to task-b' });
     const dismiss = screen.getByRole('button', { name: 'Dismiss' });
-    expect(message).toHaveTextContent(/^Approved\. Sending to the agent…$/);
+    const glyph = toast().firstElementChild;
+    expect(toast()).toHaveClass('toast', 'grid');
+    expect(glyph).toHaveClass('col-start-1', 'row-start-1');
+    expect(glyph?.nextElementSibling).toBe(message);
+    expect(message).toHaveTextContent(/^Approved Sending to the agent…$/);
+    expect(message).toHaveClass('col-start-2', 'row-start-1');
     expect(message.nextElementSibling).toContainElement(next);
     expect(message).not.toContainElement(next);
-    expect(next.parentElement).toHaveClass('justify-end', 'gap-3');
+    expect(next.parentElement).toHaveClass('col-start-2', 'justify-end');
     expect(next.nextElementSibling).toBeNull();
-    // The X gets a padded hit area. Only the message keeps clear of it, so the buttons reach the
-    // toast's right padding, which matches its left: the primary button sat 43 px in from the
-    // right edge when the whole toast had pr-12.
-    expect(dismiss).toHaveClass('absolute', 'top-1.5', 'right-1.5', 'p-1');
-    expect(toast()).toHaveClass('pr-4', 'pl-4', 'gap-4');
-    expect(message).toHaveClass('pr-8');
+    // Last in the DOM, so last in tab order, though the grid shows it beside the message.
     expect(next.parentElement?.nextElementSibling).toBe(dismiss);
+    expect(dismiss).toHaveClass('col-start-3', 'row-start-1');
+    expect(dismiss).not.toHaveClass('absolute');
+  });
+
+  it('marks an Approve with a check in the approve color', () => {
+    render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
+    expect(toast()).toHaveClass('border-l-github-accent');
+    const glyph = toast().firstElementChild?.querySelector('svg');
+    expect(glyph).toHaveAttribute('aria-hidden', 'true');
+    expect(glyph).toHaveAttribute('width', '16');
+    expect(glyph?.getAttribute('class')).toMatch(/lucide-check/);
+    expect(glyph).toHaveClass('text-github-accent-text');
+  });
+
+  // An undone verdict leaves nothing to color, but the empty glyph cell keeps the message in its
+  // column.
+  it('shows a gray frame and no glyph without a verdict', () => {
+    render(notice({ step: { kind: 'close', reviews: 1 }, verdict: undefined }));
+    expect(toast()).toHaveClass('border-l-github-text-muted');
+    expect(toast().firstElementChild).toHaveClass('col-start-1');
+    expect(toast().firstElementChild?.querySelector('svg')).toBeNull();
   });
 
   it('names the verdict, then offers Undo, the next review, and Dismiss in that order', () => {
@@ -76,7 +97,9 @@ describe('verdict follow-up notice', () => {
     const next = screen.getByRole('button', { name: 'Switch to task-b' });
     const undo = screen.getByRole('button', { name: 'Undo' });
     const dismiss = screen.getByRole('button', { name: 'Dismiss' });
-    expect(screen.getByTestId('verdict-toast-detail')).toHaveTextContent(/^Approved\./);
+    expect(screen.getByTestId('verdict-toast-detail').firstElementChild).toHaveTextContent(
+      /^Approved$/,
+    );
     expect(next.previousElementSibling).toBe(undo);
     expect(next.compareDocumentPosition(dismiss) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     fireEvent.click(next);
@@ -97,15 +120,33 @@ describe('verdict follow-up notice', () => {
     expect(next.querySelector('code')).toHaveClass('min-w-0', 'truncate');
   });
 
+  // With a long name the row wrapped, leaving Undo alone on a line above the button. On one row,
+  // the button shrinks and its name truncates instead; Undo keeps its width.
+  it('keeps Undo and a long next step on one row', () => {
+    render(notice({ step: { kind: 'switch', name: 'refactor-plan-2-test-helpers', waiting: 6 } }));
+    const next = screen.getByRole('button', { name: 'Switch to refactor-plan-2-test-helpers' });
+    const undo = screen.getByRole('button', { name: 'Undo' });
+    expect(next.parentElement).not.toHaveClass('flex-wrap');
+    expect(next).not.toHaveClass('shrink-0');
+    expect(undo).toHaveClass('shrink-0');
+  });
+
   // A verdict saving or a capture reloading ignores the click, as it does on the verdict buttons.
   it('disables Undo while the verdict buttons are busy', () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 }, busy: true }));
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
   });
 
-  it('names a Reject', () => {
+  it('names a Reject, framed and marked in the reject color', () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 }, verdict: 'reject' }));
-    expect(toast()).toHaveTextContent('Rejected');
+    expect(screen.getByTestId('verdict-toast-detail').firstElementChild).toHaveTextContent(
+      /^Rejected$/,
+    );
+    expect(toast()).toHaveClass('border-l-verdict-reject');
+    expect(toast().className).not.toMatch(/github-accent/);
+    const glyph = toast().firstElementChild?.querySelector('svg');
+    expect(glyph?.getAttribute('class')).toMatch(/lucide-x/);
+    expect(glyph).toHaveClass('text-verdict-reject');
   });
 
   // Browsers honour window.close() only in a tab a script opened or one with a single history
@@ -127,6 +168,7 @@ describe('verdict follow-up notice', () => {
 
   describe('delivery to the agent', () => {
     const line = () => screen.getByTestId('verdict-toast-detail');
+    const report = () => screen.getByTestId('verdict-toast-delivery');
     const sent: ClientInboxDelivery = {
       status: 'sent',
       at: '2026-11-12T17:00:00.000Z',
@@ -137,19 +179,11 @@ describe('verdict follow-up notice', () => {
     it('says the verdict is being sent, and only then that the page can be closed', () => {
       const step = { kind: 'close', reviews: 1 } as const;
       const { rerender } = render(notice({ step, delivery: { status: 'pending' } }));
-      expect(line()).toHaveTextContent(/^Approved\. Sending to the agent…$/);
-      expect(line().querySelector('[data-delivery-state]')).toHaveAttribute(
-        'data-delivery-state',
-        'delivering',
-      );
+      expect(line()).toHaveTextContent(/^Approved Sending to the agent…$/);
+      expect(report()).toHaveClass('text-github-text-primary/75');
       rerender(notice({ step, delivery: sent }));
-      expect(line()).toHaveTextContent(
-        /^Approved\. Sent to the agent\. You can close this page\.$/,
-      );
-      expect(line().querySelector('[data-delivery-state]')).toHaveAttribute(
-        'data-delivery-state',
-        'delivered',
-      );
+      expect(line()).toHaveTextContent(/^Approved Sent to the agent\. You can close this page\.$/);
+      expect(report()).toHaveClass('text-github-text-primary/75');
     });
 
     // Switching reviews keeps the page, so it never waits for the send.
@@ -160,7 +194,7 @@ describe('verdict follow-up notice', () => {
           delivery: { status: 'pending' },
         }),
       );
-      expect(line()).toHaveTextContent(/^Approved\. Sending to the agent…$/);
+      expect(line()).toHaveTextContent(/^Approved Sending to the agent…$/);
       expect(screen.getByRole('button', { name: 'Switch to task-b' })).toBeEnabled();
       rerender(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 }, delivery: sent }));
       expect(line()).toHaveTextContent('Sent to the agent. task-b still needs a verdict.');
@@ -181,9 +215,7 @@ describe('verdict follow-up notice', () => {
           delivery: { status: 'queued', at: '2026-11-12T17:00:00.000Z', transport: 'queue' },
         }),
       );
-      expect(line()).toHaveTextContent(
-        /^Approved\. Queued for Codex\. This review has a verdict\./,
-      );
+      expect(line()).toHaveTextContent(/^Approved Queued for Codex\. This review has a verdict\./);
     });
 
     it('names a send that failed or went unconfirmed', () => {
@@ -193,55 +225,49 @@ describe('verdict follow-up notice', () => {
         notice({ step, delivery: { status: 'failed', at, error: 'connect ENOENT' } }),
       );
       expect(line()).toHaveTextContent(
-        /^Approved\. Not sent: connect ENOENT\. This review has a verdict\./,
+        /^Approved Not sent: connect ENOENT\. This review has a verdict\./,
       );
-      expect(line().querySelector('[data-delivery-state]')).toHaveAttribute(
-        'data-delivery-state',
-        'disconnected',
-      );
+      // Red, as the header robot is when the verdict did not reach the agent, in the shade that
+      // keeps 4.5:1 contrast on the toast's tint.
+      expect(report()).toHaveClass('text-github-danger-text');
+      expect(report()).not.toHaveClass('text-github-text-primary/75');
       rerender(
         notice({
           step,
           delivery: { status: 'uncertain', at, error: 'no acknowledgment', transport: 'queue' },
         }),
       );
-      // The robot's hidden ! comes first in the text.
       expect(line()).toHaveTextContent(
-        "Codex didn't confirm it got this. This review has a verdict.",
+        /^Approved Codex didn't confirm it got this\. This review has a verdict\./,
       );
-      expect(line().querySelector('[data-delivery-state]')).toHaveAttribute(
-        'data-delivery-state',
-        'uncertain',
-      );
+      expect(report()).toHaveClass('text-github-danger-text');
     });
 
     // An agent blocked in gavel wait still gets the verdict without an inbox.
     it('says when no agent session gets messages, and that the page can still be closed', () => {
       render(notice({ step: { kind: 'close', reviews: 1 }, delivery: { status: 'unavailable' } }));
       expect(line()).toHaveTextContent(
-        /^Approved\. No agent session gets messages from this review\. You can close this page\.$/,
+        /^Approved No agent session gets messages from this review\. You can close this page\.$/,
       );
-      // Nothing is wrong, so the robot is awake, in gray.
-      expect(line().querySelector('[data-delivery-state]')).toHaveAttribute(
-        'data-delivery-state',
-        'unattended',
-      );
-      expect(line().querySelector('[data-robot]')).toHaveAttribute('data-robot', 'awake');
+      // Nothing is wrong, so the report stays dimmed.
+      expect(report()).toHaveClass('text-github-text-primary/75');
     });
 
     // A server older than the inbox reports no delivery.
     it('shows only the next step without a delivery report', () => {
       render(notice({ step: { kind: 'close', reviews: 1 } }));
-      expect(line()).toHaveTextContent(/^Approved\. You can close this page\.$/);
-      expect(line().querySelector('[data-delivery-state]')).toBeNull();
+      expect(line()).toHaveTextContent(/^Approved You can close this page\.$/);
+      expect(screen.queryByTestId('verdict-toast-delivery')).toBeNull();
     });
   });
 
-  // The message wraps to two or three lines; leading-7 (1.75rem, 24.5 px at the default 14 px
-  // font size) spaces them apart. leading-6 still read as cramped.
-  it('spaces the message lines widely', () => {
-    render(notice({ step: { kind: 'close', reviews: 5 } }));
-    expect(screen.getByTestId('verdict-toast-detail')).toHaveClass('leading-7');
+  // The header's robot, just above, already shows the delivery state; the toast says it in words.
+  it('puts the delivery report on its own line under the title, without a robot', () => {
+    render(notice({ step: { kind: 'close', reviews: 1 }, delivery: { status: 'pending' } }));
+    const report = screen.getByTestId('verdict-toast-delivery');
+    expect(report).toHaveTextContent(/^Sending to the agent…$/);
+    expect(report.previousElementSibling).toHaveTextContent(/^Approved$/);
+    expect(toast().querySelector('[data-delivery-state]')).toBeNull();
   });
 
   // The status, then what to do: a delivery report that changes does not reflow the next step.
@@ -253,8 +279,24 @@ describe('verdict follow-up notice', () => {
       }),
     );
     const next = screen.getByTestId('verdict-toast-next');
-    expect(next).toHaveClass('block');
+    expect(next).toHaveClass('mt-2', 'text-github-text-primary');
     expect(next).toHaveTextContent(/^play-b and 2 other reviews still need a verdict\.$/);
+  });
+
+  // Every line of the toast is 8px from the next: the title's own margin sets the gap when
+  // there is no delivery report between it and the next step.
+  it('spaces the title, delivery report, and next step 8px apart', () => {
+    const { rerender } = render(
+      notice({
+        step: { kind: 'close', reviews: 1 },
+        delivery: { status: 'sent', at: '2026-11-12T17:00:00.000Z', via: 'inbox' },
+      }),
+    );
+    expect(screen.getByText('Approved')).toHaveClass('mb-2');
+    expect(screen.getByTestId('verdict-toast-next')).toHaveClass('mt-2');
+    rerender(notice({ step: { kind: 'close', reviews: 1 } }));
+    expect(screen.getByText('Approved')).toHaveClass('mb-2');
+    expect(screen.getByTestId('verdict-toast-next')).not.toHaveClass('mt-2');
   });
 
   it('shows no next step line while the verdict is being sent', () => {
@@ -276,10 +318,10 @@ describe('verdict follow-up notice', () => {
       }),
     );
     const message = screen.getByTestId('verdict-toast-detail');
-    expect(message).toHaveTextContent('Approved. Sent to the agent. You can close this page.');
-    expect(message).not.toHaveClass('text-github-text-secondary');
+    expect(message).toHaveTextContent('Approved Sent to the agent. You can close this page.');
+    expect(message).not.toHaveClass('text-github-text-primary/75');
     expect(
-      [...message.querySelectorAll('.text-github-text-secondary')].map((dim) => dim.textContent),
+      [...message.querySelectorAll('.text-github-text-primary\\/75')].map((dim) => dim.textContent),
     ).toEqual(['Sent to the agent.']);
   });
 
@@ -289,14 +331,14 @@ describe('verdict follow-up notice', () => {
     expect(toast().querySelector('.verdict-countdown-bar')).toBeNull();
   });
 
-  // The toast slides in from the right; reduced motion turns that off in global.css.
+  // The shared toast class slides it in from the right.
   it('slides in', () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
-    expect(toast()).toHaveClass('verdict-toast');
+    expect(toast()).toHaveClass('toast');
   });
 
-  // Keep open did what the corner X does on every other toast.
-  it('explains the resume handoff, closes with the corner X, and exposes copy errors', () => {
+  // Keep open did what the X does on every other toast.
+  it('explains the resume handoff, closes with the X, and exposes copy errors', () => {
     const onDismiss = vi.fn();
     const onProceed = vi.fn();
     const onUndo = vi.fn();
@@ -329,32 +371,33 @@ describe('verdict follow-up notice', () => {
     );
     rerender(notice({ step: { kind: 'resume', reviews: 2, status: 'error' } }));
     expect(screen.getByRole('alert')).toHaveTextContent('Could not copy the prompt; try again.');
+    // The danger fill's red measures 2.7:1 on the dark tint; this shade keeps 4.5:1.
+    expect(screen.getByRole('alert')).toHaveClass('text-github-danger-text');
     expect(screen.getByRole('button', { name: 'Copy resume prompt' })).toBeEnabled();
   });
 
-  // Green means approval on the verdict buttons beside it; moving on is navigation.
-  it('colors the notice and its default button blue, not the approval green', () => {
+  // Green means approval on the verdict buttons; moving on is navigation.
+  it('colors its default button blue, not the approval green', () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
     const next = screen.getByRole('button', { name: 'Switch to task-b' });
     expect(next).toHaveClass('bg-blue-600', 'text-white');
-    expect(toast()).toHaveClass('border-blue-600');
-    for (const element of [next, toast()]) expect(element.className).not.toMatch(/github-accent/);
+    expect(next.className).not.toMatch(/github-accent/);
   });
 
-  it('sizes its buttons like the verdict buttons above it', () => {
+  it("sizes its buttons like the other toasts' buttons", () => {
     render(notice({ step: { kind: 'switch', name: 'task-b', waiting: 1 } }));
     for (const name of ['Switch to task-b', 'Undo']) {
-      expect(screen.getByRole('button', { name })).toHaveClass('py-1.5', 'text-sm');
+      expect(screen.getByRole('button', { name })).toHaveClass('h-7', 'px-3', 'text-sm');
     }
   });
 
-  // Undo sits under the verdict buttons, so it looks like an unpressed one; no other control used
-  // its old lighter border on the page background.
-  it('styles Undo like an unpressed verdict button', () => {
+  // The toast is on the tertiary background, so Undo takes the secondary one, as every toast's
+  // secondary buttons do.
+  it("styles Undo like the other toasts' secondary buttons", () => {
     render(notice({ step: { kind: 'resume', reviews: 1, status: 'ready' } }));
     const button = screen.getByRole('button', { name: 'Undo' });
-    expect(button).toHaveClass('border-github-border', 'bg-github-bg-tertiary');
-    expect(button).not.toHaveClass('bg-github-bg-primary');
+    expect(button).toHaveClass('border-github-border', 'bg-github-bg-secondary');
+    expect(button).not.toHaveClass('bg-github-bg-tertiary');
   });
 
   // A bordered X was shorter than the text buttons beside it, and no other control looked like it.
@@ -363,7 +406,7 @@ describe('verdict follow-up notice', () => {
     const dismiss = screen.getByRole('button', { name: 'Dismiss' });
     expect(dismiss).toHaveClass('text-github-text-secondary', 'hover:text-github-text-primary');
     expect(dismiss.className).not.toMatch(/\bborder\b|py-1\.5/);
-    expect(dismiss.querySelector('svg')).toHaveAttribute('width', '20');
+    expect(dismiss.querySelector('svg')).toHaveAttribute('width', '16');
   });
 
   // The toast stack's portal mounts the notice at the end of the page; a keyboard user who just
@@ -515,7 +558,7 @@ describe('verdict follow-up notice', () => {
     const onUndo = vi.fn();
     render(notice({ step: { kind: 'copied' }, onDismiss, onUndo }));
     expect(toast()).toHaveTextContent(
-      "Approved. Copied. Paste it into the agent's chat, then close this page.",
+      "Approved Copied. Paste it into the agent's chat, then close this page.",
     );
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(onUndo).toHaveBeenCalledOnce();

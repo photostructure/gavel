@@ -30,6 +30,17 @@ function AboutThenHelp() {
 }
 
 describe('HelpModal', () => {
+  // The header's toasts float at z-50 above Conversation; this dialog sits above them, below the
+  // tooltips (z-[60]), so a toast cannot cover it or take its clicks.
+  it('sits above the header toasts', () => {
+    render(
+      <HotkeysProvider initiallyActiveScopes={['navigation']}>
+        <HelpModal isOpen onClose={vi.fn()} />
+      </HotkeysProvider>,
+    );
+    expect(document.querySelector('.fixed.inset-0')).toHaveClass('z-[55]');
+  });
+
   it('lists the verdict shortcuts', () => {
     render(
       <HotkeysProvider initiallyActiveScopes={['navigation']}>

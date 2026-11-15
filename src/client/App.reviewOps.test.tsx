@@ -243,9 +243,7 @@ const savedRecord = () =>
   };
 
 const notSavedAlert = () =>
-  screen
-    .queryAllByRole('alert')
-    .find((alert) => alert.textContent.includes('not saved to the server')) ?? null;
+  screen.queryAllByRole('alert').find((alert) => alert.textContent.includes('not saved')) ?? null;
 
 async function findNotSavedAlert() {
   await waitFor(() => expect(notSavedAlert()).not.toBeNull());
@@ -342,7 +340,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
 
     const alert = await findNotSavedAlert();
     expect(alert).toHaveTextContent('503 Service Unavailable');
-    expect(alert).toHaveClass('unsaved-toast');
+    expect(alert).toHaveClass('toast', 'border-l-github-warning');
     expect(alert.closest('header')).toBeNull();
     expect(queuedBodies()).toEqual(['Not saved yet']);
     expect(state.threads).toEqual([]);
@@ -374,6 +372,22 @@ describe('comment and verdict changes the server has not confirmed', () => {
     state.fail = false;
 
     reconnect();
+
+    await waitFor(() => expect(notSavedAlert()).toBeNull());
+    expect(bodiesOf(state.threads)).toEqual(['Written offline']);
+    expect(queued()).toEqual([]);
+  });
+
+  it('sends a queued op again from the toast’s Send again now button', async () => {
+    const state = server();
+    mount();
+    await waitForServerThreads();
+    state.fail = 'network';
+    await sendGeneralComment('Written offline');
+    const alert = await findNotSavedAlert();
+    state.fail = false;
+
+    await userEvent.click(within(alert).getByRole('button', { name: 'Send again now' }));
 
     await waitFor(() => expect(notSavedAlert()).toBeNull());
     expect(bodiesOf(state.threads)).toEqual(['Written offline']);
