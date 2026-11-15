@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { extractFrontmatter, getFrontmatterLines } from './frontmatter';
 
@@ -58,6 +58,79 @@ describe('extractFrontmatter', () => {
       derived: { a: 1, c: 2 },
       draft: 'yes',
     });
+  });
+
+  it('keeps ordinary shared aliases usable', () => {
+    const text = '---\ntags: &tags [one, two]\nmore: *tags\n---\nBody.';
+    expect(extractFrontmatter(text)).toEqual({
+      data: { tags: ['one', 'two'], more: ['one', 'two'] },
+      content: 'Body.',
+    });
+  });
+
+  it('keeps many small aliases when their expanded graph fits', () => {
+    const text = `---\ndefaults: &d {a: 1}\n${Array.from({ length: 150 }, (_, i) => `p${i}: *d`).join('\n')}\n---\nBody.`;
+    expect(extractFrontmatter(text).data?.p149).toEqual({ a: 1 });
+  });
+
+  it('rejects complex set keys before converting alias graphs to strings', () => {
+    const levels = ['a0: &a0 [one, two]'];
+    for (let i = 1; i <= 5; i++)
+      levels.push(
+        `a${i}: &a${i} [${Array(8)
+          .fill(`*a${i - 1}`)
+          .join(', ')}]`,
+      );
+    const text = `---\n${levels.join('\n')}\ns: !!set\n  ? *a5\n---\nBody.`;
+    // Array string conversion recursively expands aliases before the graph budget runs.
+    const conversion = vi.spyOn(Array.prototype, 'toString');
+    let calls: number;
+    let result: ReturnType<typeof extractFrontmatter>;
+    try {
+      result = extractFrontmatter(text);
+      calls = conversion.mock.calls.length;
+    } finally {
+      conversion.mockRestore();
+    }
+    expect(result).toEqual({ data: null, content: text });
+    expect(calls).toBe(0);
+  });
+
+  it('keeps cyclic alias graphs as raw frontmatter', () => {
+    const text = '---\ncycle: &cycle [*cycle]\n---\nBody.';
+    expect(extractFrontmatter(text)).toEqual({ data: null, content: text });
+  });
+
+  it('bounds expanded alias work rather than only counting alias tokens', () => {
+    const levels = ['a: &a [one, two]'];
+    for (const [previous, next] of [
+      ['a', 'b'],
+      ['b', 'c'],
+      ['c', 'd'],
+      ['d', 'e'],
+      ['e', 'f'],
+    ]) {
+      levels.push(`${next}: &${next} [${Array(8).fill(`*${previous}`).join(', ')}]`);
+    }
+    const text = `---\n${levels.join('\n')}\n---\nBody.`;
+    expect(extractFrontmatter(text)).toEqual({ data: null, content: text });
+  });
+
+  it('counts repeated scalar text toward the preview budget', () => {
+    const text = `---\ntext: &text ${'x'.repeat(10_000)}\ncopies: [${Array(20).fill('*text').join(', ')}]\n---\nBody.`;
+    expect(extractFrontmatter(text)).toEqual({ data: null, content: text });
+  });
+
+  it('bounds expanded depth even when the YAML syntax stays shallow', () => {
+    const levels = ['a0: &a0 {value: one}'];
+    for (let i = 1; i <= 60; i++) levels.push(`a${i}: &a${i} {wrap: {wrap: *a${i - 1}}}`);
+    const text = `---\n${levels.join('\n')}\n---\nBody.`;
+    expect(extractFrontmatter(text)).toEqual({ data: null, content: text });
+  });
+
+  it('keeps oversized frontmatter as raw text', () => {
+    const text = `---\nvalue: ${'x'.repeat(100_001)}\n---\nBody.`;
+    expect(extractFrontmatter(text)).toEqual({ data: null, content: text });
   });
 
   it('parses a !!set as an object whose keys map to null', () => {

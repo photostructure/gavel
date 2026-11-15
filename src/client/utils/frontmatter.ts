@@ -15,6 +15,7 @@ const objectSetTag = defineMappingTag<Record<string, null>>('tag:yaml.org,2002:s
   create: () => ({}),
   addPair: (carrier, key, value) => {
     if (value !== null) return 'a !!set entry must not have a value';
+    if (key !== null && typeof key === 'object') return 'a !!set entry must have a scalar key';
     // defineProperty keeps a __proto__ entry as an own key, as js-yaml 4 did.
     Object.defineProperty(carrier, String(key), {
       value: null,
@@ -24,7 +25,8 @@ const objectSetTag = defineMappingTag<Record<string, null>>('tag:yaml.org,2002:s
     });
     return '';
   },
-  has: (carrier, key) => Object.hasOwn(carrier, String(key)),
+  has: (carrier, key) =>
+    (key === null || typeof key !== 'object') && Object.hasOwn(carrier, String(key)),
   keys: (result) => Object.keys(result),
   get: (result, key) => result[String(key)],
   identify: () => false,
@@ -44,6 +46,28 @@ const FRONTMATTER_SCHEMA = CORE_SCHEMA.withTags(
 
 const FRONTMATTER_PATTERN = /^---\r?\n(?:([\s\S]*?)\r?\n)?---\r?\n?/;
 
+const MAX_FRONTMATTER_SIZE = 100_000;
+
+/** Bound the expanded graph consumed by recursive comparison and JSON rendering. */
+function fitsPreview(value: unknown): boolean {
+  let remaining = MAX_FRONTMATTER_SIZE;
+  const ancestors = new Set<object>();
+  function visit(item: unknown): boolean {
+    remaining -= typeof item === 'string' ? item.length + 1 : 1;
+    if (remaining < 0) return false;
+    if (item === null || typeof item !== 'object') return true;
+    if (ancestors.has(item) || ancestors.size >= 100) return false;
+    ancestors.add(item);
+    for (const [key, child] of Object.entries(item)) {
+      remaining -= key.length;
+      if (!visit(child)) return false;
+    }
+    ancestors.delete(item);
+    return true;
+  }
+  return visit(value);
+}
+
 export function extractFrontmatter(text: string): {
   data: Record<string, unknown> | null;
   content: string;
@@ -60,6 +84,8 @@ export function extractFrontmatter(text: string): {
     return { data: null, content };
   }
 
+  if (yamlSource.length > MAX_FRONTMATTER_SIZE) return { data: null, content: text };
+
   try {
     // loadAll returns no documents for a blank or comment-only block, where
     // js-yaml 5's load throws.
@@ -68,6 +94,7 @@ export function extractFrontmatter(text: string): {
       return { data: null, content: text };
     }
     const parsed = documents[0];
+    if (!fitsPreview(parsed)) return { data: null, content: text };
     if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
       return { data: parsed as Record<string, unknown>, content };
     }
