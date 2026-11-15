@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-The TypeScript sources live under `src`, split by runtime: `src/cli` handles command parsing and Git integration, `src/server` hosts the Express diff service, `src/client` renders the React web UI, and shared helpers sit in `src/utils` and `src/types`. Unit and integration tests live next to the code they cover as `*.test.ts` or `*.test.tsx`, and fixtures under `docs/` support screenshots and copy decks. Built artifacts land in `dist/` after `pnpm build`; do not edit them manually. Static assets for the UI reside in `public/`, while automation scripts live in `scripts/`.
+The TypeScript sources live under `src`, split by runtime: `src/cli` handles command parsing and Git integration, `src/server` hosts the Express diff service, `src/client` renders the React web UI, and shared helpers sit in `src/utils` and `src/types`. Unit and integration tests live next to the code they cover as `*.test.ts` or `*.test.tsx`. `docs/images/` holds the README's images, and `docs/syntax-sample/` holds sample files for checking how the Markdown and notebook previews render. Built artifacts land in `dist/` after `pnpm build`; do not edit them manually. Static assets for the UI reside in `public/`, while automation scripts live in `scripts/`.
 
 ## Build, Test, and Development Commands
 
@@ -31,7 +31,7 @@ The codebase uses strict TypeScript (`tsconfig.strictest`) and 2-space indentati
 
 ## Testing Guidelines
 
-Vitest with the `happy-dom` environment drives unit and integration coverage, and React work should lean on Testing Library helpers. Place new tests alongside the implementation using the `name.test.ts[x]` pattern and prefer descriptive `describe` blocks tied to features. Ensure asynchronous flows await their assertions and cover both CLI (`src/cli`) and server (`src/server`) branches when they change; use `pnpm test --runInBand` if watchers behave flakily in CI.
+Vitest with the `happy-dom` environment drives unit and integration coverage, and React work should lean on Testing Library helpers. Place new tests alongside the implementation using the `name.test.ts[x]` pattern and prefer descriptive `describe` blocks tied to features. Ensure asynchronous flows await their assertions and cover both CLI (`src/cli`) and server (`src/server`) branches when they change; use `pnpm test --no-file-parallelism` if watchers behave flakily in CI.
 
 ## Commit & Pull Request Guidelines
 
