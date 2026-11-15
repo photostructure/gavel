@@ -163,7 +163,7 @@ JSONL and named reviews require conversation APIs. For unnamed reviews,
 The first `server.ready` event includes `port`, `url`, `launchUrl`, `pid`, `reviewContext`,
 `selection`, `reviewId`, and `timestamp`. Named reviews also include `capture`
 metadata: `name`, `version`, `patchDigest`, `baseCommit`, and `repositoryId`.
-Use its actual API port for companion commands: 4966 may be occupied, and the Vite UI port is not the API port.
+Use its actual API port for companion commands. Without `--port`, a server starts at a port in 10081–32767 hashed from its agent session and repository (or the repository alone without a session) and takes the next free port if that one is busy. The Vite UI port is not the API port.
 `url` is the API origin without the access token; never give it to the user. Give
 the reviewing user `launchUrl` unchanged: its `#gavel-token=…` fragment carries the
 access token, without which the page shows only an access screen. Every `/api`
@@ -450,8 +450,8 @@ ordinary process exit is not approval.
 The approval button reads `GET /api/approval?base=<base>&target=<target>` and sends
 its verdict as a `verdict.set` op to `POST /api/review-ops` with the same query,
 after any comment changes still waiting in the browser, in a body such as
-`{"repositoryId":"<from /api/diff>","ops":[{"id":"<uuid>","type":"verdict.set","verdict":"approve","summaryVersion":0}]}`
-(`gavel schema review-ops`). `PUT /api/approval` takes the op's fields without
+`{"repositoryId":"<from /api/diff>","agentSessionId":"<reviewContext.agentSessionId, or null>","ops":[{"id":"<uuid>","type":"verdict.set","verdict":"approve","summaryVersion":0}]}`
+(`gavel schema review-ops`); a server started by an agent session refuses a batch for another session with HTTP 409. `PUT /api/approval` takes the op's fields without
 `id` and `type`. Approve with
 `{"verdict":"approve","summaryVersion":0}` using the displayed summary version; reject
 with `{"verdict":"reject"}` plus the same capture or diff fields, without

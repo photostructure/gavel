@@ -1,6 +1,7 @@
 import {
   LIVE_OTHER_SERVER,
   LIVE_PATH,
+  LIVE_RESTARTED,
   type LiveServerMessage,
   type LiveVisibilityMessage,
 } from '../../types/live';
@@ -15,8 +16,7 @@ export interface LiveListener {
   onMessage?(message: LiveServerMessage): void;
   /**
    * The connection closed; `retrying` is false once the page needs a reload. `otherReview` is
-   * true when a reconnect the reviewer asked for found another repository's server at this
-   * address.
+   * true when a reconnect the reviewer asked for found another review's server at this address.
    */
   onLost?(retrying: boolean, otherReview?: boolean): void;
 }
@@ -36,9 +36,15 @@ let attempts = 0;
 let gaveUp = false;
 // Set once the current socket's server says hello; the socket opening alone is not enough.
 let greeted = false;
-// While a reconnect the reviewer asked for has not reached a server yet, the repository ID of
-// this page's review; a restarted server for it refuses the page with that ID.
-let reloadFor: string | undefined;
+/** The review a page shows: its repository, and the agent session that owns it. */
+export interface LiveReview {
+  repositoryId: string;
+  agentSessionId?: string;
+}
+
+// While a reconnect the reviewer asked for has not reached a server yet, this page's review; a
+// restarted server for it refuses the page with LIVE_RESTARTED.
+let reloadFor: LiveReview | undefined;
 
 const isVisible = () => document.visibilityState === 'visible';
 
@@ -48,6 +54,10 @@ function liveUrl(): string {
   const query = new URLSearchParams({ tab, visible: String(isVisible()) });
   // Reconnect only to the server this page started with; its port may now serve another review.
   if (serverId) query.set('server', serverId);
+  if (reloadFor) {
+    query.set('repository', reloadFor.repositoryId);
+    if (reloadFor.agentSessionId) query.set('session', reloadFor.agentSessionId);
+  }
   url.search = query.toString();
   return withAccessTokenQuery(url.toString());
 }
@@ -90,8 +100,8 @@ function connect() {
     latest.clear();
     const refused = event.code === LIVE_OTHER_SERVER;
     // The reviewer asked to reconnect and this review's restarted server answered; only a reload
-    // loads it. Another repository's server keeps the page, whose waiting changes it would hide.
-    if (refused && reloadFor !== undefined && event.reason === reloadFor) {
+    // loads it. Another review's server keeps the page, whose waiting changes it would hide.
+    if (refused && reloadFor !== undefined && event.reason === LIVE_RESTARTED) {
       window.location.reload();
       return;
     }
@@ -126,17 +136,17 @@ function reset() {
 /**
  * Tries the live connection again now, for a reviewer who asks: after it gave up, or while it
  * waits between automatic retries. It retries five more times. A server that answers but is not
- * the one this page started with refuses it, naming its repository: the page reloads when that
- * is `repositoryId`, this review's restarted server, and otherwise reports another review at this
- * address. Queued changes and comment drafts are kept in localStorage. Nothing happens while a
- * socket is open or opening.
+ * the one this page started with refuses it: the page reloads when that server serves `review`'s
+ * repository for its agent session, this review restarted, and otherwise reports another review
+ * at this address. Queued changes and comment drafts are kept in localStorage. Nothing happens
+ * while a socket is open or opening.
  */
-export function reconnectLive(repositoryId: string): void {
+export function reconnectLive(review: LiveReview): void {
   if (socket || listeners.size === 0) return;
   clearTimeout(reconnectTimer);
   attempts = 0;
   gaveUp = false;
-  reloadFor = repositoryId;
+  reloadFor = review;
   for (const listener of [...listeners]) listener.onLost?.(true);
   connect();
 }

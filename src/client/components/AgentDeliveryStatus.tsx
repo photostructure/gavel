@@ -183,7 +183,7 @@ export const deliveryColor = (state: DeliveryState) =>
 /**
  * Whether this page can reach the gavel server: `reconnecting` while the live connection retries,
  * `unreachable` once it gave up or while a queued change has failed to send, and `replaced` once a
- * reconnect found another repository's gavel server at this address.
+ * reconnect found another review's gavel server at this address.
  */
 export type ServerState = 'reachable' | 'reconnecting' | 'unreachable' | 'replaced';
 

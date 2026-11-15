@@ -65,12 +65,14 @@ function settle(waiters: Waiters, id: string, answer: ReviewOpAnswer): void {
  * A review's comments as the server holds them, with this browser's unconfirmed changes applied
  * on top. Each change waits in localStorage, in order, until the server answers it; nothing else
  * removes it. `scope` names the review as the server finds it; `query` selects it on the server,
- * as for /api/comments-json.
+ * as for /api/comments-json. Each batch names `repositoryId` and `agentSessionId`, the review's
+ * owner, so a server for another repository or session at this address refuses it.
  */
 export function useReviewOps(
   scope: string | null,
   query: string | null,
   repositoryId: string | undefined,
+  agentSessionId?: string,
 ) {
   const [base, setBase] = useState<(Snapshot & { scope: string }) | null>(null);
   const [queue, setQueue] = useState<QueuedOp[]>([]);
@@ -126,7 +128,7 @@ export function useReviewOps(
       const response = await apiFetch(`/api/review-ops?${query}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repositoryId, ops: batch }),
+        body: JSON.stringify({ repositoryId, agentSessionId: agentSessionId ?? null, ops: batch }),
       });
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
       answer = (await response.json()) as ReviewOpsResponse;
@@ -148,7 +150,7 @@ export function useReviewOps(
       if (errors.length > 0) setRejection(errors.join('; '));
     }
     for (const result of answer.results) settle(waiting.current, result.id, result);
-  }, [scope, query, repositoryId, showSnapshot]);
+  }, [scope, query, repositoryId, agentSessionId, showSnapshot]);
 
   const flush = useCallback(() => (flushes.current = flushes.current.then(send)), [send]);
 

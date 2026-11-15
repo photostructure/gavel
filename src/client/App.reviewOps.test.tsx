@@ -114,6 +114,7 @@ function server(initialThreads: DiffCommentThread[] = []) {
     deferredReads: [] as Array<() => void>,
     // The open review's delivery to its agent, which shows the header robot.
     inbox: { status: 'ready' } as InboxDelivery,
+    reviewContext: undefined as DiffResponse['reviewContext'],
   };
   const apply = (ops: QueuedOp[]) =>
     ops.map((op): ReviewOpResult => {
@@ -157,6 +158,7 @@ function server(initialThreads: DiffCommentThread[] = []) {
         files: [{ path: 'a.ts', status: 'modified', additions: 1, deletions: 0, chunks: [] }],
         shipIt: state.shipIt,
         clearComments: state.clean,
+        reviewContext: state.reviewContext,
       } satisfies DiffResponse);
     if (url.pathname === '/api/comments-json') {
       if (state.deferNextRead) {
@@ -443,6 +445,29 @@ describe('comment and verdict changes the server has not confirmed', () => {
     expect(watch.reconnect).toHaveBeenCalledOnce();
   });
 
+  // Only a server for this review's repository and agent session is this review restarted.
+  it("asks to reconnect to this review's agent session", async () => {
+    const state = server();
+    state.reviewContext = {
+      source: 'git',
+      repositoryPath: '/src/repo',
+      workingDirectory: '/src/repo',
+      hostname: 'host',
+      agentSessionId: 'session-1',
+    };
+    mount();
+    await waitForServerThreads();
+    await screen.findAllByRole('button', { name: 'Agent available' });
+    act(() => watch.setConnected?.(false));
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Server unreachable' })[0]!);
+
+    expect(watch.reconnect).toHaveBeenCalledExactlyOnceWith({
+      repositoryId: 'repo',
+      agentSessionId: 'session-1',
+    });
+  });
+
   it('asks to reconnect to this review and says when another review holds the address', async () => {
     server();
     mount();
@@ -451,7 +476,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
     act(() => watch.setConnected?.(false));
 
     await userEvent.click(screen.getAllByRole('button', { name: 'Server unreachable' })[0]!);
-    expect(watch.reconnect).toHaveBeenCalledExactlyOnceWith('repo');
+    expect(watch.reconnect).toHaveBeenCalledExactlyOnceWith({ repositoryId: 'repo' });
     act(() => watch.setOtherReview?.(true));
 
     expect(screen.getByRole('dialog')).toHaveTextContent(
@@ -478,7 +503,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
       queuedAt: time,
     } as const;
     localStorage.setItem(
-      `${QUEUE_PREFIX}${JSON.stringify(['repo', 'main:feature:direct'])}:${time}-${op.id}`,
+      `${QUEUE_PREFIX}${JSON.stringify(['repo', 'main:feature:direct', null])}:${time}-${op.id}`,
       JSON.stringify(op),
     );
 
@@ -542,6 +567,35 @@ describe('comment and verdict changes the server has not confirmed', () => {
     expect(state.batches[1]?.map(({ id }) => id)).toEqual(state.batches[0]?.map(({ id }) => id));
     expect(bodiesOf(state.threads)).toEqual(['Answer lost']);
     expect(queued()).toEqual([]);
+  });
+
+  // Another session's server in this repository can serve this address after a reload. It must
+  // not receive the waiting changes of the session the page showed before, which stay queued for
+  // that session's server.
+  it("keeps one agent session's waiting changes from another session's review", async () => {
+    const context = (agentSessionId: string) => ({
+      source: 'git' as const,
+      repositoryPath: '/src/repo',
+      workingDirectory: '/src/repo',
+      hostname: 'host',
+      agentSessionId,
+    });
+    const state = server();
+    state.reviewContext = context('session-1');
+    const first = mount();
+    await waitForServerThreads();
+    state.fail = 'network';
+    await sendGeneralComment('From session 1');
+    await findNotSavedAlert();
+    first.unmount();
+
+    state.fail = false;
+    state.reviewContext = context('session-2');
+    mount();
+    await waitForServerThreads();
+
+    expect(bodiesOf(state.threads)).toEqual([]);
+    expect(queuedBodies()).toEqual(['From session 1']);
   });
 
   it('does not bring back a thread deleted on the server when the review loads again', async () => {

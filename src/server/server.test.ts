@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { promises as fs, mkdtempSync, rmSync } from 'fs';
 import { connect, createServer } from 'node:net';
@@ -17,9 +18,10 @@ import { createSchemaCommand } from '../cli/schema.js';
 import { createCommentCommand } from '../cli/comment.js';
 import type { ServerEvent } from '../types/events.js';
 import { DiffMode } from '../types/watch.js';
-import { LIVE_OTHER_SERVER, type LiveServerMessage } from '../types/live.js';
+import { LIVE_OTHER_SERVER, LIVE_RESTARTED, type LiveServerMessage } from '../types/live.js';
 import { WebSocket } from 'ws';
 import { FileWatcherService } from './file-watcher.js';
+import { firstPort, nextPort } from './server-port.js';
 import type { CommentImport, DiffCommentThread, DiffResponse } from '../types/diff.js';
 import type {
   ConversationStreamEvent,
@@ -683,6 +685,46 @@ describe('Server Integration Tests', () => {
         write.mockRestore();
         error.mockRestore();
         log.mockRestore();
+      }
+    });
+
+    // Holds `port` on the host servers listen on, unless something already holds it.
+    const occupy = (port: number) =>
+      new Promise<Server | undefined>((resolveHolder, reject) => {
+        const holder = createServer();
+        holder.once('error', (error: NodeJS.ErrnoException) =>
+          error.code === 'EADDRINUSE' ? resolveHolder(undefined) : reject(error),
+        );
+        holder.listen(port, 'localhost', () => resolveHolder(holder as unknown as Server));
+      });
+
+    // A page keeps its unsent changes and drafts per address, so a server restarted for the same
+    // session and repository must come back to it, and another session's server, or this
+    // session's server for another repository, should not land there.
+    it.each<[string, { agentSessionId?: string }]>([
+      [
+        'its agent session and repository',
+        { agentSessionId: '897a40b9-bf98-46a6-b4c7-10e4128fe8fe' },
+      ],
+      ['its repository, without an agent session', {}],
+    ])('first tries the port %s hashes to', async (_seed, options) => {
+      const root = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+        encoding: 'utf8',
+      }).trim();
+      const seed = options.agentSessionId ? JSON.stringify([options.agentSessionId, root]) : root;
+      // Busy, so the server says which port it tried first.
+      const holder = await occupy(firstPort(seed));
+      if (holder) servers.push(holder);
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const result = await startServer(options);
+        servers.push(result.server);
+        expect(error).toHaveBeenCalledWith(
+          `Port ${firstPort(seed)} is busy, trying ${nextPort(firstPort(seed))}...`,
+        );
+        await result.shutdown('closed');
+      } finally {
+        error.mockRestore();
       }
     });
 
@@ -2636,22 +2678,18 @@ describe('Server Integration Tests', () => {
     );
 
     it('accepts keepAlive option without error', async () => {
-      const { port, server } = await startServer({
+      const { server } = await startServer({
         selection: { targetCommitish: 'HEAD', baseCommitish: 'HEAD^' },
         keepAlive: true,
       });
       servers.push(server);
-
-      expect(port).toBeGreaterThanOrEqual(4966);
     });
 
     it('starts normally without keepAlive option', async () => {
-      const { port, server } = await startServer({
+      const { server } = await startServer({
         selection: { targetCommitish: 'HEAD', baseCommitish: 'HEAD^' },
       });
       servers.push(server);
-
-      expect(port).toBeGreaterThanOrEqual(4966);
     });
 
     it('does not call process.exit on client disconnect when keepAlive is true', async () => {
@@ -2789,11 +2827,8 @@ describe('Server Integration Tests', () => {
           ),
         );
         expect(code).toBe(LIVE_OTHER_SERVER);
-        // The repository, so a tab can tell this review's restarted server from another review.
-        const { repositoryId } = (await (await fetch(`${result.url}/api/diff`)).json()) as {
-          repositoryId: string;
-        };
-        expect(reason).toBe(repositoryId);
+        // The tab named no review, so this server cannot be its review restarted.
+        expect(reason).toBe('');
         expect(await presence()).toMatchObject({ reviewers: { connected: 0 } });
         const again = await openLive(result.url, {
           tab: 'tab',
@@ -2804,6 +2839,48 @@ describe('Server Integration Tests', () => {
           expect(await presence()).toMatchObject({ reviewers: { connected: 1 } }),
         );
         await closeLive(again.live);
+      } finally {
+        await result.shutdown('closed');
+      }
+    });
+
+    // A tab whose server stopped asks for its review's repository and agent session; only a
+    // server for both is that review restarted, which the tab reloads into.
+    it('tells a refused tab whether it serves the repository and agent session the tab asks for', async () => {
+      const result = await startServer({
+        preferredPort: 0,
+        keepAlive: true,
+        agentSessionId: 'session-1',
+      });
+      servers.push(result.server);
+      const { repositoryId } = (await (await fetch(`${result.url}/api/diff`)).json()) as {
+        repositoryId: string;
+      };
+      const refusal = (query: Record<string, string>) =>
+        new Promise<[number, string]>((resolve) =>
+          new WebSocket(
+            liveUrl(result.url, {
+              tab: 'tab',
+              visible: 'true',
+              server: 'another-server',
+              ...query,
+            }),
+          ).once('close', (code, reason) => resolve([code, reason.toString()])),
+        );
+      try {
+        expect(await refusal({ repository: repositoryId, session: 'session-1' })).toEqual([
+          LIVE_OTHER_SERVER,
+          LIVE_RESTARTED,
+        ]);
+        expect(await refusal({ repository: repositoryId, session: 'session-2' })).toEqual([
+          LIVE_OTHER_SERVER,
+          '',
+        ]);
+        expect(await refusal({ repository: repositoryId })).toEqual([LIVE_OTHER_SERVER, '']);
+        expect(await refusal({ repository: 'another-repository', session: 'session-1' })).toEqual([
+          LIVE_OTHER_SERVER,
+          '',
+        ]);
       } finally {
         await result.shutdown('closed');
       }

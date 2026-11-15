@@ -58,15 +58,29 @@ const hasValidPlacement = (op: Record<string, unknown>): boolean =>
   (op.precedingIds === undefined || isStringList(op.precedingIds));
 
 /** The batch of a review-ops request, or undefined when a result could not name each op. */
-export function parseReviewOpBatch(
-  body: unknown,
-): { repositoryId: string; ops: IdentifiedOp[] } | undefined {
+export function parseReviewOpBatch(body: unknown):
+  | {
+      repositoryId: string;
+      // The agent session the sender's review belongs to; null or omitted for none.
+      agentSessionId?: string | null;
+      ops: IdentifiedOp[];
+    }
+  | undefined {
   if (!isRecord(body) || typeof body.repositoryId !== 'string' || !Array.isArray(body.ops))
+    return undefined;
+  const { agentSessionId } = body;
+  if (agentSessionId !== undefined && agentSessionId !== null && typeof agentSessionId !== 'string')
     return undefined;
   const ops: unknown[] = body.ops;
   const identified = (op: unknown): op is IdentifiedOp =>
     isRecord(op) && typeof op.id === 'string' && op.id.length > 0;
-  return ops.every(identified) ? { repositoryId: body.repositoryId, ops } : undefined;
+  return ops.every(identified)
+    ? {
+        repositoryId: body.repositoryId,
+        ...(agentSessionId === undefined ? {} : { agentSessionId }),
+        ops,
+      }
+    : undefined;
 }
 
 /** The op a request names, or undefined for a malformed op or one this server does not know. */

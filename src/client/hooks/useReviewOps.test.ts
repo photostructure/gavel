@@ -95,6 +95,29 @@ describe('useReviewOps', () => {
     vi.mocked(fetch).mockReset();
   });
 
+  // Another session's server in this repository may now run at this address; it must not take
+  // this review's waiting changes. A review with no agent session names none.
+  it.each([
+    ['session-1', 'session-1'],
+    [undefined, null],
+  ])('names the agent session %s on each batch', async (agentSessionId, named) => {
+    server();
+    const { result } = renderHook(() =>
+      useReviewOps('review', 'base=a&target=b', 'repo', agentSessionId),
+    );
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+
+    await act(async () => void (await result.current.enqueue(add('mine')).answer));
+
+    const post = vi
+      .mocked(fetch)
+      .mock.calls.find(([input]) => String(input).startsWith('/api/review-ops'));
+    expect(JSON.parse(String(post?.[1]?.body))).toMatchObject({
+      repositoryId: 'repo',
+      agentSessionId: named,
+    });
+  });
+
   // Browsers leave crypto.randomUUID undefined outside secure contexts, such as a page
   // opened at http://10.1.1.24:5107/.
   it('queues a change on a plain-HTTP page without crypto.randomUUID', async () => {

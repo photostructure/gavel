@@ -340,20 +340,29 @@ function App() {
     },
     [commentSessionQueryString],
   );
-  // The server finds a review's comments by its selection, so a moved commit keeps the queue.
+  // The server finds a review's comments by its selection, so a moved commit keeps the queue. The
+  // agent session is part of it: after a reload, another session's server in this repository can
+  // answer at this address, and this session's waiting changes must wait for its own server.
+  const agentSessionId = diffData?.reviewContext?.agentSessionId ?? null;
   const reviewScope = useMemo(
     () =>
       resolvedSelectionKey &&
-      JSON.stringify([diffData?.repositoryId ?? 'default', resolvedSelectionKey]),
-    [diffData?.repositoryId, resolvedSelectionKey],
+      JSON.stringify([diffData?.repositoryId ?? 'default', resolvedSelectionKey, agentSessionId]),
+    [diffData?.repositoryId, resolvedSelectionKey, agentSessionId],
   );
-  const reviewOps = useReviewOps(reviewScope, commentSessionQueryString, diffData?.repositoryId);
+  const reviewOps = useReviewOps(
+    reviewScope,
+    commentSessionQueryString,
+    diffData?.repositoryId,
+    diffData?.reviewContext?.agentSessionId,
+  );
   // Moves a renamed review's waiting changes to its new name; scoped as reviewScope is.
   const retargetOpsRef = useRef<(from: string, to: string) => void>(() => {});
   const namedScope = (name: string) =>
     JSON.stringify([
       diffData?.repositoryId ?? 'default',
       getDiffSelectionKey(createDiffSelection('', '', undefined, name)),
+      agentSessionId,
     ]);
   retargetOpsRef.current = (from, to) => reviewOps.retarget(namedScope(from), namedScope(to));
   const { enqueue, loaded: hasLoadedComments } = reviewOps;
@@ -1102,11 +1111,11 @@ function App() {
   // The repository keys this page's waiting changes, as it does for useReviewOps above.
   const repositoryId = diffData?.repositoryId ?? 'default';
   const reconnectServer = useCallback(() => {
-    reconnect(repositoryId);
+    reconnect({ repositoryId, agentSessionId: diffData?.reviewContext?.agentSessionId });
     retryReviewOps().catch((commentsError: unknown) =>
       console.error('Failed to refresh comments from server:', commentsError),
     );
-  }, [reconnect, repositoryId, retryReviewOps]);
+  }, [reconnect, repositoryId, diffData?.reviewContext?.agentSessionId, retryReviewOps]);
 
   // Track which file the mouse is over so `v` works without a cursor
   const hoveredFileIndexRef = useRef<number | null>(null);

@@ -1,10 +1,14 @@
 ---
-title: Offer a fix prompt when another gavel review takes over this page's port
+title: Offer a fix prompt when a new agent session takes over a review
 section: Web UI
 ---
 
-# Copy a fix prompt for a replaced review
+# Copy a fix prompt for a taken-over review
 
-When another gavel review now runs at this page's address, the header robot's menu says so ("Another gavel review now runs at this address…"), but the reviewer has no way to get this review back. The maintainer decided (2026-11-13) that the menu should offer **Copy fix prompt**: a prompt naming this review, its waiting verdicts and comments, and which agent chat to paste it into, so that agent reopens the review.
+Shelved on 2026-11-14 in favor of session-derived server ports ([server-port.ts](../src/server/server-port.ts)), which keep a review's port stable for its owning session, so another review rarely takes over the page's address. A fix prompt is still needed in one case: the owning chat is gone, and a new session restarts the review on its own port, so the page's waiting changes (in localStorage for the old host and port) never reach it.
 
-Still to do: count queued changes in `useReviewOps`, build the prompt's thread list from `useDiffComments`, and pass the prompt to `AgentDeliveryStatus` from App. A first attempt's App test failed with "Close conversation" not found after `reviewContext` was added to the diff mock; that failure was not investigated.
+What an implementation must do, learned from a built and reviewed attempt:
+
+- Offer **Copy fix prompt** only once the page cannot reach this review at its address again. While a restart can bring the review back to the same port, the page resends its queue itself, and a pasted prompt delivers the same comments and verdict twice.
+- Carry the waiting ops with their original IDs, and have the agent post them to `POST /api/review-ops`. The review's saved ledger (`appliedOps`) then answers a later resend from the page as `duplicate`. Re-adding comments by hand creates new IDs, so a later resend duplicates them. The ledger is saved per patch (`savedReviewKey`), so a restart from a different patch starts an empty ledger.
+- Make the pasting session the new owner. The prompt names the prior agent, session name, session ID and hostname (all in `reviewContext`). The pasting agent restarts the review, and on the same host tells the prior session it took over and where the review now runs.

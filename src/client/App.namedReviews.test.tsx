@@ -865,6 +865,7 @@ describe('named captures in the browser', () => {
     const init = opPosts('task-a')[0]?.[1];
     expect(JSON.parse(String(init?.body))).toEqual({
       repositoryId: initialCapture.repositoryId,
+      agentSessionId: null,
       ops: [
         {
           type: 'verdict.set',

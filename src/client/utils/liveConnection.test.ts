@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { LIVE_OTHER_SERVER } from '../../types/live';
+import { LIVE_OTHER_SERVER, LIVE_RESTARTED } from '../../types/live';
 import { DiffMode } from '../../types/watch';
 
 import { reconnectLive, subscribeLive, type LiveListener } from './liveConnection';
@@ -14,6 +14,8 @@ describe('live connection', () => {
     return stop;
   };
   const presence = { reviewers: { connected: 1, visible: 1 }, listeners: 0 };
+  // The review this page shows, as App passes it when the reviewer asks to reconnect.
+  const review = { repositoryId: 'repo-1', agentSessionId: 'session-1' };
 
   beforeEach(() => {
     MockWebSocket.instances = [];
@@ -148,7 +150,7 @@ describe('live connection', () => {
     expect(listener.onLost).toHaveBeenLastCalledWith(false, false);
     expect(MockWebSocket.instances).toHaveLength(6);
 
-    reconnectLive('repo-1');
+    reconnectLive(review);
 
     expect(MockWebSocket.instances).toHaveLength(7);
     expect(listener.onLost).toHaveBeenLastCalledWith(true);
@@ -167,7 +169,7 @@ describe('live connection', () => {
     MockWebSocket.latest().drop();
     expect(MockWebSocket.instances).toHaveLength(1);
 
-    reconnectLive('repo-1');
+    reconnectLive(review);
 
     expect(MockWebSocket.instances).toHaveLength(2);
     vi.advanceTimersByTime(3000);
@@ -176,10 +178,10 @@ describe('live connection', () => {
 
   it('does not open another socket while one is open or opening', () => {
     subscribe();
-    reconnectLive('repo-1');
+    reconnectLive(review);
     expect(MockWebSocket.instances).toHaveLength(1);
     MockWebSocket.latest().open('server-1');
-    reconnectLive('repo-1');
+    reconnectLive(review);
     expect(MockWebSocket.instances).toHaveLength(1);
   });
 
@@ -192,11 +194,11 @@ describe('live connection', () => {
     MockWebSocket.latest().open('server-1');
     MockWebSocket.latest().drop();
     vi.advanceTimersByTime(3000);
-    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-1');
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, LIVE_RESTARTED);
     expect(reload).not.toHaveBeenCalled();
 
-    reconnectLive('repo-1');
-    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-1');
+    reconnectLive(review);
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, LIVE_RESTARTED);
 
     expect(reload).toHaveBeenCalledOnce();
   });
@@ -207,28 +209,43 @@ describe('live connection', () => {
     const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {});
     subscribe();
     MockWebSocket.latest().open('server-1');
-    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-2');
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER);
 
-    reconnectLive('repo-1');
+    reconnectLive(review);
     MockWebSocket.latest().drop();
     vi.advanceTimersByTime(3000);
-    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-1');
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, LIVE_RESTARTED);
 
     expect(reload).toHaveBeenCalledOnce();
   });
 
-  // gavel's default port is reused by the next review started anywhere; reloading into it would
-  // hide this review's waiting changes, which localStorage keeps under this review's repository.
-  it('keeps the page and reports another review when the refusing server serves another repository', () => {
+  // The refusing server answers for the review the reconnect names.
+  it("names this review's repository and agent session when the reviewer asks to reconnect", () => {
+    subscribe();
+    MockWebSocket.latest().open('server-1');
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER);
+
+    reconnectLive(review);
+
+    const query = new URL(MockWebSocket.latest().url).searchParams;
+    expect(query.get('server')).toBe('server-1');
+    expect(query.get('repository')).toBe('repo-1');
+    expect(query.get('session')).toBe('session-1');
+  });
+
+  // Another review at this address, even another session's in this repository, does not have
+  // this review's waiting changes; reloading into it would hide them, since localStorage keeps
+  // them under this review.
+  it('keeps the page and reports another review when the refusing server is not this review restarted', () => {
     vi.useFakeTimers();
     const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {});
     const onLost = vi.fn();
     subscribe({ onLost });
     MockWebSocket.latest().open('server-1');
-    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-2');
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER);
 
-    reconnectLive('repo-1');
-    MockWebSocket.latest().drop(LIVE_OTHER_SERVER, 'repo-2');
+    reconnectLive(review);
+    MockWebSocket.latest().drop(LIVE_OTHER_SERVER);
 
     expect(reload).not.toHaveBeenCalled();
     expect(onLost).toHaveBeenLastCalledWith(false, true);

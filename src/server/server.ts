@@ -29,6 +29,7 @@ import {
   validateCapture,
 } from './review-capture.js';
 import { openReviewStore, savedReviewKey, type SavedReview } from './review-store.js';
+import { firstPort, nextPort } from './server-port.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -36,6 +37,7 @@ import type { ReviewOpResult, ReviewOpsResponse } from '../types/reviewOps.js';
 import { type DiffMode, type WatchEvent } from '../types/watch.js';
 import {
   LIVE_OTHER_SERVER,
+  LIVE_RESTARTED,
   LIVE_PATH,
   type LiveServerMessage,
   type LiveVisibilityMessage,
@@ -1796,11 +1798,26 @@ export async function startServer(options: ServerOptions): Promise<{
     }
     const batch = parseReviewOpBatch(req.body);
     if (!batch) {
-      res.status(400).json({ error: 'Expected repositoryId and ops, each with an id' });
+      res.status(400).json({
+        error:
+          'Expected repositoryId, ops each with an id, and agentSessionId as a string, null, or omitted',
+      });
       return;
     }
     if (batch.repositoryId !== repositoryId) {
       res.status(409).json({ error: 'Review ops belong to a different repository' });
+      return;
+    }
+    // Another session's server in this repository can run at the address a page's own server
+    // stopped at; the page's waiting changes belong to its own session's review. A batch that
+    // names no session matches only a server that has none.
+    if ((batch.agentSessionId ?? undefined) !== options.agentSessionId) {
+      // Says what this server accepts, so a caller with the right review can correct its request.
+      res.status(409).json({
+        error: options.agentSessionId
+          ? `This server belongs to agent session ${options.agentSessionId} (reviewContext.agentSessionId in GET /api/diff). Send these ops to the server of the session whose review they belong to, with that session as agentSessionId.`
+          : 'This server has no agent session; send agentSessionId as null or omit it.',
+      });
       return;
     }
     const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
@@ -2317,7 +2334,12 @@ export async function startServer(options: ServerOptions): Promise<{
 
   const { port, url, server } = await startServerWithFallback(
     app,
-    options.preferredPort ?? 4966,
+    options.preferredPort ??
+      firstPort(
+        options.agentSessionId
+          ? JSON.stringify([options.agentSessionId, repositoryPath])
+          : repositoryPath,
+      ),
     options.host || 'localhost',
   );
   if (conversation) {
@@ -2376,10 +2398,13 @@ export async function startServer(options: ServerOptions): Promise<{
       // ws reports a malformed frame as an error event, even on a socket being refused.
       live.on('error', () => live.terminate());
       const expectedServer = requestUrl.searchParams.get('server');
-      // A reconnecting tab can reach another review's server on a reused port. The reason names
-      // this server's repository, so the tab can tell its own restarted server from another one.
+      // A reconnecting tab can reach another review's server on a reused port. The tab names its
+      // review's repository and agent session, and only a server for both is that review restarted.
       if (expectedServer && expectedServer !== liveServerId) {
-        live.close(LIVE_OTHER_SERVER, repositoryId);
+        const restarted =
+          requestUrl.searchParams.get('repository') === repositoryId &&
+          (requestUrl.searchParams.get('session') ?? undefined) === options.agentSessionId;
+        live.close(LIVE_OTHER_SERVER, restarted ? LIVE_RESTARTED : undefined);
         return;
       }
       connectLiveTab(live, tab, visible === 'true');
@@ -2569,8 +2594,8 @@ async function startServerWithFallback(
       switch (err.code) {
         // Try another port until it succeeds
         case 'EADDRINUSE': {
-          console.error(`Port ${preferredPort} is busy, trying ${preferredPort + 1}...`);
-          return startServerWithFallback(app, preferredPort + 1, host)
+          console.error(`Port ${preferredPort} is busy, trying ${nextPort(preferredPort)}...`);
+          return startServerWithFallback(app, nextPort(preferredPort), host)
             .then(({ port, url, server }) => {
               resolve({ port, url, server });
             })

@@ -24,7 +24,7 @@ import type {
 } from '../types/conversation.js';
 import type { DiffCommentMessage, DiffCommentThread } from '../types/diff.js';
 import type { ReviewCapture } from '../types/review.js';
-import type { ReviewOpsResponse } from '../types/reviewOps.js';
+import type { ReviewOpResult, ReviewOpsResponse } from '../types/reviewOps.js';
 import { createDiffSelection } from '../utils/diffSelection.js';
 
 import { FileWatcherService } from './file-watcher.js';
@@ -983,6 +983,72 @@ describe('POST /api/review-ops', () => {
           .threads,
       ).toEqual([]);
       expect(await eventTypes(before)).toEqual([]);
+    });
+
+    // A page names the agent session its review belongs to; another session's server in this
+    // repository at the same address must not take that review's waiting changes. Naming no
+    // session matches only a server that has none.
+    it('refuses another agent session with 409 and applies nothing', async () => {
+      await startNamed({ agentSessionId: 'session-1' });
+      const before = await cursor();
+      const id = await repositoryId();
+
+      for (const agentSessionId of ['session-2', null, undefined])
+        expect(
+          await request(
+            `/api/review-ops?review=${NAME}`,
+            { repositoryId: id, agentSessionId, ops: [addThread('t1')] },
+            409,
+          ),
+        ).toEqual({
+          error:
+            'This server belongs to agent session session-1 (reviewContext.agentSessionId in GET /api/diff). Send these ops to the server of the session whose review they belong to, with that session as agentSessionId.',
+        });
+
+      expect(
+        (await request<{ threads: DiffCommentThread[] }>(`/api/comments-json?review=${NAME}`))
+          .threads,
+      ).toEqual([]);
+      expect(await eventTypes(before)).toEqual([]);
+      const { results } = await request<{ results: ReviewOpResult[] }>(
+        `/api/review-ops?review=${NAME}`,
+        { repositoryId: id, agentSessionId: 'session-1', ops: [addThread('t1')] },
+        200,
+      );
+      expect(results).toEqual([{ id: 'add-t1', status: 'applied' }]);
+    });
+
+    it('answers an agentSessionId that is not a string or null with a 400 that names it', async () => {
+      await startNamed();
+
+      expect(
+        await request(
+          `/api/review-ops?review=${NAME}`,
+          { repositoryId: await repositoryId(), agentSessionId: 7, ops: [addThread('t1')] },
+          400,
+        ),
+      ).toEqual({
+        error:
+          'Expected repositoryId, ops each with an id, and agentSessionId as a string, null, or omitted',
+      });
+    });
+
+    it('refuses a batch naming an agent session when the server has none', async () => {
+      await startNamed();
+
+      expect(
+        await request(
+          `/api/review-ops?review=${NAME}`,
+          {
+            repositoryId: await repositoryId(),
+            agentSessionId: 'session-1',
+            ops: [addThread('t1')],
+          },
+          409,
+        ),
+      ).toEqual({
+        error: 'This server has no agent session; send agentSessionId as null or omit it.',
+      });
     });
 
     it('accepts a body over the default 100 KiB JSON limit', async () => {

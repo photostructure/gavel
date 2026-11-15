@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DiffMode, type ClientWatchState, type WatchEvent } from '../../types/watch.js';
-import { reconnectLive, subscribeLive } from '../utils/liveConnection';
+import { reconnectLive, subscribeLive, type LiveReview } from '../utils/liveConnection';
 
 interface FileWatchHook {
   shouldReload: boolean;
   isConnected: boolean;
   // The live connection closed and is trying again.
   reconnecting: boolean;
-  // A reconnect the reviewer asked for found another repository's gavel server at this address.
+  // A reconnect the reviewer asked for found another review's gavel server at this address.
   otherReview: boolean;
   // Tries the live connection again now; see reconnectLive.
-  reconnect: (repositoryId: string) => void;
+  reconnect: (review: LiveReview) => void;
   error: string | null;
   reload: () => void;
   watchState: ClientWatchState;
