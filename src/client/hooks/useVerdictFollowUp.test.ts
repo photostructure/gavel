@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ReviewApproval } from '../../types/conversation';
-import type { DiffSelection } from '../../types/diff';
+import type { DiffSelection, ReviewContext } from '../../types/diff';
 import { createDiffSelection } from '../../utils/diffSelection';
 import { copyTextToClipboard } from '../utils/clipboard';
 
@@ -31,6 +31,7 @@ type Props = {
   // Omitted: the open review has a verdict, as it does right after one saves.
   currentHasVerdict?: boolean;
   requiresResume?: boolean;
+  review?: ReviewContext;
 };
 
 describe('verdict follow-up', () => {
@@ -55,8 +56,15 @@ describe('verdict follow-up', () => {
 
   const render = (initial: Props) =>
     renderHook(
-      ({ reviews, current, currentHasVerdict = true, requiresResume = false }: Props) =>
-        useVerdictFollowUp({ reviews, current, currentHasVerdict, requiresResume, onSwitch }),
+      ({ reviews, current, currentHasVerdict = true, requiresResume = false, review }: Props) =>
+        useVerdictFollowUp({
+          reviews,
+          current,
+          currentHasVerdict,
+          requiresResume,
+          review,
+          onSwitch,
+        }),
       { initialProps: initial },
     );
 
@@ -145,6 +153,12 @@ describe('verdict follow-up', () => {
       reviews: queue,
       current: queue[0]!.selection,
       requiresResume: true,
+      review: {
+        source: 'git',
+        workingDirectory: '/src/repo',
+        hostname: 'host',
+        agentSessionId: 's-1',
+      },
     });
     act(() => result.current.start());
     expect(result.current.step).toEqual({ kind: 'resume', reviews: 1, status: 'ready' });
@@ -159,6 +173,9 @@ describe('verdict follow-up', () => {
     expect(result.current.step).toEqual({ kind: 'copied' });
     expect(copyTextToClipboard).toHaveBeenCalledWith(
       expect.stringContaining('Please read my latest gavel comments and verdicts'),
+    );
+    expect(copyTextToClipboard).toHaveBeenCalledWith(
+      expect.stringContaining('- **Session ID:** `s-1`'),
     );
   });
 

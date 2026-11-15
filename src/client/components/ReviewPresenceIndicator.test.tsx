@@ -19,6 +19,12 @@ describe('review listener indicator', () => {
     render(
       <ReviewPresenceIndicator
         presence={{ reviewers: { connected: 1, visible: 1 }, listeners: 0 }}
+        review={{
+          source: 'git',
+          workingDirectory: '/src/repo',
+          hostname: 'host',
+          agentSessionId: 's-1',
+        }}
       />,
     );
     expect(screen.getByText('No agent listener')).toBeInTheDocument();
@@ -30,7 +36,29 @@ describe('review listener indicator', () => {
     expect(vi.mocked(copyTextToClipboard).mock.lastCall?.[0]).toContain(
       'When caught up, end your turn; do not poll',
     );
+    expect(vi.mocked(copyTextToClipboard).mock.lastCall?.[0]).toContain('- **Session ID:** `s-1`');
     expect(vi.mocked(copyTextToClipboard).mock.lastCall?.[0]).not.toContain('/home/mrm/');
+  });
+
+  // The snapshot command would read whichever server holds the address now: another review's.
+  it('asks the session to reopen the review when another review holds the address', async () => {
+    render(
+      <ReviewPresenceIndicator
+        presence={null}
+        replaced
+        review={{
+          source: 'git',
+          workingDirectory: '/src/repo',
+          hostname: 'host',
+          agentSessionId: 's-1',
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt' }));
+    await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalled());
+    const prompt = vi.mocked(copyTextToClipboard).mock.lastCall?.[0];
+    expect(prompt).toContain('Reopen this review with gavel and send me its new link.');
+    expect(prompt).not.toContain('comment snapshot');
   });
 
   it('distinguishes an attached listener from message consumption', () => {
@@ -62,12 +90,12 @@ describe('review listener indicator', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt' }));
     await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalled());
     expect(vi.mocked(copyTextToClipboard).mock.lastCall?.[0]).toContain(
-      'https://review.local/api/conversation/snapshot over HTTPS',
+      '`https://review.local/api/conversation/snapshot` over HTTPS',
     );
     expect(vi.mocked(copyTextToClipboard).mock.lastCall?.[0]).not.toContain('--port 443');
     // Every /api route needs the access token; the prompt names where it is, not its value.
     expect(vi.mocked(copyTextToClipboard).mock.lastCall?.[0]).toContain(
-      'X-Gavel-Token header holding the contents of ${GAVEL_CONFIG_DIR:-$HOME/.gavel}/access-token',
+      '`X-Gavel-Token` header holding the contents of `${GAVEL_CONFIG_DIR:-$HOME/.gavel}/access-token`',
     );
   });
 

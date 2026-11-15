@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ReviewApproval } from '../../types/conversation';
-import type { DiffSelection } from '../../types/diff';
+import type { DiffSelection, ReviewContext } from '../../types/diff';
 import { diffSelectionsEqual, getDiffSelectionKey } from '../../utils/diffSelection';
 import { copyTextToClipboard } from '../utils/clipboard';
 import { buildResumePrompt } from '../utils/resumePrompt';
@@ -47,6 +47,7 @@ export function useVerdictFollowUp<
   current,
   currentHasVerdict,
   requiresResume = false,
+  review,
   onSwitch,
 }: {
   // In the order the server created them.
@@ -55,6 +56,8 @@ export function useVerdictFollowUp<
   // From the open review's own approval state, which is fresher than its entry in reviews.
   currentHasVerdict: boolean;
   requiresResume?: boolean;
+  // The open review, which the resume prompt names; undefined until it loads.
+  review?: ReviewContext;
   onSwitch: (selection: DiffSelection) => void;
 }) {
   const [storedPhase, setPhase] = useState<Phase>(null);
@@ -144,7 +147,7 @@ export function useVerdictFollowUp<
     phaseRef.current = copying;
     setPhase(copying);
     try {
-      await copyTextToClipboard(buildResumePrompt());
+      await copyTextToClipboard(buildResumePrompt(review));
       // A new review, recapture, navigation, Undo, or Dismiss supersedes this handoff.
       if (phaseRef.current !== copying) return;
       setPhase({ kind: 'copied', review: currentKeyRef.current });

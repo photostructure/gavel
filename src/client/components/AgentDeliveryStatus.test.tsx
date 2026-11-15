@@ -191,6 +191,51 @@ for (const [name, Component] of [
       ).toBeInTheDocument();
     });
 
+    it('copies a prompt asking its session to reopen the review when another review holds its address', async () => {
+      render(
+        <Component
+          delivery={{ status: 'ready' }}
+          server="replaced"
+          onReconnect={onReconnect}
+          review={{
+            source: 'git',
+            workingDirectory: '/src/repo',
+            hostname: 'host',
+            agentSessionId: 's-1',
+          }}
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Another review at this address' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt' }));
+      await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalled());
+      const prompt = vi.mocked(copyTextToClipboard).mock.lastCall?.[0];
+      expect(prompt).toContain('- **Session ID:** `s-1`');
+      expect(prompt).toContain('Reopen this review with gavel and send me its new link.');
+      expect(prompt).not.toContain('comment snapshot');
+    });
+
+    it('names its agent session in the resume prompt while the server is reachable', async () => {
+      render(
+        <Component
+          delivery={{ status: 'ready' }}
+          server="reachable"
+          onReconnect={onReconnect}
+          review={{
+            source: 'git',
+            workingDirectory: '/src/repo',
+            hostname: 'host',
+            agentSessionId: 's-1',
+          }}
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Agent available' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Copy resume prompt' }));
+      await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalled());
+      const prompt = vi.mocked(copyTextToClipboard).mock.lastCall?.[0];
+      expect(prompt).toContain('- **Session ID:** `s-1`');
+      expect(prompt).toContain('comment snapshot');
+    });
+
     it('says in its menu that it is reconnecting', () => {
       render(
         <Component
@@ -298,7 +343,7 @@ for (const [name, Component] of [
       // A failed send usually means the chat restarted; the reviewer may still have it open.
       [
         { status: 'failed', at: '', error: 'connect ENOENT' },
-        "Gavel could not reach the agent's chat (connect ENOENT). Copy the resume prompt and paste it into that chat, or into a new chat if it was closed or archived.",
+        "Gavel could not reach the agent's chat (connect ENOENT). Copy the resume prompt and paste it into that chat, or into a new chat if it was closed or archived, and confirm when a new chat asks.",
       ],
       [{ status: 'uncertain', at: '', error: 'missing receipt' }, 'missing receipt'],
     ] satisfies [InboxDelivery, string][])(

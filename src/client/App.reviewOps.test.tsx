@@ -10,7 +10,10 @@ import { applyReviewOp } from '../utils/reviewOps';
 
 import App from './App';
 import { storageService } from './services/StorageService';
+import { copyTextToClipboard } from './utils/clipboard';
 import { MockWebSocket } from './utils/liveConnection.testing';
+
+vi.mock('./utils/clipboard', () => ({ copyTextToClipboard: vi.fn().mockResolvedValue(undefined) }));
 
 // The element the header's toast stack floats under; happy-dom measures no layout to check.
 const toastStack = vi.hoisted(() => ({ anchor: undefined as Element | null | undefined }));
@@ -482,6 +485,31 @@ describe('comment and verdict changes the server has not confirmed', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent(
       /^Another review at this addressVerdicts and comments wait in this browser/,
     );
+  });
+
+  it("hands the review's own agent session a prompt to reopen it when another review holds the address", async () => {
+    const state = server();
+    state.reviewContext = {
+      source: 'git',
+      repositoryPath: '/src/repo',
+      workingDirectory: '/src/repo',
+      hostname: 'host',
+      agentSessionId: 'session-1',
+    };
+    mount();
+    await waitForServerThreads();
+    await screen.findAllByRole('button', { name: 'Agent available' });
+    act(() => watch.setConnected?.(false));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Server unreachable' })[0]!);
+    act(() => watch.setOtherReview?.(true));
+
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Copy resume prompt' }),
+    );
+
+    const prompt = vi.mocked(copyTextToClipboard).mock.lastCall?.[0];
+    expect(prompt).toContain('- **Session ID:** `session-1`');
+    expect(prompt).toContain('Reopen this review with gavel and send me its new link.');
   });
 
   // useFileWatch starts disconnected while the page loads; that is not a lost server.

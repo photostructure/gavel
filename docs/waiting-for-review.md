@@ -48,7 +48,11 @@ to `accept` for gavel's messages to start turns in every permission mode.
 the review has no owning session. Acceptance does not mean the agent read the
 message or started a turn. The page shows this state in its header robot, whose
 menu offers **Copy resume prompt**; on an older server without delivery state,
-the reviewer uses **Conversation → Copy resume prompt**.
+the reviewer uses **Conversation → Copy resume prompt**. The prompt names the
+review's agent, session, host, and repository, and tells any other session to say
+so and wait for the reviewer to confirm before it continues. When another review's server holds the page's address, the prompt
+asks the review's session to reopen the review and send a new link instead of
+reading that server.
 
 The socket changes when Claude Code restarts. Each server lists its owning
 sessions under `$XDG_RUNTIME_DIR/gavel/sessions/<session-id>/<host>_<port>.json`;
@@ -78,8 +82,8 @@ committing.
 opened before it no longer reach the session, and `gavel pending` cannot find
 them: the registry lists them under the old session ID. In the desktop app the
 session's process exits at `/clear`, so the next send fails and the status icon
-shows it; use **Copy resume prompt** and paste the prompt into the cleared
-session. In the terminal this has not been tested.
+shows it; use **Copy resume prompt**, paste the prompt into the cleared
+session, and confirm when it says it is not the session the prompt names. In the terminal this has not been tested.
 
 ## Other hosts
 

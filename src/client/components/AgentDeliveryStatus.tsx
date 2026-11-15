@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import type { ReviewContext } from '../../types/diff';
 import type { ClientInboxDelivery as InboxDelivery } from '../hooks/useInboxDelivery';
 import { copyTextToClipboard } from '../utils/clipboard';
 import { buildResumePrompt } from '../utils/resumePrompt';
@@ -45,7 +46,7 @@ function describe(delivery: InboxDelivery): { label: string; detail: string } {
     case 'failed':
       return {
         label: 'Not delivered to the agent session',
-        detail: `Gavel could not reach the agent's chat (${delivery.error}). Copy the resume prompt and paste it into that chat, or into a new chat if it was closed or archived.`,
+        detail: `Gavel could not reach the agent's chat (${delivery.error}). Copy the resume prompt and paste it into that chat, or into a new chat if it was closed or archived, and confirm when a new chat asks.`,
       };
     case 'unavailable':
       return {
@@ -71,7 +72,13 @@ function useRecentDelivery(delivery: InboxDelivery): boolean {
 }
 
 // Copies the prompt the reviewer pastes into the agent's chat, and says whether that worked.
-function CopyResumePrompt() {
+function CopyResumePrompt({
+  review,
+  replaced,
+}: {
+  review: ReviewContext | undefined;
+  replaced: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(false);
   const text = error
@@ -85,7 +92,7 @@ function CopyResumePrompt() {
       title="Copy a prompt to paste into the agent's chat"
       className="inline-flex h-8 shrink-0 items-center rounded border border-github-border px-2 text-xs hover:bg-github-bg-tertiary"
       onClick={() => {
-        void copyTextToClipboard(buildResumePrompt())
+        void copyTextToClipboard(buildResumePrompt(review, { replaced }))
           .then(() => {
             setCopied(true);
             setError(false);
@@ -210,10 +217,12 @@ function DeliveryControl({
   delivery,
   server,
   onReconnect,
+  review,
 }: {
   delivery: InboxDelivery;
   server: ServerState;
   onReconnect: () => void;
+  review: ReviewContext | undefined;
 }) {
   const recent = useRecentDelivery(delivery);
   const [open, setOpen] = useState(false);
@@ -282,7 +291,7 @@ function DeliveryControl({
       <p className="font-medium">{label}</p>
       <p className="mt-1 text-xs text-github-text-secondary">{status}</p>
       <div className="mt-3">
-        <CopyResumePrompt />
+        <CopyResumePrompt review={review} replaced={replaced} />
       </div>
     </HeaderMenu>
   );
@@ -293,22 +302,34 @@ interface DeliveryProps {
   server: ServerState;
   // Tries the server again; opening the control while it is unreachable calls it.
   onReconnect: () => void;
+  // The open review, which the resume prompt names; undefined until it loads.
+  review?: ReviewContext;
 }
 
 /** Desktop placement; older servers without delivery state use the presence indicator. */
-export function AgentDeliveryStatus({ delivery, server, onReconnect }: DeliveryProps) {
+export function AgentDeliveryStatus({ delivery, server, onReconnect, review }: DeliveryProps) {
   return delivery ? (
     <div className="hidden shrink-0 md:flex">
-      <DeliveryControl delivery={delivery} server={server} onReconnect={onReconnect} />
+      <DeliveryControl
+        delivery={delivery}
+        server={server}
+        onReconnect={onReconnect}
+        review={review}
+      />
     </div>
   ) : null;
 }
 
 /** Mobile placement uses the same states and occupies only 30 pixels of header width. */
-export function AgentDeliveryAlert({ delivery, server, onReconnect }: DeliveryProps) {
+export function AgentDeliveryAlert({ delivery, server, onReconnect, review }: DeliveryProps) {
   return delivery ? (
     <div className="flex shrink-0 md:hidden">
-      <DeliveryControl delivery={delivery} server={server} onReconnect={onReconnect} />
+      <DeliveryControl
+        delivery={delivery}
+        server={server}
+        onReconnect={onReconnect}
+        review={review}
+      />
     </div>
   ) : null;
 }

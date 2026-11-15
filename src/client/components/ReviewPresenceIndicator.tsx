@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import type { ReviewContext } from '../../types/diff';
 import type { ReviewPresenceSnapshot } from '../../types/presence';
 import { copyTextToClipboard } from '../utils/clipboard';
 import { buildResumePrompt } from '../utils/resumePrompt';
@@ -7,9 +8,15 @@ import { buildResumePrompt } from '../utils/resumePrompt';
 export function ReviewPresenceIndicator({
   presence,
   requiresResume = false,
+  replaced = false,
+  review,
 }: {
   presence: ReviewPresenceSnapshot | null;
   requiresResume?: boolean;
+  // Another review's server holds this page's address, so the prompt asks for a reopen instead.
+  replaced?: boolean;
+  // The open review, which the resume prompt names; undefined until it loads.
+  review?: ReviewContext;
 }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(false);
@@ -35,7 +42,7 @@ export function ReviewPresenceIndicator({
           type="button"
           className="inline-flex h-8 items-center justify-center rounded border border-github-border px-2 hover:bg-github-bg-tertiary"
           onClick={() => {
-            void copyTextToClipboard(buildResumePrompt())
+            void copyTextToClipboard(buildResumePrompt(review, { replaced }))
               .then(() => {
                 setCopied(true);
                 setError(false);

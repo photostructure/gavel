@@ -1699,6 +1699,7 @@ function App() {
       deliveryStatus === 'failed' ||
       deliveryStatus === 'uncertain' ||
       (codexReview && (deliveryStatus === undefined || deliveryStatus === 'unavailable')),
+    review: diffData?.reviewContext,
     onSwitch: openReviewFromTab,
   });
 
@@ -2127,6 +2128,7 @@ function App() {
                 delivery={inboxDelivery.delivery}
                 server={server}
                 onReconnect={reconnectServer}
+                review={diffData.reviewContext}
               />
               {/* While an agent asks for approval, the tabs are the way between reviews. Picking
               another comparison would create a review the tabs can't place. */}
@@ -2280,6 +2282,7 @@ function App() {
                 delivery={inboxDelivery.delivery}
                 server={server}
                 onReconnect={reconnectServer}
+                review={diffData.reviewContext}
               />
               {reviewOps.alert && (
                 <span role="alert" className="w-full text-xs text-github-danger">
@@ -2556,7 +2559,12 @@ function App() {
                   view, with its resume prompt, remains for older servers and for reviews no
                   session owns, which phones' headers have no room to show. */}
               {(!inboxDelivery.delivery || inboxDelivery.delivery.status === 'unavailable') && (
-                <ReviewPresenceIndicator presence={reviewPresence} requiresResume={codexReview} />
+                <ReviewPresenceIndicator
+                  presence={reviewPresence}
+                  requiresResume={codexReview}
+                  replaced={server === 'replaced'}
+                  review={diffData.reviewContext}
+                />
               )}
               {threads.length > 0 && (
                 <CommentsDropdown
