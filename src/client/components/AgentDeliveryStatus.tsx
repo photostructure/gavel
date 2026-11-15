@@ -306,7 +306,10 @@ interface DeliveryProps {
   review?: ReviewContext;
 }
 
-/** Desktop placement; older servers without delivery state use the presence indicator. */
+/**
+ * Desktop placement. A server without conversations has no delivery state, so the presence
+ * indicator shows instead.
+ */
 export function AgentDeliveryStatus({ delivery, server, onReconnect, review }: DeliveryProps) {
   return delivery ? (
     <div className="hidden shrink-0 md:flex">

@@ -135,9 +135,9 @@ export function useExpandedLines({
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdatedFilePath, setLastUpdatedFilePath] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(0);
-  // Track pending fetch promises to allow waiting for in-flight requests (#2)
+  // Track pending fetch promises to allow waiting for in-flight requests
   const pendingFetchesRef = useRef<Map<string, Promise<FileExpandedState | null>>>(new Map());
-  // Use ref to access current state without causing dependency loop (#2)
+  // Use ref to access current state without causing dependency loop
   const expandedStateRef = useRef<ExpandedLinesState>({});
   expandedStateRef.current = expandedState;
   // The diff a request started for. It changes during render, before any child effect can

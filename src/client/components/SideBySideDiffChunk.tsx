@@ -96,12 +96,12 @@ interface ClickedLineTarget {
   navigationSide: 'left' | 'right';
 }
 
-// Type guard to check if a line is an expanded line (#6)
+// Type guard to check if a line is an expanded line
 const isExpandedLine = (line: DiffLine | undefined): boolean => {
   return line !== undefined && 'isExpanded' in line && line.isExpanded === true;
 };
 
-// Utility function to get split line class (#10)
+// Utility function to get split line class
 const getSideBySideLineClass = (line: DiffLine | undefined, isExpanded: boolean): string => {
   if (isExpanded) {
     return 'bg-github-bg-tertiary/80';

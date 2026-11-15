@@ -20,7 +20,8 @@ function compositeKey(filePath: string, diffContentHash: string): string {
 
 export class StorageService {
   /**
-   * Generate a filesystem-safe storage key from commitish references
+   * Build the localStorage key part for a commitish pair, escaping every character outside
+   * [a-zA-Z0-9-_]
    */
   private generateStorageKey(
     baseCommitish: string,

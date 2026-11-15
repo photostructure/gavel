@@ -1507,7 +1507,8 @@ export async function startServer(options: ServerOptions): Promise<{
     announce = true,
   ): boolean {
     const session = getOrCreateCommentSession(selection);
-    // Progress is process-local agent state, never restored or overwritten by browser payloads.
+    // Progress is agent state: the conversation store saves and restores it, and browser payloads
+    // never set or overwrite it.
     nextThreads = nextThreads.map((thread) => {
       return {
         ...thread,

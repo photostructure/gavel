@@ -17,7 +17,7 @@ interface ExpandButtonProps {
   isLoading?: boolean;
 }
 
-// Memoized to avoid unnecessary re-renders (#8)
+// Memoized to avoid unnecessary re-renders
 export const ExpandButton = memo(function ExpandButton({
   direction,
   hiddenLines,

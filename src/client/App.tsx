@@ -1439,8 +1439,6 @@ function App() {
           selectedRevisionRef.current = namedSelection;
           setSelectedRevision(namedSelection);
         }
-
-        // Lock files are now automatically marked as viewed by useViewedFiles hook
       } catch (err) {
         if ((err as { name?: string } | null)?.name === 'AbortError') {
           return;
@@ -2579,8 +2577,8 @@ function App() {
           headerActions={
             <>
               {/* The header's agent status covers reviews an agent session owns. This listener
-                  view, with its resume prompt, remains for older servers and for reviews no
-                  session owns, which phones' headers have no room to show. */}
+                  view, with its resume prompt, remains for servers without conversations and for
+                  reviews no session owns, which phones' headers have no room to show. */}
               {(!inboxDelivery.delivery || inboxDelivery.delivery.status === 'unavailable') && (
                 <ReviewPresenceIndicator
                   presence={reviewPresence}
