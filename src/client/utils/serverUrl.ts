@@ -1,4 +1,4 @@
-export function resolveEventSourceUrl(path: string): string {
+export function resolveServerUrl(path: string): string {
   const apiUrl = import.meta.env.VITE_GAVEL_API_URL?.trim();
   if (!apiUrl) {
     return path;

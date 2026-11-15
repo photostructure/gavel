@@ -1,6 +1,6 @@
 import type { ReviewContext } from '../../types/diff';
 
-import { resolveEventSourceUrl } from './eventSourceUrl';
+import { resolveServerUrl } from './serverUrl';
 
 // Which chat the prompt belongs in, as a Markdown list the agent can match field by field. Another
 // session asks before it continues: the reviewer may have pasted it by mistake, or into a new or
@@ -28,7 +28,7 @@ export function buildResumePrompt(
   review: ReviewContext | undefined,
   { replaced = false }: { replaced?: boolean } = {},
 ): string {
-  const url = new URL(resolveEventSourceUrl('/api/conversation/snapshot'), window.location.href);
+  const url = new URL(resolveServerUrl('/api/conversation/snapshot'), window.location.href);
   const page = window.location.href.split('#')[0];
   const session = review ? `\n\n${sessionBlock(review)}` : '';
   if (replaced) {

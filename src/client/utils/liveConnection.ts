@@ -8,7 +8,7 @@ import {
 import { createId } from '../../utils/createId';
 
 import { withAccessTokenQuery } from './accessToken';
-import { resolveEventSourceUrl } from './eventSourceUrl';
+import { resolveServerUrl } from './serverUrl';
 
 export interface LiveListener {
   /** The server greeted this page, first or after a reconnect to the same server. */
@@ -49,7 +49,7 @@ let reloadFor: LiveReview | undefined;
 const isVisible = () => document.visibilityState === 'visible';
 
 function liveUrl(): string {
-  const url = new URL(resolveEventSourceUrl(LIVE_PATH), window.location.href);
+  const url = new URL(resolveServerUrl(LIVE_PATH), window.location.href);
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   const query = new URLSearchParams({ tab, visible: String(isVisible()) });
   // Reconnect only to the server this page started with; its port may now serve another review.
