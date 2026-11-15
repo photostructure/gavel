@@ -27,6 +27,11 @@ Next: client hooks and services batch.
 
 ## Lore
 
+- Deleting one item often leaves another dead: a parameter whose last argument you
+  removed, a type or constant only the deleted code used, a test helper only its tests
+  used. Delete those in the same batch; that is this plan's purpose, not scope creep.
+  Dead code you notice in a file no batch touches goes at the end of the inventory, not
+  into the current commit.
 - Several items are exported only so a test can reach them. Delete the export and the
   test of the dead code together; keep tests that exercise live behavior through the
   public API.
@@ -35,7 +40,7 @@ Next: client hooks and services batch.
   StorageService.ts at `d905dec`), the `undefined` arguments at App.tsx:539 and :1745,
   and the test call sites that pass `undefined` in that slot (StorageService.test.ts,
   `toHaveBeenCalledWith` checks in useViewedFiles.test.ts). With it gone,
-  `normalizeCommitish` 72-78 is unreachable.
+  delete `normalizeCommitish` 72-78, which no longer runs.
 - Run the thread-copy item of `p1-20261114-remove-backward-compat.md` task 2 first: it deletes App.tsx:1736-1765
   and `getCommentThreads` / `removeCommentThreads`, which also carry `branchToHash`.
 - Deleting an always-true guard over an indexed or `Map.get` value
@@ -76,8 +81,22 @@ Each batch is one commit. Acceptance for every batch: `pnpm build`, `pnpm check`
   catches every error).
 - `StorageService`: `cleanupOldData` (468-502, see Decision) and `getStorageSize` (507, no caller); write-only fields `createdAt` and
   `baseCommitish` / `targetCommitish` / `baseMode` (219-221); the ignored
-  `lastModifiedAt` arguments at 423 and 449; `normalizeStorageTarget` (183-189) equals
-  `normalizeCommitish` and its `_baseCommitish` is unused. `branchToHash` (see Lore).
+  `lastModifiedAt` arguments at 423 and 449. Delete `normalizeStorageTarget` (183-189);
+  its callers call `normalizeCommitish`, which it duplicates (its `_baseCommitish` is
+  unused). `branchToHash` (see Lore).
+- One-value version fields (moved here from the compat plan's "leave it" list):
+  - The `version === 2` check and its warn-and-return-null at StorageService.ts:152-157,
+    plus the `version: 2` writes at 218 and 333.
+  - `ViewedHashIndex.version`: the check at 378 and the writes at 370, 422, 448.
+  - `hashVersion` and `VIEWED_HASH_VERSION`: StorageService.ts:15; useViewedFiles.ts:174,
+    355, 405; types/diff.ts:195, 200, 214; the mocks at useViewedFiles.test.ts:35 and
+    repositoryIsolation.integration.test.ts:10. A hash made by a changed algorithm
+    already fails the `diffContentHash` comparison, so the version check adds nothing.
+  - `format: 1` (review-store.ts:59, server.ts:483).
+  - config.json `version` (user-config.ts:11, 73; written, never read).
+
+  Capture `schemaVersion` stays (see the compat plan).
+
 - `utils/wordDetection.ts` `detectWords` (only its test uses it); `isValidWord` if it
   has no other reader.
 
@@ -86,10 +105,10 @@ Each batch is one commit. Acceptance for every batch: `pnpm build`, `pnpm check`
 - `hooks/keyboardNavigation/scrollUtils.ts:51-58`: `isBottomHidden` repeats the
   expression `isVisible` already ruled out, so the branch reduces to `return false`
   (checked).
-- `keyboardNavigation/types.ts`: `isModalOpen` (52, no reader). The `ViewMode` alias (70)
-  has three importers (navigationCore.ts:10, navigationFilters.ts:5,
-  utils/navigation/domHelpers.ts:2); replacing it means switching them to
-  `DiffViewMode`. `NavigationResult.scrollTarget` is live (navigationCore.ts:118 sets it,
+- `keyboardNavigation/types.ts`: `isModalOpen` (52, no reader). Delete the `ViewMode`
+  alias (69, `export type ViewMode = DiffViewMode;`) and import `DiffViewMode` in its
+  three importers (navigationCore.ts:10, navigationFilters.ts:5,
+  utils/navigation/domHelpers.ts:2). `NavigationResult.scrollTarget` is live (navigationCore.ts:118 sets it,
   useKeyboardNavigation.ts:96-100 scrolls to it); keep it.
 - `keyboardNavigation/index.ts`: a barrel used outside the hook only for the
   `CursorPosition` type. Redirect its imports (including `createNavigationFilters` and
@@ -113,11 +132,21 @@ Each batch is one commit. Acceptance for every batch: `pnpm build`, `pnpm check`
 ### Server and shared
 
 - `generated-file-check.ts`: result fields `reason` and `matchedPattern` (3-4, set at
-  275-276, 301-302, 319-320; only `.isGenerated` is read).
+  275-276, 301-302, 319-320; only `.isGenerated` is read). `isGeneratedFile` returns a
+  boolean. Delete `GeneratedCheckResult` (1-5) and `PathMatcher.description` (8 and the
+  seven strings at 108-133), which only fed `matchedPattern`. Callers at git-diff.ts:666,
+  865, 878 drop `.isGenerated`.
+- `GeneratedStatusResponse` `path`, `ref`, `source` (types/diff.ts:99-104; set at
+  server.ts:1136-1140 and git-diff.ts:861-882). The only client reader,
+  useLazyDiffRendering.ts:325-328, reads `isGenerated`, and docs/ and skills/ never
+  mention `/api/generated-status`. Return `{ isGenerated }`, and have
+  `getGeneratedStatus` return a boolean. Adjust the server.test.ts:170 mock and the
+  git-diff.test.ts:1306-1376 assertions on `source`.
 - `file-watcher.ts`: the negation branch of `shouldIgnoreEvent` (185-188; no pattern in
   `MODE_WATCH_CONFIGS` starts with `!`); the empty `constructor() {}` (65).
 - `utils/commentImports.ts`: `mergeCommentThreads` always returns `warnings: []` (482)
-  and its caller reads only `.threads`.
+  and its caller reads only `.threads`. Return the thread array; server.ts:1774 and the
+  tests at commentImports.test.ts:165-338 drop `.threads`.
 - `cli/review.ts:51` `export { validateReviewName }` (imported only by its test; the
   test can import from `utils/review-name.ts`).
 - `server.ts`: `createCommentSessionKey` (211-213), a one-line alias of

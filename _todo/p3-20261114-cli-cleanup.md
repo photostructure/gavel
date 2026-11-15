@@ -18,7 +18,8 @@ of `p1-20261114-refactor-arc.md`.
 
 ## Current phase
 
-Next: task 1.
+Next: task 1. Run task 3 before task 2: after the loop, conversation.ts reads JSON in
+one place.
 
 - [x] Inventory (below, at `d905dec`)
 - [ ] `createProgram()` and a real index.ts unit test
@@ -29,8 +30,9 @@ Next: task 1.
 
 - `AGENTS.md` (`Changelog:` trailer for anything an agent can see), `docs/cli.md`,
   `p1-20261114-refactor-arc.md`
-- `_todo/p2-20261114-comment-cli-hangs.md`: two behavior fixes in
-  `comment.ts` that this plan's task 2 makes easy. Land them as their own commits.
+- `_todo/p2-20261114-comment-cli-hangs.md` owns the default timeout in `serverFetch`
+  and the fix for comment.ts's `process.exit`. Land it before task 2, as its own
+  commits.
 
 ## Lore
 
@@ -40,9 +42,13 @@ Next: task 1.
   with tsc in `beforeAll` (57-112).
 - `wait.ts` builds its URL and token by hand (47-56) on purpose: it reports a bad host
   or token before the try block. `pending.ts:81-87` does it by hand because tests inject
-  `fetch`. A `serverFetch` that accepts a URL and a fetch function covers both.
+  `fetch`. Leave both as they are.
 - `conversation.ts:39` and `review.ts:260` set `process.exitCode` so buffered JSON
   drains; `comment.ts` calls `process.exit(1)` instead (see the defect TPP).
+- Simplicity: each companion command keeps its own messages and status handling. Share
+  a helper only for code that is identical, such as the integer parser, the
+  `startServer` fields and the handshake. When a helper would need a message, fallback
+  or hint parameter per command, leave the copies.
 
 ## Tasks
 
@@ -63,23 +69,20 @@ Next: task 1.
      repeated `--port` options into an array (used at 174 and 203; `wait.test.ts:183`
      subscribes to several ports), so keep it as an accumulator around the parser:
      `[...ports, parseIntegerInRange(value, 1, 65535)]`.
-   - One `reportServerError(error, fallback, host?, port?)` replacing conversation.ts:31-42,
+   - One `reportServerError(error, host?, port?)`, printing `error.message` for an
+     `Error` and `String(error)` otherwise instead of a per-command fallback, replacing
+     conversation.ts:31-42,
      review.ts:249-262 and comment.ts:22-31; `host` and `port` are optional because
      `review capture` (295) and `unapply` / `reapply` (435) talk to no server (comment.ts's `process.exit` is a defect; see
      `p2-20261114-comment-cli-hangs.md`).
-   - One `readServerError(response)` for the non-OK paths at conversation.ts:21,
-     review.ts:233-235, comment.ts:81, 115, 191. `wait.ts:57` and `pending.ts:88` parse
-     the body on success too; they branch on `response.ok` first and use the helper only
-     in the error branch.
-   - One `readJsonArgument` for conversation.ts:101-105, 134-138, 160-164 and
-     comment.ts:33-48. They differ on empty stdin: comment.ts says "No comment JSON
-     received from stdin" (43-45), conversation's `JSON.parse` throws a SyntaxError.
-     Keep each message (a parameter), or ask before choosing one.
-   - A default 30 s timeout inside `serverFetch` (9 call sites pass
-     `AbortSignal.timeout(30000)` today). Test it by stubbing `AbortSignal.timeout` (assert it is called with `30000`, return a
-     controller's signal), making the mocked `fetch` reject when that signal aborts,
-     aborting it, and asserting the command ends through its error path. Do not use fake
-     timers: they do not fire `AbortSignal.timeout`.
+   - Leave the non-OK response readers apart: `checkResponse` adds a 404 hint
+     (conversation.ts:23-27), `readResponse` builds a 409 message (review.ts:233-244),
+     and comment.ts falls back to per-command text and maps a 404 "Thread not found" to
+     `notFound` (comment.ts:191-200). Leave the JSON argument readers apart too: after
+     task 3 there are two (conversation.ts and comment.ts:33-48), and they differ on
+     empty stdin.
+   - The default timeout in `serverFetch` lands with
+     `p2-20261114-comment-cli-hangs.md`, which owns its test.
      Pins: server-url, comment, conversation (50, 97), review (627-680), wait (183, 298,
      397), pending tests. "Cannot connect to gavel server" is asserted at comment.test.ts:268,
      305, 520, conversation.test.ts:367, review.test.ts:631; "Expected an integer from 1 to
@@ -87,8 +90,12 @@ Next: task 1.
      wait.test.ts:403.
 3. **Loop over `summary`, `status`, `reply`** in conversation.ts (91-176), as
    comment.ts:134 already does for resolve, reopen, delete.
-4. **index.ts action.** Build the shared `startServer` options once and add one
-   `announce()` helper for the three launch branches (378-545). Use
+4. **index.ts action.** Build the shared `startServer` options once (about 16 fields
+   repeat across 378-400, 421-441, 492-516), and the background handshake once
+   (identical at 402-406, 443-449, 518-524). Leave each branch's console messages: they
+   differ (keep-alive in two branches; clean-slate, opening-browser and Ctrl+C in one
+   each; the empty-diff note in two), so an `announce()` would take a flag per
+   difference. Use
    `isWorkingTreeTarget` for `isSpecialArg` (44-46) and `review.ts`'s `collect` for the
    three inline list parsers (147, 171, 177). `--port` uses `parseIntegerInRange`
    (today `parseInt` with no check, index.ts:141, so `--port abc` passes `NaN`; that is
@@ -96,9 +103,9 @@ Next: task 1.
 5. **review.ts** duplicates: "Provide a unified diff…" (179/410) and "No diff content…"
    (197/412) are identical pairs. "Stdin is a pipe or file…" (192/422) shares only its
    first sentence: `review create` advises `--pathspec` / `--include-untracked`,
-   `unapply` / `reapply` advise redirecting stdin to use the saved capture. Share the
-   first sentence at most. Also `readResponse` (225-247) vs `checkResponse`
-   (conversation.ts:19-29).
+   `unapply` / `reapply` advise redirecting stdin to use the saved capture. Leave it.
+   Leave `readResponse` (225-247) and `checkResponse` (conversation.ts:19-29) apart too:
+   one handles 409 conflicts, the other adds a 404 hint.
 6. **Move git revision helpers out of the CLI.** `shortHash`, `createCommitRangeString`,
    `validateDiffArguments` and the commit-ish validators (cli/utils.ts:63-226, without the CLI-only
    `parseCommentOptions` at 175) are used
@@ -106,5 +113,9 @@ Next: task 1.
    `src/utils/`. Use `node:` imports (cli/utils.ts:1, background.ts:1). Pins:
    utils.test.ts, git-diff.test.ts.
 7. **github.ts.** `createRightSidePosition` (146-176) and `createLeftSidePosition`
-   (178-212) are mirror images: one function taking the side and the line field names.
+   (178-212) are mirror images: one function taking the diff side and the two line
+   values, which the caller reads (`thread.line` / `thread.startLine` or
+   `thread.originalLine` / `thread.originalStartLine`), not field-name strings. It
+   derives the warning's field name from the side, and it absorbs the one-line
+   `createSingleLinePosition` and `createMultiLinePosition` (133-144).
    Pins: github.test.ts.

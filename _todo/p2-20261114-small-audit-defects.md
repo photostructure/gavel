@@ -18,8 +18,8 @@ One- or two-line fixes, each its own commit. Line numbers at `d905dec`.
   headless Chromium; happy-dom does not resolve layers.
 - **Copied-state timers are never cleared** (DiffViewerHeader.tsx:141, App.tsx:1864): a
   second click within 2 s is reset early by the first timer, and the timer fires after
-  unmount. `p3-20261114-client-shared-ui.md` task 3 replaces both with one hook;
-  fix there if that lands first.
+  unmount. Fix each in place with the pattern CommentThreadCard already uses: a `useRef`
+  timer cleared on a repeat click and on unmount (CommentThreadCard.tsx:170-178).
 - **`ImageDiffViewer.tsx:64` never checks `response.ok`.**
 - **Three settings controls have no accessible name.** The `<label>`s at
   SettingsModal.tsx:346, 367, 435 are not associated with the font-size slider and two

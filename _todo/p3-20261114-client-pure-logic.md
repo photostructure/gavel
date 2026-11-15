@@ -13,15 +13,18 @@ tests: gap and merge math in `useExpandedLines` (813 lines), the reconcile step 
 `useViewedFiles` (455), position search in `useKeyboardNavigation` (606), notebook
 parsing in `NotebookDiffViewer` (1,254), block building in `MarkdownDiffViewer` (901),
 and model and label code living in components (`SettingsModal`, `DiffQuickMenu`,
-`FileList`, `CommentsListModal`). This plan moves each into a util module with its own
-tests, without changing behavior. Part of `p1-20261114-refactor-arc.md`.
+`FileList`, `CommentsListModal`). This plan adds unit tests for that computation and
+deletes the repeats inside each file, without changing behavior. Code moves to another
+module only when a second file imports it or the move removes an import cycle.
+Otherwise it stays in its file, and tests import it from there. Part of
+`p1-20261114-refactor-arc.md`.
 
 ## Current phase
 
 Next: task 1 (useExpandedLines characterization tests).
 
 - [x] Inventory (below, at `d905dec`)
-- [ ] Moves, one commit each
+- [ ] Repeats removed and moves made, one commit each
 - [ ] Reviewed
 
 ## Required reading
@@ -44,46 +47,53 @@ Next: task 1 (useExpandedLines characterization tests).
 - Possible double expansion in `DiffViewer` (reasoned, not reproduced): in the render
   after an expansion resolves, `isExpandLoading` is false while App's merged chunks are
   still stale, so the effect can queue the same expansion again. Counts are clamped, so
-  nothing shows, but the stored count grows. Check it while extracting
-  `useExpandCommentGaps`.
+  nothing shows, but the stored count grows. Check it while adding the task 2 tests.
 - The `keyboardNavigation/` split is half done: `navigationCore.ts`,
   `navigationFilters.ts`, `scrollUtils.ts` exist; the hook still holds about 250 lines of
   pure search. No new files are needed there.
 - `StorageService` forwards six positional arguments through seven methods (102-109,
   130-137, 197-205, 238-245, 260-267, 293-300, 315-323).
+- Simplicity: a commit in this plan should delete lines, not only move them. If a move
+  removes nothing and fixes no import cycle or component-to-util dependency, skip it.
+  Put tests on functions exported from the file that holds them.
 
 ## Tasks
 
-Acceptance for each: the existing tests named pass unchanged, the new util has its own
-`*.test.ts`, and `pnpm build` passes.
+Acceptance for each: the existing tests named pass unchanged, new or moved pure
+functions have unit tests in a `*.test.ts` beside the file that holds them, and
+`pnpm build` passes.
 
 1. **useExpandedLines.** First add characterization tests for `oldStart !== newStart`
    (every fixture has them equal), two expansions accumulating on one range,
    `expandAllBetweenChunks` folding a `'down'` range into `'up'`, a middle gap expanded
-   from both sides. Then move 555-791 and the `MergedChunk` type into
-   `utils/mergedChunks.ts`, plus range reducers `addRange` (from 282-305),
-   `consolidateGap` (343-392), `wholeFileRanges` (428-447). Remove the in-file repeats
-   while moving: the content-merge block (311-314, 398-401, 452-455), the generation and
-   loading wrapper (three times), the range lookup (five times), the gap formulas
-   (575-585 / 429-434, 634-636 / 440-446). Use the `ExpandedLine` type
+   from both sides. Then, as its own commit, remove the in-file repeats: the
+   content-merge block (311-314, 398-401, 452-455), the generation and loading wrapper
+   (three times), the range lookup (five times), the gap formulas (575-585 / 429-434,
+   634-636 / 440-446). After that, move 555-791 and the `MergedChunk` type into
+   `utils/mergedChunks.ts`, which removes the backwards type import (Lore). Extract a
+   range reducer (`addRange` from 282-305, `consolidateGap` from 343-392,
+   `wholeFileRanges` from 428-447) only where it replaces one of those repeats. Use the
+   `ExpandedLine` type
    (types/diff.ts:300-302) instead of casting `as DiffLine` (694, 722). That alone does
    not remove the `'isExpanded' in` checks at DiffViewer.tsx:290, DiffLineRow.tsx:32,
    SideBySideDiffChunk.tsx:100-102: lines reach them through `MergedChunk.lines:
-   DiffLine[]` and DiffChunk's `chunk` prop. Removing the checks means retyping
-   `MergedChunk.lines`, `DiffChunkProps.chunk`, `viewers/types.ts` and `SideBySideLine`;
-   `viewers/types.ts` is also edited on branch `feat/ship-it`. Do it as its own commit or
-   leave the checks. Share `DEFAULT_EXPAND_COUNT` (hook :12 and
+   DiffLine[]` and DiffChunk's `chunk` prop. Leave the three checks: removing them means
+   retyping four shared types (`MergedChunk.lines`, `DiffChunkProps.chunk`,
+   `viewers/types.ts`, `SideBySideLine`; `viewers/types.ts` is also edited on branch
+   `feat/ship-it`) for three one-line checks. Share `DEFAULT_EXPAND_COUNT` (hook :12 and
    ExpandButton.tsx:4). Pins: useExpandedLines.test.ts, mergedChunks.test.ts.
-2. **DiffViewer gap expansion.** Extract `hooks/useExpandCommentGaps.ts` (108-207,
-   263-276, 340-408), with the pure helpers next to the gap math in
-   `utils/mergedChunks.ts`. First add thread-driven, `'before'`, `'after'` and old-side
-   cases to DiffViewer.test.tsx "context expansion for line drafts" (every case today
-   uses `threads={[]}` and a new-side `'between'` gap). Derive `DiffViewerProps` from
+2. **DiffViewer gap expansion.** Keep the gap-expansion code (108-207, 263-276,
+   340-408) in DiffViewer.tsx (514 lines); a hook with one caller would only move it.
+   Add thread-driven, `'before'`, `'after'` and old-side cases to DiffViewer.test.tsx
+   "context expansion for line drafts" (every case today uses `threads={[]}` and a
+   new-side `'between'` gap). Derive `DiffViewerProps` from
    `DiffViewerBodyProps` (23 fields repeat it) and spread the pass-through props.
-3. **useViewedFiles.** Move the reconcile step (129-209) to
-   `utils/viewedFilesReconcile.ts` as a pure function. Replace the five copies of the
-   epoch guard (109-113, 318-321, 337-340, 376-379, 394-397) with one helper and the
-   inline composite key (175, 184, 203) with one function. Folding `toggleFileViewed`
+3. **useViewedFiles.** Replace the five copies of the epoch guard (109-113, 318-321,
+   337-340, 376-379, 394-397) with one closure inside the hook. The copies at 318-321
+   and 376-379 also test `!hasLoadedInitialViewedFiles`; keep that test at those two
+   calls. Leave the reconcile step (129-209) and the composite key (three uses within 30
+   lines: 175, 184, 203) where they are: the file changed in 2 commits from 2026-08-01 to
+   `d905dec`, and two test files already pin it. Folding `toggleFileViewed`
    (323-359) into `setFilesViewed` (381-424) is a larger DRY refactor: ask first. Pins:
    useViewedFiles.test.ts, useViewedFiles.namedCaptures.test.ts.
 4. **Keyboard navigation.** Move into existing modules: `switchSidePosition` (from
@@ -111,14 +121,11 @@ Acceptance for each: the existing tests named pass unchanged, the new util has i
    App.namedReviews.test.tsx:280.
 6. **NotebookDiffViewer.** First add unit tests for the regex path, pairing by id with
    reorder / add / delete, pairing by index, a whitespace-only change cell, and an
-   unparseable blob (the file has two tests today). Then move 17-51, 85-481, 492-532,
-   708-741 to `utils/notebookPreview.ts`. Storing `beforeText` / `afterText` instead of
-   one-line `NotebookSourceLine`s (478-481) removes four helpers.
-7. **MarkdownDiffViewer.** Move 19-48, 73-211, 353-481 to
-   `utils/markdownPreviewBlocks.ts`. Pins: MarkdownDiffViewer.test.tsx describes
-   "MarkdownDiffViewer", "two-side fetch", "MarkdownFullPreview integration",
-   "MarkdownDiffPreview frontmatter diff".
-8. **Mechanical moves out of components:**
+   unparseable blob (the file has two tests today). Then store `beforeText` /
+   `afterText` instead of one-line `NotebookSourceLine`s (478-481), which removes four
+   helpers. Export what the tests need from NotebookDiffViewer.tsx. Its only non-test
+   importer is `viewers/registry.ts`, so it gets no new module.
+7. **Mechanical moves out of components:**
    - The appearance-settings model (SettingsModal.tsx:17-38, 58-85, 559) to
      `utils/appearanceSettings.ts`; 16 non-test files import it from the component,
      including `approvalCelebration.ts:1` and `viewers/types.ts:13`. Use
@@ -126,16 +133,10 @@ Acceptance for each: the existing tests named pass unchanged, the new util has i
      (159-164, 176-181). `getSettingsForResolvedTheme` is a `useCallback` local to
      `useAppearanceSettings.ts:67`; move it to a module function before 183-191 can use
      it.
-   - DiffQuickMenu labels and presets (53-129, 225-257 as `describeSelection`, 259-339
-     as `buildQuickDiffPresets`) to `utils/revisionLabels.ts`; App imports
-     `formatReviewSelection` from the component today (App.tsx:36). Use
-     `isWorkingTreeTarget` for `UNCOMMITTED_TARGETS` (59).
-   - FileList tree helpers (`TreeNode`, `getAllDirectoryPaths`,
-     `getReviewedDirectoryPaths`, `buildFileTree`, `filterFileTree`) to
-     `utils/fileTree.ts`.
-   - CommentsListModal grouping (96-105, 182-216) to `utils/conversationThreads.ts`.
-     Keep `generalDraft` (162-165) above the `key={openings}` root (379); two integration
-     tests pin the draft surviving close and reopen.
+   - `formatReviewSelection` (DiffQuickMenu.tsx:61-63) and the constants it reads, to
+     `utils/revisionLabels.ts`, because App imports it from the component (App.tsx:36).
+     The presets and `describeSelection` stay in DiffQuickMenu, their only non-test user.
+     Use `isWorkingTreeTarget` for `UNCOMMITTED_TARGETS` (59).
 
 ## Leave alone
 
@@ -143,6 +144,7 @@ Acceptance for each: the existing tests named pass unchanged, the new util has i
   physics split would push about 12 internals across a module boundary. Small tidies
   only: constants used before their declarations (402-407 used at 367-369; 541 used at
   497), the identical `'ember'` and `'ink'` cases (926-931).
-- `CommentThreadCard.tsx`: cohesive; a split into `ThreadMessageItem.tsx` and
-  `threadReadMark.tsx` is optional and low value.
+- `CommentThreadCard.tsx`: cohesive; do not split it.
+- `MarkdownDiffViewer.tsx`, the FileList tree helpers and the CommentsListModal
+  grouping: each has one user, so a move to a util module would remove nothing.
 - ImageDiffViewer, TextDiffViewer, registry, DiffLineRow, DiffCodeLine.

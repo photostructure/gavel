@@ -1,5 +1,5 @@
 ---
-title: Split git-diff.ts and review-capture.ts, and share the helpers server code repeats
+title: Split git-diff.ts, and share the helpers server code repeats
 priority: p3
 section: Refactor
 ---
@@ -9,10 +9,8 @@ section: Refactor
 ## Summary
 
 `git-diff.ts` (1,035 lines) mixes Git I/O with about 470 lines of pure unified-diff
-parsing that tests reach through 34 `(parser as any).parseFileBlock` casts.
-`review-capture.ts` (1,082 lines) holds four parts that its six importers use
-disjointly. Server and shared code also repeat a Git process runner (five ways),
-sha256-hex (11 sites), `isRecord` (six copies), `processAlive`, the inbox registry
+parsing that tests reach through 34 `(parser as any).parseFileBlock` casts. Server and
+shared code also repeat the Git repository-environment list, sha256-hex (11 sites), `isRecord` (six copies), `processAlive`, the inbox registry
 path, and the enumerations that `src/cli/schema.ts` and `src/types` both spell out.
 Part of `p1-20261114-refactor-arc.md`.
 
@@ -42,26 +40,30 @@ Next: task 1.
 - `parsePatch(capture.patch)` reparses the whole patch (up to 8 MiB) on every call to
   `capturedFileContent`, `pathsWithoutContext`, `filesWithoutAddedLines` and
   `selectCapture`; `capturedFileContent` runs once per blob request. Reasoned, not
-  measured. A split makes memoizing by capture digest easy; measure first.
+  measured. Memoizing by capture digest would avoid it; measure first.
 - `src/utils` is shared with the browser, so `node:crypto` helpers do not go there.
 - `approval.ts:23-26` runs `git diff --full-index` without `gitEnvironment` on purpose:
   it must match the digest of the diff the gavel skill pipes.
 - `isRecord` copies disagree on arrays: review-capture.ts:445 and commentImports.ts:18
   allow them; user-config.ts:24, userSettings.ts:13, review.ts:209, reviewOps.ts:10
   reject them. Check the two permissive callers before switching.
+- Simplicity: share constants, regexes and identical functions (`digest`, `isRecord`,
+  the hunk regex, `serializeLineRange`). Do not build a general runner or mapper whose
+  options encode each caller's differences. Split a file only for conflicts or coupling
+  that the git log shows.
 
 ## Tasks
 
-Acceptance for each: listed tests pass (tasks 1-3 rewrite git-diff.test.ts and split
-review-capture.test.ts; their `it` names must survive); `pnpm build`, `pnpm check` and
-`pnpm knip` pass.
+Acceptance for each: listed tests pass (tasks 1-2 rewrite git-diff.test.ts; its `it`
+names must survive); `pnpm build`, `pnpm check` and `pnpm knip` pass.
 
 1. **Split git-diff.ts.** Move unified-diff parsing (`parseUnifiedDiff`,
    `foldTypeChange`, `splitPlainUnifiedDiff`, `decodeGitPath`, `extractPathFromLine`,
    `parseDiffHeaderPaths`, `extractMetadataPath`, `parseFileBlock`,
    `countLinesFromChunks`, `parseChunks`; 195-305, 386-742) into
    `src/server/unified-diff.ts` as plain functions; none uses `this.git`. Tests call them
-   directly instead of through `(parser as any)`. While there: `getDefaultBranch`
+   directly instead of through `(parser as any)`. Leave no delegating method on
+   `GitDiffParser` for a function that only tests called. While there: `getDefaultBranch`
    (920-942) and `getOriginDefaultBranch` (944-966) parse `symbolic-ref` the same way;
    use `isWorkingTreeTarget` only where all three of `'.'`, `'working'`, `'staged'` are
    tested (746, 1011, 1019). Keep 308 (`getGitattributesSourceArgs`) and 771
@@ -78,30 +80,21 @@ review-capture.test.ts; their `it` names must survive); `pnpm build`, `pnpm chec
    review-capture.ts:509). The `vi.mock('child_process')` / `vi.mock('fs')` in
    git-diff.test.ts:19-38 depend on the current names; check whether Vitest applies them
    to `node:` specifiers. Rework the `getBlobContent` describe (85-213).
-3. **Split review-capture.ts** into `capture-git.ts` (12-160 without `digest` 69-71 and
-   the parsing interfaces `PatchLine`, `RawHunk`, `RawFile` 49-67, plus `gitRecords`,
-   `gitPaths` 722-786), `capture-patch.ts` (those interfaces, parsing, `capturePatch`, `validateCapture`,
-   `selectCapture`, `filesWithoutAddedLines`, `digest`; pure), `captured-content.ts`
-   (509-669) and `working-tree-capture.ts` (788-1082). Add one ENOENT/ENOTDIR helper for
-   877-888 and 958-969. Split review-capture.test.ts along the same lines (its describe
-   at 221 mixes `captureWorkingTree` and `capturedFileContent`). Ask Matthew whether the
-   untracked-directory check at 1066-1069 is a deliberate recheck of 1042-1046 or
-   redundant. Pins: review-capture.test.ts, git-diff.capture.test.ts,
-   conversation.capture.test.ts, unapply.test.ts, named-reviews.test.ts.
-4. **One Git runner.** Export `runGit(cwd, args, {input, env, maxBuffer, acceptedCodes})` from
-   `git-client.ts`, which owns `QUOTE_PATH_CONFIG` and `PATCH_HEADER_OPTIONS`; move
-   `REPOSITORY_ENVIRONMENT` (declared at git-client.ts:6 and review-capture.ts:15) and
-   `gitEnvironment` there. Callers: review-capture.ts:93-123, unapply.ts:37-49 (adds
-   `LC_ALL=C`), approval.ts:23-26 (keep its environment, see Lore), git-diff.ts:792-818,
-   cli/utils.ts:50-62 (`getGitRoot`, a shell string). `acceptedCodes` is required by
-   review-capture's callers: `rev-parse --verify HEAD` accepts 128 (143), `show-ref`
-   accepts 1 (148), and `git diff --no-index /dev/null <path>` exits 1 whenever the files
-   differ (1073). The "Review capture exceeds the 8 MiB limit" message for
-   `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` (117-118) stays with the capture callers.
-   `getGitRoot` is synchronous and `cli/index.ts:462` calls it synchronously; keep a
-   synchronous variant or leave it out. The git common dir is resolved
-   twice (git-diff.ts:38-41, review-capture.ts:156-160). Pins: git-client.test.ts and the
-   callers' tests.
+3. **review-capture.ts tidies, no split.** Add one ENOENT/ENOTDIR helper for 877-888
+   and 958-969. Ask Matthew whether the untracked-directory check at 1066-1069 is a
+   deliberate recheck of 1042-1046; if it is redundant, delete it. Pins:
+   review-capture.test.ts.
+4. **One repository-environment list.** Move `gitEnvironment` (review-capture.ts:77-90)
+   into `git-client.ts`. Make it and `createGitClient` read the one
+   `REPOSITORY_ENVIRONMENT`, which today is declared at both git-client.ts:6 and
+   review-capture.ts:15. Have `getRepositoryName` (git-diff.ts:38-41) call the exported
+   `getGitCommonDirectory` (review-capture.ts:156-160). Add no shared `runGit`, because
+   the five runners differ in every option: review-capture uses `GIT_OPTIONS`, accepted
+   exit codes, the 8 MiB message and Buffer output; cli/unapply.ts:37-46 uses
+   `LC_ALL=C`, an unlimited buffer and string output; cli/approval.ts:23-26 uses no
+   `gitEnvironment` (see Lore) and 64 MiB; git-diff.ts:792-818 is synchronous with
+   10 MB; cli/utils.ts:50-62 (`getGitRoot`) runs a synchronous shell string. Pins:
+   git-client.test.ts, review-capture.test.ts, unapply.test.ts, git-diff tests.
 5. **One `digest`.** Use the exported `digest` (review-capture.ts:69-71, or a new
    `src/server/hash.ts`) for the inline sha256-hex at server.ts:216, 251, 377, 380, 1392,
    1908 (1341 is in `normalizeComment`, which the compat plan deletes; these move with
@@ -118,10 +111,6 @@ review-capture.test.ts; their `it` names must survive); `pnpm build`, `pnpm chec
      497, 511, 527, 675; client useAgentUpdates.ts:62, 75, CommentThreadCard.tsx:85): one
      helper in `src/utils`.
      The format is persisted in saved reviews; do not change it.
-   - The human-actionable event predicate (session-inbox.ts:316-322 = wait.ts:32-39
-     `isActionable`) and the comment-event field mapping (conversation.ts:395-417 vs
-     wait.ts:88-118).
-   - IPv6 host bracketing (session-inbox.ts:502, cli/server-url.ts:18, server.ts:2588).
    - The hunk-header regex (review-capture.ts:261, git-diff.ts:269, 698).
    - commentImports.ts: `serializeLineRange` (485-491) = `cloneLineRange` (289-298).
      Replacing `cloneThread` (333-353) with `structuredClone` changes behavior (the line
@@ -142,12 +131,6 @@ review-capture.test.ts; their `it` names must survive); `pnpm build`, `pnpm chec
    `^[\w-]{1,100}$` (session-inbox.ts:37, server.ts:2391, conversation.ts:581,
    schema.ts:171). Pins: schema.test.ts, server.test.ts "keeps serialized server event
    fields aligned with the schema command".
-8. **Optional.** Move `conversation.ts`'s routes (555-722) to `conversation-routes.ts`
-   (export `ConversationCursorError`, `ProgressError`); move client-only types
-   (`ViewedFileRecord`, `ViewedHashIndex*`, `DeletedComment`, `DiffContextStorage`,
-   `ExpandedLinesState`, `FileExpandedState`, `ExpandedLine`, `LineSelection`;
-   types/diff.ts:180-302) to a client types file; a base interface for the 9 stream
-   events in types/conversation.ts.
 
 ## Leave alone
 
@@ -155,3 +138,18 @@ review-capture.test.ts; their `it` names must survive); `pnpm build`, `pnpm chec
 fields), `file-watcher.ts` (apart from small items in the dead-code plan), `schema.ts` as
 a data file (apart from task 7), and `src/types/live.ts`, `reviewOps.ts`, `review.ts`,
 `events.ts`, `presence.ts`.
+
+Rejected:
+
+- The four-file split of `review-capture.ts`. The file changed in 8 commits from
+  2026-08-01 to `d905dec` (App.tsx 102, server.ts 51), so it causes no measured
+  conflicts, and importers using disjoint parts do not couple each other.
+- A shared comment-event mapper and actionable-event predicate. conversation.ts:395-417
+  clones `line`, `codeSnapshot` and `capture` and stamps `this.cursor` and a new
+  timestamp, while wait.ts:96-115 copies references and uses `message.progress.cursor`
+  and `message.updatedAt`; session-inbox.ts:316-322 interleaves the predicate with its
+  withdraw branch.
+- An IPv6 host-bracketing helper: each site (session-inbox.ts:502, cli/server-url.ts:18,
+  server.ts:2588) is one inline expression.
+- Moving `conversation.ts`'s routes, the client-only types in types/diff.ts, or adding a
+  base interface for the stream events: no conflict evidence or second user.

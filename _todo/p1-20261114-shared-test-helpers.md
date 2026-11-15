@@ -22,7 +22,7 @@ before they move test blocks. Part of `p1-20261114-refactor-arc.md`.
 Next: task 1.
 
 - [ ] Server fixture repo and request helper
-- [ ] `useFileWatch` named-handler signature and shared App test harness
+- [ ] `useFileWatch` named handlers, its `__mocks__` file, and `renderApp`
 - [ ] `server.test.ts` mocks moved to a shared module
 - [ ] Component test render helpers
 - [ ] Reviewed
@@ -59,17 +59,24 @@ Next: task 1.
   `withoutGitEnvironment` already exists at src/cli/index.integration.test.ts:33-37.
 - `server.test.ts:13` sets `process.env.VITEST_SERVER_TEST`, but vitest.setup.ts:26
   reads it before the test file runs, and server.test.ts:81 overwrites `globalThis.fetch` anyway.
-  Line 13 may do nothing (not confirmed).
-- `App.namedReviews.test.tsx` handles `PUT` / `DELETE /api/approval` in its fake router
-  (about lines 201-203). No client code sends those; verdicts go through `review-ops`.
-  Drop them when that router moves into the shared fake server.
+  Delete line 13, and make vitest.setup.ts:26-28 assign `global.fetch = vi.fn()`
+  unconditionally; `pnpm test` must still pass. Nothing else sets `VITEST_SERVER_TEST`
+  (`rg VITEST_SERVER_TEST`).
+- `App.namedReviews.test.tsx` handles `PUT` / `DELETE /api/approval` in its fake router.
+  No client code sends those; verdicts go through `review-ops`. Delete them
+  (App.namedReviews.test.tsx:194-196) when task 2 converts that file.
+- Step 14 of the App split will need `App.test.tsx`'s `useDiffComments` /
+  `useViewedFiles` / `useViewport` mocks (App.test.tsx:33-72) in each new file. That
+  split decides how, once its file list is known. This plan does not build a fake server
+  for it.
 
 ## Tasks
 
 1. **Server fixture repo and request helper.** Add `createFixtureRepo()` returning
    `{root, git, cleanup}`, `requestJson(running, path, {body, method, status})`, and a
-   `lineThread(id)` factory, next to `src/server/test-access-token.ts` (or rename that
-   file to `test-server.ts`). Replace the copies in review-ops, named-reviews,
+   `lineThread(id)` factory in `src/server/test-access-token.ts`, renamed to
+   `src/server/test-server.ts` in the same commit. It already wraps `startServer` and
+   `fetch` for tests; 8 files import it. Replace the copies in review-ops, named-reviews,
    review-store, live-approval, committed-summary and session-inbox integration tests,
    approval.test.ts, unapply.test.ts, review-capture.test.ts (223-236 plus the inline
    inits at 803, 836, 870, 984, 997, 1064), git-client.test.ts, git-diff.capture.test.ts,
@@ -81,15 +88,17 @@ Next: task 1.
    `rg "user.email=gavel@example.com" src --glob '*.test.*'` finds nothing (the helper is
    not a `*.test.*` file).
 2. **`useFileWatch` takes a named handler object** instead of 7 positional callbacks
-   (hooks/useFileWatch.ts:20-29, call at App.tsx:1064-1073). Then add
+   (hooks/useFileWatch.ts:20-29, call at App.tsx:1064-1073). Make every handler in the
+   object required and drop the `?.()` at useFileWatch.ts:68-71 and 102-118: the one
+   caller (App.tsx:1065) passes all seven. Then add
    `src/client/hooks/__mocks__/useFileWatch.ts` exporting the captured named callbacks and
    a connection setter (see Lore for why it cannot live in `App.testing.tsx`), and
-   `src/client/App.testing.tsx` with `renderApp()`, `installBrowserStubs({intersection})`,
-   a configurable
-   `fakeReviewServer(overrides)` built on `applyReviewOp`, and the thread and capture
-   factories (`thread()` in commentLinks:47 and conversations:19, `createMockThread` in
-   App.test:119, `generalThread` in reviewOps:80). Convert the six non-`App.test.tsx`
-   files; convert `App.test.tsx`'s render wrapper and watch mock only.
+   `src/client/App.testing.tsx` with `renderApp()`. Switch all seven App test files to
+   `renderApp()` and the shared `useFileWatch` mock. Each file keeps its own fake server,
+   browser stubs and thread factories: their IntersectionObserver stubs behave three
+   different ways, only App.namedReviews and App.reviewOps apply review ops and their
+   fake servers share almost no state, and the four thread factories have four
+   signatures, so a shared version would need options to serve them.
    Acceptance: `pnpm test App useFileWatch` passes; the `__mocks__` file is the only
    mock implementation, and no test passes a factory to `vi.mock('./hooks/useFileWatch')`.
 3. **`server.test.ts` setup into shared modules.** Move the `GitDiffParserMock`
@@ -102,7 +111,10 @@ Next: task 1.
    port: those that send requests before `startServer` resolves ("buffers live
    submissions during asynchronous startup until readiness", 906-928, and the request at
    840-858), the busy-port test (670), the derived-port test that omits `preferredPort`
-   (710), and the fallback test (1019). `start(options)` must accept all three forms.
+   (710), and the fallback test (1019). `start(options)` passes its options to
+   `startServer` unchanged and registers cleanup. Move `putVerdict`, `postAgentSummary`,
+   `startObservedServer` and `openLive` / `closeLive` / `liveUrl` into the shared module
+   when a second split-out file uses one; until then each moves with its describe block.
    Acceptance: `pnpm test server` passes; no test changes its assertions.
 4. **Component test render helpers** (independent of the splits; do when convenient,
    but after `p3-20261114-keyboard-nav-defects.md` and
@@ -116,12 +128,11 @@ Next: task 1.
    - `src/client/viewers/viewerProps.testing.ts` for the `DiffViewerBodyProps` builders
      (MarkdownDiffViewer.test.tsx:22-62 and NotebookDiffViewer.test.tsx:34-85 are
      byte-identical for 28 lines; ImageDiffViewer.test.tsx:14-28; TextDiffViewer.test.tsx).
-   - `CommentsListModal` prop and thread factories (`updates(threads)` is byte-identical
-     in the `.allReviews` and `.unread` test files).
-   - The `react-hotkeys-hook` mock (CommentsListModal.test.tsx:11-17,
-     SettingsModal.test.tsx:8-14, CommentsListModal.drafts.test.tsx:18) and
-     `setMatchMedia` (appearanceTheme.test.ts:10-17, MarkdownDiffViewer.test.tsx:230-237).
    - `StorageService.test.ts`'s 40-line `LocalStorageMock` (5-45): happy-dom's storage
      replaces it; line 149 reads the mock's `_keys` and needs changing.
-   - CLI: `fetchMock` + console spies in conversation.test.ts:14-27 and wait.test.ts:26-40.
-     Acceptance per file: the file passes with the same `it` names.
+
+   Acceptance per file: the file passes with the same `it` names. Two-copy duplicates stay
+   where they are: `updates(threads)` in the two `CommentsListModal` test files,
+   `setMatchMedia`, the `react-hotkeys-hook` mock (sharing a third-party mock across files
+   needs a `__mocks__` module), and the CLI `fetchMock` and console spies (their
+   `afterEach` blocks differ).

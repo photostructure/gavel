@@ -19,8 +19,11 @@ Found by reading during the 2026-11-14 refactor audit (line numbers at `d905dec`
   asynchronous (macOS), the JSON could be cut off. Reasoned, not reproduced.
 
 Both are behavior changes an agent can observe (`Changelog:` trailer).
-`p3-20261114-cli-cleanup.md` task 2 puts a default timeout in `serverFetch` and one
-`reportServerError` that sets `exitCode`; these fixes can land first on their own.
+Fix the timeout in `serverFetch` (cli/server-url.ts:27-38), not in comment.ts. Give it
+a default `signal: AbortSignal.timeout(30000)` that a caller's `init.signal` replaces
+(index.ts:595 passes its own 3000 ms signal). Then delete the eight explicit 30 s
+signals passed to it: conversation.ts:61, 114, 143, 169 and review.ts:315, 348, 458, 482. This TPP owns that change. `p3-20261114-cli-cleanup.md` task 2 still owns
+`reportServerError`.
 
 Acceptance: a `comment.test.ts` case that stubs `AbortSignal.timeout` (asserting it is
 called with `30000` and returning a controller's signal), makes the mocked `fetch` reject

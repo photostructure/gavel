@@ -16,5 +16,8 @@ sizes, so the expand-all toggle can show the wrong state too. Reproduced by a sc
 test during the 2026-11-14 refactor audit (not committed).
 
 Fix, test-first: store collapsed directories instead of expanded ones, so new
-directories start expanded. Acceptance: a `FileList.test.tsx` case that rerenders with a
+directories start expanded. The initial state then becomes an empty set, so the
+`getAllDirectoryPaths` call at 245 goes away. Expand all sets an empty set, and collapse
+all sets every current directory. `isAllExpanded` asks whether any current directory is
+collapsed instead of comparing set sizes (348). Acceptance: a `FileList.test.tsx` case that rerenders with a
 file in a new directory and finds both files.

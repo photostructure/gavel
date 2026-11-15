@@ -23,7 +23,7 @@ Next: task 1 (characterization tests).
 - [x] Duplication mapped (below)
 - [ ] Characterization tests for the uncovered paths
 - [ ] DiffChunk becomes a dispatcher
-- [ ] Shared pieces extracted
+- [ ] Duplicates removed
 - [ ] Reviewed
 
 ## Required reading
@@ -35,8 +35,7 @@ Next: task 1 (characterization tests).
 - `p3-20261114-keyboard-nav-defects.md`: its h / l fix needs the same
   delete-to-add pairing that task 3 extracts
 - `p3-20261114-client-shared-ui.md` tasks 6 and 7 (line-range helpers and the
-  `'left' | 'right'` type) touch the same lines as tasks 4 and 7 here; do them in one
-  place
+  `'left' | 'right'` type) touch the same lines as task 7 here; do them in one place
 
 ## Duplicated logic (S = SideBySideDiffChunk, D = DiffChunk, R = DiffLineRow, C = DiffCodeLine)
 
@@ -81,6 +80,15 @@ and the `commentTrigger` shape repeat the same way.
 - `React.memo` on DiffLineRow (R:45) never skips a render, because D passes new arrow
   functions every render (reasoned, not measured).
 - Untested in either mode: the comment trigger, half-width layout, word highlighting.
+- Per-row thread filtering (S:252-262, D:165-173) is not measured; add no index unless a
+  profile shows it costs time. The two lookups also match differently: D uses
+  `lineShowsTarget` with `thread.side ?? 'new'`, while S lets a side-less thread match
+  both sides (`!thread.side ||`, S:258).
+- Simplicity: success means fewer lines and fewer props, not more files. Share a piece
+  only where both renderers' code is identical today. When a shared component would need
+  a prop for each way the modes differ, leave it in each renderer. Delete unreachable
+  branches instead of sharing them: the delete-line trigger branches (item 6), the
+  counter fallbacks, and the side-less-thread branches if Matthew agrees.
 
 ## Tasks
 
@@ -97,23 +105,26 @@ and the `commentTrigger` shape repeat the same way.
    Acceptance: `pnpm test DiffChunk DiffViewer` passes.
 3. Extract `pairChangedLines(lines)` into `utils/chunkLinePairs.ts` (or reuse it, if the
    h / l fix in `p3-20261114-keyboard-nav-defects.md` already extracted it) and a
-   word-diff map used by both bodies. Move `convertToSideBySide` (S:314-404) into
-   `utils/sideBySideLines.ts` (its counter fallbacks at S:318-396 are unneeded: every
-   line has its number). Keyboard and renderer must keep using the same pairing.
-4. Add `useThreadsByLine(threads)` keyed by `${side}:${lastLineOf(line)}`. Keep each
-   mode's current ordering, or ask Matthew to pick one; unifying it is a visible change.
-5. Add `ChunkThreadRow`, `ChunkComposerRow` and `LineNumberCell` in
-   `components/ChunkCommentRows.tsx`. Reusing `DiffCodeLine` for the split code cell is a
-   visible change, not a move: `DiffCodeLine` has `showPrefixBorder` but no `side` or
-   prefix-off prop; its wrapper is `min-h-[16px]` with `px-3` on the highlighter, where
-   split uses `min-h-[20px] px-3` on the wrapper (S:578, 630 vs C:62, 73, 78); split
-   renders no prefix span; and split looks up tokens by side, while `DiffCodeLine`
-   prefers new tokens for unchanged lines (S:590-593, 642-645 vs C:47-58). Either add
-   props that keep split's markup exactly, or make the reuse its own commit with a
-   headless-browser check, like task 8.
+   word-diff map used by both bodies. Delete the counter fallbacks in
+   `convertToSideBySide` (S:318-396; every line has its number). That removes its
+   dependence on `chunk.oldStart` / `chunk.newStart`, so make it a module-level function
+   in SideBySideDiffChunk.tsx instead of a `useCallback`. Do not create a new module:
+   S:407 is its only caller. Keyboard and renderer must keep using the same pairing.
+4. Inside SideBySideDiffChunk only: render the old and new cells (546-650) from one local
+   function of the side; replace the three side-hit tests (125/144, 494-497, 514-517)
+   with one function; give `onMouseEnter` and `onMouseMove` (491-541) one hover update.
+5. Share the gutter cell's long class string with DiffLineRow (R:79-96, S:550) as one
+   exported constant, not a component. Leave the thread and composer rows in each
+   renderer, because their markup differs: unified renders one `<tr>` per thread with
+   `colSpan={3}` and `m-2 mx-4` (D:377-412); split renders all of a row's threads in one
+   `<tr>` with `colSpan={4}` and `m-2 mx-3` (S:653-701). A shared row would need layout,
+   colSpan and margin props on top of the card props. Do not reuse `DiffCodeLine` for the
+   split code cell: it differs in wrapper height and padding, prefix span and token
+   lookup (S:578, 590-593, 630, 642-645 vs C:47-58, 62, 73, 78).
 6. Use `getElementId` in both renderers.
 7. Add `ThreadActionProps` and `LineClickProps` to `src/client/viewers/types.ts`; the six
    declarations use `Pick` or extend it. Acceptance: `pnpm build` (tsc).
-8. Selection-highlight CSS unification is a visible change (class names and possibly
-   rendering). Separate commit; check in headless Chromium, since happy-dom does not
+8. Selection highlight: keep one of the two implementations, split's Tailwind `after:`
+   utilities (S:281-312) or unified's global.css:397-436, and delete the other. This is a
+   visible change (class names and possibly rendering). Separate commit; check in headless Chromium, since happy-dom does not
    resolve CSS layers.

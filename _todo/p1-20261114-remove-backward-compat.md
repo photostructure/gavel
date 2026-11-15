@@ -47,8 +47,12 @@ Next: task 1 (in-process compat), one commit per item.
   records untouched for 7 days. Browser records never expire, because
   `StorageService.cleanupOldData` has no production caller (see
   `p1-20261114-delete-dead-code.md`).
-- `format: 1` on saved reviews (server.ts:483) is never checked by `load()`
-  (review-store.ts:319). Not compat; leave it.
+- `format: 1` on saved reviews (server.ts:483, review-store.ts:59) is never read. It is
+  not compat; `p1-20261114-delete-dead-code.md` deletes it as a write-only field.
+- A removal often leaves something with nothing to do: a parameter only the removed path
+  passed (`outputFinalComments`' `selection`), an optional field only it left unset
+  (`DiffResponse.repositoryId?`), or a type only it used. Delete it or make it required
+  in the same commit, and `rg` each removed name.
 - 3221b79 changed `ReviewVerdict` from `'as-is' | 'after-comments' | 'reject'` to
   `'approve' | 'reject'` with no compat code. It landed on main on 2026-11-12 at 17:45
   -0800 (dd6f723 and a96706d landed in the same push), so saved records holding the old
@@ -69,9 +73,11 @@ Next: task 1 (in-process compat), one commit per item.
   build with /api/conversation/events" wording (and the same at
   waiting-for-review.md:208-209).
 - `--lgtm` / `--ship-it` (added together in 6f09ae5), `-v`, `@` for HEAD.
-- Version fields with one version and no upgrade code: `DiffContextStorage.version`,
-  `ViewedHashIndex.version`, `hashVersion`, capture `schemaVersion`, config.json
-  `version`.
+- Capture `schemaVersion` stays: `validateCapture` rejects any other value with an error
+  (review-capture.ts:482-483), and it is part of the capture JSON that agents read. The
+  other one-value version fields (`DiffContextStorage.version`,
+  `ViewedHashIndex.version`, `hashVersion`, config.json `version`) are not compat but
+  serve no reader; `p1-20261114-delete-dead-code.md` deletes them.
 - `codex-queue.ts:74-77` probes `codex queue --help`. It handles older Codex CLIs, not
   older gavel.
 - `normalizeStoredSettings` (useAppearanceSettings.ts:21-43) merges defaults over the
@@ -80,7 +86,13 @@ Next: task 1 (in-process compat), one commit per item.
   2026-11-06), and every save writes the whole object, so removing it deletes nothing an
   existing cookie needs. It keeps the next new field from reading as `undefined` (and
   throwing for object-valued reads such as `settings.approvalAnimations[id]`,
-  SettingsModal.tsx:484). Keep it.
+  SettingsModal.tsx:484). Keep it. Its font-family matching (useAppearanceSettings.ts:28-34)
+  is compat, though: it maps a saved font stack to a newer one. It came in with cf5e556
+  (2026-11-04), before the `gavel-settings` cookie began (ec44ff7, 2026-11-07), and no
+  font stack in SettingsModal.tsx changed between ec44ff7 and `d905dec`. Delete it and
+  the non-object check at :22-24 (`readClientSettings` already throws on a non-object
+  cookie). Keep the two spreads:
+  `raw === undefined ? DEFAULT_SETTINGS : { ...DEFAULT_SETTINGS, ...raw, approvalAnimations: {...} }`.
 - `scripts/measure-performance.js:402-428` rejects a positional size argument. It is
   argument validation, not compat: without it `pnpm perf large` would silently run the
   `medium` case. Keep it (a generic "unexpected argument" message is fine).
@@ -108,9 +120,13 @@ Each is its own commit.
 - **`useInboxDelivery`'s fallback for a non-OK or non-JSON `/api/inbox` answer**
   (useInboxDelivery.ts:45-50) and its tests "ignores a response from a server that
   predates the inbox" (useInboxDelivery.test.ts:174) and "reports nothing when the
-  server has no inbox endpoint" (:184). Every current server registers `GET /api/inbox`
-  (server.ts:2293-2301). Not confirmed: whether `pnpm dev`'s Vite proxy error, when the
-  API server is down, reaches this path; check before deleting.
+  server has no inbox endpoint" (:184). Delete the non-JSON fallback
+  (`.catch(() => undefined)`, the `Array.isArray(body?.reviews)` check, the "server older
+  than the inbox" comment) and the test at :174, which serves HTML with status 200. Keep
+  `response.ok`: a current server answers a missing or wrong token with HTTP 401 and
+  `{error}` (server.ts:553-558), and `apiFetch` does not throw on a non-OK status. Change
+  the 404 test at :184 to that 401 case and rename it. Not confirmed: whether the hook
+  runs while the access screen shows; if it cannot, the `ok` check can go too.
 - **Upstream diff-mode names** `side-by-side` / `inline` (utils/diffMode.ts:7-12 and
   `parseDiffViewMode`, App.tsx:136, 138). No
   gavel build wrote them into the `gavel-settings` cookie. Unknown values already fall
@@ -231,7 +247,10 @@ the `Changelog:` trailer what an agent must change.
 
 - Non-conversation mode (`--no-conversation --no-jsonl`) and its `approvals` /
   `summaries` maps in server.ts. It is a current option; removing it is a product
-  decision, not compat.
+  decision, not compat. It is the largest second code path left in server.ts: 44 lines
+  there match `approvals\b|summaries\b|!conversation|conversation ?|conversation?\.|if (conversation)`,
+  and the two maps start at server.ts:512-513. Matthew decides whether it stays.
 - `PUT`/`DELETE /api/approval`, `GET /api/presence` and `POST /api/comments` itself have
   no in-repo caller except scripts/host-wait-e2e/run.sh. They are documented agent API,
-  not compat. Candidates if Matthew wants a smaller API.
+  not compat. Candidates if Matthew wants a smaller API. So is the second name of each
+  approval flag (`--lgtm, --ship-it` and `--no-lgtm, --no-ship-it`, cli/index.ts:152-153).
