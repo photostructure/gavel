@@ -67,8 +67,7 @@ Acceptance for each: the listed tests pass unchanged, `pnpm build` and `pnpm che
    `isDeletionLine` / `isContextLine`, `isFetchableRef`, and the preview-mode guard and
    tabs (Markdown 847-867, Notebook 1188-1208) as a `usePreviewMode(hasFullPreview)` hook
    in `viewers/PreviewModeTabs.tsx`. Pins: MarkdownDiffViewer, NotebookDiffViewer,
-   CommentBodyRenderer tests. No test pins heading or text classes; add one per surface
-   first.
+   CommentBodyRenderer tests.
 2. **Navigation-scope hook.** The navigation-scope toggle (HelpModal.tsx:17-30,
    SettingsModal.tsx:143-157, AboutPanel.tsx:80-112, CommentsListModal.tsx:308-322,
    RevisionDetailModal.tsx:37-47), focus return on close (HelpModal 33-43, SettingsModal
