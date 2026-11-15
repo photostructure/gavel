@@ -60,6 +60,10 @@ All notable changes to this project will be documented in this file.
 - The **Viewed** button follows gavel's theme setting instead of the operating system's.
 - The file tree starts closed on phones, and closing the phone drawer no longer hides the tree the next time a wide window loads.
 - Dockerfiles, Makefiles, TOML, INI, Lua, R, nginx configs, `.gitignore`, C/C++ headers and `.cc`/`.cxx` sources, and `.markdown` files are syntax highlighted.
+- An image or video whose size request fails no longer shows the error page's size as its file size.
+- The copy-file-path and **Copy All Prompt** buttons keep their copied state for 2 s after the latest click.
+- Disabled buttons no longer show a pointer cursor, and the **Write a reply...** box shows a text cursor.
+- Screen readers announce the **Font Size**, **Font Family**, and **Syntax Highlighting Theme** settings by name, and clicking a label focuses its control.
 - A working-tree review no longer takes a commit's message as its proposed commit message when both diffs load at once.
 - Opening another review ends the approval animation.
 - Closing a page whose server has stopped no longer asks you to confirm leaving.
