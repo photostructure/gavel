@@ -13,6 +13,18 @@ The TypeScript sources live under `src`, split by runtime: `src/cli` handles com
 - `pnpm check` and `pnpm format` — run oxlint type-aware checks and check oxfmt formatting before you commit; `pnpm check:fix` and `pnpm format:fix` apply the fixes.
 - `make preflight` (or `pnpm run preflight`) — the full pre-release check: update dependencies and pinned GitHub Actions, format, lint (oxlint and knip), build, test, and scan production dependencies with Snyk (`pnpm run snyk`, which needs `pnpm exec snyk auth` first).
 
+## Design Principles: Keep It Simple
+
+Every change should leave the code with fewer things to understand, not more. When two designs both work, choose the one with less code and fewer moving parts, and say what it does not cover. These follow Kent Beck's rules of simple design: the code passes its tests, reveals its intent, says each thing once, and has the fewest elements that do all of that.
+
+- **YAGNI.** Build only what a current caller needs. Add no option, parameter, config, hook, extension point, or abstraction for a case nobody has asked for. Three similar lines are better than a premature helper; extract one when the duplication is real and its shape is clear.
+- **KISS.** Prefer the most direct design: a plain function over a class, a parameter over a context, a direct call over an event, and code in the file that uses it over a new module only that file imports. Split a file when the split removes coupling or conflicts that actually happen, not to make files shorter.
+- **Delete first.** Remove code a change makes obsolete in the same change, and delete dead code rather than keeping it "just in case". gavel has one user and its servers are ephemeral, so keep no compatibility paths for older gavel builds, data shapes, flags, or endpoints.
+- **Fail visibly.** Add no guard for a state that cannot happen, no default in place of an error, and no try/catch that only logs. If data should always exist, read it without checking.
+- **One kind of change per commit.** Keep structural moves separate from behavior changes, so a reviewer can read a move as a move.
+
+Necessary complexity stays; speculative complexity goes. A review finding that asks for more guards, options, or layers than these rules allow is a defect in the review.
+
 ## Coding Style & Naming Conventions
 
 The codebase uses strict TypeScript (`tsconfig.strictest`) and 2-space indentation; avoid `any` and prefer explicit types. Import types with `import type` and keep module order consistent; oxlint enforces unused imports/variables and type-aware safety rules. React components live under `src/client`; use PascalCase filenames for components, kebab-case for utilities, and co-locate UI-specific helpers when practical. Run `pnpm format:fix` before submitting to apply oxfmt formatting.
