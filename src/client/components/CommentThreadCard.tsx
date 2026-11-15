@@ -554,7 +554,7 @@ export function CommentThreadCard({
             aria-expanded={!isCollapsed}
             aria-controls={contentId}
             aria-label={toggleLabel}
-            className="shrink-0 text-github-text-muted disabled:cursor-default!"
+            className="shrink-0 text-github-text-muted disabled:cursor-default"
           >
             {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
           </button>

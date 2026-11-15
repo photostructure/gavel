@@ -261,8 +261,10 @@ pre {
   interpolate-size: allow-keywords;
 }
 
-button {
-  cursor: pointer;
+@layer base {
+  button {
+    cursor: pointer;
+  }
 }
 
 .mermaid-diagram svg {
