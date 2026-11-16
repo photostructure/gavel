@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { useViewedFiles } from './useViewedFiles';
@@ -133,7 +133,7 @@ describe('Repository Isolation Integration Tests', () => {
       expect(result2.current.viewedFiles.size).toBe(1);
     });
 
-    it('should isolate auto-marked generated files between repositories', () => {
+    it('should isolate auto-marked generated files between repositories', async () => {
       const generatedFile1 = {
         path: 'package-lock.json',
         status: 'modified' as const,
@@ -152,78 +152,24 @@ describe('Repository Isolation Integration Tests', () => {
         isGenerated: true,
       };
 
-      // Repository 1 with generated file
+      // Repository 1 auto-marks its generated file and saves it before repository 2 loads,
+      // so repository 2 would pick it up if the two shared storage
       const { result: result1 } = renderHook(() =>
         useViewedFiles('base', 'target', undefined, undefined, [generatedFile1], 'repo-1'),
       );
+      await waitFor(() => expect(result1.current.viewedFiles.has('package-lock.json')).toBe(true));
 
-      // Repository 2 with different generated file
       const { result: result2 } = renderHook(() =>
         useViewedFiles('base', 'target', undefined, undefined, [generatedFile2], 'repo-2'),
       );
+      await waitFor(() => expect(result2.current.viewedFiles.has('yarn.lock')).toBe(true));
 
-      // Each repository should only auto-mark its own generated files
-      // Note: Auto-marking is async, so we need to wait for the effect
-      setTimeout(() => {
-        // Repo 1 may have package-lock.json auto-marked
-        // Repo 2 may have yarn.lock auto-marked
-        // But they should NOT share auto-marked files
-        const repo1HasYarnLock = result1.current.viewedFiles.has('yarn.lock');
-        const repo2HasPackageLock = result2.current.viewedFiles.has('package-lock.json');
-
-        expect(repo1HasYarnLock).toBe(false);
-        expect(repo2HasPackageLock).toBe(false);
-      }, 100);
+      expect(result1.current.viewedFiles).toEqual(new Set(['package-lock.json']));
+      expect(result2.current.viewedFiles).toEqual(new Set(['yarn.lock']));
     });
   });
 
   describe('Cross-Repository Data Integrity', () => {
-    // Skip this test due to async timing issues in test environment
-    // The functionality is covered by other isolation tests
-    it.skip('should maintain separate view counts for different repositories', async () => {
-      const file1 = {
-        path: 'file1.ts',
-        status: 'modified' as const,
-        additions: 1,
-        deletions: 1,
-        chunks: [],
-      };
-      const file2 = {
-        path: 'file2.ts',
-        status: 'modified' as const,
-        additions: 1,
-        deletions: 1,
-        chunks: [],
-      };
-
-      // Repository 1 - view 1 file
-      const { result: result1 } = renderHook(() =>
-        useViewedFiles('base', 'target', undefined, undefined, [file1], 'repo-1'),
-      );
-
-      await act(async () => {
-        await result1.current.toggleFileViewed('file1.ts', file1);
-      });
-
-      // Repository 2 - view a different file
-      const { result: result2 } = renderHook(() =>
-        useViewedFiles('base', 'target', undefined, undefined, [file2], 'repo-2'),
-      );
-
-      await act(async () => {
-        await result2.current.toggleFileViewed('file2.ts', file2);
-      });
-
-      // Each repo should only have 1 viewed file
-      expect(result1.current.viewedFiles.size).toBe(1);
-      expect(result1.current.viewedFiles.has('file1.ts')).toBe(true);
-      expect(result1.current.viewedFiles.has('file2.ts')).toBe(false);
-
-      expect(result2.current.viewedFiles.size).toBe(1);
-      expect(result2.current.viewedFiles.has('file2.ts')).toBe(true);
-      expect(result2.current.viewedFiles.has('file1.ts')).toBe(false);
-    });
-
     it('should allow same file paths in different repositories without conflict', async () => {
       const file = {
         path: 'common.ts',

@@ -62,7 +62,7 @@ const mockThreads: CommentThread[] = [
   },
 ];
 
-const mockRemoveThread = vi.fn();
+const mockToggleThreadResolved = vi.fn();
 const mockGenerateThreadPrompt = vi.fn().mockReturnValue('thread prompt');
 const mockReplyToThread = vi.fn().mockResolvedValue(undefined);
 const mockRemoveMessage = vi.fn();
@@ -109,7 +109,7 @@ describe('CommentsListModal', () => {
         onClose={onClose}
         onNavigate={onNavigate}
         comments={[...mockThreads, general]}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onRemoveThread={vi.fn()}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
@@ -138,7 +138,7 @@ describe('CommentsListModal', () => {
     expect(onNavigate).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Reopen' }));
-    expect(mockRemoveThread).toHaveBeenCalledWith('general');
+    expect(mockToggleThreadResolved).toHaveBeenCalledWith('general');
     expect(onClose).not.toHaveBeenCalled();
     await user.click(screen.getByRole('radio', { name: 'Open' }));
     expect(screen.getByText('First root comment')).toBeInTheDocument();
@@ -152,7 +152,7 @@ describe('CommentsListModal', () => {
         onClose={vi.fn()}
         onNavigate={vi.fn()}
         comments={mockThreads}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -171,7 +171,7 @@ describe('CommentsListModal', () => {
         onClose={vi.fn()}
         onNavigate={vi.fn()}
         comments={mockThreads}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -195,7 +195,7 @@ describe('CommentsListModal', () => {
         onClose={vi.fn()}
         onNavigate={vi.fn()}
         comments={mockThreads}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -220,7 +220,7 @@ describe('CommentsListModal', () => {
         onClose={vi.fn()}
         onNavigate={vi.fn()}
         comments={mockThreads}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -245,7 +245,7 @@ describe('CommentsListModal', () => {
         onNavigate={vi.fn()}
         comments={mockThreads}
         showAuthorBadges={true}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -268,7 +268,7 @@ describe('CommentsListModal', () => {
         onClose={onClose}
         onNavigate={onNavigate}
         comments={mockThreads}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -293,8 +293,8 @@ describe('CommentsListModal', () => {
         onClose={onClose}
         onNavigate={onNavigate}
         comments={mockThreads}
-        onToggleThreadResolved={mockRemoveThread}
-        onRemoveThread={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
+        onRemoveThread={vi.fn()}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -334,7 +334,7 @@ describe('CommentsListModal', () => {
         onClose={onClose}
         onNavigate={onNavigate}
         comments={mockThreads}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -365,7 +365,7 @@ describe('CommentsListModal', () => {
         onClose={onClose}
         onNavigate={onNavigate}
         comments={mockThreads}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -400,7 +400,7 @@ describe('CommentsListModal', () => {
         onClose={onClose}
         onNavigate={onNavigate}
         comments={mockThreads}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -428,7 +428,7 @@ describe('CommentsListModal', () => {
         onClose={vi.fn()}
         onNavigate={vi.fn()}
         comments={mockThreads}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -439,7 +439,7 @@ describe('CommentsListModal', () => {
 
     await user.click(screen.getAllByTitle('Resolve thread')[0]!);
 
-    expect(mockRemoveThread).toHaveBeenCalledWith('thread-1');
+    expect(mockToggleThreadResolved).toHaveBeenCalledWith('thread-1');
     expect(confirmSpy).not.toHaveBeenCalled();
   });
 
@@ -450,7 +450,7 @@ describe('CommentsListModal', () => {
         onClose={vi.fn()}
         onNavigate={vi.fn()}
         comments={[]}
-        onToggleThreadResolved={mockRemoveThread}
+        onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
         onRemoveMessage={mockRemoveMessage}
@@ -469,7 +469,7 @@ describe('CommentsListModal', () => {
       onClose: vi.fn(),
       onNavigate: vi.fn(),
       comments: mockThreads,
-      onToggleThreadResolved: mockRemoveThread,
+      onToggleThreadResolved: mockToggleThreadResolved,
       onRemoveThread: vi.fn(),
       onGenerateThreadPrompt: mockGenerateThreadPrompt,
       onReplyToThread: mockReplyToThread,

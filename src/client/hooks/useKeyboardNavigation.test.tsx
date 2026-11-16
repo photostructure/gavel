@@ -445,31 +445,6 @@ describe('useKeyboardNavigation', () => {
   });
 
   describe('File Navigation (]/[)', () => {
-    it('should navigate to next file with ] key', async () => {
-      const user = userEvent.setup();
-      const { result } = renderHook(
-        () =>
-          useKeyboardNavigation({
-            files: mockFiles,
-            comments: [],
-            viewMode: 'unified',
-            onToggleReviewed: vi.fn(),
-            reviewedFiles: new Set<string>(),
-            collapsedFiles: new Set<string>(),
-          }),
-        { wrapper },
-      );
-
-      await user.keyboard('{\\]}');
-
-      // After navigating to file, cursor should be set
-      expect(result.current.cursor).not.toBeNull();
-      // When starting from null cursor, ] navigates to the first valid position
-      // which could be fileIndex 0 or 1 depending on filter implementation
-      expect(result.current.cursor?.fileIndex).toBeGreaterThanOrEqual(0);
-      expect(result.current.cursor?.fileIndex).toBeLessThan(mockFiles.length);
-    });
-
     it('should navigate to previous file with [ key', async () => {
       const user = userEvent.setup();
       const { result } = renderHook(
@@ -621,10 +596,23 @@ describe('useKeyboardNavigation', () => {
         { wrapper },
       );
 
+      // The first chunk starts on file1.js's deleted line
       await user.keyboard('n');
+      expect(result.current.cursor).toEqual({
+        fileIndex: 0,
+        chunkIndex: 0,
+        lineIndex: 0,
+        side: 'left',
+      });
 
-      // Should navigate to the first changed line
-      expect(result.current.cursor).not.toBeNull();
+      // The next chunk skips file1.js's unchanged lines and starts on file2.js's added line
+      await user.keyboard('n');
+      expect(result.current.cursor).toEqual({
+        fileIndex: 1,
+        chunkIndex: 0,
+        lineIndex: 1,
+        side: 'right',
+      });
     });
 
     it('should navigate to previous chunk with p key', async () => {
@@ -650,49 +638,16 @@ describe('useKeyboardNavigation', () => {
       // Then navigate back
       await user.keyboard('p');
 
-      expect(result.current.cursor).not.toBeNull();
+      expect(result.current.cursor).toEqual({
+        fileIndex: 0,
+        chunkIndex: 0,
+        lineIndex: 0,
+        side: 'left',
+      });
     });
   });
 
   describe('Comment Navigation (N/P)', () => {
-    it('should navigate to next comment with Shift+N', async () => {
-      const user = userEvent.setup();
-      const comments = [
-        {
-          id: '1',
-          file: 'file1.js',
-          line: 2,
-          body: 'Comment 1',
-          timestamp: '2024-01-01T00:00:00Z',
-        },
-        {
-          id: '2',
-          file: 'file2.js',
-          line: 1,
-          body: 'Comment 2',
-          timestamp: '2024-01-01T00:00:00Z',
-        },
-      ];
-
-      const { result } = renderHook(
-        () =>
-          useKeyboardNavigation({
-            files: mockFiles,
-            comments,
-            viewMode: 'unified',
-            onToggleReviewed: vi.fn(),
-            reviewedFiles: new Set<string>(),
-            collapsedFiles: new Set<string>(),
-          }),
-        { wrapper },
-      );
-
-      await user.keyboard('{Shift>}n{/Shift}');
-
-      // Should navigate to the first comment
-      expect(result.current.cursor).not.toBeNull();
-    });
-
     it('should navigate to old-side and new-side comments on the same line separately', async () => {
       const user = userEvent.setup();
       const comments = [
@@ -728,48 +683,6 @@ describe('useKeyboardNavigation', () => {
         lineIndex: 1,
         side: 'right',
       });
-    });
-
-    it('should navigate to previous comment with Shift+P', async () => {
-      const user = userEvent.setup();
-      const comments = [
-        {
-          id: '1',
-          file: 'file1.js',
-          line: 2,
-          body: 'Comment 1',
-          timestamp: '2024-01-01T00:00:00Z',
-        },
-        {
-          id: '2',
-          file: 'file2.js',
-          line: 1,
-          body: 'Comment 2',
-          timestamp: '2024-01-01T00:00:00Z',
-        },
-      ];
-
-      const { result } = renderHook(
-        () =>
-          useKeyboardNavigation({
-            files: mockFiles,
-            comments,
-            viewMode: 'unified',
-            onToggleReviewed: vi.fn(),
-            reviewedFiles: new Set<string>(),
-            collapsedFiles: new Set<string>(),
-          }),
-        { wrapper },
-      );
-
-      // Navigate to second comment first
-      await user.keyboard('{Shift>}n{/Shift}');
-      await user.keyboard('{Shift>}n{/Shift}');
-
-      // Then navigate back
-      await user.keyboard('{Shift>}p{/Shift}');
-
-      expect(result.current.cursor).not.toBeNull();
     });
 
     it('should navigate back to the old-side comment with Shift+P', async () => {
@@ -1265,8 +1178,8 @@ describe('useKeyboardNavigation', () => {
         { wrapper },
       );
 
-      // Should not throw error
-      await expect(user.keyboard('r')).resolves.not.toThrow();
+      // A refresh handler that threw would reject this promise
+      await expect(user.keyboard('{Shift>}r{/Shift}')).resolves.toBeUndefined();
     });
   });
 
@@ -1511,8 +1424,12 @@ describe('useKeyboardNavigation', () => {
 
       await user.keyboard('{.}');
 
-      // Should set cursor
-      expect(result.current.cursor).not.toBeNull();
+      expect(result.current.cursor).toEqual({
+        fileIndex: 0,
+        chunkIndex: 0,
+        lineIndex: 2,
+        side: 'right',
+      });
     });
 
     it.each(['Control', 'Alt', 'Meta'])('should ignore . pressed with %s', async (modifier) => {
@@ -1543,7 +1460,12 @@ describe('useKeyboardNavigation', () => {
   });
 
   describe('Scope handling', () => {
-    it('should use navigation scope for hotkeys', () => {
+    it('should use navigation scope for hotkeys', async () => {
+      const user = userEvent.setup();
+      // A modal replaces the navigation scope with its own
+      const modalWrapper = ({ children }: { children: React.ReactNode }) => (
+        <HotkeysProvider initiallyActiveScopes={['modal']}>{children}</HotkeysProvider>
+      );
       const { result } = renderHook(
         () =>
           useKeyboardNavigation({
@@ -1554,11 +1476,11 @@ describe('useKeyboardNavigation', () => {
             reviewedFiles: new Set<string>(),
             collapsedFiles: new Set<string>(),
           }),
-        { wrapper },
+        { wrapper: modalWrapper },
       );
 
-      // Test should pass as long as no errors are thrown
-      // The actual scope management is handled by modal components
+      await user.keyboard('j');
+
       expect(result.current.cursor).toBeNull();
     });
   });
@@ -1573,7 +1495,7 @@ describe('useKeyboardNavigation', () => {
       document.body.appendChild(input);
       input.focus();
 
-      renderHook(
+      const { result } = renderHook(
         () =>
           useKeyboardNavigation({
             files: mockFiles,
@@ -1582,15 +1504,16 @@ describe('useKeyboardNavigation', () => {
             onToggleReviewed,
             reviewedFiles: new Set<string>(),
             collapsedFiles: new Set<string>(),
+            getHoveredFileIndex: () => 0,
           }),
         { wrapper },
       );
 
-      // Type in the input
-      await user.keyboard('j');
-      await user.keyboard('r');
+      // Outside a form field, j moves the cursor and v marks the hovered file viewed
+      await user.keyboard('jv');
 
-      // Hotkeys should not be triggered
+      expect(input.value).toBe('jv');
+      expect(result.current.cursor).toBeNull();
       expect(onToggleReviewed).not.toHaveBeenCalled();
 
       // Cleanup
@@ -1606,7 +1529,7 @@ describe('useKeyboardNavigation', () => {
       document.body.appendChild(textarea);
       textarea.focus();
 
-      renderHook(
+      const { result } = renderHook(
         () =>
           useKeyboardNavigation({
             files: mockFiles,
@@ -1615,15 +1538,16 @@ describe('useKeyboardNavigation', () => {
             onToggleReviewed,
             reviewedFiles: new Set<string>(),
             collapsedFiles: new Set<string>(),
+            getHoveredFileIndex: () => 0,
           }),
         { wrapper },
       );
 
-      // Type in the textarea
-      await user.keyboard('j');
-      await user.keyboard('r');
+      // Outside a form field, j moves the cursor and v marks the hovered file viewed
+      await user.keyboard('jv');
 
-      // Hotkeys should not be triggered
+      expect(textarea.value).toBe('jv');
+      expect(result.current.cursor).toBeNull();
       expect(onToggleReviewed).not.toHaveBeenCalled();
 
       // Cleanup
