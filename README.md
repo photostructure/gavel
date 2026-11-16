@@ -9,179 +9,105 @@
 
 **Your agent makes the case for its code. You give the verdict.**
 
-gavel is a local Git diff viewer for reviewing your coding agent's changes.
-Its skill tells your agent to explain its choices and guide you through the diff.
-Discuss the changes in threads beside the code, then approve each proposed
-commit or request revisions. Works with Claude Code and Codex.
+`gavel` is a local Git diff viewer for reviewing changes with the coding agent that
+wrote them. Your agent prepares a brief, explains its choices beside the code,
+and guides you through the diff. Large changes are split into focused reviews,
+so you have less context to hold in your head at once.
+
+Ask questions in threads, request revisions, and give each part a verdict.
+Works with **Claude Code and Codex**.
+
+[See it in action and read the backstory →](https://photostructure.com/gavel/)
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@photostructure/gavel"><img src="https://img.shields.io/npm/v/@photostructure/gavel.svg" alt="npm version"></a>
+  <a href="https://github.com/photostructure/gavel/actions/workflows/build.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/photostructure/gavel/build.yml?branch=main&amp;label=CI" alt="CI status"></a>
 </p>
 
 ![gavel screenshot](docs/images/screenshot.png)
 
-## ⚡ Quick Start
+## Get started
 
-Requires Node.js 22.14 or newer and a Git repository. To view its latest commit:
-
-```sh
-npx @photostructure/gavel
-```
-
-Or install the `gavel` command:
+Use Node.js 22.20 or newer for the setup below. Install gavel, then work from
+the Git repository you want to review:
 
 ```sh
 npm install -g @photostructure/gavel
 ```
 
-Connect your coding agent:
+### Connect your agent
+
+**Claude Code:** install its skill:
 
 ```sh
-npx skills add photostructure/gavel
+npx skills add https://github.com/photostructure/gavel/tree/main/skills/gavel --agent claude-code --global --copy
 ```
 
-For Codex, follow the [Codex setup guide](docs/codex-review-integration.md#install-the-codex-entry-point)
-to install its version of the skill. Then ask your agent:
+**Codex:** ask its built-in skill installer:
 
-> Open your changes in gavel for my review.
+> Use $skill-installer to install the Codex version of gavel from https://github.com/photostructure/gavel/tree/main/.codex/skills/gavel
 
-To request reviews routinely, add this to `AGENTS.md` or `CLAUDE.md`:
+For automatic Codex feedback, including in Codex Desktop, gavel needs a Codex CLI
+that supports `codex queue` on its PATH. Keep the chat open while you review.
 
-> Request my review through gavel after you change code.
+### Review changes
 
-## Review your agent's changes
+Type `/gavel` in Claude Code or `$gavel` in Codex. Your agent prepares the review
+and opens it in your browser:
 
-The skill tells your agent to prepare a change summary, proposed commit message,
-and reading-guide comments before you review the code. On longer reviews, it
-links those comments into a guided tour. Start in **Why this change**, then follow
-links to the next explanation or the code it discusses. Links can jump to files,
-specific lines, other comments, or another proposed commit's review. Your browser's
-Back button returns you after a detour. See [links in comments](docs/cli.md#links-in-comments).
+1. Read **Why this change** and follow any **Start here** link through the diff.
+2. Ask questions or request changes beside the code. The agent replies in the
+   same threads. **Conversation** gathers discussions and unread replies across reviews.
+3. **Approve** permits a commit once your comments are addressed and required
+   checks pass. **Reject** stops the agent so you can decide what to do next.
 
-Ask questions or request changes beside the code, or use **Conversation** to
-discuss the whole review. The agent replies in those threads.
+Press `?` for keyboard shortcuts. If feedback doesn't reach the agent, click the
+robot icon, choose **Copy resume prompt**, and paste it into the owning chat.
 
-Give each proposed commit a verdict:
+To require review before commits, add this to `AGENTS.md` or `CLAUDE.md`:
 
-- **Approve** permits the agent to commit once it has addressed your comments and
-  the required checks and reviews pass.
-- **Reject** stops the agent, which asks you what to do instead and whether to revert.
+> Before committing your changes, request my review through the gavel skill.
 
-From the keyboard, Shift+A approves and Shift+X rejects; `?` lists every shortcut.
-The toast that follows a verdict takes focus: Return takes its next step, such as
-switching to the next review, and Escape dismisses it.
-
-The agent must run the required checks before committing. See
-[approval modes](docs/approval-modes.md) for details.
-
-### Agent handoff
-
-gavel works with your existing agent; it does not start one. A review opened
-from Claude Code sends your verdicts and comments to that session, which starts
-a turn even when it is idle; a bot icon left of the review name in the header
-shows whether the latest one was sent.
-Codex ends its turn while you review. With a supported `codex queue` CLI on the
-server, gavel queues your verdicts and comments for the chat that opened the
-review. For both agents, the robot is green while your verdicts and comments
-will reach the agent, sweeps while delivering, and briefly shows a green check
-after acceptance. It turns red, with crossed-out eyes and a bent antenna, when
-you need to act: the gavel server is unreachable or delivery failed. It turns
-orange, its antenna curled into a question mark, when another review's gavel
-server now runs at the page's address. Click it to see what went wrong and what to do; while the server
-is unreachable, the click also reconnects. After a verdict, the toast under the verdict buttons shows the
-same robot and says whether the verdict was sent, and once it is, that you can close the page.
-Tap the header robot for delivery details;
-**Queued for Codex** confirms saved input, not a running turn. Keep that
-chat open and use separate gavel servers for Codex and Claude Code. If the chat
-stays idle, tap the robot and choose **Copy resume prompt**, and paste it into the
-owning chat. When the last verdict cannot reach the chat, the toast offers **Copy resume
-prompt** instead. See
-[waiting for review](docs/waiting-for-review.md) for host requirements.
-
-## 🚀 Usage
+### Open a diff yourself
 
 ```sh
 gavel                  # Latest commit
-gavel HEAD~2           # A specific commit
 gavel .                # All uncommitted changes
 gavel staged           # Staged changes
-gavel working          # Unstaged changes
 gavel feature main     # Compare branches
-gavel . origin/main    # Compare the working tree with remote main
 gavel --pr https://github.com/owner/repo/pull/123
-git diff --cached | gavel -
 ```
 
-GitHub PRs require an authenticated GitHub CLI (`gh`).
-Use `gavel --help` for all options. See [command-line usage](docs/cli.md) for
-named reviews, stopping finished servers, PR authentication, piped diffs, initial
-comments, and editor setup.
+GitHub PRs require an authenticated GitHub CLI (`gh`). You can also run
+`npx @photostructure/gavel` without a global install. See `gavel --help` or the
+[CLI reference](docs/cli.md) for more options.
 
-## Access token
+### Access token
 
-The link gavel prints when it starts ends in `#gavel-token=…`. Every request for
-review data carries that token, so a browser or program that knows only the port
-gets an access screen instead of your code. Your browser remembers the token for
-that address once you open the full link, so later links without it, such as
-bookmarks and links in comments, keep working. On a new address, the access
-screen's **Copy prompt for your agent** button copies a request for the full link.
+Open the full launch link, including `#gavel-token=…`, to access a review.
+Anyone with that link can read the diff and use its review controls.
 
-All of your gavel servers and commands share one token, kept in
-`~/.gavel/access-token` (or `$GAVEL_CONFIG_DIR/access-token`). To replace it,
-delete that file, restart your gavel servers, and open the new link one prints.
+### HTTPS and remote browsers
 
-## HTTPS and remote browsers
+The same reviews work on a phone. Ask your agent for a reachable link and use
+HTTPS to protect the token and review traffic. See [remote browser setup](docs/remote-review.md).
 
-You can review from a phone or another computer. The access token is a shared
-secret, not a login: anyone holding a launch link gets in. Put gavel behind an
-authenticated HTTPS proxy or tunnel before exposing it.
-See [remote browser setup](docs/server-addresses.md#https-and-remote-browsers).
+### Privacy
 
-## Update check
+Opening **About** checks npm for updates without sending review content. Set
+`NO_UPDATE_NOTIFIER=1` when starting gavel to disable the check. Browser Global
+Privacy Control and `DO_NOT_TRACK=1`, `DNT=1`, or `GPC=1` also disable it.
 
-Opening **About** asks `registry.npmjs.org` for gavel's latest release and, when
-it is newer than yours, shows the commands to upgrade. Start gavel with
-`NO_UPDATE_NOTIFIER` set to skip that request:
+## Testing and review
 
-```sh
-NO_UPDATE_NOTIFIER=1 gavel
-```
+**`gavel` gavels `gavel`.** We review code and documentation changes by hand in gavel
+and use it for PhotoStructure development. [CI](.github/workflows/ci.yml) runs tests,
+type checking, linting, formatting, and builds, with package checks on Linux,
+macOS, and Windows. [Releases](.github/workflows/publish.yaml) use signed release
+commits and tags, npm provenance, and human approval before publishing. CI commits
+the version and changelog updates.
 
-The request carries none of your reviews' content, but gavel also skips it when
-your browser sends [Global Privacy Control](https://globalprivacycontrol.org/),
-or when `DO_NOT_TRACK`, `DNT`, or `GPC` is set to `1` or `true`.
+---
 
-A server that is already running keeps the environment it started with.
-
-## Agent integration
-
-The skills handle review setup and feedback. For custom integrations, see:
-
-- [Conversation protocol and named captures](docs/agent-conversations.md)
-- [Waiting for feedback](docs/waiting-for-review.md)
-- [Codex setup and handoff](docs/codex-review-integration.md)
-- [Approval modes](docs/approval-modes.md)
-
-## Development
-
-```sh
-pnpm install
-pnpm dev          # Development server
-pnpm build        # Production build
-pnpm test
-pnpm check        # Typecheck and lint
-pnpm format       # Check formatting
-```
-
-## Built on difit
-
-gavel started as PhotoStructure's fork of [difit](https://github.com/yoshiko-pg/difit),
-yoshiko-pg's GitHub-style diff viewer. If gavel is useful to you, please consider
-[sponsoring yoshiko-pg](https://github.com/sponsors/yoshiko-pg).
-
-The question marker and explicit thread deletion incorporate
-[upstream PR #482](https://github.com/yoshiko-pg/difit/pull/482).
-
-## 📄 License
-
-MIT
+MIT licensed. Built on [difit](https://github.com/yoshiko-pg/difit) by yoshiko-pg;
+please consider [sponsoring its author](https://github.com/sponsors/yoshiko-pg).
