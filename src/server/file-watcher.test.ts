@@ -100,7 +100,14 @@ describe('FileWatcherService', () => {
       await fileWatcher.start(DiffMode.DOT, TEST_REPO_PATH, 300);
 
       expect(simpleGit).toHaveBeenCalledWith(TEST_REPO_PATH, {
-        allowEnvironment: ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'],
+        allowEnvironment: [
+          'GIT_DIR',
+          'GIT_WORK_TREE',
+          'GIT_INDEX_FILE',
+          'GIT_CONFIG_GLOBAL',
+          'GIT_CONFIG_SYSTEM',
+          'GIT_CONFIG_NOSYSTEM',
+        ],
         config: ['core.quotePath=true'],
       });
     });

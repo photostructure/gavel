@@ -278,6 +278,22 @@ describe('read-only working tree captures', () => {
     expect(artifact.baseCommit).toBe(git('rev-parse', 'HEAD').trim());
   });
 
+  it('honors GIT_CONFIG_GLOBAL, which selects a config file and not the repository', async () => {
+    writeFileSync(join(root, 'file.txt'), 'a\nb\nc\nd\ne\n');
+    commit();
+    writeFileSync(join(root, 'file.txt'), 'a\nb\nC\nd\ne\n');
+    const globalConfig = `${root}.gitconfig`;
+    writeFileSync(globalConfig, '[diff]\n\tcontext = 0\n');
+    vi.stubEnv('GIT_CONFIG_GLOBAL', globalConfig);
+    try {
+      const artifact = await captureWorkingTree({ cwd: root });
+      expect(artifact.patch).toContain('@@ -3 +3 @@');
+      expect(artifact.patch).not.toContain('\n b\n');
+    } finally {
+      rmSync(globalConfig);
+    }
+  });
+
   it('does not refresh unchanged file stats or run post-index-change hooks', async () => {
     writeFileSync(join(root, 'unchanged.txt'), 'same\n');
     writeFileSync(join(root, 'changed.txt'), 'old\n');
