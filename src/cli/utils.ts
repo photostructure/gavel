@@ -231,7 +231,7 @@ export async function findUntrackedFiles(git: SimpleGit): Promise<string[]> {
 
 // Add files with --intent-to-add to make them visible in `git diff` without staging content
 export async function markFilesIntentToAdd(git: SimpleGit, files: string[]): Promise<void> {
-  await git.add(['--intent-to-add', ...files]);
+  await git.add(['--intent-to-add', '--', ...files]);
 }
 
 export async function promptUser(message: string): Promise<boolean> {

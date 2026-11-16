@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { devNull, tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { simpleGit } from 'simple-git';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import {
   detectStdinSource,
+  findUntrackedFiles,
+  markFilesIntentToAdd,
   parseCommentOptions,
   shortHash,
   shouldReadStdin,
@@ -447,6 +455,46 @@ describe('CLI Utils', () => {
     it('should handle short hashes', () => {
       expect(shortHash('abc')).toBe('abc');
       expect(shortHash('')).toBe('');
+    });
+  });
+
+  describe('markFilesIntentToAdd', () => {
+    beforeEach(() => {
+      for (const key of Object.keys(process.env))
+        if (key.startsWith('GIT_')) vi.stubEnv(key, undefined);
+      vi.stubEnv('GIT_CONFIG_GLOBAL', devNull);
+      vi.stubEnv('GIT_CONFIG_SYSTEM', devNull);
+      // simple-git drops GIT_* variables from the git it spawns, so its global config comes
+      // from HOME and XDG_CONFIG_HOME.
+      vi.stubEnv('HOME', devNull);
+      vi.stubEnv('XDG_CONFIG_HOME', devNull);
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('adds untracked files whose names look like git add options as paths', async () => {
+      const root = mkdtempSync(join(tmpdir(), 'gavel-intent-to-add-'));
+      try {
+        execFileSync('git', ['init', '-q'], { cwd: root });
+        writeFileSync(join(root, '.gitignore'), 'secret.env\n');
+        writeFileSync(join(root, 'secret.env'), 'API_KEY=hunter2\n');
+        for (const name of ['--force', '--pathspec-from-file=.gitignore', '-n'])
+          writeFileSync(join(root, name), '');
+        const git = simpleGit(root);
+
+        await markFilesIntentToAdd(git, await findUntrackedFiles(git));
+
+        const indexed = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
+          .split('\0')
+          .filter(Boolean);
+        expect(indexed.sort()).toEqual(
+          ['--force', '--pathspec-from-file=.gitignore', '-n', '.gitignore'].sort(),
+        );
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
     });
   });
 });
