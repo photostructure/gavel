@@ -2,7 +2,9 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 import { DEFAULT_DIFF_VIEW_MODE } from '../../utils/diffMode';
+import { lastLineOf } from '../components/LineCommentComposer';
 import { NAVIGATION_SELECTORS } from '../constants/navigation';
+import { pairChangedLines } from '../utils/chunkLinePairs';
 import { getElementId, getCommentKey } from '../utils/navigation/domHelpers';
 import { fixSide, hasContentOnSide } from '../utils/navigation/lineHelpers';
 
@@ -55,12 +57,12 @@ export function useKeyboardNavigation({
   // Create scroll function
   const scrollToElement = useMemo(() => createScrollToElement(), []);
 
-  // Build comment index for efficient lookup
+  // Build comment index for efficient lookup, keyed on the line whose card shows the comment:
+  // the last line of a range
   const commentIndex = useMemo(() => {
     const index = new Map<string, CommentNavigationItem[]>();
     comments.forEach((thread) => {
-      const lineNum = Array.isArray(thread.line) ? thread.line[0] : thread.line;
-      const key = getCommentKey(thread.file, lineNum, thread.side);
+      const key = getCommentKey(thread.file, lastLineOf(thread.line), thread.side);
       if (!index.has(key)) {
         index.set(key, []);
       }
@@ -134,34 +136,16 @@ export function useKeyboardNavigation({
       // Create new cursor with the requested side
       let newCursor = { ...cursor, side };
 
-      // Special handling for delete/add pairs in split view
-      // These appear on the same visual line but are different line indices
-      const currentLine =
-        files[cursor.fileIndex]?.chunks[cursor.chunkIndex]?.lines[cursor.lineIndex];
-      if (currentLine) {
-        // If switching from right (add) to left (delete), check if previous line is a delete
-        if (side === 'left' && currentLine.type === 'add' && cursor.lineIndex > 0) {
-          const prevLine =
-            files[cursor.fileIndex]?.chunks[cursor.chunkIndex]?.lines[cursor.lineIndex - 1];
-          if (prevLine?.type === 'delete') {
-            // Move to the delete line that pairs with this add line
-            newCursor = { ...newCursor, lineIndex: cursor.lineIndex - 1 };
-            setCursor(newCursor);
-            scrollToElement(getElementId(newCursor, viewMode));
-            return;
-          }
-        }
-        // If switching from left (delete) to right (add), check if next line is an add
-        else if (side === 'right' && currentLine.type === 'delete') {
-          const nextLine =
-            files[cursor.fileIndex]?.chunks[cursor.chunkIndex]?.lines[cursor.lineIndex + 1];
-          if (nextLine?.type === 'add') {
-            // Move to the add line that pairs with this delete line
-            newCursor = { ...newCursor, lineIndex: cursor.lineIndex + 1 };
-            setCursor(newCursor);
-            scrollToElement(getElementId(newCursor, viewMode));
-            return;
-          }
+      // A deleted and an added line shown in the same split-view row have different line
+      // indices: move to the line the renderer shows beside the cursor
+      const lines = files[cursor.fileIndex]?.chunks[cursor.chunkIndex]?.lines;
+      if (lines) {
+        const row = pairChangedLines(lines).find(
+          (r) => (cursor.side === 'left' ? r.oldIndex : r.newIndex) === cursor.lineIndex,
+        );
+        const besideIndex = side === 'left' ? row?.oldIndex : row?.newIndex;
+        if (besideIndex !== undefined) {
+          newCursor = { ...newCursor, lineIndex: besideIndex };
         }
       }
 
@@ -352,64 +336,36 @@ export function useKeyboardNavigation({
   useHotkeys(']', () => navigateToFile('next'), punctuationHotkeyOptions, [navigateToFile]);
   useHotkeys('[', () => navigateToFile('prev'), punctuationHotkeyOptions, [navigateToFile]);
 
-  // Jump to first/last file
-  useHotkeys(
-    '{',
-    () => {
-      if (files.length > 0) {
-        setCursor({
-          fileIndex: 0,
-          chunkIndex: 0,
-          lineIndex: 0,
-          side: viewMode === 'split' ? 'left' : 'right',
-        });
-        scrollToElement(
-          getElementId(
-            {
-              fileIndex: 0,
-              chunkIndex: 0,
-              lineIndex: 0,
-              side: viewMode === 'split' ? 'left' : 'right',
-            },
-            viewMode,
-          ),
-        );
-      }
+  // The first line of a file, on a side with content, or null for a file without lines
+  const fileStartPosition = useCallback(
+    (fileIndex: number): CursorPosition | null => {
+      if (!files[fileIndex]?.chunks[0]?.lines[0]) return null;
+      return fixSide(
+        { fileIndex, chunkIndex: 0, lineIndex: 0, side: viewMode === 'split' ? 'left' : 'right' },
+        files,
+      );
     },
-    punctuationHotkeyOptions,
-    [files, viewMode, scrollToElement],
+    [files, viewMode],
   );
 
-  useHotkeys(
-    '}',
-    () => {
-      if (files.length > 0) {
-        const lastFileIndex = files.length - 1;
-        const lastFile = files[lastFileIndex];
-        if (lastFile && lastFile.chunks.length > 0) {
-          setCursor({
-            fileIndex: lastFileIndex,
-            chunkIndex: 0,
-            lineIndex: 0,
-            side: viewMode === 'split' ? 'left' : 'right',
-          });
-          scrollToElement(
-            getElementId(
-              {
-                fileIndex: lastFileIndex,
-                chunkIndex: 0,
-                lineIndex: 0,
-                side: viewMode === 'split' ? 'left' : 'right',
-              },
-              viewMode,
-            ),
-          );
-        }
-      }
+  // Returns whether the file has lines to move to
+  const moveToFileStart = useCallback(
+    (fileIndex: number): boolean => {
+      const position = fileStartPosition(fileIndex);
+      if (!position) return false;
+      setCursor(position);
+      scrollToElement(getElementId(position, viewMode));
+      return true;
     },
-    punctuationHotkeyOptions,
-    [files, viewMode, scrollToElement],
+    [fileStartPosition, viewMode, scrollToElement],
   );
+
+  // Jump to first/last file
+  useHotkeys('{', () => moveToFileStart(0), punctuationHotkeyOptions, [moveToFileStart]);
+  useHotkeys('}', () => moveToFileStart(files.length - 1), punctuationHotkeyOptions, [
+    moveToFileStart,
+    files.length,
+  ]);
 
   // Side switching (split mode only)
   useHotkeys(
@@ -433,24 +389,10 @@ export function useKeyboardNavigation({
       for (let offset = 1; offset < totalFiles; offset++) {
         const fileIndex = (afterIndex + offset) % totalFiles;
         const file = files[fileIndex];
-        if (!file || !file.chunks[0]?.lines[0]) continue;
-        if (reviewedFiles.has(file.path)) continue;
-
-        const position = fixSide(
-          {
-            fileIndex,
-            chunkIndex: 0,
-            lineIndex: 0,
-            side: viewMode === 'split' ? 'left' : 'right',
-          },
-          files,
-        );
-        setCursor(position);
-        scrollToElement(getElementId(position, viewMode));
-        return;
+        if (file && !reviewedFiles.has(file.path) && moveToFileStart(fileIndex)) return;
       }
     },
-    [files, reviewedFiles, viewMode, scrollToElement],
+    [files, reviewedFiles, moveToFileStart],
   );
 
   // Update only the remembered navigation position, without showing the
@@ -459,20 +401,10 @@ export function useKeyboardNavigation({
   // surfaces keyboard UI.
   const rememberFilePosition = useCallback(
     (fileIndex: number) => {
-      const file = files[fileIndex];
-      if (!file || !file.chunks[0]?.lines[0]) return;
-
-      lastCursorRef.current = fixSide(
-        {
-          fileIndex,
-          chunkIndex: 0,
-          lineIndex: 0,
-          side: viewMode === 'split' ? 'left' : 'right',
-        },
-        files,
-      );
+      const position = fileStartPosition(fileIndex);
+      if (position) lastCursorRef.current = position;
     },
-    [files, viewMode],
+    [fileStartPosition],
   );
 
   // File review toggles target the cursor file, or the hovered file when

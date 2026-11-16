@@ -577,6 +577,96 @@ describe('useKeyboardNavigation', () => {
 
       expect(result.current.cursor?.fileIndex).toBe(mockFiles.length - 1);
     });
+
+    // An added file has nothing in split view's left column
+    const addedFile = (path: string): DiffFile => ({
+      path,
+      status: 'added',
+      additions: 1,
+      deletions: 0,
+      chunks: [
+        {
+          oldStart: 0,
+          oldLines: 0,
+          newStart: 1,
+          newLines: 1,
+          header: '@@ -0,0 +1,1 @@',
+          lines: [{ type: 'add', newLineNumber: 1, content: 'added' }],
+        },
+      ],
+    });
+
+    it.each([
+      ['{Shift>}{{{/Shift}', 0],
+      ['{Shift>}}{/Shift}', 2],
+    ])(
+      'should put the cursor on the column with content when %s jumps to an added file in split view',
+      async (keys, fileIndex) => {
+        const user = userEvent.setup();
+        const files = [addedFile('first.js'), mockFiles[0]!, addedFile('last.js')];
+        const { result } = renderHook(
+          () =>
+            useKeyboardNavigation({
+              files,
+              comments: [],
+              viewMode: 'split',
+              onToggleReviewed: vi.fn(),
+              reviewedFiles: new Set<string>(),
+              collapsedFiles: new Set<string>(),
+            }),
+          { wrapper },
+        );
+
+        act(() => {
+          result.current.setCursorPosition({
+            fileIndex: 1,
+            chunkIndex: 0,
+            lineIndex: 2,
+            side: 'left',
+          });
+        });
+
+        await user.keyboard(keys);
+
+        expect(result.current.cursor).toEqual({
+          fileIndex,
+          chunkIndex: 0,
+          lineIndex: 0,
+          side: 'right',
+        });
+      },
+    );
+
+    it('should keep the cursor where it is when Shift+[ finds no lines in the first file', async () => {
+      const user = userEvent.setup();
+      const binary: DiffFile = {
+        path: 'image.png',
+        status: 'modified',
+        additions: 0,
+        deletions: 0,
+        chunks: [],
+      };
+      const { result } = renderHook(
+        () =>
+          useKeyboardNavigation({
+            files: [binary, ...mockFiles],
+            comments: [],
+            viewMode: 'unified',
+            onToggleReviewed: vi.fn(),
+            reviewedFiles: new Set<string>(),
+            collapsedFiles: new Set<string>(),
+          }),
+        { wrapper },
+      );
+      const start = { fileIndex: 1, chunkIndex: 0, lineIndex: 2, side: 'right' } as const;
+      act(() => {
+        result.current.setCursorPosition(start);
+      });
+
+      await user.keyboard('{Shift>}{{{/Shift}');
+
+      expect(result.current.cursor).toEqual(start);
+    });
   });
 
   describe('Chunk Navigation (n/p)', () => {
@@ -716,6 +806,58 @@ describe('useKeyboardNavigation', () => {
         side: 'left',
       });
     });
+
+    // A range comment's card renders under its last line, so Shift+N goes there. The hunk
+    // shows new lines 10 and 11; a range from line 5 starts above it.
+    const hunkAtTen: DiffFile[] = [
+      {
+        path: 'range.js',
+        status: 'modified',
+        additions: 1,
+        deletions: 0,
+        chunks: [
+          {
+            oldStart: 10,
+            oldLines: 1,
+            newStart: 10,
+            newLines: 2,
+            header: '@@ -10,1 +10,2 @@',
+            lines: [
+              { type: 'normal', oldLineNumber: 10, newLineNumber: 10, content: 'same' },
+              { type: 'add', newLineNumber: 11, content: 'added' },
+            ],
+          },
+        ],
+      },
+    ];
+
+    it.each([[[10, 11]], [[5, 11]]] as const)(
+      'should navigate to the last line of a range comment on lines %j',
+      async (line) => {
+        const user = userEvent.setup();
+        const { result } = renderHook(
+          () =>
+            useKeyboardNavigation({
+              files: hunkAtTen,
+              comments: [{ file: 'range.js', line: [...line], side: 'new' }],
+              viewMode: 'unified',
+              onToggleReviewed: vi.fn(),
+              reviewedFiles: new Set<string>(),
+              collapsedFiles: new Set<string>(),
+            }),
+          { wrapper },
+        );
+
+        await user.keyboard('{Shift>}n{/Shift}');
+
+        expect(result.current.cursor).toEqual({
+          fileIndex: 0,
+          chunkIndex: 0,
+          lineIndex: 1,
+          side: 'right',
+        });
+      },
+    );
   });
 
   describe('Help Modal (?)', () => {
@@ -1382,6 +1524,75 @@ describe('useKeyboardNavigation', () => {
 
       expect(result.current.cursor?.side).toBe('right');
     });
+
+    // Split view shows the k-th deletion of a run beside the k-th addition after it:
+    // line 0 beside line 2, and line 1 beside line 3.
+    const twoForTwo: DiffFile[] = [
+      {
+        path: 'pairs.js',
+        status: 'modified',
+        additions: 2,
+        deletions: 2,
+        chunks: [
+          {
+            oldStart: 1,
+            oldLines: 3,
+            newStart: 1,
+            newLines: 3,
+            header: '@@ -1,3 +1,3 @@',
+            lines: [
+              { type: 'delete', oldLineNumber: 1, content: 'old one' },
+              { type: 'delete', oldLineNumber: 2, content: 'old two' },
+              { type: 'add', newLineNumber: 1, content: 'new one' },
+              { type: 'add', newLineNumber: 2, content: 'new two' },
+              { type: 'normal', oldLineNumber: 3, newLineNumber: 3, content: 'same' },
+            ],
+          },
+        ],
+      },
+    ];
+
+    it.each([
+      ['h', 2, 'right', 0, 'left'],
+      ['h', 3, 'right', 1, 'left'],
+      ['l', 0, 'left', 2, 'right'],
+      ['l', 1, 'left', 3, 'right'],
+    ] as const)(
+      'should move %s from line %i to the line split view shows beside it',
+      async (key, fromLine, fromSide, toLine, toSide) => {
+        const user = userEvent.setup();
+        const { result } = renderHook(
+          () =>
+            useKeyboardNavigation({
+              files: twoForTwo,
+              comments: [],
+              viewMode: 'split',
+              onToggleReviewed: vi.fn(),
+              reviewedFiles: new Set<string>(),
+              collapsedFiles: new Set<string>(),
+            }),
+          { wrapper },
+        );
+
+        act(() => {
+          result.current.setCursorPosition({
+            fileIndex: 0,
+            chunkIndex: 0,
+            lineIndex: fromLine,
+            side: fromSide,
+          });
+        });
+
+        await user.keyboard(key);
+
+        expect(result.current.cursor).toEqual({
+          fileIndex: 0,
+          chunkIndex: 0,
+          lineIndex: toLine,
+          side: toSide,
+        });
+      },
+    );
   });
 
   describe('Move to Center (.)', () => {
