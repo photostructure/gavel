@@ -1,7 +1,7 @@
 # Command-line usage
 
 Run `gavel --help` for options, or `gavel <command> --help` for a subcommand's
-options, JSON payloads, and exit codes. These examples assume the current working
+options and JSON payloads. These examples assume the current working
 directory is the repository to review.
 
 ## Named reviews
