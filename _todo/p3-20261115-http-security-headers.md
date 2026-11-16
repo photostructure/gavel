@@ -23,6 +23,11 @@ Fix direction:
   `p4-20261112-svg-rendered-source-views.md` covers only SVGs shown in `<img>`.
 - UI: a CSP with `script-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, and an
   `img-src` that still allows the remote Markdown images the UI loads today (or decide to stop
-  loading them; see `p3-20261115-markdown-off-origin-urls.md`). Check Mermaid's inline styles
-  and the theme bootstrap script against it.
+  loading them; see the remote-image bullet below). Check Mermaid's inline styles and the theme
+  bootstrap script against it.
 - Everywhere: `Referrer-Policy: no-referrer`, and `app.disable('x-powered-by')`.
+- Remote images in comments, PR comments, repository Markdown, and notebooks load as soon as
+  the view renders. With no Referrer-Policy, each image host receives the gavel origin in the
+  `Referer` header, and that origin names the tunnel hostname when gavel runs behind a tunnel.
+  `Referrer-Policy: no-referrer` stops that leak; the maintainer still has to decide whether
+  remote images keep loading without a click.

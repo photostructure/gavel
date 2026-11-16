@@ -73,6 +73,15 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
 
         container.innerHTML = svg;
         bindFunctions?.(container);
+        // Mermaid's sanitizer drops the `target` of `click … href` links, so they would
+        // replace the gavel tab and send the gavel origin as the referrer.
+        for (const link of container.querySelectorAll('svg a')) {
+          const href = link.getAttribute('href') ?? link.getAttribute('xlink:href');
+          if (href !== null && new URL(href, location.href).origin !== location.origin) {
+            link.setAttribute('target', '_blank');
+            link.setAttribute('rel', 'noreferrer');
+          }
+        }
       } catch (error) {
         if (isCancelled) return;
 

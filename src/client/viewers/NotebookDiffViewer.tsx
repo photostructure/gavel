@@ -7,7 +7,12 @@ import type { DiffLine } from '../../types/diff';
 import { EnhancedPrismSyntaxHighlighter } from '../components/EnhancedPrismSyntaxHighlighter';
 import { PrismSyntaxHighlighter } from '../components/PrismSyntaxHighlighter';
 import type { MergedChunk } from '../hooks/useExpandedLines';
-import { extractMarkdownText, isElementWithCodeProps, isSafeUrl } from '../utils/markdownUtils';
+import {
+  extractMarkdownText,
+  isElementWithCodeProps,
+  isExternalUrl,
+  isSafeUrl,
+} from '../utils/markdownUtils';
 
 import { PreviewModeTabs, type PreviewMode } from './PreviewModeTabs';
 import { TextDiffViewer } from './TextDiffViewer';
@@ -628,7 +633,7 @@ const getMarkdownComponents = (syntaxTheme?: DiffViewerBodyProps['syntaxTheme'])
     if (!safeHref || !isSafeUrl(safeHref)) {
       return <span>{children}</span>;
     }
-    const isExternal = safeHref.startsWith('http');
+    const isExternal = isExternalUrl(safeHref);
     return (
       <a
         href={safeHref}

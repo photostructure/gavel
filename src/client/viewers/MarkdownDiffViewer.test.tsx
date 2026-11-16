@@ -373,6 +373,27 @@ describe('MarkdownDiffViewer', () => {
     expect(container.querySelector('svg')).toBeInTheDocument();
   });
 
+  it('opens upper-case external links in a new tab and drops protocol-relative ones', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      text: async () =>
+        '[upper](HTTPS://example.com/a) [proto](//evil.example/x) [rel](./docs/a.md)',
+    });
+
+    renderViewer();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Full Preview' }));
+
+    const upper = await screen.findByText('upper');
+    expect(upper.tagName).toBe('A');
+    expect(upper).toHaveAttribute('target', '_blank');
+    expect(upper).toHaveAttribute('rel', 'noreferrer');
+    expect(screen.getByText('proto').tagName).toBe('SPAN');
+    const rel = screen.getByText('rel');
+    expect(rel).toHaveAttribute('href', './docs/a.md');
+    expect(rel).not.toHaveAttribute('target');
+  });
+
   it('falls back to code when Mermaid rendering fails', async () => {
     document.documentElement.setAttribute('data-theme', 'dark');
     vi.mocked(mermaid.render).mockRejectedValueOnce(new Error('Parse error'));

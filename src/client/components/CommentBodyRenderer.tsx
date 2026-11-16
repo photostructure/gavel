@@ -8,7 +8,12 @@ import { hasSuggestionBlock, parseSuggestionBlocks } from '../../utils/suggestio
 import { CommentLinkContext, type CommentLinkSource } from '../contexts/CommentLinkContext';
 import { parseCommentLink } from '../utils/commentLinks';
 import { reviewHref } from '../utils/reviewNavigation';
-import { extractMarkdownText, isElementWithCodeProps, isSafeUrl } from '../utils/markdownUtils';
+import {
+  extractMarkdownText,
+  isElementWithCodeProps,
+  isExternalUrl,
+  isSafeUrl,
+} from '../utils/markdownUtils';
 
 import { DiffCodeLine } from './DiffCodeLine';
 import { MermaidDiagram } from './MermaidDiagram';
@@ -168,7 +173,7 @@ const getCommentMarkdownComponents = (
     if (!safeHref || !isSafeUrl(safeHref)) {
       return <span>{children}</span>;
     }
-    const isExternal = safeHref.startsWith('http');
+    const isExternal = isExternalUrl(safeHref);
     return (
       <a
         href={safeHref}

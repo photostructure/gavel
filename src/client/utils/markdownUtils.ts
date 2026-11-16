@@ -11,7 +11,10 @@ export function isMarkdownFile(filename: string): boolean {
   return extension ? MARKDOWN_EXTENSIONS.includes(extension) : false;
 }
 
-export const isSafeUrl = (url: string) => /^(https?:|mailto:|#|\.{0,2}\/|\/)/i.test(url.trim());
+export const isSafeUrl = (url: string) =>
+  /^(https?:|mailto:|#|\.{0,2}\/(?![/\\]))/i.test(url.trim());
+
+export const isExternalUrl = (url: string) => /^https?:/i.test(url);
 
 export const isElementWithCodeProps = (
   node: React.ReactNode,

@@ -147,6 +147,23 @@ describe('CommentBodyRenderer', () => {
     expect(container).toHaveTextContent('here');
   });
 
+  it('opens upper-case external links in a new tab and drops protocol-relative ones', () => {
+    render(
+      <CommentBodyRenderer
+        body={'[upper](HTTPS://example.com/a) [proto](//evil.example/x) [rel](./docs/a.md)'}
+      />,
+    );
+
+    const upper = screen.getByText('upper');
+    expect(upper.tagName).toBe('A');
+    expect(upper).toHaveAttribute('target', '_blank');
+    expect(upper).toHaveAttribute('rel', 'noreferrer');
+    expect(screen.getByText('proto').tagName).toBe('SPAN');
+    const rel = screen.getByText('rel');
+    expect(rel).toHaveAttribute('href', './docs/a.md');
+    expect(rel).not.toHaveAttribute('target');
+  });
+
   it('does not render raw HTML', () => {
     const { container } = render(<CommentBodyRenderer body='<img src="x" onerror="alert(1)">' />);
 
