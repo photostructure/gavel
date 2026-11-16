@@ -163,8 +163,8 @@ describe('FileWatcherService', () => {
 
       await callback(null, mockEvents);
 
-      expect(mockGit.checkIgnore).toHaveBeenCalledWith(['ignored-file.txt']);
-      expect(mockGit.checkIgnore).toHaveBeenCalledWith(['normal-file.txt']);
+      expect(mockGit.checkIgnore).toHaveBeenCalledWith(['--', 'ignored-file.txt']);
+      expect(mockGit.checkIgnore).toHaveBeenCalledWith(['--', 'normal-file.txt']);
     });
 
     it('should handle gitignore check errors gracefully', async () => {

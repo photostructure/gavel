@@ -347,7 +347,7 @@ export class FileWatcherService {
     const relativePath = filePath.replace(basePath + '/', '');
 
     try {
-      const result = await this.git.checkIgnore([relativePath]);
+      const result = await this.git.checkIgnore(['--', relativePath]);
       return result.length > 0;
     } catch {
       // checkIgnore throws an error when no files are ignored
