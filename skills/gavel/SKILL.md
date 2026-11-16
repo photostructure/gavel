@@ -108,11 +108,14 @@ matches the requested scope. Capture operations leave the index and files intact
 For commits, use `<gavel-command> <target> [base]`; unnamed `.`, `working`, and
 `staged` targets remain available.
 
-To select overlapping hunks, capture once and use that artifact's catalogue IDs:
+To select overlapping hunks, capture once and use that artifact's catalogue IDs.
+Captures hold untracked files' contents, so write each one into a new directory from
+`mktemp -d`, never a fixed `/tmp` name; `<dir>` is the path it prints:
 
 ```sh
-<gavel-command> review capture --pathspec src --output /tmp/capture.json
-<gavel-command> --review parser-fix --capture /tmp/capture.json --select '<hunk-id>' --keep-alive
+mktemp -d
+<gavel-command> review capture --pathspec src --output <dir>/capture.json
+<gavel-command> --review parser-fix --capture <dir>/capture.json --select '<hunk-id>' --keep-alive
 ```
 
 Repeat `--select` for files or hunks. IDs belong to the artifact's digest and

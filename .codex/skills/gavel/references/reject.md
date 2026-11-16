@@ -32,11 +32,14 @@ answer without asking again.
   changed nothing: tell the user the rejected changes are still staged. To discard them
   instead, treat them as uncommitted edits. A pushed range, or one with another session's
   commit on top, gets a `git revert` commit, under the usual commit approval.
-- For uncommitted edits in a shared checkout from a named review: put the output of
-  `<gavel-command> review unapply <name> --dry-run` in your question. If the name is
-  ambiguous, that run lists each saved capture's digest instead: rerun the dry run with
-  `--patch-digest <the rejected review's digest>` and put that output in the question. On a
-  yes, run `review unapply <name> --patch-digest <patchDigest from the dry run>`. It runs
+- For uncommitted edits in a shared checkout from a named review: use the digest of the
+  last capture you sent, `capture.patchDigest` in your launch's `server.ready` record or
+  `patchDigest` in the JSON your latest `review create` or `review update` printed. Never
+  take it from a dry run without `--patch-digest`, a snapshot, or the page: anyone with the
+  page's token can replace the capture, and those report the newest one. If you no longer
+  have that output, do not unapply: say so and ask how to revert. Put the output of
+  `<gavel-command> review unapply <name> --dry-run --patch-digest <your digest>` in your
+  question. On a yes, run `review unapply <name> --patch-digest <your digest>`. It runs
   `git apply -R` on that capture's patch, after a stash of the tracked files. `refused` means
   nothing changed; `rejected` lists hunks it left in place: report either. `review reapply
   <name> --patch-digest <digest>` undoes it. For other reviews, ask how:

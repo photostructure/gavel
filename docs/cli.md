@@ -27,11 +27,14 @@ belongs to the server, so every review tab on that server shares it.
 
 `gavel review unapply <name>` reverses a named review's captured patch in the working
 tree, for example after a Reject, and `gavel review reapply <name>` puts it back. Both
-read the saved capture, so no server needs to run. Run a dry run first, then pass the
-digest it printed:
+read the saved capture, so no server needs to run. Pass the digest of the capture you
+sent: `capture.patchDigest` in the launch's `server.ready` record, or `patchDigest` in the
+output of `review create` or `review update`. Without `--patch-digest`, both read the
+newest saved capture, which anyone with the page's access token can replace. Run a dry
+run first:
 
 ```sh
-gavel review unapply parser-fix --dry-run
+gavel review unapply parser-fix --dry-run --patch-digest <patchDigest>
 gavel review unapply parser-fix --patch-digest <patchDigest>
 gavel review reapply parser-fix --patch-digest <patchDigest>
 ```
