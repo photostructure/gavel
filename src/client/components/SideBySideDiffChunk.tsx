@@ -12,6 +12,7 @@ import {
 import { type CursorPosition } from '../hooks/keyboardNavigation';
 import { draftKey } from '../hooks/useCommentDrafts';
 import { useLineRangeDrag } from '../hooks/useLineRangeDrag';
+import { pairChangedLines } from '../utils/chunkLinePairs';
 import {
   computeWordLevelDiff,
   shouldComputeWordDiff,
@@ -314,91 +315,34 @@ export function SideBySideDiffChunk({
   // Convert unified diff to split format
   const convertToSideBySide = useCallback(
     (lines: DiffLine[]): SideBySideLine[] => {
-      const result: SideBySideLine[] = [];
       let oldLineNum = chunk.oldStart;
       let newLineNum = chunk.newStart;
 
-      let i = 0;
-      while (i < lines.length) {
-        const line = lines[i];
-        if (!line) {
-          i++;
-          continue;
+      return pairChangedLines(lines).map(({ oldIndex, newIndex }) => {
+        const oldLine = oldIndex === undefined ? undefined : lines[oldIndex];
+        const newLine = newIndex === undefined ? undefined : lines[newIndex];
+
+        // Compute word-level diff for a deleted line shown beside an added one
+        let wordLevelDiff: WordLevelDiffResult | undefined;
+        if (oldLine?.type === 'delete' && newLine) {
+          if (shouldComputeWordDiff(oldLine.content, newLine.content)) {
+            wordLevelDiff = computeWordLevelDiff(oldLine.content, newLine.content);
+          }
         }
 
-        if (line.type === 'normal') {
-          result.push({
-            oldLine: line,
-            newLine: { ...line },
-            oldLineNumber: line.oldLineNumber ?? oldLineNum,
-            newLineNumber: line.newLineNumber ?? newLineNum,
-            oldLineOriginalIndex: i,
-            newLineOriginalIndex: i,
-          });
-          oldLineNum++;
-          newLineNum++;
-          i++;
-        } else if (line.type === 'delete') {
-          // Look ahead for corresponding add
-          let j = i + 1;
-          while (j < lines.length && lines[j]?.type === 'delete') {
-            j++;
-          }
-
-          const deleteLines = lines.slice(i, j);
-          const deleteStartIndex = i;
-          const addLines: DiffLine[] = [];
-          const addStartIndex = j;
-
-          // Collect corresponding add lines
-          while (j < lines.length && lines[j]?.type === 'add') {
-            const addLine = lines[j];
-            if (addLine) {
-              addLines.push(addLine);
-            }
-            j++;
-          }
-
-          // Pair delete and add lines
-          const maxLines = Math.max(deleteLines.length, addLines.length);
-          for (let k = 0; k < maxLines; k++) {
-            const deleteLine = deleteLines[k];
-            const addLine = addLines[k];
-
-            // Compute word-level diff if both lines exist
-            let wordLevelDiff: WordLevelDiffResult | undefined;
-            if (deleteLine && addLine) {
-              if (shouldComputeWordDiff(deleteLine.content, addLine.content)) {
-                wordLevelDiff = computeWordLevelDiff(deleteLine.content, addLine.content);
-              }
-            }
-
-            result.push({
-              oldLine: deleteLine,
-              newLine: addLine,
-              oldLineNumber: deleteLine ? (deleteLine.oldLineNumber ?? oldLineNum + k) : undefined,
-              newLineNumber: addLine ? (addLine.newLineNumber ?? newLineNum + k) : undefined,
-              oldLineOriginalIndex: deleteLine ? deleteStartIndex + k : undefined,
-              newLineOriginalIndex: addLine ? addStartIndex + k : undefined,
-              wordLevelDiff,
-            });
-          }
-
-          oldLineNum += deleteLines.length;
-          newLineNum += addLines.length;
-          i = j;
-        } else if (line.type === 'add') {
-          result.push({
-            newLine: line,
-            newLineNumber: line.newLineNumber ?? newLineNum,
-            newLineOriginalIndex: i,
-          });
-          newLineNum++;
-          i++;
-        }
-      }
-
-      return result;
+        const sideLine: SideBySideLine = {
+          oldLine,
+          newLine,
+          oldLineNumber: oldLine ? (oldLine.oldLineNumber ?? oldLineNum) : undefined,
+          newLineNumber: newLine ? (newLine.newLineNumber ?? newLineNum) : undefined,
+          oldLineOriginalIndex: oldIndex,
+          newLineOriginalIndex: newIndex,
+          wordLevelDiff,
+        };
+        if (oldLine) oldLineNum++;
+        if (newLine) newLineNum++;
+        return sideLine;
+      });
     },
     [chunk.oldStart, chunk.newStart],
   );
