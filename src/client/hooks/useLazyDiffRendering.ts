@@ -59,13 +59,13 @@ export function useLazyDiffRendering({
       return;
     }
 
+    // A new capture of the open review keeps the rendered files, as a working-tree reload does,
+    // so the files the reviewer scrolled to stay drawn and the page keeps its place.
     const revisionKey = JSON.stringify([
       diffData.requestedBaseCommitish,
       diffData.requestedTargetCommitish,
       diffData.requestedBaseMode ?? 'direct',
       diffData.capture?.name,
-      diffData.capture?.version,
-      diffData.capture?.patchDigest,
     ]);
     if (renderedRevisionKeyRef.current === revisionKey) {
       return;

@@ -1,3 +1,4 @@
+import { Profiler } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
 import userEvent from '@testing-library/user-event';
@@ -607,6 +608,39 @@ describe('named captures in the browser', () => {
         'Mark as not reviewed',
       ),
     );
+  });
+
+  // An empty file for even one commit collapses the page, and the browser clamps the
+  // reviewer's scroll position to the top.
+  it('keeps the open file drawn in every commit of a capture update', async () => {
+    const state = fixture();
+    const drawn: boolean[] = [];
+    render(
+      <Profiler
+        id="app"
+        onRender={() =>
+          drawn.push(
+            document
+              .querySelector('[data-file-path="file.md"][id]')
+              ?.textContent?.includes('const stable = false;') ?? false,
+          )
+        }
+      >
+        <HotkeysProvider initiallyActiveScopes={['navigation']}>
+          <App />
+        </HotkeysProvider>
+      </Profiler>,
+    );
+    await waitFor(() => expect(drawn.at(-1)).toBe(true));
+    drawn.length = 0;
+    state.capture = { ...state.capture, version: 2, patchDigest: 'b'.repeat(64) };
+    await act(async () => watch.captureChanged?.('task-a'));
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'Named review capture' })).toHaveTextContent(
+        'capture v2',
+      ),
+    );
+    expect(drawn).not.toContain(false);
   });
 
   it.each(['task.a', 'task_2e_a'])(

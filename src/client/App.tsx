@@ -110,11 +110,6 @@ import {
   writeReviewLocation,
   type ReviewSelection,
 } from './utils/reviewNavigation';
-import {
-  EMPTY_MERGED_CHUNKS_STATE,
-  buildMergedChunksState,
-  getMergedChunksForVersion,
-} from './utils/mergedChunks';
 import { buildFileLineIndex, isThreadOutdated } from './utils/outdatedComments';
 import { hideWhitespaceChanges, remapWhitespaceCursor } from './utils/ignoreWhitespace';
 import { apiFetch } from './utils/accessToken';
@@ -592,8 +587,8 @@ function App() {
   // of a new diff already has them collapsed; viewed files load later, after hashing every file,
   // and a large file drawn open until then took seconds. Each path collapses once per diff, so
   // a file a reload adds or grows past the limit collapses too, and one the reviewer loaded stays
-  // open. The key is the revision key lazy rendering uses to start a diff over, plus the
-  // repository.
+  // open. The key names the repository, the requested diff and the capture version, so a new
+  // capture of a named review starts its large files collapsed again.
   const largeFilesKey = diffData
     ? JSON.stringify([
         diffData.repositoryId,
@@ -832,7 +827,6 @@ function App() {
     prefetchFileContent,
     getMergedChunks,
     hasContextLoadFailed,
-    lastUpdatedAt,
   } = useExpandedLines({
     baseCommitish: diffData?.baseCommitish,
     targetCommitish: diffData?.targetCommitish,
@@ -840,12 +834,6 @@ function App() {
     capture: diffData?.capture,
   });
 
-  const getMergedChunksRef = useRef(getMergedChunks);
-  useEffect(() => {
-    getMergedChunksRef.current = getMergedChunks;
-  }, [getMergedChunks]);
-
-  const [mergedChunksState, setMergedChunksState] = useState(EMPTY_MERGED_CHUNKS_STATE);
   const filesByPath = useMemo(() => {
     const map = new Map<string, DiffResponse['files'][number]>();
     diffData?.files.forEach((file) => {
@@ -854,29 +842,26 @@ function App() {
     return map;
   }, [diffData]);
 
-  // Recompute merged chunks for the current fetched diff only.
-  useEffect(() => {
-    if (!diffData) {
-      setMergedChunksState(EMPTY_MERGED_CHUNKS_STATE);
-      return;
-    }
-
-    setMergedChunksState(
-      buildMergedChunksState(diffDataVersion, renderedFilePaths, filesByPath, (file) =>
-        getMergedChunksRef.current(file),
-      ),
-    );
-  }, [diffData, diffDataVersion, filesByPath, renderedFilePaths, lastUpdatedAt]);
+  // Built while rendering, so the render that receives a refetched diff already draws its lines.
+  // A commit with the files drawn empty would collapse the page, and the browser would clamp the
+  // reviewer's scroll position to the top.
+  const mergedChunksByFile = useMemo(() => {
+    const map = new Map<string, MergedChunk[]>();
+    renderedFilePaths.forEach((path) => {
+      const file = filesByPath.get(path);
+      if (file) map.set(path, getMergedChunks(file));
+    });
+    return map;
+  }, [filesByPath, renderedFilePaths, getMergedChunks]);
 
   // Create files with merged chunks for keyboard navigation
   const canonicalFiles = useMemo(() => {
     if (!diffData) return [];
     return diffData.files.map((file) => ({
       ...file,
-      chunks:
-        getMergedChunksForVersion(mergedChunksState, diffDataVersion, file.path) || file.chunks,
+      chunks: mergedChunksByFile.get(file.path) ?? file.chunks,
     }));
-  }, [diffData, diffDataVersion, mergedChunksState]);
+  }, [diffData, mergedChunksByFile]);
 
   const fileLineIndexByPath = useMemo(() => {
     const map = new Map<string, ReturnType<typeof buildFileLineIndex>>();
@@ -991,11 +976,7 @@ function App() {
   const presentationChunksByPath = useMemo(() => {
     const map = new Map<string, MergedChunk[]>();
     navigableFiles.forEach((file) => {
-      const canonicalChunks = getMergedChunksForVersion(
-        mergedChunksState,
-        diffDataVersion,
-        file.path,
-      );
+      const canonicalChunks = mergedChunksByFile.get(file.path);
       if (canonicalChunks) {
         map.set(
           file.path,
@@ -1004,7 +985,7 @@ function App() {
       }
     });
     return map;
-  }, [navigableFiles, mergedChunksState, diffDataVersion]);
+  }, [navigableFiles, mergedChunksByFile]);
   // The code the diff shows now under a line draft, for drafts sent from Conversation.
   const codeForDraft = useCallback(
     (anchor: LineDraftAnchor) => codeInFiles(navigableFiles, anchor),

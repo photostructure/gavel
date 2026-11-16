@@ -115,22 +115,22 @@ Acceptance for each: the listed tests pass unchanged, `pnpm build` and `pnpm che
    DiffQuickMenu.test.ts, DiffQuickMenu.positioning.test.ts, RevisionSelector.test.tsx,
    RevisionDetailModal.test.tsx.
 5. **One blob URL builder and shared response types.** Move `blobUrl(path, source)`
-   (useExpandedLines.ts:62-70) beside `apiFetch` in `client/utils/accessToken.ts`, and
+   (useExpandedLines.ts:60-68) beside `apiFetch` in `client/utils/accessToken.ts`, and
    use it at the other four blob-URL sites. Add no `apiJson` / `apiText`: the callers
    below use five error styles, so a shared reader would either throw, forcing the three
    null-returning callers to add try/catch, or take an error-style option. Call sites and
    their current error handling: throw `statusText` (MarkdownDiffViewer.tsx:760,
-   useExpandedLines.ts:76, 101); return null (NotebookDiffViewer.tsx:488,
+   useExpandedLines.ts:74, 99); return null (NotebookDiffViewer.tsx:488,
    useFileLevelTokens.ts:28, useLazyDiffRendering.ts:326); `${status} ${statusText}`
    (useReviewOps.ts:133, 193); server `body.error` (App.tsx:1368); fixed message
    (useReviewApproval.ts:28, useReviewSummary.ts:30, services/autoViewedPatterns.ts:24).
    Blob URLs built in five places: ImageDiffViewer.tsx:137, NotebookDiffViewer.tsx:487,
-   MarkdownDiffViewer.tsx:757-758, useFileLevelTokens.ts:25-26, useExpandedLines.ts:62.
+   MarkdownDiffViewer.tsx:757-758, useFileLevelTokens.ts:25-26, useExpandedLines.ts:60.
    ImageDiffViewer's URL feeds an `<img src>`, so it is wrapped in `withAccessTokenQuery`
    and falls back to `HEAD~1` / `HEAD` (133-138); it resolves the fallback and wraps the
    result itself, so `blobUrl` takes no option.
    Declare response types in `src/types`: `LineCountResponse` (server.ts:1225,
-   useExpandedLines.ts:89, 103), the comments-json snapshot (useReviewOps.ts:30-34 equals
+   useExpandedLines.ts:87, 101), the comments-json snapshot (useReviewOps.ts:30-34 equals
    `Omit<ReviewOpsResponse,'results'>`), and use `GeneratedStatusResponse`
    (types/diff.ts:99) in useLazyDiffRendering. `ImageDiffViewer.tsx:64` never checks
    `response.ok` (defect; same small-defects TPP). Do not merge `useReviewApproval` and
@@ -153,9 +153,9 @@ Acceptance for each: the listed tests pass unchanged, `pnpm build` and `pnpm che
    commentLinks.test.ts:113-120), CommentThreadCard tests.
 7. **String-literal unions.** Export and use: `DiffSide` (types/diff.ts:36) for inline
    `'old' | 'new'` (review-capture.ts:603, 612; cli/github.ts:133, 138;
-   ImageDiffViewer.tsx:133; useExpandedLines.ts:64); an `ExpandDirection` for
-   `'up' | 'down'` (types/diff.ts:296, viewers/types.ts:35, useExpandedLines.ts:44, 270,
-   556, DiffViewer.tsx:74); `CursorPosition['side']` (no new alias name) for
+   ImageDiffViewer.tsx:133; useExpandedLines.ts:62); an `ExpandDirection` for
+   `'up' | 'down'` (types/diff.ts:296, viewers/types.ts:35, useExpandedLines.ts:42, 259,
+   529, DiffViewer.tsx:74); `CursorPosition['side']` (no new alias name) for
    `'left' | 'right'` (App.tsx:1278, viewers/types.ts:68, useKeyboardNavigation.ts:131,
    DiffViewer.tsx:90, DiffChunk.tsx:72, 145, SideBySideDiffChunk.tsx:71, 96);
    `ResolvedTheme` and an exported `ThemePreference` (appearanceTheme.ts:3, 7) for

@@ -73,7 +73,7 @@ describe('useLazyDiffRendering', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('starts rendering the new capture files when named tasks or versions change', () => {
+  it('starts rendering the new capture files when the named review changes', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
     const { result, rerender } = renderHook(
       ({ data }: { data: DiffResponse }) =>
@@ -87,8 +87,36 @@ describe('useLazyDiffRendering', () => {
     expect([...result.current.renderedFilePaths]).toEqual(['alpha-1.ts']);
     rerender({ data: captured('beta') });
     expect([...result.current.renderedFilePaths]).toEqual(['beta-1.ts']);
-    rerender({ data: captured('beta', 2) });
-    expect([...result.current.renderedFilePaths]).toEqual(['beta-2.ts']);
+  });
+
+  // Starting over would turn the files the reviewer scrolled to back into placeholders, and the
+  // page would land on another file.
+  it('keeps the files it rendered when the open review gets a new capture version', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+    const tenFiles = (version: number): DiffResponse => ({
+      ...captured('beta', version),
+      files: Array.from({ length: 10 }, (_, index) => ({
+        path: `file-${index}.ts`,
+        status: 'modified' as const,
+        additions: 1,
+        deletions: 1,
+        chunks: [],
+        isGenerated: false,
+      })),
+    });
+    const { result, rerender } = renderHook(
+      ({ data }: { data: DiffResponse }) =>
+        useLazyDiffRendering({
+          diffData: data,
+          diffScrollContainerRef: { current: null },
+          setDiffData: vi.fn(),
+        }),
+      { initialProps: { data: tenFiles(1) } },
+    );
+    expect(result.current.renderedFilePaths.has('file-9.ts')).toBe(false);
+    act(() => result.current.ensureFileRendered('file-9.ts'));
+    rerender({ data: tenFiles(2) });
+    expect(result.current.renderedFilePaths.has('file-9.ts')).toBe(true);
   });
 
   it('ignores an ordinary comparison response after switching to a capture with the same Git refs', async () => {

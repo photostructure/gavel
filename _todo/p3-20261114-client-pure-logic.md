@@ -39,15 +39,10 @@ Next: task 1 (useExpandedLines characterization tests).
 ## Lore
 
 - `getMergedChunks` must keep reusing `chunk.lines` when nothing in a chunk was
-  expanded: DiffChunk's `useMemo` keys on that array. App reads the function through
-  `getMergedChunksRef` and recomputes on `lastUpdatedAt` (App.tsx:832-858).
-- `utils/mergedChunks.ts:2` imports the `MergedChunk` type backwards from the hook.
+  expanded: DiffChunk's `useMemo` keys on that array. App builds its merged chunks in a
+  `useMemo` keyed on `getMergedChunks`, so they change in the same render as an expansion.
 - `DiffViewer`'s `buildChunkRanges` (DiffViewer.tsx:146) drops zero-line hunks while the
   hook's math does not. Do not unify them until the zero-length hunk defect is fixed.
-- Possible double expansion in `DiffViewer` (reasoned, not reproduced): in the render
-  after an expansion resolves, `isExpandLoading` is false while App's merged chunks are
-  still stale, so the effect can queue the same expansion again. Counts are clamped, so
-  nothing shows, but the stored count grows. Check it while adding the task 2 tests.
 - The `keyboardNavigation/` split is half done: `navigationCore.ts`,
   `navigationFilters.ts`, `scrollUtils.ts` exist; the hook still holds about 250 lines of
   pure search. No new files are needed there.
@@ -67,21 +62,20 @@ functions have unit tests in a `*.test.ts` beside the file that holds them, and
    (every fixture has them equal), two expansions accumulating on one range,
    `expandAllBetweenChunks` folding a `'down'` range into `'up'`, a middle gap expanded
    from both sides. Then, as its own commit, remove the in-file repeats: the
-   content-merge block (311-314, 398-401, 452-455), the generation and loading wrapper
-   (three times), the range lookup (five times), the gap formulas (575-585 / 429-434,
-   634-636 / 440-446). After that, move 555-791 and the `MergedChunk` type into
-   `utils/mergedChunks.ts`, which removes the backwards type import (Lore). Extract a
-   range reducer (`addRange` from 282-305, `consolidateGap` from 343-392,
-   `wholeFileRanges` from 428-447) only where it replaces one of those repeats. Use the
+   content-merge block (300-303, 386-389, 439-442), the generation and loading wrapper
+   (three times), the range lookup (five times), the gap formulas (548-558 / 416-421,
+   607-609 / 427-433). Extract a
+   range reducer (`addRange` from 271-294, `consolidateGap` from 331-380,
+   `wholeFileRanges` from 415-434) only where it replaces one of those repeats. Use the
    `ExpandedLine` type
-   (types/diff.ts:300-302) instead of casting `as DiffLine` (694, 722). That alone does
+   (types/diff.ts:300-302) instead of casting `as DiffLine` (667, 695). That alone does
    not remove the `'isExpanded' in` checks at DiffViewer.tsx:290, DiffLineRow.tsx:32,
    SideBySideDiffChunk.tsx:100-102: lines reach them through `MergedChunk.lines:
    DiffLine[]` and DiffChunk's `chunk` prop. Leave the three checks: removing them means
    retyping four shared types (`MergedChunk.lines`, `DiffChunkProps.chunk`,
    `viewers/types.ts`, `SideBySideLine`; `viewers/types.ts` is also edited on branch
    `feat/ship-it`) for three one-line checks. Share `DEFAULT_EXPAND_COUNT` (hook :12 and
-   ExpandButton.tsx:4). Pins: useExpandedLines.test.ts, mergedChunks.test.ts.
+   ExpandButton.tsx:4). Pins: useExpandedLines.test.ts.
 2. **DiffViewer gap expansion.** Keep the gap-expansion code (108-207, 263-276,
    340-408) in DiffViewer.tsx (514 lines); a hook with one caller would only move it.
    Add thread-driven, `'before'`, `'after'` and old-side cases to DiffViewer.test.tsx

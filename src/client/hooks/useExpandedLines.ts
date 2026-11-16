@@ -36,8 +36,6 @@ export interface MergedChunk extends DiffChunk {
 interface UseExpandedLinesResult {
   expandedState: ExpandedLinesState;
   isLoading: boolean;
-  lastUpdatedFilePath: string | null;
-  lastUpdatedAt: number;
   expandLines: (
     file: DiffFile,
     chunkIndex: number,
@@ -133,8 +131,6 @@ export function useExpandedLines({
   // never show, including on the render before the reset below runs.
   const expandedState = cachedStateKey === stateKey ? cachedExpandedState : EMPTY_EXPANDED_STATE;
   const [isLoading, setIsLoading] = useState(false);
-  const [lastUpdatedFilePath, setLastUpdatedFilePath] = useState<string | null>(null);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState(0);
   // Track pending fetch promises to allow waiting for in-flight requests
   const pendingFetchesRef = useRef<Map<string, Promise<FileExpandedState | null>>>(new Map());
   // Use ref to access current state without causing dependency loop
@@ -152,8 +148,6 @@ export function useExpandedLines({
     setExpandedState({});
     setCachedStateKey(stateKey);
     setIsLoading(false);
-    setLastUpdatedFilePath(null);
-    setLastUpdatedAt(0);
   }, [stateKey]);
 
   const markContextLoadFailed = useCallback((file: DiffFile, revisionGeneration: string) => {
@@ -258,11 +252,6 @@ export function useExpandedLines({
     [baseCommitish, targetCommitish, blobContentUnavailable, captureRef, markContextLoadFailed],
   );
 
-  const markFileUpdated = useCallback((filePath: string) => {
-    setLastUpdatedFilePath(filePath);
-    setLastUpdatedAt((prev) => prev + 1);
-  }, []);
-
   const expandLines = useCallback(
     async (
       file: DiffFile,
@@ -316,12 +305,11 @@ export function useExpandedLines({
             },
           };
         });
-        markFileUpdated(file.path);
       } finally {
         setIsLoading(false);
       }
     },
-    [ensureFileContent, markFileUpdated],
+    [ensureFileContent],
   );
 
   const expandAllBetweenChunks = useCallback(
@@ -403,12 +391,11 @@ export function useExpandedLines({
             },
           };
         });
-        markFileUpdated(file.path);
       } finally {
         setIsLoading(false);
       }
     },
-    [ensureFileContent, markFileUpdated],
+    [ensureFileContent],
   );
 
   const expandAllLines = useCallback(
@@ -456,25 +443,20 @@ export function useExpandedLines({
             expandedRanges: ranges.filter((range) => range.count > 0),
           },
         }));
-        markFileUpdated(file.path);
       } finally {
         setIsLoading(false);
       }
     },
-    [ensureFileContent, markFileUpdated],
+    [ensureFileContent],
   );
 
-  const collapseExpandedLines = useCallback(
-    (file: DiffFile) => {
-      setExpandedState((prev) => {
-        const current = prev[file.path];
-        if (!current || current.expandedRanges.length === 0) return prev;
-        return { ...prev, [file.path]: { ...current, expandedRanges: [] } };
-      });
-      markFileUpdated(file.path);
-    },
-    [markFileUpdated],
-  );
+  const collapseExpandedLines = useCallback((file: DiffFile) => {
+    setExpandedState((prev) => {
+      const current = prev[file.path];
+      if (!current || current.expandedRanges.length === 0) return prev;
+      return { ...prev, [file.path]: { ...current, expandedRanges: [] } };
+    });
+  }, []);
 
   // Pre-fetch only line counts (lightweight) to show bottom expand button
   const prefetchFileContent = useCallback(
@@ -502,7 +484,6 @@ export function useExpandedLines({
             expandedRanges: prev[file.path]?.expandedRanges ?? fileState.expandedRanges,
           },
         }));
-        markFileUpdated(file.path);
         return;
       }
 
@@ -537,19 +518,11 @@ export function useExpandedLines({
             },
           };
         });
-        markFileUpdated(file.path);
       } catch (error) {
         console.error('Failed to prefetch line count:', error);
       }
     },
-    [
-      baseCommitish,
-      targetCommitish,
-      blobContentUnavailable,
-      captureRef,
-      ensureFileContent,
-      markFileUpdated,
-    ],
+    [baseCommitish, targetCommitish, blobContentUnavailable, captureRef, ensureFileContent],
   );
 
   const getExpandedCount = useCallback(
@@ -798,8 +771,6 @@ export function useExpandedLines({
   return {
     expandedState,
     isLoading,
-    lastUpdatedFilePath,
-    lastUpdatedAt,
     expandLines,
     expandAllBetweenChunks,
     expandAllLines,

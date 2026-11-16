@@ -44,7 +44,7 @@ Next: client hooks and services batch.
 - Run the thread-copy item of `p1-20261114-remove-backward-compat.md` task 2 first: it deletes App.tsx:1736-1765
   and `getCommentThreads` / `removeCommentThreads`, which also carry `branchToHash`.
 - Deleting an always-true guard over an indexed or `Map.get` value
-  (useExpandedLines.ts:440, useViewedFiles.ts:157, 183, 202) leaves a `T | undefined`
+  (useExpandedLines.ts:427, useViewedFiles.ts:157, 183, 202) leaves a `T | undefined`
   type under `noUncheckedIndexedAccess`; each needs a non-null assertion.
 
 ## Decision
@@ -69,11 +69,10 @@ Each batch is one commit. Acceptance for every batch: `pnpm build`, `pnpm check`
 
 ### Client hooks and services
 
-- `useExpandedLines`: `lastUpdatedFilePath` (136, 155, 262, 801, no reader); returned
-  `getHiddenLinesBefore` / `getHiddenLinesAfter` (used only inside the hook); returned
+- `useExpandedLines`: returned `getHiddenLinesBefore` / `getHiddenLinesAfter` (used only inside the hook); returned
   `expandedState` (read only by tests, but the three reset tests at
   useExpandedLines.test.ts:213, 280, 308 check live reset behavior through it: give them
-  another observable first); `if (lastChunk)` at 440 (always true).
+  another observable first); `if (lastChunk)` at 427 (always true).
 - `useViewedFiles`: `isFileContentChanged` (304-313) and returned `getViewedFileRecord`
   (also remove their mocks at App.test.tsx:68-69)
   (never used in production); `if (!cancelled)` at 206, 208, 224 (the code after the only

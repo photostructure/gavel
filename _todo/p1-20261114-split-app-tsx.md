@@ -112,13 +112,12 @@ Mechanisms seen in sampled diffs (b963ee6, a4699a2, 99ea7f0, 9d9d6ee, f26016e):
     owns it and returns a stop function, which `handleRevisionChange` calls at 1638). Pass
     these as hook arguments. `loadRecentReviewsRef` goes in step 1.
   - Latest-value refs: `finishVerdictRef` (478), `toggleThreadResolvedRef` (1798),
-    `getMergedChunksRef` (832), `retargetOpsRef` (360/367). They keep a callback's
+    `retargetOpsRef` (360/367). They keep a callback's
     identity stable or let a deferred callback read the current render's state, so they
     must stay refs inside whichever hook takes them. Replacing `toggleThreadResolvedRef`
     with an argument re-renders the whole diff on every App render (1808-1814, commit
     1ef8304); replacing `finishVerdictRef` makes a verdict answer that arrives after a
-    retry run a stale closure (420-421); replacing `getMergedChunksRef` re-runs the
-    merged-chunks effect (846-858) whenever `getMergedChunks` changes identity.
+    retry run a stale closure (420-421).
 - `activeCommentsContextRef` (396-416) is a generation counter mutated during render. It
   stays in App with review selection; `useVerdict` takes the generation it reads.
 - `DiffViewer` is memoized (components/DiffViewer.tsx:216). Keep it off any context
