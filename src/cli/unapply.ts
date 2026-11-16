@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
-import { rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, realpathSync, rmSync } from 'node:fs';
+import { dirname, join, sep } from 'node:path';
 import { promisify } from 'node:util';
 
 import {
@@ -179,7 +179,16 @@ export async function revertCapture(
         if (error.code !== 1 || !checks[index]) throw error;
       });
   // The rejected hunks are in `rejected`; .rej files would be left untracked in the checkout.
-  if (rejected) for (const path of paths) rmSync(join(root, `${path}.rej`), { force: true });
+  // A patch path can climb out of the worktree or through a tracked symlink, since git apply
+  // reports a missing target without checking its path, so only directories inside it count.
+  if (rejected)
+    for (const path of paths) {
+      const file = join(root, `${path}.rej`);
+      const directory = dirname(file);
+      if (!existsSync(directory)) continue;
+      const real = realpathSync(directory);
+      if (real === root || real.startsWith(root + sep)) rmSync(file, { force: true });
+    }
   return result({ written: true, ...(stash ? { stash } : {}), ...fields });
 }
 

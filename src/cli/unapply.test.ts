@@ -6,11 +6,12 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -293,6 +294,62 @@ describe('revertCapture', () => {
     expect(read('shared.txt')).toBe(lines(30, { 6: 'other-6' }));
     expect(read('mine.txt')).toBe('mine, changed\n');
     expect(existsSync(join(root, 'shared.txt.rej'))).toBe(false);
+  });
+
+  // git apply removes a directory it empties, so that directory has no .rej file to delete.
+  it('reapplies a deletion that empties a directory while it rejects another hunk', async () => {
+    mkdirSync(join(root, 'dir'));
+    write('dir/x', 'x\n');
+    git('add', '.');
+    git('commit', '--quiet', '--no-verify', '-m', 'dir');
+    write('shared.txt', lines(30, { 5: 'mine-5' }));
+    unlinkSync(join(root, 'dir/x'));
+    const capture = await captureWorkingTree({ cwd: root });
+    await run(capture, 'unapply');
+    write('shared.txt', lines(30, { 6: 'other-6' }));
+    const result = await run(capture, 'reapply');
+    expect(result).toMatchObject({
+      written: true,
+      rejected: expect.stringContaining('shared.txt'),
+    });
+    expect(existsSync(join(root, 'dir'))).toBe(false);
+  });
+
+  // git apply --check --reject reports a missing target as an error and exits 0, without the
+  // path checks it gives existing files, so a patch can name a path outside the worktree.
+  describe('with a .rej file outside the worktree', () => {
+    let outside: string;
+    const modify = (path: string) =>
+      `--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-mine\n+mine, changed\n`;
+
+    beforeEach(() => {
+      outside = realpathSync(mkdtempSync(join(tmpdir(), 'gavel-unapply-outside-')));
+    });
+    afterEach(() => rmSync(outside, { recursive: true, force: true }));
+
+    it('leaves it in place for a path that climbs out of the worktree', async () => {
+      writeFileSync(join(outside, 'v.rej'), 'outside\n');
+      const patch = modify(join(relative(root, outside), 'v'));
+      const capture = capturePatch(patch, await getCaptureRepository(root));
+      expect(await run(capture, 'reapply')).toMatchObject({
+        written: true,
+        rejected: expect.stringContaining('v: No such file'),
+      });
+      expect(readFileSync(join(outside, 'v.rej'), 'utf8')).toBe('outside\n');
+    });
+
+    it('leaves it in place for a path through a tracked symlink', async () => {
+      symlinkSync(relative(root, outside), join(root, 'lnk'));
+      git('add', 'lnk');
+      git('commit', '--quiet', '--no-verify', '-m', 'link');
+      writeFileSync(join(outside, 'w.rej'), 'outside\n');
+      const capture = capturePatch(modify('lnk/w'), await getCaptureRepository(root));
+      expect(await run(capture, 'unapply')).toMatchObject({
+        written: true,
+        rejected: expect.stringContaining('lnk/w: No such file'),
+      });
+      expect(readFileSync(join(outside, 'w.rej'), 'utf8')).toBe('outside\n');
+    });
   });
 
   it('restores the capture with reapply', async () => {
