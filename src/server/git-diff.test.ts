@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'path';
 import { simpleGit } from 'simple-git';
 
@@ -12,12 +14,13 @@ vi.mock('simple-git', () => ({
     revparse: vi.fn(),
     diff: vi.fn(),
     raw: vi.fn(),
+    checkIgnore: vi.fn().mockResolvedValue([]),
   })),
 }));
 
 // Mock child_process
-vi.mock('child_process', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('child_process')>();
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
 
   return {
     default: actual,
@@ -28,12 +31,12 @@ vi.mock('child_process', async (importOriginal) => {
 });
 
 // Mock fs
-vi.mock('fs', async (importOriginal) => {
+vi.mock('node:fs', async (importOriginal) => {
   const actual = (await importOriginal()) as any;
   return {
     ...actual,
     readFileSync: vi.fn(),
-    realpathSync: vi.fn((path: string) => path),
+    realpathSync: { native: vi.fn((path: string) => path) },
   };
 });
 
@@ -48,11 +51,9 @@ describe('GitDiffParser', () => {
     vi.clearAllMocks();
 
     // Get mocked functions
-    const childProcess = await import('child_process');
-    const fs = await import('fs');
-    mockExecFileSync = childProcess.execFileSync;
-    mockReadFileSync = fs.readFileSync;
-    mockRealpathSync = fs.realpathSync;
+    mockExecFileSync = execFileSync;
+    mockReadFileSync = readFileSync;
+    mockRealpathSync = realpathSync.native;
     mockRealpathSync.mockImplementation((path: string) => path);
   });
 
@@ -184,6 +185,22 @@ describe('GitDiffParser', () => {
         'File path outside repository',
       );
 
+      expect(mockReadFileSync).not.toHaveBeenCalled();
+    });
+
+    it('refuses a Windows 8.3 short name for .git', async () => {
+      // On a Windows volume with 8.3 names, fs.realpathSync('GIT~1/config') keeps the short
+      // name while fs.realpathSync.native returns C:\repo\.git\config (checked with Node on
+      // Windows 11).
+      mockRealpathSync.mockImplementation((path: string) =>
+        path === resolve(TEST_REPO_PATH, 'GIT~1/config')
+          ? resolve(TEST_REPO_PATH, '.git/config')
+          : path,
+      );
+
+      await expect(parser.getBlobContent('GIT~1/config', 'working')).rejects.toThrow(
+        'File path outside repository',
+      );
       expect(mockReadFileSync).not.toHaveBeenCalled();
     });
 

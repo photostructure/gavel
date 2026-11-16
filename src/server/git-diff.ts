@@ -1,7 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { readFileSync, realpathSync } from 'node:fs';
 
 import { type SimpleGit } from 'simple-git';
-import { basename, dirname, isAbsolute, resolve, sep } from 'path';
+import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { validateDiffArguments, shortHash, createCommitRangeString } from '../cli/utils.js';
 import {
@@ -772,27 +774,37 @@ export class GitDiffParser {
     try {
       // For working directory, read directly from filesystem
       if (ref === 'working' || ref === '.') {
-        const fs = await import('fs');
         if (filepath.length === 0) {
           throw new Error('Invalid file path');
         }
 
-        const repositoryPath = fs.realpathSync(resolve(this.repoPath));
+        const repositoryPath = realpathSync.native(resolve(this.repoPath));
         const repositoryRoot = `${repositoryPath}${sep}`;
-        const absolutePath = fs.realpathSync(resolve(repositoryRoot, filepath.replace(/\\/g, '/')));
+        const absolutePath = realpathSync.native(
+          resolve(repositoryRoot, filepath.replace(/\\/g, '/')),
+        );
 
         if (!absolutePath.startsWith(repositoryRoot)) {
           throw new Error('File path outside repository');
         }
 
-        return fs.readFileSync(absolutePath);
+        // Git metadata and ignored files (credentials in .git/config, .env) are not part of any
+        // review, so a token holder gets the same answer as for a path outside the repository.
+        const relativePath = relative(repositoryPath, absolutePath).split(sep).join('/');
+        if (
+          relativePath.split('/')[0].toLowerCase() === '.git' ||
+          (await this.git.checkIgnore(['--', relativePath])).length > 0
+        ) {
+          throw new Error('File path outside repository');
+        }
+
+        return readFileSync(absolutePath);
       }
 
       const normalizedFilepath = this.normalizeRepositoryRelativePath(filepath);
 
       // For git refs, we need to use child_process to execute git cat-file
       // to properly handle binary data
-      const { execFileSync } = await import('child_process');
 
       // Handle staged files
       if (ref === 'staged') {

@@ -73,13 +73,11 @@ names must survive); `pnpm build`, `pnpm check` and `pnpm knip` pass.
    files"). `shortHash` for `hash.substring(0, 7)` (906, 1003); `BranchInfo` / `CommitInfo` for
    the inline return type at 968-976. Pins: git-diff.test.ts, git-diff.metadata.test.ts,
    git-diff.capture.test.ts.
-2. **Fix `getBlobContent`** (git-diff.ts:768-818): static `node:` imports instead of
-   `await import('fs')` (772) and `await import('child_process')` (792), `cwd:
-   this.repoPath` (today it relies on `process.cwd()` being inside the repo, true for
-   every current caller), and one blob size limit (10 MB here, 64 MiB at
-   review-capture.ts:509). The `vi.mock('child_process')` / `vi.mock('fs')` in
-   git-diff.test.ts:19-38 depend on the current names; check whether Vitest applies them
-   to `node:` specifiers. Rework the `getBlobContent` describe (85-213).
+2. **Fix `getBlobContent`** (git-diff.ts:768-818): `cwd: this.repoPath` (today it relies
+   on `process.cwd()` being inside the repo, true for every current caller), and one blob
+   size limit (10 MB here, 64 MiB at review-capture.ts:509). Rework the `getBlobContent`
+   describe (85-213). The static `node:fs` and `node:child_process` imports landed with
+   `p3-20261115-blob-reads-git-dir-and-ignored-files.md`.
 3. **review-capture.ts tidies, no split.** Add one ENOENT/ENOTDIR helper for 877-888
    and 958-969. Ask Matthew whether the untracked-directory check at 1066-1069 is a
    deliberate recheck of 1042-1046; if it is redundant, delete it. Pins:
