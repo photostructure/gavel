@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 ### Breaking changes
 
-- The verdicts are **Approve** and **Reject**, replacing **Approve as-is**, **Approve after comments**, and **Not yet**. Approve tells the agent to address your comments and commit, and it survives recaptures; only you can clear a Reject (see [approval modes](docs/approval-modes.md)).
+- The verdicts are **Approve** and **Reject**, replacing **Approve as-is**, **Approve after comments**, and **Not yet**. Approve tells the agent to address your comments and commit, and it survives recaptures; only you can clear a Reject (see [approval modes](https://github.com/photostructure/gavel/blob/v7.0.0/docs/approval-modes.md)).
 - The approval JSON in `/api/approval`, `comment snapshot`, `review.approval` events, and `gavel approval status` carries one `verdict` field (`approve` or `reject`) in place of `approved`, `requested`, `mode`, `notYet`, `conditionalSupported`, `conditions`, `baselineCapture`, and `diffDigest`. `review.approval` events and `gavel approval status` also lose their top-level `approved`, and `gavel approval status` loses `name` (read `selection.reviewName`).
 - `PUT /api/approval` sets a verdict and `DELETE /api/approval` clears it; `POST /api/approval`, `/api/approval/conditional`, `/api/approval/not-yet`, `gavel comment address`, and `gavel schema address` are gone.
 - **Change summary** is read-only and sits at the top of the diff; ask the agent in a comment for a different message. `POST /api/review-summary` is gone.
@@ -27,7 +27,7 @@ All notable changes to this project will be documented in this file.
 - The header's robot icon turns red when verdicts and comments won't reach the agent, and orange when another review's server holds the address; its menu says what to do, and a click reconnects to an unreachable server.
 - **Copy resume prompt** in the robot's menu names the review's agent session, host, and repository, and a chat that is not that session asks you to confirm before it continues.
 - The access screen's **Copy prompt for your agent** button asks your agent for the page's full link with its access token.
-- `gavel pending` prints review activity that never reached a Claude Code session, for example after the session restarted. Run it from `UserPromptSubmit` and `SessionStart` hooks; see [waiting for review](docs/waiting-for-review.md).
+- `gavel pending` prints review activity that never reached a Claude Code session, for example after the session restarted. Run it from `UserPromptSubmit` and `SessionStart` hooks; see [waiting for review](https://github.com/photostructure/gavel/blob/v7.0.0/docs/waiting-for-review.md).
 - `gavel comment snapshot --review <name>` prints only that review and exits 1 if there is none; it also accepts a `reviewId` or inbox label. `gavel comment delete --review <name>` deletes threads from a named review.
 - `pkill -USR2 -x gavel-server` stops every server whose review tabs all have a verdict, and every `--no-lgtm` server with a review tab; others keep running. Background servers now release review locks on SIGTERM.
 - Links in comments jump to a comment (`#thread=<id>`), to lines of a file (`#file=<path>&line=40-52`), or into another named review (`?review=<name>#…`), and Back returns to the link. See [links in comments](docs/cli.md#links-in-comments).
