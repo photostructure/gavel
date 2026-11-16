@@ -34,8 +34,8 @@ Next: task 1.
   (existing test-only modules in `src/`)
 - `_todo/p3-20261110-git-env-config-isolation.md` (same Git environment
   question as task 1)
-- `_todo/p1-20261114-agent-updates-render-count-flake.md` (stabilize before touching
-  `App.agentUpdates.test.tsx`)
+- `p1-20261114-agent-updates-render-count-flake.md` (how the render-count tests in
+  `App.agentUpdates.test.tsx` wait for the initial load)
 
 ## Lore
 

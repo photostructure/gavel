@@ -61,10 +61,12 @@ describe('navigating unseen agent replies', () => {
   let threads: DiffCommentThread[];
   let otherThreads: DiffCommentThread[];
   let inline: boolean;
+  let generated: boolean;
   let approvalState: ReviewApproval | null;
   afterEach(() => vi.unstubAllGlobals());
   beforeEach(() => {
     inline = false;
+    generated = false;
     approvalState = null;
     otherThreads = [];
     localStorage.clear();
@@ -153,6 +155,18 @@ describe('navigating unseen agent replies', () => {
                     ]
                   : [],
               },
+              ...(generated
+                ? [
+                    {
+                      path: 'generated.ts',
+                      status: 'added',
+                      additions: 1,
+                      deletions: 0,
+                      isGenerated: true,
+                      chunks: [],
+                    },
+                  ]
+                : []),
             ],
           }),
         );
@@ -213,6 +227,11 @@ describe('navigating unseen agent replies', () => {
       ),
     );
 
+  // A generated file starts viewed, and viewed files load after hashing every file, so the
+  // generated file collapsing is the last render of the initial load.
+  const initialLoadSettled = () =>
+    screen.findByRole('button', { name: 'Expand file (Alt+Click to expand all)' });
+
   // Resolving says the reviewer is done with the thread; reopening leaves its replies read.
   it.each([
     [
@@ -234,10 +253,10 @@ describe('navigating unseen agent replies', () => {
   // On a large diff, re-rendering every file took seconds each time Conversation opened or closed.
   it('leaves the diff unrendered when Conversation opens and closes', async () => {
     inline = true;
+    generated = true;
     mount();
-    const rendersBefore = diffViewerRenders.count;
     await expectUnread(2);
-    await waitFor(() => expect(diffViewerRenders.count).toBeGreaterThan(rendersBefore));
+    await initialLoadSettled();
     const before = diffViewerRenders.count;
 
     fireEvent.click(screen.getByRole('button', { name: 'Conversation' }));
@@ -250,10 +269,10 @@ describe('navigating unseen agent replies', () => {
 
   it('leaves the diff unrendered when a reply is marked read', async () => {
     inline = true;
-    const rendersBefore = diffViewerRenders.count;
+    generated = true;
     mount();
     await expectUnread(2);
-    await waitFor(() => expect(diffViewerRenders.count).toBeGreaterThan(rendersBefore));
+    await initialLoadSettled();
     fireEvent.click(screen.getByRole('button', { name: 'Conversation' }));
     await screen.findByRole('dialog', { name: /Conversation/ });
     const before = diffViewerRenders.count;

@@ -39,7 +39,7 @@ Next: after `p1-20261114-delete-dead-code.md`, `p1-20261114-remove-backward-comp
   `getNamedReviewStorageRef`, the legacy-thread copy at 1736-1765)
 - `src/client/App.tsx` in full before step 1; it changes often
 - `_todo/p2-20261113-queued-verdict-not-shown.md` (plans changes to `handleVerdict`)
-- `_todo/p1-20261114-agent-updates-render-count-flake.md`
+- `p1-20261114-agent-updates-render-count-flake.md`
 
 ## Where conflicts come from
 
@@ -122,9 +122,9 @@ Mechanisms seen in sampled diffs (b963ee6, a4699a2, 99ea7f0, 9d9d6ee, f26016e):
   stays in App with review selection; `useVerdict` takes the generation it reads.
 - `DiffViewer` is memoized (components/DiffViewer.tsx:216). Keep it off any context
   whose value changes on read marks or toggles: commit 1ef8304 and the `diffViewerRenders`
-  render-count test in App.agentUpdates.test.tsx pin that. That test is flaky under load;
-  stabilize it first (`_todo/p1-20261114-agent-updates-render-count-flake.md`), or its
-  failures during this work will be ambiguous.
+  render-count test in App.agentUpdates.test.tsx pin that. That test waits for the initial
+  load to finish before counting (`p1-20261114-agent-updates-render-count-flake.md`), so a
+  count mismatch means a real extra render.
 - `FileList` is `memo` (FileList.tsx:216), but App passes it callbacks and JSX recreated
   every render (`handleFileOpened` 1216, `handleFirstCommentOpened` 1205, the inline
   `onScrollToSummary` 2369-2377, `headerStatus` 2350-2364), so the memo never skips a
