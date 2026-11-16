@@ -93,6 +93,32 @@ describe('native Git metadata paths', () => {
     },
   );
 
+  it('renders a metadata-only mode change from a diff with an empty source prefix', () => {
+    // `git diff --src-prefix= --dst-prefix=b/` (or `diff.srcPrefix=`) writes this header.
+    const patch = 'diff --git plain space.sh b/plain space.sh\nold mode 100644\nnew mode 100755\n';
+    expect(new GitDiffParser().parseStdinDiff(patch).files).toEqual([
+      expect.objectContaining({ path: 'plain space.sh', status: 'modified', chunks: [] }),
+    ]);
+  });
+
+  it.each([10, 1000])(
+    'decodes a header path once per side when it holds %i " a/" boundaries',
+    (boundaries) => {
+      const path = `${'d a/'.repeat(boundaries)}f`;
+      const patch = `diff --git a/${path} b/${path}\nold mode 100644\nnew mode 100755\n`;
+      const decode = vi.spyOn(GitDiffParser.prototype as any, 'decodeGitPath');
+      try {
+        expect(new GitDiffParser().parseStdinDiff(patch).files).toEqual([
+          expect.objectContaining({ path, status: 'modified' }),
+        ]);
+        // Decoding both halves at every boundary took quadratic time: 6.5 s for a 16 KB header.
+        expect(decode).toHaveBeenCalledTimes(2);
+      } finally {
+        decode.mockRestore();
+      }
+    },
+  );
+
   it.each([
     { operation: 'rename', status: 'renamed' },
     { operation: 'copy', status: 'copied' },

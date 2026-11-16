@@ -553,11 +553,14 @@ export class GitDiffParser {
 
     if (segments.length !== 2) {
       // Git leaves spaces unquoted. Metadata-only changes have no ---/+++
-      // paths, so locate the boundary whose decoded paths agree instead of
-      // treating every space as an argument separator. Testing every candidate
-      // also preserves literal " b/" within a filename.
-      for (let index = 0; index < raw.length; index++) {
-        if (raw[index] !== ' ' || !/^[abciw]\//.test(raw.slice(index + 1))) continue;
+      // paths, so find the boundary whose decoded paths agree instead of
+      // treating every space as an argument separator. Git writes identical
+      // old and new paths the same way, so only two spaces can be that
+      // boundary, even when a filename contains " b/": the middle one, or the
+      // one before it when the old path has an empty prefix
+      // (`--src-prefix=`). Decoding at every space took quadratic time.
+      for (const index of [(raw.length - 3) / 2, (raw.length - 1) / 2]) {
+        if (!Number.isInteger(index) || !/^ [abciw]\//.test(raw.slice(index))) continue;
         const oldPath = this.decodeGitPath(raw.slice(0, index), nonUtf8Paths);
         const newPath = this.decodeGitPath(raw.slice(index + 1), nonUtf8Paths);
         if (oldPath === newPath) return { oldPath, newPath };
