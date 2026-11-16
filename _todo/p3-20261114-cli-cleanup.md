@@ -55,7 +55,7 @@ one place.
 1. **Move the program into `src/cli/program.ts`** exporting `createProgram()`; `index.ts`
    keeps only `void createProgram().parseAsync()`. `index.ts` must stay the entry point:
    `package.json` `bin` and `main`, the `dev:cli` and `start` scripts, `scripts/dev.js:54`,
-   `scripts/host-wait-e2e/run.sh:22`, `scripts/measure-performance.js:73`,
+   `scripts/host-wait-e2e/run.sh:12`, `scripts/measure-performance.js:73`,
    `scripts/release-package.mjs:98` (asserts `bin.gavel === './dist/cli/index.js'`) and
    `index.integration.test.ts:88` all point at `dist/cli/index.js`. Rewrite
    `index.test.ts` against the real program, deleting tests the integration test already

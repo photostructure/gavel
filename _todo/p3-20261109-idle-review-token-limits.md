@@ -19,6 +19,7 @@ Keep human-feedback handling resumable after a guard stops an agent.
 
 Start from "Wait for feedback" in `skills/gavel/SKILL.md`, "Human review: end the
 turn" in `.codex/skills/gavel/SKILL.md`, `gavel wait --help`, and the existing
-[host wait check](../scripts/host-wait-e2e/README.md), which measures actual model
-calls. Extend that evidence to repeated failures and recovery loops before
-claiming a host prevents idle token use. No live-model test is scheduled by this plan.
+[host wait check](../scripts/host-wait-e2e/README.md), which tests `gavel wait`
+without a model and measures no model calls. Nothing in the repository
+measures a host's idle token use, so do not claim a host prevents it. No live-model
+test is scheduled by this plan.
