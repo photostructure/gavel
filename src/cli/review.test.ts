@@ -571,8 +571,8 @@ describe('named review CLI', () => {
       );
       expect(error).toHaveBeenCalledWith(
         action === 'create'
-          ? 'Error: Review "task" already exists. Read /api/reviews/task before retrying'
-          : `Error: Capture version conflict; current version 7, digest ${capture.patchDigest}. Read /api/reviews/task before retrying`,
+          ? 'Error: Review "task" already exists. Run gavel comment snapshot --review task before retrying'
+          : `Error: Capture version conflict; current version 7, digest ${capture.patchDigest}. Run gavel comment snapshot --review task before retrying`,
       );
       expect(process.exitCode).toBe(1);
       expect(log).not.toHaveBeenCalled();

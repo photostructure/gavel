@@ -189,12 +189,17 @@ Save the result's port and cursor and pass them to --after on the next invocatio
 to include changes made between waits. Keep each server's last returned cursor.
 Expired/restarted cursors require explicit snapshot reconciliation.
 
-Exit codes: 0 = nonempty human-event batch; 1 = usage/protocol error;
-2 = connection failure/server exit; 3 = cursor reconciliation required.
+Exit codes: 0 = nonempty human-event batch; 1 = usage/protocol error (fix the
+arguments and retry once, otherwise report it); 2 = connection failure/server exit
+(inspect the server; do not retry); 3 = cursor reconciliation required.
 4 = no reviewer connected on any selected server; end the turn, do not retry.
 Queued comments and replayed human events are returned before the presence guard.
 Presence changes never count as human work. Hidden connected tabs remain connected.
-Run one background command in the owning main session, without a shell timeout.
+
+Use wait only when your host runs it as a background command with no time limit and
+resumes the owning agent when it exits. Run one waiter, in the owning main session.
+Otherwise end the turn; the reviewer resumes the agent by pasting the page's Copy
+resume prompt. Never poll snapshots or rerun wait on a timer.
 `,
     )
     .action(async (options: { port: number[]; after: string[]; host: string }) => {

@@ -102,6 +102,26 @@ export function createPendingCommand(): Command {
     .description(
       "Print review activity that never reached this Claude Code session's inbox; for prompt hooks",
     )
+    .addHelpText(
+      'after',
+      `
+A review launched from a Claude Code session sends your verdicts and comments to that
+session's inbox, which moves when Claude Code restarts. This command sends the session's
+current inbox to each of its running servers and prints activity that failed to arrive.
+Run it from Claude Code hooks, with your gavel launcher in place of gavel:
+
+  {"hooks": {
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "gavel pending"}]}],
+    "SessionStart": [{"hooks": [{"type": "command", "command": "gavel pending"}]}]}}
+
+Set Claude Code's crossSessionInbound to "accept" so gavel's messages start a turn in every
+permission mode. With "hold" or "refuse", Claude Code withholds them, and this command
+cannot recover them. Left unset, it also withholds them while the session bypasses
+permission prompts, unless the server runs under Claude Code's own process; a
+--background server does not. Reviews opened
+before /clear belong to the old session; paste the page's Copy resume prompt instead.
+`,
+    )
     .action(async () => {
       let env = process.env;
       // A hook's input names the session even when its environment does not.

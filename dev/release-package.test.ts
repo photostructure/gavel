@@ -17,7 +17,7 @@ const files = [
   'package.json',
   'README.md',
   'LICENSE',
-  'docs/agent-conversations.md',
+  'docs/cli.md',
   'docs/remote-review.md',
   'dist/cli/index.js',
   'dist/server/server.js',

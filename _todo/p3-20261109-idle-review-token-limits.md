@@ -17,8 +17,8 @@ repeated turns without new human feedback. Determine where the enforcement must
 live before proposing a spending cap or implying that gavel can control billing.
 Keep human-feedback handling resumable after a guard stops an agent.
 
-Start from [the Codex integration guide](../docs/codex-review-integration.md),
-[waiting behavior](../docs/waiting-for-review.md), and the existing
+Start from "Wait for feedback" in `skills/gavel/SKILL.md`, "Human review: end the
+turn" in `.codex/skills/gavel/SKILL.md`, `gavel wait --help`, and the existing
 [host wait check](../scripts/host-wait-e2e/README.md), which measures actual model
 calls. Extend that evidence to repeated failures and recovery loops before
 claiming a host prevents idle token use. No live-model test is scheduled by this plan.

@@ -27,7 +27,6 @@ Next: task 1 (in-process compat), one commit per item.
 
 - `AGENTS.md` (commit trailers: `!` and `Changelog:` for removed endpoints, flags, fields)
 - `p1-20261114-refactor-arc.md`
-- `docs/agent-conversations.md` ("Compatibility" section, saved reviews)
 - `_todo/p2-20261107-server-only-review-state.md` (the "Migration" bullet under "Done
   (2026-11-11)" describes the thread migration this plan deletes; the "What the browser
   stores now" section stays)
@@ -70,8 +69,7 @@ Next: task 1 (in-process compat), one commit per item.
 - The 404 message in `gavel wait` (wait.ts:66-70) fires against a current server started
   with `--no-conversation --no-jsonl`, which registers no conversation routes
   (server.ts:253-255, 1533). Keep the conversation-mode hint; drop only its "needs a
-  build with /api/conversation/events" wording (and the same at
-  waiting-for-review.md:208-209).
+  build with /api/conversation/events" wording.
 - `--lgtm` / `--ship-it` (added together in 6f09ae5), `-v`, `@` for HEAD.
 - Capture `schemaVersion` stays: `validateCapture` rejects any other value with an error
   (review-capture.ts:482-483), and it is part of the capture JSON that agents read. The
@@ -109,8 +107,7 @@ Each is its own commit.
   emits (types/events.ts:23, schema.ts:393) and the `selection` parameter of
   `outputFinalComments` (server.ts:2108). Delete the six tests at server.test.ts:4273,
   4313, 4356, 4395 (the `it.each` "rejects browser-simple $contentType approval
-  requests"), 4415, 4449 and live-approval.integration.test.ts:244-249; edit
-  agent-conversations.md:466-469. Breaking for JSONL consumers matching `'approved'`:
+  requests"), 4415, 4449 and live-approval.integration.test.ts:244-249. Breaking for JSONL consumers matching `'approved'`:
   `!` and a `Changelog:` trailer.
   Acceptance: `pnpm test server live-approval schema` passes; `rg "ship-it" src` finds
   only the CLI flag.
@@ -151,10 +148,7 @@ Each is its own commit.
   `DiffResponse.reviewContext` (:86) required if it holds.
 - **`launchUrl ?? url`** in dev/dev-stdout.js:28-31 (`launchUrl` is required by
   schema.ts:369).
-- **Docs and skill text advising older builds**: SKILL.md:86-87,
-  agent-conversations.md:537-541 and :469, waiting-for-review.md:50-51 and :208-211.
-  Move the current HTTP reference at agent-conversations.md:543-552 out from under the
-  "Compatibility" heading.
+- **Skill text advising older builds**: SKILL.md:86-87.
 
 ### 2. Persisted-data compat
 
@@ -207,8 +201,8 @@ surprise him.
 
 ### 3. Agent-contract compat
 
-These change what an agent may send or read. Update `skills/gavel/` and
-`docs/agent-conversations.md` in the same commit, mark the subject with `!`, and say in
+These change what an agent may send or read. Update `skills/gavel/` and the affected
+`--help` and `gavel schema` text in the same commit, mark the subject with `!`, and say in
 the `Changelog:` trailer what an agent must change.
 
 - **The `{comments: [...]}` body of `POST /api/comments`** (`LegacyComment`):
@@ -222,17 +216,16 @@ the `Changelog:` trailer what an agent must change.
   server.test.ts sites use it as a fixture and need `threads` (242, 293, 778, 862, 958,
   1406, 1635, 1652, 1668, 1687, 1714, 1799, 2627, 3242, 3245, 3460, 3555, 3587, 3669,
   3741, 3825, 4285, 4368). Afterwards such a body gets HTTP 400.
-- **`comment remove` alias** (comment.ts:138). Tests comment.test.ts:94-96, 379-394;
-  docs agent-conversations.md:375 and :378.
+- **`comment remove` alias** (comment.ts:138). Tests comment.test.ts:94-96, 379-394.
 - **Thread-level `isQuestion`**, which predates root-message `intent` (498a059 then
   e56fe35). No saved data can hold `isQuestion` without a root intent, but the field is
   in the schema's `CommentThread` (schema.ts:64), so agents can read it. Read fallbacks:
   commentFormatting.ts:151, CommentThreadCard.tsx:682. Writers and pass-throughs:
   useDiffComments.ts:29, 79, 102, 108-112; reviewOps.ts:179-181; commentImports.ts:350,
-  453-456; commentThreads.ts:12; server.ts:1381, 1423; App.tsx:1835; CommentForm.tsx:11, 86. Types: types/diff.ts:154, 239. Docs: agent-conversations.md:352-354. About 46
+  453-456; commentThreads.ts:12; server.ts:1381, 1423; App.tsx:1835; CommentForm.tsx:11, 86. Types: types/diff.ts:154, 239. About 46
   fixture references across 12 test files (`rg -c isQuestion src`).
 - **Reply without a revision cursor** (conversation.ts:661-665, 676, 690, 716;
-  schema.ts:563-566; docs agent-conversations.md:406-408; the `reply` argument help in
+  schema.ts:563-566; the `reply` argument help in
   src/cli/conversation.ts:155, which says "optional cursor/author"). The skill already
   requires the cursor (skills/gavel/references/feedback.md:57). Find the tests that reply without
   one (`rg "conversation/reply" src --glob '*.test.*'`) before changing them.

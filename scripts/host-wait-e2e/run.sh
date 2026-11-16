@@ -226,9 +226,8 @@ fi
 
 # Name this checkout's skill and build, so the run tests them rather than an installed copy.
 PROMPT="A gavel review named $REVIEW is running for this repository at API host $HOST port $PORT. \
-Follow $PROJECT_ROOT/skills/gavel/SKILL.md, with \`${GAVEL[*]}\` as its gavel command, and \
-$PROJECT_ROOT/docs/waiting-for-review.md: wait for my review \
-feedback without waking yourself on a timer, answer each of my comments in its gavel thread, \
+Follow $PROJECT_ROOT/skills/gavel/SKILL.md, with \`${GAVEL[*]}\` as its gavel command. \
+Wait for my review feedback without waking yourself on a timer, answer each of my comments in its gavel thread, \
 and acknowledge approval in chat. Do not edit or commit files."
 
 case "$MODE" in

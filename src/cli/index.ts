@@ -562,8 +562,9 @@ Agent protocol:
   gavel comment reply --help    Exact-thread reply payload
   gavel comment status --help   Explicit delivery and progress receipts
   gavel comment snapshot --host <host> --port <port>  Recover current review state
+  gavel schema approval         Verdict request schema
+  gavel <command> --help        Options and payloads for each command
   Remote browsers: docs/remote-review.md
-  Approval modes: docs/approval-modes.md (schema approval)
 
 Summary JSON: {"reviewId":"...","commitMessage":"fix: ...","rationale":"Short TLDR","baseVersion":0}
 Comment JSON events include type, reviewId, threadId, messageId, cursor, and body.

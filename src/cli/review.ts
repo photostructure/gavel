@@ -225,7 +225,7 @@ function serializeReviewRequest(
 async function readResponse(
   response: Response,
   name: string,
-  conflictHint = `Read /api/reviews/${encodeURIComponent(name)} before retrying`,
+  conflictHint = `Run gavel comment snapshot --review ${name} before retrying`,
 ): Promise<unknown> {
   if (response.ok) {
     const body: unknown = await response.json();
