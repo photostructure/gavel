@@ -13,6 +13,15 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
   // Handle Escape key to close modal
   useHotkeys('escape', () => onClose(), { enabled: isOpen }, [onClose, isOpen]);
 
+  // ? opens this help in the navigation scope, which the modal disables, so the modal binds
+  // ? itself to close. As there, match ? whatever modifiers typed it.
+  useHotkeys(
+    '?',
+    () => onClose(),
+    { enabled: isOpen, useKey: true, ignoreModifiers: true, preventDefault: true },
+    [onClose, isOpen],
+  );
+
   // Manage scopes when modal opens/closes
   useEffect(() => {
     if (isOpen) {

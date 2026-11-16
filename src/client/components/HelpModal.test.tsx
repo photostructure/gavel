@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
 import { describe, expect, it, vi } from 'vitest';
 
+import { useKeyboardNavigation } from '../hooks/useKeyboardNavigation';
+
 import { AboutPanel } from './AboutPanel';
 import { HelpModal } from './HelpModal';
 
@@ -29,7 +31,39 @@ function AboutThenHelp() {
   );
 }
 
+// The app's wiring: ? in the navigation scope opens the help, and the help closes itself
+function HelpFromKeyboard() {
+  const { isHelpOpen, setIsHelpOpen } = useKeyboardNavigation({
+    files: [],
+    comments: [],
+    onToggleReviewed: vi.fn(),
+    reviewedFiles: new Set<string>(),
+    collapsedFiles: new Set<string>(),
+  });
+  return <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />;
+}
+
 describe('HelpModal', () => {
+  // Its own row reads "Show/hide this help"
+  it('closes with the ? that opened it', async () => {
+    const user = userEvent.setup();
+    render(
+      <HotkeysProvider initiallyActiveScopes={['navigation']}>
+        <HelpFromKeyboard />
+      </HotkeysProvider>,
+    );
+    const heading = () => screen.queryByRole('heading', { name: 'Keyboard Shortcuts' });
+
+    await user.keyboard('{Shift>}?{/Shift}');
+    expect(heading()).toBeInTheDocument();
+
+    await user.keyboard('{Shift>}?{/Shift}');
+    expect(heading()).not.toBeInTheDocument();
+
+    await user.keyboard('{Shift>}?{/Shift}');
+    expect(heading()).toBeInTheDocument();
+  });
+
   // The header's toasts float at z-50 above Conversation; this dialog sits above them, below the
   // tooltips (z-[60]), so a toast cannot cover it or take its clicks.
   it('sits above the header toasts', () => {
