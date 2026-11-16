@@ -32,7 +32,7 @@
     "LICENSE",
     "docs/cli.md",
     "docs/agent-conversations.md",
-    "docs/server-addresses.md",
+    "docs/remote-review.md",
     "docs/waiting-for-review.md",
     "docs/codex-review-integration.md",
     "docs/approval-modes.md",

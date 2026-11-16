@@ -18,6 +18,7 @@ const files = [
   'README.md',
   'LICENSE',
   'docs/agent-conversations.md',
+  'docs/remote-review.md',
   'dist/cli/index.js',
   'dist/server/server.js',
   'dist/client/index.html',

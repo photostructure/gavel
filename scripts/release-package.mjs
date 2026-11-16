@@ -68,6 +68,7 @@ function verify() {
     'package/README.md',
     'package/LICENSE',
     'package/docs/agent-conversations.md',
+    'package/docs/remote-review.md',
     'package/dist/cli/index.js',
     'package/dist/server/server.js',
     'package/dist/client/index.html',

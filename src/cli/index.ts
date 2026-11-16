@@ -562,7 +562,7 @@ Agent protocol:
   gavel comment reply --help    Exact-thread reply payload
   gavel comment status --help   Explicit delivery and progress receipts
   gavel comment snapshot --host <host> --port <port>  Recover current review state
-  Address examples: docs/server-addresses.md
+  Remote browsers: docs/remote-review.md
   Approval modes: docs/approval-modes.md (schema approval)
 
 Summary JSON: {"reviewId":"...","commitMessage":"fix: ...","rationale":"Short TLDR","baseVersion":0}
