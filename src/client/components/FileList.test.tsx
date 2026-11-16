@@ -241,6 +241,58 @@ describe('FileList', () => {
     fireEvent.click(checkbox);
     expect(onToggleFolderReviewed).toHaveBeenCalledWith('src', false);
   });
+
+  it('expands a directory that first appears when the files change', () => {
+    const props = {
+      onScrollToFile: vi.fn(),
+      comments: [],
+      unreadUpdates: [],
+      reviewedFiles: new Set<string>(),
+      onToggleReviewed: vi.fn(),
+      onToggleFolderReviewed: vi.fn(),
+      selectedFilePath: null,
+    };
+    const { rerender } = render(<FileList {...props} files={[createFile('src/client/App.tsx')]} />);
+
+    rerender(
+      <FileList
+        {...props}
+        files={[createFile('src/client/App.tsx'), createFile('src/index.ts')]}
+      />,
+    );
+
+    expect(screen.getByTitle('src/client/App.tsx')).toBeInTheDocument();
+    expect(screen.getByTitle('src/index.ts')).toBeInTheDocument();
+    expect(screen.getByTitle('Collapse all')).toBeInTheDocument();
+  });
+
+  it('collapses and expands every directory from the header toggle', () => {
+    render(
+      <FileList
+        files={[createFile('src/cli/index.ts'), createFile('src/client/App.tsx')]}
+        onScrollToFile={vi.fn()}
+        comments={[]}
+        unreadUpdates={[]}
+        reviewedFiles={new Set()}
+        onToggleReviewed={vi.fn()}
+        onToggleFolderReviewed={vi.fn()}
+        selectedFilePath={null}
+      />,
+    );
+
+    fireEvent.click(getTreeRow('cli'));
+    expect(screen.queryByTitle('src/cli/index.ts')).toBeNull();
+    expect(screen.getByTitle('src/client/App.tsx')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('Expand all'));
+    expect(screen.getByTitle('src/cli/index.ts')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('Collapse all'));
+    expect(screen.queryByTitle('cli')).toBeNull();
+    expect(screen.queryByTitle('src/cli/index.ts')).toBeNull();
+    expect(screen.queryByTitle('src/client/App.tsx')).toBeNull();
+    expect(screen.getByTitle('Expand all')).toBeInTheDocument();
+  });
 });
 
 it('makes the comment count a separate action and preserves mobile file selection', () => {

@@ -240,10 +240,8 @@ export const FileList = memo(function FileList({
     '--dir-row-height': 'calc(var(--spacing, 0.25rem) * 9)',
   } as CSSProperties;
 
-  // Initialize with all directories expanded
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(
-    () => new Set(getAllDirectoryPaths(fileTree)),
-  );
+  // Tracks collapsed directories, so a directory that first appears on a reload starts expanded.
+  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(() => new Set());
   const [filterText, setFilterText] = useState('');
 
   const commentCountMap = useMemo(() => {
@@ -333,7 +331,7 @@ export const FileList = memo(function FileList({
   };
 
   const toggleDirectory = (path: string) => {
-    setExpandedDirs((prev) => {
+    setCollapsedDirs((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(path)) {
         newSet.delete(path);
@@ -345,14 +343,14 @@ export const FileList = memo(function FileList({
   };
 
   const allPaths = useMemo(() => getAllDirectoryPaths(fileTree), [fileTree]);
-  const isAllExpanded = expandedDirs.size === allPaths.length && allPaths.length > 0;
+  const isAllExpanded = allPaths.length > 0 && !allPaths.some((path) => collapsedDirs.has(path));
 
   const toggleAllDirectories = () => {
     // If all directories are expanded, collapse all. Otherwise, expand all.
     if (isAllExpanded) {
-      setExpandedDirs(new Set());
+      setCollapsedDirs(new Set(allPaths));
     } else {
-      setExpandedDirs(new Set(allPaths));
+      setCollapsedDirs(new Set());
     }
   };
 
@@ -415,7 +413,7 @@ export const FileList = memo(function FileList({
 
   const renderTreeNode = (node: TreeNode, depth: number = 0): React.ReactNode => {
     if (node.isDirectory && node.children) {
-      const isExpanded = expandedDirs.has(node.path);
+      const isExpanded = !collapsedDirs.has(node.path);
       const isReviewed = reviewedDirectoryPaths.has(node.path);
 
       return (
