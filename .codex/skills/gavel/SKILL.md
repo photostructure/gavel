@@ -37,9 +37,7 @@ The robot briefly confirms transport acceptance, then returns to available;
 neither state proves the chat resumed. A delivered verdict alone is not commit
 approval. Gavel starts no daemon and resumes no other controller. A closed chat
 may need manual resumption. An existing external controller may deliver events;
-do not invent or test a bridge during ordinary review. Consult the
-[Codex integration guide](https://github.com/photostructure/gavel/blob/main/docs/codex-review-integration.md)
-only for delivery setup or diagnosis.
+do not invent or test a bridge during ordinary review.
 
 If delivery is unavailable or the chat stays idle, use the manual handoff: the
 robot's **Copy resume prompt**, or the same button on the last verdict's toast,
@@ -133,11 +131,11 @@ Reopening the same named patch or commits restores saved reviews, but changes
 review IDs and event streams. The server saves comments itself. For restored
 reviews, read `comment snapshot` before status, reply, or summary writes; use the
 restored summary version. `approval status <sha>` reads saved approvals
-after server shutdown. Report `store.error` and why changes are not being saved
-([saved reviews](https://github.com/photostructure/gavel/blob/main/docs/agent-conversations.md#saved-reviews)).
+after server shutdown. Report `store.error` and why changes are not being saved.
 
 Rename with `review rename <name> <new-name> --host <host> --port <port>`; identity,
-comments, proposal, and verdict stay. Delete an unwanted review you created with
+comments, proposal, and verdict stay, but comment links naming the old review stop
+resolving. Delete an unwanted review you created with
 `review delete <name> --host <host> --port <port>`, freeing its name. Its comments
 remain in **Conversation** until shutdown. Do not restart to remove one review:
 that removes every review's comments from the page. Never stop, replace, rename,
@@ -146,7 +144,8 @@ or delete another session's reviews.
 For overlapping files, use `review capture --output <artifact>` and its printed
 file/hunk IDs with `--capture` and `--select`. Pathspecs alone can include another
 session's changes. Check the capture's actual scope. To recapture after fixes,
-read the named review's current version and use `review update --expected-version`.
+read `capture.version` from `comment snapshot --review <name>` and pass it to
+`review update --expected-version`.
 Pass `-` for a supplied patch; repeat native `--pathspec` and `--include-untracked`
 options, or use `--capture` with selectors. Update does not reuse the original filters.
 Source edits and browser reloads do not update a frozen capture. HTTP 409 requires
@@ -228,7 +227,6 @@ and hand back. Never retry an unchanged request or relaunch on a timer.
 
 For unfamiliar payloads, read the command's `--help`. `schema <selector>` includes
 all `$defs`: save it once and inspect only the needed definition and references.
-Read additional protocol docs only for operations not covered here.
 
 ## Approval and completion
 
@@ -239,11 +237,8 @@ independent Codex/Claude review, then commit and close the server as described b
 unclear, explain and do not commit. Nothing tracks completed comments; the
 verdict stays until the user clears it.
 
-For Reject (`verdict: "reject"`), do not revise, recapture, or commit. Ask in this
-session what to do instead and whether to revert, explaining what each revert
-step undoes; see the approval guide for steps. Close the server as described below.
-Only the user clears Reject.
-Put a new attempt in a new named review.
+For Reject (`verdict: "reject"`), follow [references/reject.md](references/reject.md),
+where `<gavel-command>` is your launcher, and close the server as described below.
 
 Button approval authorizes a commit, never a push. Immediately before committing,
 read a fresh snapshot and require `approval.verdict: approve`. Approval follows
@@ -261,5 +256,4 @@ say in your report that you closed it. If a snapshot's `store.error` says change
 are not being saved, report it and ask before closing. Never stop another
 session's server.
 
-See the [approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md)
-for verdict rules. When authorized work is done, end the turn until user feedback.
+When authorized work is done, end the turn until user feedback.

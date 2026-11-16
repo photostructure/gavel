@@ -173,14 +173,16 @@ only whole-commit patches.
 
 Named captures are frozen; edits and browser reloads do not refresh them. Before
 `review update <name> --host <host> --port <port> --expected-version <n>`, read
-`GET /api/reviews/<name>`. Repeat the intended source: `-` for a patch, native
+`capture.version` from `comment snapshot --review <name> --host <host> --port <port>`.
+Repeat the intended source: `-` for a patch, native
 `--pathspec`/`--include-untracked`, or `--capture` with selectors. Update does not
 reuse filters; omitting them captures the whole uncommitted tree. Reconcile HTTP
 409 before retrying. An identical patch preserves version and approval; a changed
 patch advances the version and moves Approve to it. Never recapture while idle.
 
 Rename with `review rename <name> <new-name> --host <host> --port <port>`; `reviewId`,
-comments, proposal, and verdict stay. Delete an unwanted review you created with
+comments, proposal, and verdict stay, but comment links naming the old review stop
+resolving. Delete an unwanted review you created with
 `review delete <name> --host <host> --port <port>`, freeing its name. Comments
 remain in **Conversation** until shutdown, but the saved capture is deleted:
 `review unapply`/`review reapply` can no longer find it. Keep reviews you may still unapply or reapply.
@@ -273,40 +275,10 @@ Read a fresh snapshot before acting; the user can clear or switch a verdict.
   threads, including messages added before the final snapshot, plus feedback
   outside gavel. Then commit, and close the server as described below. If a request is impossible or unclear, explain
   and do not commit. Nothing tracks completed comments; the verdict stays until
-  cleared. See the [approval guide](https://github.com/photostructure/gavel/blob/main/docs/approval-modes.md).
-- **Reject** (`verdict: "reject"`): do not revise, recapture, or commit. Ask what
-  to do instead, and close the server as described below.
+  cleared.
+- **Reject** (`verdict: "reject"`): follow [references/reject.md](references/reject.md),
+  and close the server as described below.
 - **No verdict** (absent or `null`): await the user.
-
-After Reject, ask in this session what the user wants instead, using the review's
-comments as context, and whether to revert. Say what each revert step would
-undo, then act on the user's answer without asking again:
-
-- In a worktree of your own: `git worktree remove --force <path>`, then
-  `git branch -D <branch>`. `--force` deletes uncommitted and untracked files for good,
-  and deleting the branch deletes its reflog: give the tip SHA (`git rev-parse <branch>`)
-  in your reply first, since it is the only way back until `git gc` prunes it.
-- For unpushed commits this session made at the branch tip (`git branch -r --contains <oldest>`
-  prints nothing): note the tip SHA, run `git reset --soft <oldest>^`, then
-  `git diff --full-index <oldest>^ <tip> | git apply --cached -R`. That unstages only those
-  commits' hunks and leaves the changes in the working tree to redo; `git restore --staged`
-  would also unstage other sessions' hunks in the same files. If `git apply` fails, it
-  changed nothing: tell the user the rejected changes are still staged. To discard them
-  instead, treat them as uncommitted edits. A pushed range, or one with another session's commit on top,
-  gets a `git revert` commit, under the usual commit approval.
-- For uncommitted edits in a shared checkout from a named review: put the output of
-  `<gavel-command> review unapply <name> --dry-run` in your question. If the name is
-  ambiguous, that run lists each saved capture's digest instead: rerun the dry run with
-  `--patch-digest <the rejected review's digest>` and put that output in the question. On a
-  yes, run `review unapply <name> --patch-digest <patchDigest from the dry run>`. It runs
-  `git apply -R` on that capture's patch, after a stash of the tracked files. `refused` means
-  nothing changed; `rejected` lists hunks it left in place: report either. `review reapply
-  <name> --patch-digest <digest>` undoes it. For other reviews, ask how:
-  `git stash push` takes whole files and resets the shared index, so it can take another
-  session's work.
-
-Only the user clears a Reject. Never recapture a rejected review; put a new attempt
-up as a new named review.
 
 Approve on your review authorizes a commit. After addressing comments, passing
 required checks, and independent Codex/Claude reviewers LAND the final code,
@@ -331,4 +303,4 @@ say in your report that you closed it. If a snapshot's `store.error` says change
 are not being saved, report it and ask before closing. Never stop another
 session's server.
 
-Protocol details: [agent conversations](https://github.com/photostructure/gavel/blob/main/docs/agent-conversations.md).
+For anything else, read `<gavel-command> --help` and `<gavel-command> <command> --help`.
