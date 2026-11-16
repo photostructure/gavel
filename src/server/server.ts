@@ -44,6 +44,7 @@ import {
 } from '../types/live.js';
 import { formatCommentsOutput } from '../utils/commentFormatting.js';
 import {
+  commentsOutsideHunks,
   creditCommentImports,
   mergeCommentImports,
   mergeCommentThreads,
@@ -313,6 +314,10 @@ export async function startServer(options: ServerOptions): Promise<{
   const initialNamedReview = options.namedReview
     ? createNamedReview(options.namedReview.name, options.namedReview.capture)
     : undefined;
+  const commentRefusal =
+    initialNamedReview &&
+    commentsOutsideHunks(options.commentImports ?? [], initialNamedReview.capture.files);
+  if (commentRefusal) throw new Error(commentRefusal);
   const accessTokenBytes = Buffer.from(options.accessToken);
   const hasAccessToken = (supplied: unknown): boolean => {
     if (typeof supplied !== 'string') return false;
@@ -1926,6 +1931,12 @@ export async function startServer(options: ServerOptions): Promise<{
       const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
       const session = getOrCreateCommentSession(selection);
       const commentImports = creditCommentImports(normalizeCommentImports(req.body), options.agent);
+      const review = selection.reviewName && namedReviews.get(selection.reviewName);
+      const refusal = review && commentsOutsideHunks(commentImports, review.capture.files);
+      if (refusal) {
+        res.status(400).json({ error: refusal });
+        return;
+      }
       const importId = createHash('sha256')
         .update(serializeCommentImports(commentImports))
         .digest('hex');

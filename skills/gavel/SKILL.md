@@ -163,7 +163,9 @@ that launched the server.
 ```
 
 Anchor one point per comment, using `old` for deletions or `new` for target lines
-and a line number or `{"start":36,"end":39}`. Give a starting point and reading order unless
+and a line number or `{"start":36,"end":39}`. In a named review, anchor inside one
+hunk, numbered as its patch numbers them; gavel refuses the whole import otherwise
+and lists that file's hunk ranges. Give a starting point and reading order unless
 the diff is one hunk. Explain non-obvious reasons, oddities, moved replacements,
 indirect tests, and skippable mechanical changes. Label proposed refactors as suggestions
 with reasons; prefix verified defects with “Finding:”. Skip self-explanatory

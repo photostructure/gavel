@@ -993,6 +993,37 @@ describe('actual CLI launch protocol', () => {
     '',
   ].join('\n');
 
+  it('refuses to start a named review with a --comment outside every hunk', async () => {
+    // Ground truth: node <compiled-cli> - --review outside --comment '<new line 2>' < patch exits 1.
+    const fixture = launch(
+      [
+        '-',
+        '--review',
+        'outside',
+        '--comment',
+        JSON.stringify({
+          type: 'thread',
+          filePath: 'fixture.txt',
+          position: { side: 'new', line: 2 },
+          body: 'Below the hunk',
+        }),
+        ...['--host', '127.0.0.1', '--port', '0', '--no-open', '--keep-alive'],
+      ],
+      undefined,
+      {},
+      patch,
+    );
+    try {
+      expect(await fixture.closed).toBe(1);
+      expect(fixture.output().stderr).toContain(
+        'fixture.txt new line 2: its new-side hunks are at 1',
+      );
+      expect(fixture.output().stderr).not.toContain('gavel server started on');
+    } finally {
+      await stop(fixture.child);
+    }
+  }, 15000);
+
   // Ground truth: pkill -USR2 -x gavel-server. Windows has no SIGUSR2.
   describe.skipIf(process.platform === 'win32')('SIGUSR2', () => {
     const address = ['--host', '127.0.0.1', '--port', '0', '--no-open', '--keep-alive'];

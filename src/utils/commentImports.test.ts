@@ -1,8 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CommentImport, DiffCommentThread } from '../types/diff';
+import type {
+  CommentImport,
+  DiffCommentThread,
+  DiffLineRange,
+  ThreadCommentImport,
+} from '../types/diff';
+import type { CapturedFile } from '../types/review';
 
 import {
+  commentsOutsideHunks,
   mergeCommentImports,
   mergeCommentThreads,
   parseCommentImportValue,
@@ -289,6 +296,75 @@ describe('commentImports', () => {
       expect(result.threads).toEqual([]);
       expect(result.warnings).toHaveLength(1);
       expect(result.warnings[0]).toContain('Skipped reply import');
+    });
+  });
+
+  describe('commentsOutsideHunks', () => {
+    // The no-close review: App.tsx line 1593 came from the file on a newer main, outside every hunk.
+    const files: CapturedFile[] = [
+      {
+        id: 'f1',
+        path: 'src/App.tsx',
+        hunks: [
+          { id: 'h1', oldStart: 1528, oldLines: 7, newStart: 1531, newLines: 7 },
+          { id: 'h2', oldStart: 1590, oldLines: 4, newStart: 1600, newLines: 0 },
+        ],
+      },
+      { id: 'f2', path: 'image.png', hunks: [] },
+      // A file turned into a symlink: Git writes a deletion and an addition for one path.
+      {
+        id: 'f3',
+        path: 'link',
+        hunks: [{ id: 'h3', oldStart: 1, oldLines: 2, newStart: 0, newLines: 0 }],
+      },
+      {
+        id: 'f4',
+        path: 'link',
+        hunks: [{ id: 'h4', oldStart: 0, oldLines: 0, newStart: 1, newLines: 1 }],
+      },
+    ];
+    const thread = (
+      filePath: string,
+      side: 'old' | 'new',
+      line: DiffLineRange,
+    ): ThreadCommentImport => ({ type: 'thread', filePath, position: { side, line }, body: 'b' });
+
+    it('accepts threads inside one hunk on the side they name, and replies anywhere', () => {
+      expect(
+        commentsOutsideHunks(
+          [
+            thread('src/App.tsx', 'new', 1531),
+            thread('src/App.tsx', 'new', { start: 1534, end: 1537 }),
+            thread('src/App.tsx', 'old', 1593),
+            thread('link', 'old', 2),
+            thread('link', 'new', 1),
+            { ...thread('src/App.tsx', 'new', 1593), type: 'reply' },
+          ],
+          files,
+        ),
+      ).toBeUndefined();
+    });
+
+    it('refuses lines outside every hunk, ranges across hunks, and files the review lacks', () => {
+      const refusal = commentsOutsideHunks(
+        [
+          thread('src/App.tsx', 'new', 1593),
+          thread('src/App.tsx', 'new', 1530),
+          thread('src/App.tsx', 'old', { start: 1530, end: 1590 }),
+          thread('image.png', 'new', 1),
+          thread('src/other.ts', 'new', 1),
+          thread('src/App.tsx', 'new', 1531),
+        ],
+        files,
+      );
+      expect(refusal?.split('\n')).toEqual([
+        'No comments were added: a named review shows only its hunks, numbered as its patch numbers them, and these comments fall outside them:',
+        'src/App.tsx new line 1593: its new-side hunks are at 1531-1537',
+        'src/App.tsx new line 1530: its new-side hunks are at 1531-1537',
+        'src/App.tsx old lines 1530-1590: its old-side hunks are at 1528-1534, 1590-1593',
+        'image.png new line 1: the review has no new-side lines of this file',
+        'src/other.ts new line 1: the review has no such file',
+      ]);
     });
   });
 });

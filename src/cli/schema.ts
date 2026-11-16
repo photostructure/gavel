@@ -616,7 +616,7 @@ const definitions: Record<string, Schema> = {
   CommentImport: object(importFields, ['type', 'filePath', 'position', 'body']),
   CommentImportRequest: {
     description:
-      'JSON input to --comment / comment add (POST /api/comment-imports). A single object or array. Import timestamps must be parseable dates; body is trimmed. Reply imports target the newest matching file/position thread. Omit author: it defaults to the agent that launched the server (reviewContext.agent).',
+      "JSON input to --comment / comment add (POST /api/comment-imports). A single object or array. Import timestamps must be parseable dates; body is trimmed. Reply imports target the newest matching file/position thread. Omit author: it defaults to the agent that launched the server (reviewContext.agent). In a named review, a thread must lie inside one hunk of its file on the side it names, numbered as the patch numbers them; otherwise the request fails with an error listing that file's hunk ranges and adds nothing.",
     oneOf: [ref('CommentImport'), array(ref('CommentImport'))],
   },
   CommentImportResponse: object({

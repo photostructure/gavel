@@ -60,7 +60,7 @@ export function createCommentCommand(): Command {
     .requiredOption('--port <port>', 'port of the running gavel server', parseServerPort)
     .option(
       '--review <name>',
-      'named review to add the comments to (default: the review the viewer last loaded)',
+      'named review to add the comments to (default: the review the viewer last loaded); a named review refuses the whole import if a thread lies outside every hunk of its file',
     )
     .action(async (json: string | undefined, opts: CommentAddOptions) => {
       try {

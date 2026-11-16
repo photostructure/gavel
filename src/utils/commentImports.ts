@@ -8,6 +8,7 @@ import type {
   ReplyCommentImport,
   ThreadCommentImport,
 } from '../types/diff.js';
+import type { CapturedFile } from '../types/review.js';
 import { createId } from './createId.js';
 
 interface MergeCommentImportsResult {
@@ -523,6 +524,48 @@ export function serializeCommentImports(commentImports: CommentImport[]): string
         : undefined,
     })),
   );
+}
+
+/**
+ * Why a named review refuses these imports, or undefined when it accepts them. A thread must lie
+ * inside one hunk of its file on the side it names: a line outside every hunk either has no row
+ * in the diff or, when gavel shows the lines around the hunks, opens on whatever line the captured
+ * file has there. Replies attach to an existing thread, so they are not checked.
+ */
+export function commentsOutsideHunks(
+  commentImports: CommentImport[],
+  files: CapturedFile[],
+): string | undefined {
+  const refusals = commentImports.flatMap((commentImport) => {
+    if (commentImport.type !== 'thread') return [];
+    const { filePath, position } = commentImport;
+    const { side, line } = position;
+    const [start, end] = typeof line === 'number' ? [line, line] : [line.start, line.end];
+    const comment = `${filePath} ${side} ${start === end ? `line ${start}` : `lines ${start}-${end}`}`;
+    // A type change, such as a file turned into a symlink, captures two records for one path.
+    const records = files.filter((entry) => entry.path === filePath);
+    if (records.length === 0) return [`${comment}: the review has no such file`];
+    const ranges = records
+      .flatMap((record) => record.hunks)
+      .map((hunk) =>
+        side === 'old'
+          ? { first: hunk.oldStart, last: hunk.oldStart + hunk.oldLines - 1 }
+          : { first: hunk.newStart, last: hunk.newStart + hunk.newLines - 1 },
+      )
+      .filter(({ first, last }) => first <= last);
+    if (ranges.some(({ first, last }) => first <= start && end <= last)) return [];
+    if (ranges.length === 0)
+      return [`${comment}: the review has no ${side}-side lines of this file`];
+    const spans = ranges.map(({ first, last }) =>
+      first === last ? `${first}` : `${first}-${last}`,
+    );
+    return [`${comment}: its ${side}-side hunks are at ${spans.join(', ')}`];
+  });
+  if (refusals.length === 0) return undefined;
+  return [
+    'No comments were added: a named review shows only its hunks, numbered as its patch numbers them, and these comments fall outside them:',
+    ...refusals,
+  ].join('\n');
 }
 
 export function mergeCommentImports(

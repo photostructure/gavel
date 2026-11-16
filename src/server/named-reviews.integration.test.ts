@@ -475,6 +475,29 @@ describe('named review HTTP integration', () => {
     expect(await bodies(query)).toEqual([]);
   });
 
+  it('refuses a whole comment import when a thread is outside every hunk of the named review', async () => {
+    const inside = {
+      type: 'thread',
+      filePath: 'first.txt',
+      position: { side: 'new', line: 1 },
+      body: 'Inside the hunk.',
+    };
+    const outside = { ...inside, position: { side: 'new', line: 2 }, body: 'Below the hunk.' };
+    const expected = {
+      error: [
+        'No comments were added: a named review shows only its hunks, numbered as its patch numbers them, and these comments fall outside them:',
+        'first.txt new line 2: its new-side hunks are at 1',
+      ].join('\n'),
+    };
+    // With and without ?review=, since the launched named review is the default.
+    for (const reviewQuery of [query, '']) {
+      expect(await post(`/api/comment-imports${reviewQuery}`, [inside, outside], 400)).toEqual(
+        expected,
+      );
+    }
+    expect((await get<CommentsResponse>(`/api/comments-json${query}`)).threads).toEqual([]);
+  });
+
   it('keeps two named tasks independent even when their patch digests match', async () => {
     const first = await review();
     const otherName = 'other-agent';

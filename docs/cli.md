@@ -105,6 +105,12 @@ gavel --comment '{"type":"thread","filePath":"src/example.ts","position":{"side"
 thread at its diff position; a `reply` answers the latest thread at that position.
 A comment that already exists is skipped. `gavel schema import` describes the JSON.
 
+In a named review, each `thread` must lie inside one hunk of its file on the side it
+names, numbered as the review's patch numbers them. Otherwise gavel adds none of the
+comments: `--comment` exits with an error before the server starts, and `gavel comment
+add` exits with an error. The error lists each refused comment with that file's hunk
+ranges on that side.
+
 ### Links in comments
 
 Comment bodies are Markdown. A link whose URL is a fragment naming `thread`, `file`,
