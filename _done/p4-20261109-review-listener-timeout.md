@@ -6,7 +6,11 @@ section: Agent integration
 
 # Explain when review listening stops
 
-Placeholder; no timeout or automatic message is implemented.
+Closed as superseded (2026-11-15, question DF-10, accepted as recommended). Agents no longer
+wait for feedback: Claude Code reviews deliver human verdicts and comments to the session inbox,
+and Codex reviews queue them (`src/server/session-inbox.ts`, `src/server/codex-queue.ts`), so
+no agent is listening that could time out. The gavel skill also tells agents not to wait ("Zero
+idle model turns", `skills/gavel/SKILL.md`). Nothing was implemented. The original note follows.
 
 Matthew suggested waiting five or ten minutes for review feedback, then posting
 “I am no longer actively listening; type `go` when you want me to review your
