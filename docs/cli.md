@@ -1,8 +1,8 @@
 # Command-line usage
 
-Run `gavel --help` for options, or `gavel <command> --help`
-for a subcommand. These examples assume gavel is installed and the current
-working directory is the repository to review.
+Run `gavel --help` for options, or `gavel <command> --help` for a subcommand's
+options, JSON payloads, and exit codes. These examples assume the current working
+directory is the repository to review.
 
 ## Named reviews
 
@@ -14,9 +14,10 @@ when needed:
 gavel --review parser-fix --pathspec src --pathspec ':(exclude)src/generated/**' --keep-alive
 ```
 
-For capture selection, updates, and saved reviews, see the
-[conversation protocol](agent-conversations.md#named-captures-for-uncommitted-work).
-For verdicts, see [approval modes](approval-modes.md).
+`gavel review --help` lists the commands that add, update, rename, delete, and undo
+named reviews. A server saves each review's comments, proposal, and verdict under
+`<git-common-dir>/gavel/`, and a later server that opens the same name and patch
+restores them.
 
 To tell servers apart in the browser, pass a short `--title`, such as
 `--title 'parser recovery'`. Browsers only show the first 10-20 characters. The title
@@ -24,12 +25,10 @@ belongs to the server, so every review tab on that server shares it.
 
 ### Undo a named review's change
 
-`gavel review unapply <name>` runs `git apply -R` on a named review's captured patch, for
-example after a Reject, and `gavel review reapply <name>` runs `git apply` to put it back.
-Both read the review's current capture from `<git-common-dir>/gavel`, so no server needs
-to run; pass `-` to read the patch from stdin instead. When several saved reviews share the
-name, they list each one's digest; pass `--patch-digest` to pick one, and pass the digest the
-dry run printed when you run the real command.
+`gavel review unapply <name>` reverses a named review's captured patch in the working
+tree, for example after a Reject, and `gavel review reapply <name>` puts it back. Both
+read the saved capture, so no server needs to run. Run a dry run first, then pass the
+digest it printed:
 
 ```sh
 gavel review unapply parser-fix --dry-run
@@ -37,35 +36,22 @@ gavel review unapply parser-fix --patch-digest <patchDigest>
 gavel review reapply parser-fix --patch-digest <patchDigest>
 ```
 
-Before writing, both store `git stash create` of every tracked file, other sessions' edits
-included, as an emergency snapshot (`gavel review unapply <name> <digest>` in
-`git stash list`); files the review created come back with reapply.
-
-Then `git apply` either applies every hunk or writes nothing. It needs the 3 lines around
-each hunk to match, so another session's edit within 3 lines of a hunk, such as a CHANGELOG
-bullet added next to the review's, stops it. Unapply then runs `git apply -R -C0 --reject`,
-which matches only each hunk's own lines and writes every hunk it finds. A file with a hunk
-that adds no lines gets `git apply -R --reject` instead: reversing that hunk inserts lines,
-which have nothing of their own to match, and `-C0` would put them at the hunk's old line
-number. For the same reason, reapply's fallback is `git apply --reject` for every file. The
-output lists each command and its files under `fallback`. Hunks that still do not apply stay
-in place: `rejected` holds Git's message for them, the command exits 1, and no `.rej` files
-are left behind. `--dry-run` reports `fallback` and `rejected` the same way and writes
-nothing. Matching on a hunk's own lines can pick an identical line nearby, such as a blank
-line or a lone `}`; the stash holds the files as they were.
-
-Unapply refuses while any of the capture's paths are staged (`refused`, exit 1), so a
-rejected change is never left staged, and it does not change what is staged.
+Before writing, both save a stash of every tracked file, other sessions' edits
+included, listed in `git stash list` as `gavel review unapply <name> <digest>` or
+`gavel review reapply <name> <digest>`. Unapply refuses while any of the capture's
+paths are staged. When another edit sits next to a hunk, unapply's fallback matches
+only the hunk's own lines, so it can pick an identical line nearby, such as a blank
+line or a lone `}`; the stash holds the files as they were. Hunks either command
+cannot place are listed under `rejected` and left alone.
+`gavel review unapply --help` describes the output.
 
 ### Rename or delete a named review
 
-`gavel review rename <name> <new-name> --port <port>` renames a review on a running
-server and keeps its comments, proposal and verdict. `gavel review delete <name> --port
-<port>` removes a review's tab; its comments stay in **Conversation**, marked
-"(deleted)", until the server stops. A delete also removes the saved review that
-`review unapply` and `review reapply` read, so undo a change before deleting its review.
-See the
-[conversation protocol](agent-conversations.md#named-captures-for-uncommitted-work).
+`gavel review rename <name> <new-name> --port <port>` keeps the review's comments,
+proposal, and verdict. `gavel review delete <name> --port <port>` removes its tab; its
+comments stay in **Conversation**, marked "(deleted)", until the server stops. A delete
+also removes the saved capture that unapply and reapply read, so undo a change before
+deleting its review.
 
 ### Stop finished servers
 
@@ -74,13 +60,10 @@ pkill -USR2 -x gavel-server
 ```
 
 This stops every gavel server whose review tabs all have a verdict, and every
-`--no-lgtm` server with a review tab. Each named review has a tab, and an unnamed
-review gets one once its agent proposes a commit message. Other servers keep
-running, and foreground ones print why to stderr, such as `gavel server stays up:
-review "parser-fix" has no verdict`. A server with no tab keeps running, because a
-detached launch has none until its agent adds its review. A stopped server's
-`server.shutdown` event has reason `SIGUSR2`. This works on Linux and macOS;
-Windows has no SIGUSR2.
+`--no-lgtm` server with a review tab. Other servers keep running, and foreground ones
+print why to stderr, such as `gavel server stays up: review "parser-fix" has no
+verdict`. A server with no tab keeps running, such as a detached server before its
+agent adds a review. Windows has no SIGUSR2.
 
 ## GitHub pull requests
 
@@ -88,60 +71,44 @@ Windows has no SIGUSR2.
 gavel --pr https://github.com/owner/repo/pull/123
 ```
 
-`--pr` mode fetches patches by running `gh pr diff <url>`.
-It also imports unresolved inline review threads from the PR so they appear as startup comments in gavel.
-
-Authentication is handled by GitHub CLI:
-
-1. **Login once** (recommended): `gh auth login`
-2. **Token-based auth** (CI/non-interactive): set `GH_TOKEN` or `GITHUB_TOKEN`
-
-### GitHub Enterprise Server
-
-For Enterprise Server PRs, authenticate GitHub CLI against your Enterprise host:
-
-1. `gh auth login --hostname YOUR-ENTERPRISE-SERVER`
-2. Or set `GH_ENTERPRISE_TOKEN` or `GITHUB_ENTERPRISE_TOKEN`.
+`--pr` runs `gh pr diff <url>` and imports the PR's unresolved inline review threads
+as comments. Authenticate GitHub CLI once with `gh auth login` (add
+`--hostname <host>` for GitHub Enterprise Server), or set `GH_TOKEN` or
+`GITHUB_TOKEN` (`GH_ENTERPRISE_TOKEN` or `GITHUB_ENTERPRISE_TOKEN` for Enterprise
+Server).
 
 ## Piped diffs
-
-Pass a unified diff on stdin:
 
 ```sh
 git diff --cached | gavel -
 gavel - < changes.patch
 ```
 
-`-` explicitly selects stdin. Without a positional argument, `--pr`, or `--review`,
-gavel also accepts piped input automatically. `--review` reads stdin only with an explicit `-`.
-An explicit Git target or `--pr` takes priority over automatic stdin detection.
-
-`review create` and `review update` read stdin only with an explicit `-`. Without `-`, `--capture`,
-`--pathspec`, or `--include-untracked`, they exit with an error when stdin is a pipe, socket, or file,
-so a piped patch can't be replaced by a capture of the uncommitted tree. To capture the uncommitted
-tree from a script that leaves stdin open, redirect stdin from `/dev/null`.
+`-` selects stdin. With no Git target, `--pr`, or `--review`, gavel also reads piped
+input without `-`. `--review`, `review create`, and `review update` read stdin only
+with `-`. `review create` and `review update` exit with an error when stdin is a pipe,
+socket, or file and they have no `-`, `--capture`, `--pathspec`, or `--include-untracked`, so a piped
+patch is never replaced by a capture of the uncommitted tree. To capture the
+uncommitted tree from a script that leaves stdin open, redirect stdin from
+`/dev/null`.
 
 ## Initial comments
-
-Seed a thread when launching gavel:
 
 ```bash
 gavel --comment '{"type":"thread","filePath":"src/example.ts","position":{"side":"new","line":10},"body":"The background for this change is..."}'
 ```
 
-`--comment` accepts a JSON object or array and can be repeated:
-
-- `thread`: create a new thread at the specified diff position
-- `reply`: add a reply to the latest existing thread at the same diff position
-
-If the same comment already exists, gavel skips importing it.
+`--comment` takes a JSON object or array and can be repeated. A `thread` starts a
+thread at its diff position; a `reply` answers the latest thread at that position.
+A comment that already exists is skipped. `gavel schema import` describes the JSON.
 
 ### Links in comments
 
 Comment bodies are Markdown. A link whose URL is a fragment naming `thread`, `file`,
 `line`, or `side`, or a query naming `review`, moves around gavel instead of leaving
 the page, so an agent can write a reading tour: a "Start here" comment that links to
-the next stop, with side links to the code it explains.
+the next stop, with side links to the code it explains. The **Why this change** text
+(`--why`) renders the same links, so it can hold the tour's first link.
 
 | Link                                          | Goes to                                                       |
 | --------------------------------------------- | ------------------------------------------------------------- |
@@ -151,37 +118,22 @@ the next stop, with side links to the code it explains.
 | `[API half](?review=api-split)`               | the named review `api-split`                                  |
 | `[API half](?review=api-split#thread=tour-1)` | a thread, file, or line in that review                        |
 
-The **Why this change** text in **Change summary** (`--why`) renders the same links, so
-it can hold the tour's first link.
-
 Set a thread's ID when importing it (`"id":"api-split-tour-2"`), so a comment can link
-to a thread posted later. Gavel assumes thread IDs are unique across a server's
-reviews, so prefix them with the review name. A link in another review's comment,
-shown in **Conversation**, points into that comment's review.
-
-Each jump adds a browser history entry, so Back returns to the comment the link was
-in, and the page URL keeps the place. For a link in another review's comment, Back
-returns to the review you were reading instead. When gavel cannot follow a link (no
-such thread, file, or named review, or a line the diff cannot show), it says why in a
-toast at the top right, which closes after 8 seconds unless the pointer or keyboard focus is on it. A named review loads the lines around its hunks from the
-capture and the repository's copy of each file's old version. It cannot when the
-patch is plain unified (no Git blob IDs), the repository lacks the old version (a
-pull request whose base was never fetched), or `--select` left out an earlier hunk
-that shifts the file's numbering; link only to lines inside such a file's hunks.
-A line past the end of a file is not detected: the view waits
-at the top of the file. The cursor lands on the last line of a range, where a
-comment on that range shows. Percent-encode spaces (`%20`), `&`, `#`, `+`, and `%`
-in file paths and thread IDs.
+to a thread posted later, and prefix IDs with the review name: gavel assumes they are
+unique across a server's reviews. Back returns to where you were when you followed
+the link. When
+gavel cannot follow a link, a toast says why. Link only to lines inside a file's hunks
+when the patch is plain unified (no Git blob IDs) or the repository lacks the file's
+old version, as for a pull request whose base was never fetched. Percent-encode
+spaces (`%20`), `&`, `#`, `+`, and `%` in file paths and thread IDs.
 
 ## Open in editor
 
-Set `GAVEL_EDITOR` before starting gavel. It accepts `vscode` (default), `cursor`, `zed`, `textmate`, `bbedit`, `emacs`,
-`macvim`, `sublime`, `nova`, `custom`, or `none`. If `GAVEL_EDITOR` is unset,
-gavel checks `EDITOR` for one of these preset names. Use `none` to hide the
-button. Open in editor is unavailable for stdin diffs. The button beside a line
-opens the file at that line, and the one beside the file name opens it at the
-file's first hunk. Both open the file in the working tree, which can differ from
-a named review's capture.
+Set `GAVEL_EDITOR` before starting gavel: `vscode` (default), `cursor`, `zed`,
+`textmate`, `bbedit`, `emacs`, `macvim`, `sublime`, `nova`, `custom`, or `none` to hide
+the button. When it is unset, gavel checks `EDITOR` for one of these names. The
+button opens the working-tree file, which can differ from a named review's capture,
+and is unavailable for stdin diffs.
 
 ```sh
 GAVEL_EDITOR=cursor gavel .
@@ -189,8 +141,6 @@ GAVEL_EDITOR=custom GAVEL_EDITOR_COMMAND=emacsclient \
   GAVEL_EDITOR_ARGS='--no-wait +%line %file' gavel .
 ```
 
-For `custom`, set both `GAVEL_EDITOR_COMMAND` and `GAVEL_EDITOR_ARGS`. The
-template must pass `%file` or `%file:%line` as a separate argument; `%line` is replaced with the
-selected line. `%file` becomes the absolute repository file path. Arguments are
-passed directly to the executable without a shell. Restart gavel to change the
-editor.
+For `custom`, set both `GAVEL_EDITOR_COMMAND` and `GAVEL_EDITOR_ARGS`. Pass `%file`
+(the absolute path) or `%file:%line` as its own argument; `%line` is the selected
+line. gavel runs the command without a shell. Restart gavel to change the editor.
