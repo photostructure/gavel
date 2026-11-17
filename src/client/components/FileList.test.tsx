@@ -91,6 +91,10 @@ describe('FileList', () => {
     );
     const summary = screen.getByRole('button', { name: 'Change summary' });
     expect(summary.querySelector('svg.lucide-file-question-mark')).not.toBeNull();
+    // Starts where a top-level folder row starts, and leaves its chevron's slot empty, so its
+    // icon and label line up with the folders' rather than reading as their parent.
+    expect(summary.style.paddingLeft).toBe('12px');
+    expect(summary.firstElementChild).toHaveClass('w-[16px]', 'shrink-0');
     // Above the files, like the section it jumps to.
     expect(
       summary.compareDocumentPosition(getLabel('README.md')) & Node.DOCUMENT_POSITION_FOLLOWING,

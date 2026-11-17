@@ -601,14 +601,17 @@ export const FileList = memo(function FileList({
         {onScrollToSummary && (
           <button
             type="button"
-            className={`flex h-7 w-full items-center gap-1.5 px-3 text-left text-xs text-github-text-primary hover:bg-github-bg-tertiary focus-visible:outline-2 focus-visible:outline-github-accent ${
+            className={`flex h-7 w-full items-center gap-1.5 pr-3 text-left text-xs text-github-text-primary hover:bg-github-bg-tertiary focus-visible:outline-2 focus-visible:outline-github-accent ${
               summarySelected ? 'file-tree-row-selected' : ''
             }`}
+            style={{ paddingLeft: getTreeRowPaddingLeft(0) }}
             onClick={() => {
               onScrollToSummary();
               onFileSelected?.();
             }}
           >
+            {/* An empty chevron slot, so the icon and label line up with top-level folders'. */}
+            <span aria-hidden="true" className="w-[16px] shrink-0" />
             <FileQuestionMark size={16} className="shrink-0 text-github-text-secondary" />
             Change summary
           </button>
