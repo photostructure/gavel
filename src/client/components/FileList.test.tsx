@@ -143,10 +143,10 @@ describe('FileList', () => {
 
     expect(getLabel('src')).not.toHaveClass('line-through');
     expect(getTreeRow('src')).not.toHaveClass('opacity-70');
-    expect(getLabel('cli')).toHaveClass('line-through');
-    expect(getTreeRow('cli')).toHaveClass('opacity-70');
-    expect(getLabel('client')).not.toHaveClass('line-through');
-    expect(getTreeRow('client')).not.toHaveClass('opacity-70');
+    expect(getLabel('src/cli')).toHaveClass('line-through');
+    expect(getTreeRow('src/cli')).toHaveClass('opacity-70');
+    expect(getLabel('src/client')).not.toHaveClass('line-through');
+    expect(getTreeRow('src/client')).not.toHaveClass('opacity-70');
 
     rerender(
       <FileList
@@ -157,10 +157,45 @@ describe('FileList', () => {
 
     expect(getLabel('src')).toHaveClass('line-through');
     expect(getTreeRow('src')).toHaveClass('opacity-70');
-    expect(getLabel('cli')).toHaveClass('line-through');
-    expect(getTreeRow('cli')).toHaveClass('opacity-70');
-    expect(getLabel('client')).toHaveClass('line-through');
-    expect(getTreeRow('client')).toHaveClass('opacity-70');
+    expect(getLabel('src/cli')).toHaveClass('line-through');
+    expect(getTreeRow('src/cli')).toHaveClass('opacity-70');
+    expect(getLabel('src/client')).toHaveClass('line-through');
+    expect(getTreeRow('src/client')).toHaveClass('opacity-70');
+  });
+
+  it('shows a folder row its repository-relative path as its tooltip', () => {
+    render(
+      <FileList
+        files={[createFile('src/core/fe/api/AssetAction.ts'), createFile('src/core/index.ts')]}
+        onScrollToFile={vi.fn()}
+        comments={[]}
+        unreadUpdates={[]}
+        reviewedFiles={new Set()}
+        onToggleReviewed={vi.fn()}
+        onToggleFolderReviewed={vi.fn()}
+        selectedFilePath={null}
+      />,
+    );
+
+    expect(screen.getByText('fe/api')).toHaveAttribute('title', 'src/core/fe/api');
+  });
+
+  it('indents each level by 12px', () => {
+    render(
+      <FileList
+        files={[createFile('src/cli/index.ts'), createFile('src/client/App.tsx')]}
+        onScrollToFile={vi.fn()}
+        comments={[]}
+        unreadUpdates={[]}
+        reviewedFiles={new Set()}
+        onToggleReviewed={vi.fn()}
+        onToggleFolderReviewed={vi.fn()}
+        selectedFilePath={null}
+      />,
+    );
+
+    expect(getTreeRow('src').style.paddingLeft).toBe('12px');
+    expect(getTreeRow('src/cli/index.ts').style.paddingLeft).toBe('36px');
   });
 
   it('marks all files in a folder as reviewed via the directory checkbox', () => {
@@ -280,7 +315,7 @@ describe('FileList', () => {
       />,
     );
 
-    fireEvent.click(getTreeRow('cli'));
+    fireEvent.click(getTreeRow('src/cli'));
     expect(screen.queryByTitle('src/cli/index.ts')).toBeNull();
     expect(screen.getByTitle('src/client/App.tsx')).toBeInTheDocument();
 

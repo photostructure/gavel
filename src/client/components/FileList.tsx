@@ -58,10 +58,8 @@ interface TreeNode {
   file?: DiffFile;
 }
 
-const TREE_ROW_PADDING_LEFT_PX = 16;
-const TREE_ICON_SIZE_PX = 16;
-const TREE_ROW_GAP_PX = 8;
-const TREE_INDENT_STEP_PX = TREE_ICON_SIZE_PX + TREE_ROW_GAP_PX;
+const TREE_ROW_PADDING_LEFT_PX = 12;
+const TREE_INDENT_STEP_PX = 12;
 
 // lucide's message-square path, so the unread icon has the same outline as MessageSquare.
 const MESSAGE_SQUARE_PATH =
@@ -237,7 +235,7 @@ export const FileList = memo(function FileList({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const dirContainerRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const stickyContainerStyle = {
-    '--dir-row-height': 'calc(var(--spacing, 0.25rem) * 9)',
+    '--dir-row-height': 'calc(var(--spacing, 0.25rem) * 7)',
   } as CSSProperties;
 
   // Tracks collapsed directories, so a directory that first appears on a reload starts expanded.
@@ -431,7 +429,7 @@ export const FileList = memo(function FileList({
         >
           {node.name && (
             <div
-              className={`${shouldUseStickyDirectoryHeaders ? 'sticky ' : ''}group flex h-9 items-center gap-2 bg-github-bg-secondary px-4 hover:bg-github-bg-tertiary cursor-pointer ${
+              className={`${shouldUseStickyDirectoryHeaders ? 'sticky ' : ''}group flex h-7 items-center gap-1.5 bg-github-bg-secondary pr-3 hover:bg-github-bg-tertiary cursor-pointer ${
                 isReviewed ? 'opacity-70' : ''
               }`}
               data-dir-header="true"
@@ -465,7 +463,7 @@ export const FileList = memo(function FileList({
                 className={`text-sm text-github-text-primary font-medium flex-1 overflow-hidden text-ellipsis whitespace-nowrap ${
                   isReviewed ? 'line-through text-github-text-muted' : ''
                 }`}
-                title={node.name}
+                title={node.path}
               >
                 {node.name}
               </span>
@@ -490,7 +488,7 @@ export const FileList = memo(function FileList({
       return (
         <div
           key={`file:${file.path}`}
-          className={`flex items-center gap-2 px-4 py-2 hover:bg-github-bg-tertiary cursor-pointer transition-colors ${
+          className={`flex h-7 items-center gap-1.5 pr-3 hover:bg-github-bg-tertiary cursor-pointer transition-colors ${
             isReviewed ? 'opacity-70' : ''
           } ${isSelected ? 'file-tree-row-selected' : ''}`}
           data-file-row="true"
@@ -502,11 +500,15 @@ export const FileList = memo(function FileList({
             onFileSelected?.();
           }}
         >
-          {renderViewedControl(
-            isReviewed,
-            () => onToggleReviewed(file.path),
-            isReviewed ? 'Mark as not reviewed' : 'Mark as reviewed',
-          )}
+          {/* The checkbox's border starts at its box's edge but an open folder's chevron stroke
+              starts 4px in, so this lines the checkbox up with open sibling folders' chevrons. */}
+          <span className="flex items-center pl-[4px]">
+            {renderViewedControl(
+              isReviewed,
+              () => onToggleReviewed(file.path),
+              isReviewed ? 'Mark as not reviewed' : 'Mark as reviewed',
+            )}
+          </span>
           {getFileIcon(node.file.status)}
           <span
             className={`text-sm text-github-text-primary flex-1 overflow-hidden text-ellipsis whitespace-nowrap ${
@@ -594,7 +596,7 @@ export const FileList = memo(function FileList({
         {onScrollToSummary && (
           <button
             type="button"
-            className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-github-text-primary hover:bg-github-bg-tertiary focus-visible:outline-2 focus-visible:outline-github-accent ${
+            className={`flex h-7 w-full items-center gap-1.5 px-3 text-left text-sm text-github-text-primary hover:bg-github-bg-tertiary focus-visible:outline-2 focus-visible:outline-github-accent ${
               summarySelected ? 'file-tree-row-selected' : ''
             }`}
             onClick={() => {
