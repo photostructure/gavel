@@ -180,7 +180,7 @@ export function ReviewQueueBar({
                 className={`${tabClasses} ${isOpen ? openTabClasses(review.approval, approvals) : 'border-transparent text-github-text-secondary hover:bg-github-bg-secondary hover:text-github-text-primary'}${pulseClass(review)}`}
               >
                 {state && <ApprovalMark approval={review.approval} />}
-                <code>{review.name}</code>
+                <span>{review.name}</span>
                 {unread && <UnreadDot />}
               </button>
             </li>
@@ -231,7 +231,7 @@ export function ReviewQueueBar({
                   )}
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5">
-                      <code className="block break-all font-semibold">{review.name}</code>
+                      <span className="block break-all font-semibold">{review.name}</span>
                       {hasUnread(review) && <UnreadDot />}
                     </span>
                     {review.title && (

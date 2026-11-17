@@ -248,6 +248,25 @@ describe('review queue bar', () => {
     expect(within(bar()).getByRole('list')).toHaveClass('overflow-x-auto');
   });
 
+  it('shows review names in the UI font, not as code, in the tabs and the menu', () => {
+    render(
+      <ReviewQueueBar
+        reviews={reviews}
+        current={reviews[0]!.selection}
+        approvals
+        onSelect={vi.fn()}
+      />,
+    );
+    const tabs = within(bar()).getByRole('list');
+    expect(within(tabs).getByText('tests')).toBeVisible();
+    expect(tabs.querySelector('code')).toBeNull();
+
+    fireEvent.click(within(bar()).getByRole('button', { name: /^All reviews/ }));
+    const menu = screen.getByRole('dialog');
+    expect(within(menu).getByText('tests')).toBeVisible();
+    expect(menu.querySelector('code')).toBeNull();
+  });
+
   it('always offers a menu listing every review', () => {
     const onSelect = vi.fn();
     const listed = [request('parser', approved), request('tests'), request('docs')];
