@@ -101,8 +101,8 @@ remove only the ops it confirms.
 - `localStorage` agent-reply read marks (`useAgentUpdates`).
 - `localStorage` `gavel:comment-drafts:<scope>` unsent drafts (`useCommentDrafts`),
   deleted after 7 days untouched.
-- Presentation, which stays: `ReviewSummaryPanel` expanded flag (`localStorage`),
-  user settings cookie (`userSettings`).
+- Presentation, which stays: user settings cookie (`userSettings`), which also holds the
+  sidebar width and the review summary's commit-message width.
 
 ## Remaining
 
