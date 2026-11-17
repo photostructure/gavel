@@ -35,7 +35,8 @@ export function ReviewSummaryPanel({
           </span>
           <div role="group" aria-labelledby={`${id}-why`} className={FIELD_CLASS}>
             {summary.rationale.trim() ? (
-              <CommentBodyRenderer body={summary.rationale} />
+              // At 1rem the proportional rationale reads as large as the text-sm monospace beside it.
+              <CommentBodyRenderer body={summary.rationale} textSizeClass="text-base" />
             ) : (
               <span className={EMPTY_CLASS}>No rationale yet</span>
             )}

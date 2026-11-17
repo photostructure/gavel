@@ -275,6 +275,8 @@ interface CommentBodyRendererProps {
   originalCode?: string;
   filename?: string;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
+  /** The body's font size class; the review summary's rationale reads larger than comments. */
+  textSizeClass?: string;
 }
 
 export function hasSuggestionInBody(body: string) {
@@ -287,6 +289,7 @@ export function CommentBodyRenderer({
   originalCode,
   filename,
   syntaxTheme,
+  textSizeClass = 'text-sm',
 }: CommentBodyRendererProps) {
   const parts = useMemo(() => {
     const suggestions = parseSuggestionBlocks(body);
@@ -344,7 +347,7 @@ export function CommentBodyRenderer({
   );
 
   return (
-    <div className="text-github-text-primary text-sm leading-6">
+    <div className={`text-github-text-primary ${textSizeClass} leading-6`}>
       {parts.map((part, index) => {
         if (part.type === 'text') {
           if (!part.content.trim()) {
