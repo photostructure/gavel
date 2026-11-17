@@ -180,7 +180,7 @@ describe('FileList', () => {
     expect(screen.getByText('fe/api')).toHaveAttribute('title', 'src/core/fe/api');
   });
 
-  it('indents each level by 12px', () => {
+  it('indents each level by 8px', () => {
     render(
       <FileList
         files={[createFile('src/cli/index.ts'), createFile('src/client/App.tsx')]}
@@ -195,7 +195,34 @@ describe('FileList', () => {
     );
 
     expect(getTreeRow('src').style.paddingLeft).toBe('12px');
-    expect(getTreeRow('src/cli/index.ts').style.paddingLeft).toBe('36px');
+    expect(getTreeRow('src/cli/index.ts').style.paddingLeft).toBe('28px');
+  });
+
+  it('with a mouse, gives a file row a chevron-wide slot and swaps its icon for its checkbox on hover', () => {
+    render(
+      <FileList
+        files={[createFile('README.md')]}
+        onScrollToFile={vi.fn()}
+        comments={[]}
+        unreadUpdates={[]}
+        reviewedFiles={new Set()}
+        onToggleReviewed={vi.fn()}
+        onToggleFolderReviewed={vi.fn()}
+        selectedFilePath={null}
+      />,
+    );
+
+    const row = getTreeRow('README.md');
+    expect(row).toHaveClass('group');
+    // The empty slot lines the file icon up with sibling folders' icons, after their chevrons.
+    expect(row.firstElementChild).toHaveClass('hidden', 'w-[16px]', 'pointer-fine:block');
+    expect(within(row).getByRole('checkbox').parentElement).toHaveClass(
+      'pointer-fine:hidden',
+      'pointer-fine:group-hover:flex',
+    );
+    expect(row.querySelector('.lucide-file-diff')?.parentElement).toHaveClass(
+      'pointer-fine:group-hover:hidden',
+    );
   });
 
   it('marks all files in a folder as reviewed via the directory checkbox', () => {

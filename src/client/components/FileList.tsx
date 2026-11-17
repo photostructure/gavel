@@ -59,7 +59,7 @@ interface TreeNode {
 }
 
 const TREE_ROW_PADDING_LEFT_PX = 12;
-const TREE_INDENT_STEP_PX = 12;
+const TREE_INDENT_STEP_PX = 8;
 
 // lucide's message-square path, so the unread icon has the same outline as MessageSquare.
 const MESSAGE_SQUARE_PATH =
@@ -460,7 +460,7 @@ export const FileList = memo(function FileList({
                 )}
               </span>
               <span
-                className={`text-sm text-github-text-primary font-medium flex-1 overflow-hidden text-ellipsis whitespace-nowrap ${
+                className={`text-xs text-github-text-primary font-medium flex-1 overflow-hidden text-ellipsis whitespace-nowrap ${
                   isReviewed ? 'line-through text-github-text-muted' : ''
                 }`}
                 title={node.path}
@@ -488,7 +488,7 @@ export const FileList = memo(function FileList({
       return (
         <div
           key={`file:${file.path}`}
-          className={`flex h-7 items-center gap-1.5 pr-3 hover:bg-github-bg-tertiary cursor-pointer transition-colors ${
+          className={`group flex h-7 items-center gap-1.5 pr-3 hover:bg-github-bg-tertiary cursor-pointer transition-colors ${
             isReviewed ? 'opacity-70' : ''
           } ${isSelected ? 'file-tree-row-selected' : ''}`}
           data-file-row="true"
@@ -500,18 +500,23 @@ export const FileList = memo(function FileList({
             onFileSelected?.();
           }}
         >
-          {/* The checkbox's border starts at its box's edge but an open folder's chevron stroke
-              starts 4px in, so this lines the checkbox up with open sibling folders' chevrons. */}
-          <span className="flex items-center pl-[4px]">
+          {/* With a mouse, an empty chevron-wide slot puts the status icon in sibling folders'
+              icon column, and the checkbox replaces the icon on hover, as on folder rows. Touch
+              has no hover, so it shows the checkbox in that slot; the checkbox's border starts
+              at its box's edge, so it moves 4px to line up with an open folder's chevron stroke. */}
+          <span aria-hidden="true" className="hidden w-[16px] shrink-0 pointer-fine:block" />
+          <span className="flex items-center pl-[4px] pointer-fine:hidden pointer-fine:pl-[2px] pointer-fine:group-hover:flex">
             {renderViewedControl(
               isReviewed,
               () => onToggleReviewed(file.path),
               isReviewed ? 'Mark as not reviewed' : 'Mark as reviewed',
             )}
           </span>
-          {getFileIcon(node.file.status)}
+          <span className="flex items-center pointer-fine:group-hover:hidden">
+            {getFileIcon(node.file.status)}
+          </span>
           <span
-            className={`text-sm text-github-text-primary flex-1 overflow-hidden text-ellipsis whitespace-nowrap ${
+            className={`text-xs text-github-text-primary flex-1 overflow-hidden text-ellipsis whitespace-nowrap ${
               isReviewed ? 'line-through text-github-text-muted' : ''
             }`}
             title={node.file.path}
@@ -521,7 +526,7 @@ export const FileList = memo(function FileList({
           {commentCount > 0 && (
             <button
               type="button"
-              className="text-github-warning text-sm font-medium ml-auto flex items-center gap-1 rounded px-1 -mr-1 hover:bg-github-bg-primary focus-visible:outline-2 focus-visible:outline-github-accent"
+              className="text-github-warning text-xs font-medium ml-auto flex items-center gap-1 rounded px-1 -mr-1 hover:bg-github-bg-primary focus-visible:outline-2 focus-visible:outline-github-accent"
               title={commentButtonLabel}
               aria-label={commentButtonLabel}
               onClick={(event) => {
@@ -596,7 +601,7 @@ export const FileList = memo(function FileList({
         {onScrollToSummary && (
           <button
             type="button"
-            className={`flex h-7 w-full items-center gap-1.5 px-3 text-left text-sm text-github-text-primary hover:bg-github-bg-tertiary focus-visible:outline-2 focus-visible:outline-github-accent ${
+            className={`flex h-7 w-full items-center gap-1.5 px-3 text-left text-xs text-github-text-primary hover:bg-github-bg-tertiary focus-visible:outline-2 focus-visible:outline-github-accent ${
               summarySelected ? 'file-tree-row-selected' : ''
             }`}
             onClick={() => {
