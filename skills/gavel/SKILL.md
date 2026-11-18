@@ -124,7 +124,10 @@ unnamed `.`, `working`, and `staged` targets remain available.
 Retain a foreground server's process handle. Read `server.ready` for the API
 port, PID, and review identity; give the user `launchUrl` unchanged. Its
 `#gavel-token=…` fragment is the access token; without it the page shows only an
-access screen. Use that host/API port for companion commands, never Vite's UI port.
+access screen. Put the whole link, token included, in your reply: the token
+belongs in the session transcript, and the user cannot open the review without
+it. Never shorten, redact, or drop the fragment. Use that host/API port for
+companion commands, never Vite's UI port.
 JSONL is the default; diagnostics go to stderr. Named reviews and JSONL require
 conversation APIs; unnamed reviews can disable both with `--no-jsonl --no-conversation`.
 Use `--keep-alive` for review rounds and `--no-lgtm` for read-only reviews.
