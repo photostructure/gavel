@@ -58,7 +58,11 @@ interface TreeNode {
   file?: DiffFile;
 }
 
-const TREE_ROW_PADDING_LEFT_PX = 12;
+// Puts top-level icons under the filter box's search icon, which sits 1.75rem in (1rem panel
+// padding plus its 0.75rem inset): a row's icon follows a 16px chevron and a 0.375rem gap.
+// The rem terms follow the font size setting, so the icons stay in that column at 12px and
+// up; below about 11.6px the padding would be negative and clamps to 0.
+const TREE_ROW_PADDING_LEFT = '1.375rem - 16px';
 const TREE_INDENT_STEP_PX = 8;
 
 // lucide's message-square path, so the unread icon has the same outline as MessageSquare.
@@ -102,7 +106,7 @@ function UnreadCommentIcon() {
 }
 
 function getTreeRowPaddingLeft(depth: number): string {
-  return `${depth * TREE_INDENT_STEP_PX + TREE_ROW_PADDING_LEFT_PX}px`;
+  return `calc(${depth * TREE_INDENT_STEP_PX}px + ${TREE_ROW_PADDING_LEFT})`;
 }
 
 function getAllDirectoryPaths(node: TreeNode): string[] {

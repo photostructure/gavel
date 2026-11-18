@@ -93,7 +93,7 @@ describe('FileList', () => {
     expect(summary.querySelector('svg.lucide-file-question-mark')).not.toBeNull();
     // Starts where a top-level folder row starts, and leaves its chevron's slot empty, so its
     // icon and label line up with the folders' rather than reading as their parent.
-    expect(summary.style.paddingLeft).toBe('12px');
+    expect(summary.style.paddingLeft).toBe('calc(0px + 1.375rem - 16px)');
     expect(summary.firstElementChild).toHaveClass('w-[16px]', 'shrink-0');
     // Above the files, like the section it jumps to.
     expect(
@@ -198,8 +198,8 @@ describe('FileList', () => {
       />,
     );
 
-    expect(getTreeRow('src').style.paddingLeft).toBe('12px');
-    expect(getTreeRow('src/cli/index.ts').style.paddingLeft).toBe('28px');
+    expect(getTreeRow('src').style.paddingLeft).toBe('calc(0px + 1.375rem - 16px)');
+    expect(getTreeRow('src/cli/index.ts').style.paddingLeft).toBe('calc(16px + 1.375rem - 16px)');
   });
 
   it('with a mouse, gives a file row a chevron-wide slot and swaps its icon for its checkbox on hover', () => {
