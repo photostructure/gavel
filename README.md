@@ -98,6 +98,15 @@ Opening **About** checks npm for updates without sending review content. Set
 `NO_UPDATE_NOTIFIER=1` when starting gavel to disable the check. Browser Global
 Privacy Control and `DO_NOT_TRACK=1`, `DNT=1`, or `GPC=1` also disable it.
 
+## Token cost
+
+In about 40 Claude Code sessions that used gavel for reviews, gavel accounted for
+about 2.5% of their combined cost at Claude Opus 5.5 API prices: about $0.65 per
+session on average, or $0.15 per launched review. Its skill, commands, and
+notifications peaked at about 15k tokens of context in a typical session, and
+about 40k at most. We measured this in November 2026, before trimming the skill
+from 18 KB to 14 KB.
+
 ## Testing and review
 
 **`gavel` gavels `gavel`.** We review code and documentation changes by hand in gavel
