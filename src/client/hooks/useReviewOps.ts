@@ -237,6 +237,23 @@ export function useReviewOps(
     }, base.threads);
   }, [base, queue, scope]);
 
+  // The messages whose add or edit waits here, unseen by the server and so by the agent.
+  const unsent = useMemo(
+    () =>
+      new Set(
+        queue.flatMap((op) =>
+          op.type === 'thread.add'
+            ? op.thread.messages.map(({ id }) => id)
+            : op.type === 'message.add'
+              ? [op.message.id]
+              : op.type === 'message.edit'
+                ? [op.messageId]
+                : [],
+        ),
+      ),
+    [queue],
+  );
+
   const loaded = base?.scope === scope;
   // Shown in a toast of its own, since it can stay up for as long as the server is unreachable;
   // the toast words the count and the failure message.
@@ -252,6 +269,7 @@ export function useReviewOps(
     loaded,
     threads,
     waiting: queue.length > 0,
+    unsent,
     enqueue,
     refresh,
     retry,

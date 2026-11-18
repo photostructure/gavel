@@ -105,7 +105,7 @@ export function Tooltip({ content, children, placement = 'top', className = '' }
     'aria-describedby': isOpen ? tooltipId : undefined,
   });
   const contentClassName = [
-    'w-64 rounded-md border border-github-border bg-github-bg-primary px-3 py-2 text-xs text-github-text-primary',
+    'w-max max-w-64 rounded-md border border-github-border bg-github-bg-primary px-3 py-2 text-xs text-github-text-primary',
     className,
   ]
     .filter(Boolean)

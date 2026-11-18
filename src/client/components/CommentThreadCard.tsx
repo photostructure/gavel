@@ -1,20 +1,24 @@
 import {
   Check,
+  CircleDashed,
   ChevronDown,
   ChevronRight,
   Copy,
   Edit2,
+  HatGlasses,
   LoaderCircle,
   Mail,
   MailOpen,
   MessageSquare,
   RotateCcw,
   Trash2,
+  Unplug,
+  User,
 } from 'lucide-react';
-import React, { useContext, useEffect, useId, useRef, useState } from 'react';
+import React, { useContext, useEffect, useId, useRef, useState, type ReactElement } from 'react';
 
 import {
-  type CommentIntent,
+  type CommentProgress,
   type CommentThread,
   type DiffCommentMessage,
   type DiffSelection,
@@ -23,20 +27,63 @@ import { copyTextToClipboard } from '../utils/clipboard';
 import { useFocusedAgentMessage } from '../hooks/useFocusedAgentMessage';
 import { agentMessageRevision } from '../hooks/useAgentUpdates';
 import { AgentUpdatesContext, type AgentUpdatesReadState } from '../contexts/AgentUpdatesContext';
+import { CommentDeliveryContext } from '../contexts/CommentDeliveryContext';
 import { useCommentDraft, useThreadHadDraftOnMount } from '../hooks/useCommentDrafts';
 import { hasActiveTextSelection, isDisclosureRowClick } from '../utils/domUtils';
 
 import { ActionMenu, iconButtonClasses, type ActionMenuItem } from './ActionMenu';
+import { deliveryColor, Robot } from './AgentDeliveryStatus';
 import { CommentBodyRenderer } from './CommentBodyRenderer';
-import { CommentForm, type CommentSubmitOptions } from './CommentForm';
+import { CommentForm } from './CommentForm';
 import type { AppearanceSettings } from './SettingsModal';
+import { Tooltip } from './Tooltip';
 
-// A reply or edit form is 'restored' when it shows a saved draft nobody opened here:
-// this card mounted with one (after a reload or a review switch) or another tab
-// started one. A restored form does not take focus, and closes when its draft goes
-// away. Apart from those, only a click in this copy opens a form, so when the same
-// thread shows in the Conversation panel and the diff, a draft typed in one copy does
-// not open the other.
+const PROGRESS_ICON = 'h-4.5 w-4.5';
+
+/**
+ * Your comment's progress in three looks: unplugged while it cannot reach the agent, dashed while
+ * it waits to be sent, and a spinner once the agent has it. A noted or replied comment shows none.
+ * A message still in this page (`unsent`) has no progress from the server yet and waits like a
+ * queued one.
+ */
+function progressLook(
+  status: CommentProgress['status'] | undefined,
+  unsent: boolean,
+  down: boolean,
+): { label: string; icon: ReactElement } | undefined {
+  if (unsent || status === 'queued')
+    return down
+      ? {
+          label: "Not sent: the agent can't be reached",
+          icon: (
+            <Unplug
+              aria-hidden="true"
+              className={`${PROGRESS_ICON} ${deliveryColor('disconnected')}`}
+            />
+          ),
+        }
+      : {
+          label: unsent ? 'Waiting to send' : 'Queued',
+          icon: <CircleDashed aria-hidden="true" className={PROGRESS_ICON} />,
+        };
+  if (!status || status === 'noted' || status === 'replied') return undefined;
+  return {
+    label: status.charAt(0).toUpperCase() + status.slice(1),
+    icon: (
+      <LoaderCircle
+        aria-hidden="true"
+        className={`${PROGRESS_ICON} animate-spin motion-reduce:animate-none`}
+      />
+    ),
+  };
+}
+
+// An edit form is 'restored' when it shows a saved draft nobody opened here: this
+// card mounted with one (after a reload or a review switch) or another tab started
+// one. A restored form does not take focus, and closes when its draft goes away.
+// Apart from those, only a click in this copy opens a form, so when the same thread
+// shows in the Conversation panel and the diff, an edit typed in one copy does not
+// open the other.
 type DraftFormState = 'closed' | 'restored' | 'opened';
 
 function useDraftForm(draft: Pick<ReturnType<typeof useCommentDraft>, 'draft' | 'fromStorage'>) {
@@ -54,11 +101,10 @@ interface ThreadMessageItemProps {
   focusRequest?: number;
   message: DiffCommentMessage;
   isRootMessage?: boolean;
-  showAuthorBadge: boolean;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
   filename?: string;
   originalCode?: string;
-  onUpdate: (newBody: string, intent: CommentIntent) => void;
+  onUpdate: (newBody: string) => void;
   onDeleteReply?: () => void;
   // The root comment's actions live in the thread heading; a new number opens its editor.
   editRequest?: number;
@@ -138,7 +184,6 @@ function ThreadMessageItem({
   focusRequest,
   message,
   isRootMessage = false,
-  showAuthorBadge,
   syntaxTheme,
   filename,
   originalCode,
@@ -152,13 +197,21 @@ function ThreadMessageItem({
   const readState = useContext(AgentUpdatesContext);
   // Another review's replies keep their read state until the reader uses its read controls.
   const canMarkRead = !readOnly && message.origin === 'agent' && readState?.enabled === true;
-  const showAuthorHeader = showAuthorBadge && Boolean(message.author);
-  const progress = message.origin !== 'agent' ? message.progress : undefined;
-  const isUserAuthoredMessage = message.author?.trim() === 'User';
-  const intent = message.intent ?? 'comment';
+  const delivery = useContext(CommentDeliveryContext);
+  const progress =
+    message.origin === 'agent'
+      ? undefined
+      : progressLook(message.progress?.status, delivery.unsent.has(message.id), delivery.down);
+  const isUserAuthoredMessage = message.origin !== 'agent';
+  // Imports and replies may name no author; 'Agent' matches the server's default for replies.
+  // GitHub names deleted accounts "ghost", which says nothing to a reader.
+  const authorName =
+    message.author === 'ghost'
+      ? 'Deleted GitHub account'
+      : (message.author ?? (isUserAuthoredMessage ? 'User' : 'Agent'));
   const editDraft = useCommentDraft(
     { kind: 'edit', threadId, messageId: message.id },
-    { body: message.body, intent },
+    message.body,
   );
   const [editForm, setEditForm] = useDraftForm(editDraft);
   const [openedEditRequest, setOpenedEditRequest] = useState(editRequest);
@@ -220,24 +273,21 @@ function ThreadMessageItem({
   // Cancel passes ''; Escape passes the text. Escape never discards unsaved changes: in
   // the panel it closes the panel and keeps them (see
   // CommentThreadCardProps.onEscapeKeepingDraft); in the diff it leaves the editor open
-  // while the text or intent differs from the message, and closes it otherwise.
+  // while the text differs from the message, and closes it otherwise.
   const handleCancelEdit = (text: string) => {
     if (text.trim()) {
       if (onEscapeKeepingDraft) {
         onEscapeKeepingDraft();
         return;
       }
-      if (text !== message.body || editDraft.intent !== intent) return;
+      if (text !== message.body) return;
     }
     editDraft.clear();
     setEditForm('closed');
   };
 
-  const handleSaveEdit = (nextBody: string, options: CommentSubmitOptions) => {
-    const nextIntent = options.intent ?? 'comment';
-    if (nextBody !== message.body || nextIntent !== intent) {
-      onUpdate(nextBody, nextIntent);
-    }
+  const handleSaveEdit = (nextBody: string) => {
+    if (nextBody !== message.body) onUpdate(nextBody);
     editDraft.clear();
     setEditForm('closed');
     return Promise.resolve();
@@ -248,7 +298,11 @@ function ThreadMessageItem({
       ref={messageElement}
       tabIndex={-1}
       data-comment-message-id={message.id}
-      className={`flow-root ${highlighted ? 'rounded ring-4 ring-blue-500 ring-offset-2 ring-offset-github-bg-tertiary' : ''}`}
+      className={
+        highlighted
+          ? 'rounded ring-4 ring-blue-500 ring-offset-2 ring-offset-github-bg-tertiary'
+          : ''
+      }
       // Following a link means the reader read the message. A gavel link's handler stops the
       // click before onClick below, and onClick skips other links, so the read mark goes here.
       onClickCapture={(event) => {
@@ -270,58 +324,53 @@ function ThreadMessageItem({
       }}
     >
       {!isEditing ? (
-        <>
-          {/* A reply's controls float, so its text wraps beneath them instead of leaving a
-              full-height column; the root comment's controls are in the thread heading. */}
-          {(replyRead || replyActions.length > 0) && (
-            <div className="float-right ml-3 flex items-center gap-2">
-              {replyRead && readState && (
-                <ReadToggle mark={replyRead} enabled={readState.enabled} />
-              )}
-              {replyActions.length > 0 && (
-                <ActionMenu
-                  label="Reply actions"
-                  items={replyActions}
-                  confirmation={isCopied ? 'Copied!' : undefined}
-                />
-              )}
-            </div>
-          )}
-          <div>
-            {showAuthorHeader && (
-              <div className="mb-2 flex min-w-0 items-center gap-2 pr-2 text-xs text-github-text-secondary">
-                <span className="inline-flex items-center rounded-full border border-github-border bg-github-bg-primary px-2 py-0.5 text-[11px] font-medium text-github-text-primary">
-                  {message.author}
-                </span>
-              </div>
-            )}
-
-            {(message.intent || isUserAuthoredMessage) && (
-              <span className="mb-2 inline-block rounded border border-github-border px-1.5 py-0.5 text-xs text-github-text-secondary">
-                {intent === 'question'
-                  ? 'Question'
-                  : intent === 'change'
-                    ? 'Change request'
-                    : 'Comment'}
-              </span>
-            )}
-            {progress && (
-              <div
-                role="status"
-                className="mb-2 flex items-center gap-1.5 text-xs text-github-text-secondary"
-                title={`Agent progress last updated ${new Date(progress.updatedAt).toLocaleString()}`}
+        // One icon sits left of the text, so every message's text starts at the same indent: the
+        // author's, or your comment's progress until the agent is done with it. A reply's controls
+        // float right, and the text wraps beneath them; the root comment's controls are in the
+        // thread heading.
+        <div className="flex gap-2">
+          <div className="flex min-h-6 flex-none items-center self-start text-github-text-secondary">
+            {progress ? (
+              <Tooltip
+                content={
+                  message.progress && !delivery.unsent.has(message.id)
+                    ? `${progress.label}, updated ${new Date(message.progress.updatedAt).toLocaleString()}`
+                    : progress.label
+                }
               >
-                {(progress.status === 'thinking' || progress.status === 'replying') && (
-                  <LoaderCircle
-                    aria-hidden="true"
-                    size={12}
-                    className="animate-spin motion-reduce:animate-none"
+                <span role="status" className="inline-flex">
+                  {progress.icon}
+                  <span className="sr-only">{progress.label}</span>
+                </span>
+              </Tooltip>
+            ) : (
+              <Tooltip content={authorName}>
+                <span role="img" aria-label={authorName} className="inline-flex">
+                  {/* A deleted GitHub account's imported comments are no agent's. */}
+                  {message.author === 'ghost' ? (
+                    <HatGlasses aria-hidden="true" className="h-4.5 w-4.5" />
+                  ) : message.origin === 'agent' ? (
+                    <Robot look="awake" className="h-4.5 w-4.5" />
+                  ) : (
+                    <User aria-hidden="true" className="h-4.5 w-4.5" />
+                  )}
+                </span>
+              </Tooltip>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            {(replyRead || replyActions.length > 0) && (
+              <div className="float-right ml-3 flex min-h-6 items-center gap-2 text-github-text-secondary">
+                {replyRead && readState && (
+                  <ReadToggle mark={replyRead} enabled={readState.enabled} />
+                )}
+                {replyActions.length > 0 && (
+                  <ActionMenu
+                    label="Reply actions"
+                    items={replyActions}
+                    confirmation={isCopied ? 'Copied!' : undefined}
                   />
                 )}
-                {(progress.status === 'replied' || progress.status === 'noted') && (
-                  <Check aria-hidden="true" size={12} />
-                )}
-                <span>{progress.status.charAt(0).toUpperCase() + progress.status.slice(1)}</span>
               </div>
             )}
             <CommentBodyRenderer
@@ -332,7 +381,7 @@ function ThreadMessageItem({
               syntaxTheme={syntaxTheme}
             />
           </div>
-        </>
+        </div>
       ) : (
         <CommentForm
           onSubmit={handleSaveEdit}
@@ -342,8 +391,6 @@ function ThreadMessageItem({
           filename={filename}
           value={editDraft.body}
           onChange={editDraft.setBody}
-          intentValue={editDraft.intent}
-          onIntentChange={editDraft.setIntent}
           embedded={true}
           title="Edit comment"
           submitLabel="Save"
@@ -366,19 +413,13 @@ interface CommentThreadCardProps {
   // That other review, which relative links in the thread's comments point into.
   linkReview?: DiffSelection;
   thread: CommentThread;
-  showAuthorBadges?: boolean;
   onGeneratePrompt: (thread: CommentThread) => string;
   onToggleThreadResolved: (threadId: string) => void;
   onRemoveThread?: (threadId: string) => void;
   onRestoreComment?: (threadId: string, messageId?: string) => void;
-  onReplyToThread: (threadId: string, body: string, intent?: CommentIntent) => Promise<void>;
+  onReplyToThread: (threadId: string, body: string) => Promise<void>;
   onRemoveMessage: (threadId: string, messageId: string) => void;
-  onUpdateMessage: (
-    threadId: string,
-    messageId: string,
-    newBody: string,
-    intent?: CommentIntent,
-  ) => void;
+  onUpdateMessage: (threadId: string, messageId: string, newBody: string) => void;
 
   onClick?: (e: React.MouseEvent) => void;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
@@ -396,7 +437,6 @@ export function CommentThreadCard({
   readOnly = false,
   linkReview,
   thread,
-  showAuthorBadges = false,
   onGeneratePrompt,
   onToggleThreadResolved,
   onRemoveThread,
@@ -444,16 +484,6 @@ export function CommentThreadCard({
     }
   };
   const replyDraft = useCommentDraft({ kind: 'reply', threadId: thread.id });
-  const [replyForm, setReplyForm] = useDraftForm(replyDraft);
-  const isReplying = replyForm !== 'closed';
-  const replyArea = useRef<HTMLDivElement>(null);
-  const replyTrigger = useRef<HTMLButtonElement>(null);
-  const returnFocusToReplyTrigger = useRef(false);
-  useEffect(() => {
-    if (isReplying || !returnFocusToReplyTrigger.current) return;
-    returnFocusToReplyTrigger.current = false;
-    replyTrigger.current?.focus();
-  }, [isReplying]);
   const lineLabel = Array.isArray(thread.line)
     ? `${thread.line[0]}-${thread.line[1]}`
     : thread.line;
@@ -677,23 +707,19 @@ export function CommentThreadCard({
               onEscapeKeepingDraft={onEscapeKeepingDraft}
               highlighted={focusedMessageId === rootMessage.id}
               focusRequest={focusedMessageId === rootMessage.id ? focusRequest : undefined}
-              message={{
-                ...rootMessage,
-                intent: rootMessage.intent ?? (thread.isQuestion ? 'question' : undefined),
-              }}
+              message={rootMessage}
               isRootMessage={true}
-              showAuthorBadge={showAuthorBadges}
               syntaxTheme={syntaxTheme}
               filename={thread.file}
               originalCode={thread.codeContent}
-              onUpdate={(newBody, intent) =>
-                onUpdateMessage(thread.id, rootMessage.id, newBody, intent)
-              }
+              onUpdate={(newBody) => onUpdateMessage(thread.id, rootMessage.id, newBody)}
               editRequest={rootEditRequest}
             />
 
             {thread.messages.slice(1).map((message) => (
-              <div key={message.id} className="ml-4 border-l border-github-border pl-3">
+              // Replies are not indented: the author icons form one column down the thread, read
+              // like a transcript.
+              <div key={message.id}>
                 {thread.deletedMessageIds?.includes(message.id) ? (
                   <div
                     className="flex items-center justify-between gap-3 text-xs text-github-text-secondary"
@@ -717,13 +743,10 @@ export function CommentThreadCard({
                     highlighted={focusedMessageId === message.id}
                     focusRequest={focusedMessageId === message.id ? focusRequest : undefined}
                     message={message}
-                    showAuthorBadge={showAuthorBadges}
                     syntaxTheme={syntaxTheme}
                     filename={thread.file}
                     originalCode={thread.codeContent}
-                    onUpdate={(newBody, intent) =>
-                      onUpdateMessage(thread.id, message.id, newBody, intent)
-                    }
+                    onUpdate={(newBody) => onUpdateMessage(thread.id, message.id, newBody)}
                     onDeleteReply={() => onRemoveMessage(thread.id, message.id)}
                   />
                 )}
@@ -731,54 +754,34 @@ export function CommentThreadCard({
             ))}
 
             {!readOnly && (
-              <div
-                ref={replyArea}
-                className="ml-4 border-l border-github-border pl-3"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {isReplying ? (
-                  <CommentForm
-                    value={replyDraft.body}
-                    onChange={replyDraft.setBody}
-                    intentValue={replyDraft.intent}
-                    onIntentChange={replyDraft.setIntent}
-                    onSubmit={async (body, options) => {
-                      await onReplyToThread(thread.id, body, options.intent);
-                      markAgentRepliesRead();
-                      replyDraft.clear();
-                      setReplyForm('closed');
-                    }}
-                    onCancel={(draft) => {
-                      if (draft.trim()) {
-                        onEscapeKeepingDraft?.();
-                        return;
-                      }
-                      // Escape returns focus to the reply field; an outside click keeps its target.
-                      returnFocusToReplyTrigger.current =
-                        replyArea.current?.contains(document.activeElement) ?? false;
-                      replyDraft.clear();
-                      setReplyForm('closed');
-                    }}
-                    selectedCode={thread.codeContent}
-                    syntaxTheme={syntaxTheme}
-                    filename={thread.file}
-                    embedded={true}
-                    title="Reply to thread"
-                    submitLabel="Send"
-                    placeholder="Write a reply..."
-                    autoFocus={replyForm === 'opened'}
-                    draftKey={replyDraft.key}
-                  />
-                ) : (
-                  <button
-                    ref={replyTrigger}
-                    type="button"
-                    onClick={() => setReplyForm('opened')}
-                    className="w-full cursor-text rounded border border-github-border bg-github-bg-secondary px-3 py-1.5 text-left text-sm text-github-text-muted transition-colors hover:border-github-text-secondary"
-                  >
-                    Write a reply...
-                  </button>
-                )}
+              // Lines up with the message text: one author icon (w-4.5) plus its gap (gap-2).
+              <div className="ml-6.5" onClick={(e) => e.stopPropagation()}>
+                <CommentForm
+                  value={replyDraft.body}
+                  onChange={replyDraft.setBody}
+                  onSubmit={async (body) => {
+                    await onReplyToThread(thread.id, body);
+                    markAgentRepliesRead();
+                    replyDraft.clear();
+                  }}
+                  onCancel={(draft) => {
+                    if (draft.trim()) {
+                      onEscapeKeepingDraft?.();
+                      return;
+                    }
+                    replyDraft.clear();
+                  }}
+                  selectedCode={thread.codeContent}
+                  syntaxTheme={syntaxTheme}
+                  filename={thread.file}
+                  embedded={true}
+                  compact={true}
+                  submitLabel="Send"
+                  placeholder="Write a reply..."
+                  autoFocus={false}
+                  dismissOnOutsideClick={false}
+                  draftKey={replyDraft.key}
+                />
               </div>
             )}
           </>

@@ -121,7 +121,6 @@ describe('Conversation unsent drafts', () => {
         'File left the diff',
         undefined,
         'new',
-        { isQuestion: false, intent: 'comment' },
       ),
     );
     await waitFor(() =>
@@ -217,7 +216,6 @@ describe('Conversation unsent drafts', () => {
         'In the diff',
         'line 12, as shown now',
         'new',
-        { isQuestion: false, intent: 'comment' },
       ),
     );
     expect(codeFor).toHaveBeenCalledWith(inDiff);
@@ -315,7 +313,6 @@ describe('Conversation unsent drafts', () => {
     await waitFor(() =>
       expect(screen.queryByRole('region', { name: 'Unsent drafts' })).not.toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Write a reply...' }));
     fireEvent.change(screen.getByPlaceholderText('Write a reply...'), {
       target: { value: 'A second reply, started in the panel' },
     });

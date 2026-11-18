@@ -5,7 +5,6 @@ import {
   type DiffViewMode,
   type DiffSide,
   type CommentThread,
-  type CommentIntent,
   type LineNumber,
 } from '../../types/diff';
 import type { NamedReviewMetadata } from '../../types/review';
@@ -20,7 +19,6 @@ import { TextDiffViewer } from '../viewers/TextDiffViewer';
 import { fileCanExpandHiddenLines, getViewerForFile } from '../viewers/registry';
 import type { DiffViewerBodyProps } from '../viewers/types';
 
-import type { CommentSubmitOptions } from './CommentForm';
 import { DiffViewerHeader } from './DiffViewerHeader';
 import { anchorsNotShown } from './LineCommentComposer';
 import type { AppearanceSettings } from './SettingsModal';
@@ -28,7 +26,6 @@ import type { AppearanceSettings } from './SettingsModal';
 interface DiffViewerProps {
   file: DiffFile;
   threads: CommentThread[];
-  showAuthorBadges?: boolean;
   diffMode: DiffViewMode;
   reviewedFiles: Set<string>;
   viewedStateReady?: boolean;
@@ -43,20 +40,14 @@ interface DiffViewerProps {
     body: string,
     codeContent?: string,
     side?: DiffSide,
-    options?: CommentSubmitOptions,
   ) => Promise<void>;
   onGenerateThreadPrompt: (thread: CommentThread) => string;
   onToggleThreadResolved: (threadId: string) => void;
   onRemoveThread?: (threadId: string) => void;
   onRestoreComment?: (threadId: string, messageId?: string) => void;
-  onReplyToThread: (threadId: string, body: string, intent?: CommentIntent) => Promise<void>;
+  onReplyToThread: (threadId: string, body: string) => Promise<void>;
   onRemoveMessage: (threadId: string, messageId: string) => void;
-  onUpdateMessage: (
-    threadId: string,
-    messageId: string,
-    newBody: string,
-    intent?: CommentIntent,
-  ) => void;
+  onUpdateMessage: (threadId: string, messageId: string, newBody: string) => void;
 
   onOpenInEditor?: (filePath: string, lineNumber: number) => void;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
@@ -216,7 +207,6 @@ const HEADER_ONLY_NOTES: Partial<Record<DiffFile['status'], string>> = {
 export const DiffViewer = memo(function DiffViewer({
   file,
   threads,
-  showAuthorBadges = false,
   diffMode,
   reviewedFiles,
   viewedStateReady = true,
@@ -324,15 +314,9 @@ export const DiffViewer = memo(function DiffViewer({
   }, [isVisible, isCollapsed, canExpandHiddenLines, file, prefetchFileContent]);
 
   const handleAddComment = useCallback(
-    async (
-      line: LineNumber,
-      body: string,
-      codeContent?: string,
-      side?: DiffSide,
-      options?: CommentSubmitOptions,
-    ) => {
+    async (line: LineNumber, body: string, codeContent?: string, side?: DiffSide) => {
       // A failure reaches CommentForm, which keeps the text so the draft is not lost.
-      await onAddComment(file.path, line, body, codeContent, side, options);
+      await onAddComment(file.path, line, body, codeContent, side);
     },
     [file.path, onAddComment],
   );
@@ -430,7 +414,6 @@ export const DiffViewer = memo(function DiffViewer({
   const viewerProps: DiffViewerBodyProps = {
     file,
     threads,
-    showAuthorBadges,
     diffMode,
     syntaxTheme,
     baseCommitish,

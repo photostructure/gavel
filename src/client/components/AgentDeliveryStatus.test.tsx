@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClientInboxDelivery as InboxDelivery } from '../hooks/useInboxDelivery';
 import { copyTextToClipboard } from '../utils/clipboard';
 
-import { AgentDeliveryAlert, AgentDeliveryStatus } from './AgentDeliveryStatus';
+import { AgentDeliveryAlert, AgentDeliveryStatus, deliveryDown } from './AgentDeliveryStatus';
 
 vi.mock('../utils/clipboard', () => ({
   copyTextToClipboard: vi.fn().mockResolvedValue(undefined),
@@ -374,3 +374,20 @@ for (const [name, Component] of [
     );
   });
 }
+
+// The comment cards draw an unsent comment unplugged exactly when the header robot is dead.
+describe('deliveryDown', () => {
+  it.each([
+    ['ready', 'reachable', false],
+    ['pending', 'reachable', false],
+    ['unavailable', 'reachable', false],
+    ['failed', 'reachable', true],
+    ['uncertain', 'reachable', true],
+    ['ready', 'reconnecting', true],
+    ['ready', 'unreachable', true],
+    ['failed', 'replaced', false],
+    [undefined, 'unreachable', false],
+  ] as const)('is %s with the server %s: %s', (status, server, down) => {
+    expect(deliveryDown(status, server)).toBe(down);
+  });
+});

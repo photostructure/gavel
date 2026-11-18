@@ -328,7 +328,7 @@ describe('navigating unseen agent replies', () => {
       ),
     );
     expect(screen.getByRole('radio', { name: 'This review' })).toBeChecked();
-    expect(screen.getByText('Write a reply...')).toBeVisible();
+    expect(screen.getByPlaceholderText('Write a reply...')).toBeVisible();
 
     // Returning to a review shows its cached threads before its unread state is ready.
     fireEvent.click(screen.getByRole('radio', { name: 'Unread' }));

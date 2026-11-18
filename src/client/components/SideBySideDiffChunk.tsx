@@ -5,7 +5,6 @@ import {
   type DiffLine,
   type DiffSide,
   type CommentThread,
-  type CommentIntent,
   type LineNumber,
   type LineSelection,
 } from '../../types/diff';
@@ -21,7 +20,6 @@ import {
 import { useFileLevelTokensLookup } from '../contexts/FileLevelTokensContext';
 
 import { CommentButton } from './CommentButton';
-import type { CommentSubmitOptions } from './CommentForm';
 import { CommentThreadCard } from './CommentThreadCard';
 import { EnhancedPrismSyntaxHighlighter } from './EnhancedPrismSyntaxHighlighter';
 import {
@@ -41,26 +39,19 @@ interface SideBySideDiffChunkProps {
   chunk: DiffChunkType & { snapshotLines?: DiffLine[] };
   chunkIndex: number;
   threads: CommentThread[];
-  showAuthorBadges?: boolean;
   onAddComment: (
     line: LineNumber,
     body: string,
     codeContent?: string,
     side?: DiffSide,
-    options?: CommentSubmitOptions,
   ) => Promise<void>;
   onGenerateThreadPrompt: (thread: CommentThread) => string;
   onToggleThreadResolved: (threadId: string) => void;
   onRemoveThread?: (threadId: string) => void;
   onRestoreComment?: (threadId: string, messageId?: string) => void;
-  onReplyToThread: (threadId: string, body: string, intent?: CommentIntent) => Promise<void>;
+  onReplyToThread: (threadId: string, body: string) => Promise<void>;
   onRemoveMessage: (threadId: string, messageId: string) => void;
-  onUpdateMessage: (
-    threadId: string,
-    messageId: string,
-    newBody: string,
-    intent?: CommentIntent,
-  ) => void;
+  onUpdateMessage: (threadId: string, messageId: string, newBody: string) => void;
 
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
   cursor?: CursorPosition | null;
@@ -166,7 +157,6 @@ export function SideBySideDiffChunk({
   chunk,
   chunkIndex,
   threads,
-  showAuthorBadges = false,
   onAddComment,
   onGenerateThreadPrompt,
   onToggleThreadResolved,
@@ -625,7 +615,6 @@ export function SideBySideDiffChunk({
                               <div className="m-2 mx-3" {...threadHoverProps(thread.id)}>
                                 <CommentThreadCard
                                   thread={thread}
-                                  showAuthorBadges={showAuthorBadges}
                                   onGeneratePrompt={onGenerateThreadPrompt}
                                   onToggleThreadResolved={onToggleThreadResolved}
                                   onRemoveThread={onRemoveThread}
@@ -662,8 +651,8 @@ export function SideBySideDiffChunk({
                               anchor={anchor}
                               selectedCode={shownCodeFor(codeLines, anchor)}
                               syntaxTheme={syntaxTheme}
-                              onSubmit={(body, options, code) =>
-                                onAddComment(anchor.lineNumber, body, code, anchor.side, options)
+                              onSubmit={(body, code) =>
+                                onAddComment(anchor.lineNumber, body, code, anchor.side)
                               }
                               onClose={() => closeComposer(anchor)}
                               autoFocus={isComposerFor(anchor, commentingLine)}

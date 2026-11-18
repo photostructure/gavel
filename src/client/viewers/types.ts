@@ -1,15 +1,7 @@
 import type { ComponentType } from 'react';
 
-import type {
-  CommentIntent,
-  CommentThread,
-  DiffFile,
-  DiffSide,
-  DiffViewMode,
-  LineNumber,
-} from '../../types/diff';
+import type { CommentThread, DiffFile, DiffSide, DiffViewMode, LineNumber } from '../../types/diff';
 import type { NamedReviewMetadata } from '../../types/review';
-import type { CommentSubmitOptions } from '../components/CommentForm';
 import type { AppearanceSettings } from '../components/SettingsModal';
 import type { CursorPosition } from '../hooks/keyboardNavigation';
 import type { MergedChunk } from '../hooks/useExpandedLines';
@@ -17,7 +9,6 @@ import type { MergedChunk } from '../hooks/useExpandedLines';
 export type DiffViewerBodyProps = {
   file: DiffFile;
   threads: CommentThread[];
-  showAuthorBadges?: boolean;
   diffMode: DiffViewMode;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
   baseCommitish?: string;
@@ -45,20 +36,14 @@ export type DiffViewerBodyProps = {
     body: string,
     codeContent?: string,
     side?: DiffSide,
-    options?: CommentSubmitOptions,
   ) => Promise<void>;
   onGenerateThreadPrompt: (thread: CommentThread) => string;
   onToggleThreadResolved: (threadId: string) => void;
   onRemoveThread?: (threadId: string) => void;
   onRestoreComment?: (threadId: string, messageId?: string) => void;
-  onReplyToThread: (threadId: string, body: string, intent?: CommentIntent) => Promise<void>;
+  onReplyToThread: (threadId: string, body: string) => Promise<void>;
   onRemoveMessage: (threadId: string, messageId: string) => void;
-  onUpdateMessage: (
-    threadId: string,
-    messageId: string,
-    newBody: string,
-    intent?: CommentIntent,
-  ) => void;
+  onUpdateMessage: (threadId: string, messageId: string, newBody: string) => void;
 
   onOpenInEditor?: (filePath: string, lineNumber: number) => void;
   onLineClick?: (

@@ -41,7 +41,6 @@ function otherReview(name: string, threads: CommentThread[]): OtherReviewConvers
     name,
     selection: createDiffSelection('base', 'target', undefined, name),
     threads,
-    showAuthorBadges: false,
   };
 }
 
@@ -126,7 +125,7 @@ describe('conversations across reviews', () => {
     const card = screen
       .getByText('Root elsewhere')
       .closest<HTMLElement>('[data-comment-thread-id]')!;
-    expect(within(card).queryByText('Write a reply...')).not.toBeInTheDocument();
+    expect(within(card).queryByPlaceholderText('Write a reply...')).not.toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: 'Resolve thread' })).toBeNull();
     expect(within(card).queryByRole('button', { name: 'Thread actions' })).toBeNull();
     expect(within(card).queryByRole('button', { name: 'Reply actions' })).toBeNull();
@@ -245,6 +244,6 @@ describe('conversations across reviews', () => {
       ).toHaveFocus(),
     );
     expect(onThreadFocused).toHaveBeenCalledOnce();
-    expect(screen.getByText('Write a reply...')).toBeVisible();
+    expect(screen.getByPlaceholderText('Write a reply...')).toBeVisible();
   });
 });

@@ -8,7 +8,7 @@ import {
   type LineDraftAnchor,
 } from '../hooks/useCommentDrafts';
 
-import { CommentForm, type CommentSubmitOptions } from './CommentForm';
+import { CommentForm } from './CommentForm';
 import type { AppearanceSettings } from './SettingsModal';
 
 export interface LineTarget {
@@ -92,8 +92,7 @@ export function codeInFiles(
 }
 
 // The forms a chunk shows: every saved line draft it draws, plus the form the
-// reviewer just opened, which has no saved copy until the reviewer types or picks
-// an intent.
+// reviewer just opened, which has no saved copy until the reviewer types.
 export function useChunkComposers(
   filePath: string,
   lines: DiffLine[],
@@ -141,7 +140,7 @@ interface LineCommentComposerProps {
   title?: string;
   // Only the form the reviewer just opened takes focus; a restored draft does not.
   autoFocus: boolean;
-  onSubmit: (body: string, options: CommentSubmitOptions, code?: string) => Promise<void>;
+  onSubmit: (body: string, code?: string) => Promise<void>;
   onClose: () => void;
   // Escape in a form with text keeps the draft and the form; when given (the
   // Conversation panel), this is called too, to close the panel.
@@ -158,16 +157,14 @@ export function LineCommentComposer({
   onClose,
   onEscape,
 }: LineCommentComposerProps) {
-  const draft = useCommentDraft(anchor, undefined, selectedCode);
+  const draft = useCommentDraft(anchor, '', selectedCode);
   const code = selectedCode ?? draft.savedCode;
   return (
     <CommentForm
       value={draft.body}
       onChange={draft.setBody}
-      intentValue={draft.intent}
-      onIntentChange={draft.setIntent}
-      onSubmit={async (body, options) => {
-        await onSubmit(body, options, code);
+      onSubmit={async (body) => {
+        await onSubmit(body, code);
         draft.clear();
         onClose();
       }}

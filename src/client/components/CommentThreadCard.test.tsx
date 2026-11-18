@@ -1,14 +1,16 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState, type ComponentProps } from 'react';
+import { type ComponentProps, type ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CommentIntent, CommentThread } from '../../types/diff';
+import type { CommentThread } from '../../types/diff';
 import { AgentUpdatesContext, type AgentUpdatesReadState } from '../contexts/AgentUpdatesContext';
 import { CommentLinkContext } from '../contexts/CommentLinkContext';
+import { CommentDeliveryContext, type CommentDelivery } from '../contexts/CommentDeliveryContext';
 import { agentMessageRevision } from '../hooks/useAgentUpdates';
 import { CommentDraftScope, draftKey } from '../hooks/useCommentDrafts';
 
+import { deliveryColor } from './AgentDeliveryStatus';
 import { CommentThreadCard } from './CommentThreadCard';
 import { copyTextToClipboard } from '../utils/clipboard';
 vi.mock('../utils/clipboard', () => ({
@@ -54,6 +56,10 @@ async function chooseAction(
   await user.click(within(container).getByRole('button', { name: menu }));
   await user.click(screen.getByRole('menuitem', { name: item }));
 }
+
+// Renders `ui` as the review page provides comment delivery to its cards.
+const renderWithDelivery = (delivery: CommentDelivery, ui: ReactElement) =>
+  render(<CommentDeliveryContext.Provider value={delivery}>{ui}</CommentDeliveryContext.Provider>);
 
 const menuItems = () => screen.getAllByRole('menuitem').map((item) => item.textContent);
 
@@ -267,6 +273,66 @@ describe('thread and reply actions', () => {
     expect(onRemoveMessage).toHaveBeenCalledWith('thread-1', 'message-2');
   });
 
+  // GitHub shows deleted accounts as ghost; their imported comments are no agent's.
+  it('shows a comment from a deleted GitHub account as hat-and-glasses, not the robot', () => {
+    render(
+      <CommentThreadCard
+        {...props}
+        thread={{
+          ...mockThread,
+          messages: [{ ...mockThread.messages[0]!, author: 'ghost', origin: 'agent' }],
+        }}
+      />,
+    );
+
+    const icon = screen.getByRole('img', { name: 'Deleted GitHub account' }).querySelector('svg');
+    expect(icon).toHaveClass('lucide-hat-glasses');
+    expect(icon).not.toHaveAttribute('data-robot');
+  });
+
+  it('shows the robot on an agent comment that names no author', () => {
+    render(
+      <CommentThreadCard
+        {...props}
+        thread={{
+          ...mockThread,
+          messages: [{ ...mockThread.messages[0]!, author: undefined, origin: 'agent' }],
+        }}
+      />,
+    );
+
+    const icon = screen.getByRole('img', { name: 'Agent' });
+    expect(icon.querySelector('svg[data-robot]')).not.toBeNull();
+  });
+
+  it('tells your replies from the agent by origin, not by the author name', async () => {
+    const user = userEvent.setup();
+    render(
+      <CommentThreadCard
+        {...props}
+        thread={{
+          ...mockThread,
+          messages: [
+            mockThread.messages[0]!,
+            { ...mockThread.messages[1]!, id: 'yours', author: 'Ada Lovelace' },
+            { ...mockThread.messages[1]!, id: 'agent', author: 'User', origin: 'agent' },
+          ],
+        }}
+      />,
+    );
+
+    const [yours, agent] = screen.getAllByRole('button', { name: 'Reply actions' });
+    await user.click(yours!);
+    expect(menuItems()).toEqual(['Copy reply', 'Edit reply', 'Delete reply']);
+    await user.keyboard('{Escape}');
+    await user.click(agent!);
+    expect(menuItems()).toEqual(['Copy reply']);
+    // The icon follows origin too; the name is its label.
+    const robot = (element: HTMLElement) => element.querySelector('svg[data-robot]') !== null;
+    expect(robot(screen.getByRole('img', { name: 'Ada Lovelace' }))).toBe(false);
+    expect(screen.getAllByRole('img', { name: 'User' }).map(robot)).toEqual([false, true]);
+  });
+
   it('shows no actions on a thread from another review', () => {
     render(<CommentThreadCard {...props} thread={mockThread} readOnly onRemoveThread={vi.fn()} />);
 
@@ -340,20 +406,58 @@ describe('CommentThreadCard', () => {
     expect(onToggleThreadResolved).toHaveBeenCalledWith('thread-1');
   });
 
-  it.each(['queued', 'delivered', 'read', 'thinking', 'replying', 'noted', 'replied'] as const)(
-    'shows %s progress even when author badges are hidden',
-    (status) => {
-      render(
+  // Your comment's progress has three looks: unplugged while it cannot reach the agent, dashed
+  // while it waits to be sent, and a spinner once the agent has it. Noted or replied shows none.
+  it.each([
+    ['queued', false, 'lucide-circle-dashed', 'Queued'],
+    ['queued', true, 'lucide-unplug', "Not sent: the agent can't be reached"],
+    ['delivered', false, 'lucide-loader-circle', 'Delivered'],
+    ['read', false, 'lucide-loader-circle', 'Read'],
+    ['thinking', false, 'lucide-loader-circle', 'Thinking'],
+    ['replying', true, 'lucide-loader-circle', 'Replying'],
+  ] as const)('shows %s progress (delivery down: %s) as %s', (status, down, icon, label) => {
+    renderWithDelivery(
+      { down, unsent: new Set() },
+      <CommentThreadCard
+        thread={{
+          ...mockThread,
+          messages: [
+            {
+              ...mockThread.messages[0]!,
+              progress: { status, cursor: 'stream:1', updatedAt: '2026-10-24T00:00:00Z' },
+            },
+          ],
+        }}
+        onGeneratePrompt={() => ''}
+        onToggleThreadResolved={vi.fn()}
+        onReplyToThread={vi.fn()}
+        onRemoveMessage={vi.fn()}
+        onUpdateMessage={vi.fn()}
+      />,
+    );
+
+    const progress = screen.getByRole('status');
+    expect(progress).toHaveTextContent(label);
+    expect(progress.querySelector('svg')).toHaveClass(icon);
+    // Unplugged takes the dead header robot's red.
+    if (icon === 'lucide-unplug')
+      expect(progress.querySelector('svg')).toHaveClass(deliveryColor('disconnected'));
+    // Progress takes the author icon's place until the agent is done.
+    expect(screen.queryByRole('img', { name: 'User' })).not.toBeInTheDocument();
+  });
+
+  // A reply made offline waits in the page with no progress from the server yet.
+  it.each([
+    [true, 'lucide-unplug', "Not sent: the agent can't be reached"],
+    [false, 'lucide-circle-dashed', 'Waiting to send'],
+  ] as const)(
+    'shows a message still in this page (delivery down: %s) as %s',
+    (down, icon, label) => {
+      const root = mockThread.messages[0]!;
+      renderWithDelivery(
+        { down, unsent: new Set([root.id]) },
         <CommentThreadCard
-          thread={{
-            ...mockThread,
-            messages: [
-              {
-                ...mockThread.messages[0]!,
-                progress: { status, cursor: 'stream:1', updatedAt: '2026-10-24T00:00:00Z' },
-              },
-            ],
-          }}
+          thread={{ ...mockThread, messages: [root] }}
           onGeneratePrompt={() => ''}
           onToggleThreadResolved={vi.fn()}
           onReplyToThread={vi.fn()}
@@ -361,17 +465,45 @@ describe('CommentThreadCard', () => {
           onUpdateMessage={vi.fn()}
         />,
       );
-      expect(screen.getByRole('status')).toHaveTextContent(
-        status[0]!.toUpperCase() + status.slice(1),
-      );
+
+      const progress = screen.getByRole('status');
+      expect(progress).toHaveTextContent(label);
+      expect(progress.querySelector('svg')).toHaveClass(icon);
     },
   );
+
+  it.each(['noted', 'replied'] as const)('shows no progress once %s', (status) => {
+    render(
+      <CommentThreadCard
+        thread={{
+          ...mockThread,
+          messages: [
+            {
+              ...mockThread.messages[0]!,
+              progress: { status, cursor: 'stream:1', updatedAt: '2026-10-24T00:00:00Z' },
+            },
+          ],
+        }}
+        onGeneratePrompt={() => ''}
+        onToggleThreadResolved={vi.fn()}
+        onReplyToThread={vi.fn()}
+        onRemoveMessage={vi.fn()}
+        onUpdateMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'User' })).toBeInTheDocument();
+  });
 
   it('does not show delete action for replies authored by someone else', async () => {
     const user = userEvent.setup();
     render(
       <CommentThreadCard
-        thread={mockThread}
+        thread={{
+          ...mockThread,
+          messages: [mockThread.messages[0]!, { ...mockThread.messages[1]!, origin: 'agent' }],
+        }}
         onGeneratePrompt={() => 'thread prompt'}
         onToggleThreadResolved={vi.fn()}
         onReplyToThread={vi.fn().mockResolvedValue(undefined)}
@@ -385,7 +517,7 @@ describe('CommentThreadCard', () => {
     expect(menuItems()).toEqual(['Copy reply']);
   });
 
-  it('allows resolving and updating intent on imported root comments', async () => {
+  it('allows resolving and editing imported root comments', async () => {
     const user = userEvent.setup();
     render(
       <CommentThreadCard
@@ -630,37 +762,6 @@ describe('CommentThreadCard', () => {
     expect(onRemoveThread).toHaveBeenCalledWith('thread-1');
     expect(onToggleThreadResolved).not.toHaveBeenCalled();
   });
-
-  it('edits legacy question intent through the same group without a header toggle', async () => {
-    const user = userEvent.setup();
-    const onUpdateMessage = vi.fn();
-    const root = mockThread.messages[0]!;
-    render(
-      <CommentThreadCard
-        thread={{
-          ...mockThread,
-          isQuestion: true,
-          messages: [{ ...root, author: 'Reviewer', origin: 'agent' }],
-        }}
-        onGeneratePrompt={() => 'thread prompt'}
-        onToggleThreadResolved={vi.fn()}
-        onReplyToThread={vi.fn()}
-        onRemoveMessage={vi.fn()}
-        onUpdateMessage={onUpdateMessage}
-      />,
-    );
-    expect(screen.getByText('Question', { selector: 'span' })).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Change to a normal comment' }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    await chooseAction(user, 'Thread actions', 'Edit comment');
-    const editForm = within(screen.getByPlaceholderText('Edit your message...').closest('form')!);
-    expect(editForm.getByRole('radio', { name: 'Question' })).toBeChecked();
-    await user.click(editForm.getByRole('radio', { name: 'Comment' }));
-    await user.click(editForm.getByRole('button', { name: 'Save' }));
-    expect(onUpdateMessage).toHaveBeenCalledWith('thread-1', root.id, root.body, 'comment');
-  });
 });
 
 describe('reply copy actions', () => {
@@ -859,76 +960,76 @@ describe('thread disclosure and replies', () => {
 
   // Resolve closes a thread that needs nothing more without waking the agent; a typed reply
   // says anything else.
-  it('offers only the reply field after an agent reply', () => {
+  it('offers only an empty reply box after an agent reply', () => {
     renderThread({ thread: agentAnswered });
 
-    const replyArea = screen.getByRole('button', { name: 'Write a reply...' }).parentElement!;
-    expect(
-      within(replyArea)
-        .getAllByRole('button')
-        .map((button) => button.textContent),
-    ).toEqual(['Write a reply...']);
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    const reply = screen.getByPlaceholderText('Write a reply...');
+    expect(reply).toHaveValue('');
+    expect(reply).not.toHaveFocus();
+    expect(within(reply.closest('form')!).queryAllByRole('button')).toEqual([]);
   });
 
-  it('opens a focused reply form and collapses it after sending', async () => {
+  it('shows Send once the reply box has text and empties the box after sending', async () => {
     const user = userEvent.setup();
     const onReplyToThread = vi.fn().mockResolvedValue(undefined);
     const onClick = vi.fn();
     renderThread({ thread: agentAnswered, onReplyToThread, onClick });
 
-    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
     const reply = screen.getByPlaceholderText('Write a reply...');
-    expect(reply).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
     await user.type(reply, 'A new reply');
     await user.click(screen.getByRole('button', { name: 'Send' }));
 
-    expect(onReplyToThread).toHaveBeenCalledWith('thread-1', 'A new reply', 'comment');
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Write a reply...' })).toBeInTheDocument();
+    expect(onReplyToThread).toHaveBeenCalledWith('thread-1', 'A new reply');
+    expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('');
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
+    expect(localStorage.length).toBe(0);
     expect(onClick).not.toHaveBeenCalled();
   });
 
-  it('closes an empty reply form on Escape and returns focus to the reply field', async () => {
+  // Escape leaves the empty box, so page keys and the Conversation panel's Escape work again.
+  it('forgets an emptied reply draft on Escape and leaves the empty box', async () => {
     const user = userEvent.setup();
     renderThread();
 
-    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
+    const reply = screen.getByPlaceholderText('Write a reply...');
+    await user.type(reply, 'x');
+    await user.clear(reply);
+    expect(localStorage.length).toBe(1);
     await user.keyboard('{Escape}');
 
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Write a reply...' })).toHaveFocus();
+    expect(localStorage.length).toBe(0);
+    expect(reply).toHaveValue('');
+    expect(reply).not.toHaveFocus();
   });
 
-  it('discards a reply draft with Cancel', async () => {
+  it('discards a reply draft with Cancel and keeps the empty box', async () => {
     const user = userEvent.setup();
     const onReplyToThread = vi.fn().mockResolvedValue(undefined);
     renderThread({ onReplyToThread });
 
-    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
     await user.type(screen.getByPlaceholderText('Write a reply...'), 'Never mind');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(onReplyToThread).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
     expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('');
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+    expect(localStorage.length).toBe(0);
   });
 
-  it('keeps a reply draft open across Escape and outside clicks', async () => {
+  it('keeps a reply draft across Escape and outside clicks', async () => {
     const user = userEvent.setup();
-    renderThread();
+    const onEscapeKeepingDraft = vi.fn();
+    renderThread({ onEscapeKeepingDraft });
 
-    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
     const reply = screen.getByPlaceholderText('Write a reply...');
     await user.type(reply, 'Keep this draft');
-    await user.click(screen.getByRole('radio', { name: 'Question' }));
     await user.keyboard('{Escape}');
     await user.click(screen.getByRole('button', { name: 'Outside thread' }));
 
+    expect(onEscapeKeepingDraft).toHaveBeenCalledOnce();
     expect(reply).toBeVisible();
     expect(reply).toHaveValue('Keep this draft');
-    expect(screen.getByRole('radio', { name: 'Question' })).toBeChecked();
     expect(reply.closest('form')).toHaveAttribute('data-empty', 'false');
   });
 
@@ -965,7 +1066,7 @@ describe('thread disclosure and replies', () => {
 
       await user.click(screen.getByText(heading));
       expect(disclosure).toHaveAttribute('aria-expanded', 'true');
-      expect(screen.getByRole('button', { name: 'Write a reply...' })).toBeVisible();
+      expect(screen.getByPlaceholderText('Write a reply...')).toBeVisible();
       expect(onClick).not.toHaveBeenCalled();
     },
   );
@@ -1122,17 +1223,17 @@ describe('thread drafts', () => {
   const draftsKey = 'gavel:comment-drafts:review-a';
   const storedDraft = (anchor: typeof replyAnchor | typeof editAnchor, body: string) =>
     JSON.stringify({
-      [draftKey(anchor)]: { anchor, body, intent: 'comment', updatedAt: Date.now() },
+      [draftKey(anchor)]: { anchor, body, updatedAt: Date.now() },
     });
   const announceOtherTabChange = () =>
     act(() => {
       window.dispatchEvent(new StorageEvent('storage', { key: draftsKey }));
     });
 
-  it('opens a closed reply form when another tab starts that reply', async () => {
+  it('shows the text of a reply another tab starts', async () => {
     const user = userEvent.setup();
     renderCard();
-    expect(screen.queryByPlaceholderText('Write a reply...')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('');
 
     localStorage.setItem(draftsKey, storedDraft(replyAnchor, 'From the other tab'));
     announceOtherTabChange();
@@ -1146,16 +1247,15 @@ describe('thread drafts', () => {
     );
   });
 
-  it('closes a restored reply form when another tab sends that reply', () => {
+  it('empties a restored reply box when another tab sends that reply', () => {
     localStorage.setItem(draftsKey, storedDraft(replyAnchor, 'Sent from the other tab'));
     renderCard();
-    expect(screen.getByPlaceholderText('Write a reply...')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('Sent from the other tab');
 
     localStorage.removeItem(draftsKey);
     announceOtherTabChange();
 
-    expect(screen.queryByPlaceholderText('Write a reply...')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Write a reply...' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('');
   });
 
   it('opens a closed edit form when another tab starts that edit', async () => {
@@ -1186,17 +1286,15 @@ describe('thread drafts', () => {
     expect(screen.queryByPlaceholderText('Edit your message...')).not.toBeInTheDocument();
   });
 
-  it('reopens a reply draft with its text after the page remounts', async () => {
+  it('restores the text of a reply draft after the page remounts', async () => {
     const user = userEvent.setup();
     const first = renderCard();
-    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
     await user.type(screen.getByPlaceholderText('Write a reply...'), 'Half a reply');
-    await user.click(screen.getByRole('radio', { name: 'Change request' }));
     first.unmount();
 
     renderCard();
     expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('Half a reply');
-    expect(screen.getByRole('radio', { name: 'Change request' })).toBeChecked();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument();
   });
 
   it('reopens an unsaved edit with its text after the page remounts', async () => {
@@ -1249,16 +1347,6 @@ describe('thread drafts', () => {
     expect(screen.queryByPlaceholderText('Edit your message...')).not.toBeInTheDocument();
     expect(screen.getByText('Root comment')).toBeInTheDocument();
   });
-
-  it('keeps an edit open on Escape when only its intent changed', async () => {
-    const user = userEvent.setup();
-    renderCard();
-    await chooseAction(user, 'Thread actions', 'Edit comment');
-    await user.click(screen.getByRole('radio', { name: 'Question' }));
-    await user.click(screen.getByPlaceholderText('Edit your message...'));
-    await user.keyboard('{Escape}');
-    expect(screen.getByRole('radio', { name: 'Question' })).toBeChecked();
-  });
 });
 
 describe('thread drafts across saves, copies, and resolution', () => {
@@ -1266,75 +1354,16 @@ describe('thread drafts across saves, copies, and resolution', () => {
     ...mockThread,
     resolution: { resolved: true, updatedAt: mockThread.updatedAt },
   };
-  type UpdateMessage = (
-    threadId: string,
-    messageId: string,
-    body: string,
-    intent?: CommentIntent,
-  ) => void;
-  const card = (thread: CommentThread, onUpdateMessage: UpdateMessage = vi.fn()) => (
+  const card = (thread: CommentThread) => (
     <CommentThreadCard
       thread={thread}
       onGeneratePrompt={() => 'thread prompt'}
       onToggleThreadResolved={vi.fn()}
       onReplyToThread={vi.fn().mockResolvedValue(undefined)}
       onRemoveMessage={vi.fn()}
-      onUpdateMessage={onUpdateMessage}
+      onUpdateMessage={vi.fn()}
     />
   );
-
-  // Applies saved edits to the thread, as useDiffComments does.
-  function EditingHost({ onUpdateMessage }: { onUpdateMessage: UpdateMessage }) {
-    const [thread, setThread] = useState(mockThread);
-    return (
-      <CommentDraftScope value="review-a">
-        {card(
-          thread,
-          (threadId: string, messageId: string, body: string, intent?: CommentIntent) => {
-            onUpdateMessage(threadId, messageId, body, intent);
-            setThread((current) => ({
-              ...current,
-              messages: current.messages.map((message) =>
-                message.id === messageId ? { ...message, body, intent } : message,
-              ),
-            }));
-          },
-        )}
-      </CommentDraftScope>
-    );
-  }
-
-  it('opens a second edit with the intent the first edit saved', async () => {
-    const user = userEvent.setup();
-    const onUpdateMessage = vi.fn<UpdateMessage>();
-    render(<EditingHost onUpdateMessage={onUpdateMessage} />);
-    await chooseAction(user, 'Thread actions', 'Edit comment');
-    await user.click(screen.getByRole('radio', { name: 'Question' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    await chooseAction(user, 'Thread actions', 'Edit comment');
-    expect(screen.getByRole('radio', { name: 'Question' })).toBeChecked();
-    await user.type(screen.getByPlaceholderText('Edit your message...'), '!');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    expect(onUpdateMessage).toHaveBeenLastCalledWith(
-      'thread-1',
-      'message-1',
-      'Root comment!',
-      'question',
-    );
-  });
-
-  it('keeps an intent-only edit across a remount', async () => {
-    const user = userEvent.setup();
-    const first = render(
-      <CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>,
-    );
-    await chooseAction(user, 'Thread actions', 'Edit comment');
-    await user.click(screen.getByRole('radio', { name: 'Question' }));
-    first.unmount();
-    render(<CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>);
-    expect(screen.getByPlaceholderText('Edit your message...')).toHaveValue('Root comment');
-    expect(screen.getByRole('radio', { name: 'Question' })).toBeChecked();
-  });
 
   it('forgets an edit once it is saved', async () => {
     const user = userEvent.setup();
@@ -1350,7 +1379,7 @@ describe('thread drafts across saves, copies, and resolution', () => {
     expect(localStorage.length).toBe(0);
   });
 
-  it('keeps focus in the copy of the thread being typed in', async () => {
+  it('shows a reply typed in one copy of the thread in the other, keeping focus where it was typed', async () => {
     const user = userEvent.setup();
     render(
       <CommentDraftScope value="review-a">
@@ -1359,15 +1388,12 @@ describe('thread drafts across saves, copies, and resolution', () => {
       </CommentDraftScope>,
     );
     const panel = within(screen.getByTestId('panel'));
-    await user.click(panel.getByRole('button', { name: 'Write a reply...' }));
+    const diff = within(screen.getByTestId('diff'));
     await user.type(panel.getByPlaceholderText('Write a reply...'), 'Typed here');
     expect(panel.getByPlaceholderText('Write a reply...')).toHaveFocus();
     expect(panel.getByPlaceholderText('Write a reply...')).toHaveValue('Typed here');
-    // The other copy stays closed, so an outside click cannot reset it and
-    // delete the draft the first copy shows.
-    expect(
-      within(screen.getByTestId('diff')).queryByPlaceholderText('Write a reply...'),
-    ).not.toBeInTheDocument();
+    expect(diff.getByPlaceholderText('Write a reply...')).toHaveValue('Typed here');
+    expect(diff.getByPlaceholderText('Write a reply...')).not.toHaveFocus();
   });
 
   function otherTabSavesAnotherDraft() {
@@ -1377,7 +1403,6 @@ describe('thread drafts across saves, copies, and resolution', () => {
     drafts[draftKey(anchor)] = {
       anchor,
       body: 'From the other tab',
-      intent: 'comment',
       updatedAt: Date.now(),
     };
     localStorage.setItem(storageKey, JSON.stringify(drafts));
@@ -1386,7 +1411,7 @@ describe('thread drafts across saves, copies, and resolution', () => {
     });
   }
 
-  it('keeps the other copy of a reply closed when another tab changes a different draft', async () => {
+  it('keeps a reply in both copies of the thread when another tab changes a different draft', async () => {
     const user = userEvent.setup();
     render(
       <CommentDraftScope value="review-a">
@@ -1395,15 +1420,15 @@ describe('thread drafts across saves, copies, and resolution', () => {
       </CommentDraftScope>,
     );
     const panel = within(screen.getByTestId('panel'));
-    await user.click(panel.getByRole('button', { name: 'Write a reply...' }));
     await user.type(panel.getByPlaceholderText('Write a reply...'), 'Typed here');
 
     otherTabSavesAnotherDraft();
 
     expect(panel.getByPlaceholderText('Write a reply...')).toHaveValue('Typed here');
-    expect(
-      within(screen.getByTestId('diff')).queryByPlaceholderText('Write a reply...'),
-    ).not.toBeInTheDocument();
+    expect(panel.getByPlaceholderText('Write a reply...')).toHaveFocus();
+    expect(within(screen.getByTestId('diff')).getByPlaceholderText('Write a reply...')).toHaveValue(
+      'Typed here',
+    );
   });
 
   it('keeps the other copy of an edit closed when another tab changes a different draft', async () => {
@@ -1447,19 +1472,17 @@ describe('thread drafts across saves, copies, and resolution', () => {
     const user = userEvent.setup();
     const first = render(<CommentDraftScope value="review-a">{card(resolved)}</CommentDraftScope>);
     await user.click(screen.getByRole('button', { name: 'Expand thread' }));
-    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
     await user.type(screen.getByPlaceholderText('Write a reply...'), 'Reopen this');
     first.unmount();
     render(<CommentDraftScope value="review-a">{card(resolved)}</CommentDraftScope>);
     expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue('Reopen this');
   });
 
-  it('keeps a restored reply form open after its text is cleared', async () => {
+  it('keeps a restored reply box editable after its text is cleared', async () => {
     const user = userEvent.setup();
     const first = render(
       <CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>,
     );
-    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
     await user.type(screen.getByPlaceholderText('Write a reply...'), 'Half a reply');
     first.unmount();
     render(<CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>);
@@ -1472,7 +1495,6 @@ describe('thread drafts across saves, copies, and resolution', () => {
   it('marks reply and edit forms with their draft keys', async () => {
     const user = userEvent.setup();
     render(<CommentDraftScope value="review-a">{card(mockThread)}</CommentDraftScope>);
-    await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
     await chooseAction(user, 'Thread actions', 'Edit comment');
     expect(screen.getByPlaceholderText('Write a reply...').closest('form')).toHaveAttribute(
       'data-draft-key',

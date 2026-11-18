@@ -14,7 +14,6 @@ import {
   type DiffSide,
   type LineNumber,
   type CommentThread,
-  type CommentIntent,
   type RevisionsResponse,
 } from '../types/diff';
 import { DEFAULT_DIFF_VIEW_MODE, normalizeDiffViewMode } from '../utils/diffMode';
@@ -28,7 +27,6 @@ import {
 import { verdictTabReviews } from '../utils/reviewTabs';
 
 import { includeDeletedComments } from './utils/commentDeletion';
-import type { CommentSubmitOptions } from './components/CommentForm';
 import { CommentsDropdown } from './components/CommentsDropdown';
 import { CommentsListModal, type OtherReviewConversation } from './components/CommentsListModal';
 import {
@@ -95,7 +93,6 @@ import {
 import { saveAutoViewedPatterns } from './services/autoViewedPatterns';
 import { celebrateApproval } from './utils/approvalCelebration';
 import { hasVerdict } from './utils/verdict';
-import { hasMultipleCommentAuthors } from './utils/commentAuthors';
 import { copyTextToClipboard } from './utils/clipboard';
 import { getFileElementId, resetEmptyCommentFormsOutside } from './utils/domUtils';
 import { findCommentPosition, findSidePosition } from './utils/navigation/positionHelpers';
@@ -934,10 +931,6 @@ function App() {
         [],
     ),
   );
-  const showAuthorBadges = useMemo(
-    () => hasMultipleCommentAuthors(normalizedThreads.flatMap((thread) => thread.messages)),
-    [normalizedThreads],
-  );
   const threadsByFile = useMemo(() => {
     const map = new Map<string, CommentThread[]>();
     displayThreads.forEach((thread) => {
@@ -1178,7 +1171,7 @@ function App() {
   // going there (a closing panel restores it, or the window regains it).
   const placeCursorAtComment = (event: SyntheticEvent<HTMLElement>) => {
     if (!(event.target instanceof Element)) return;
-    // A link moves the cursor to its own target, which a placement after the click would undo.
+    // A link moves the cursor to its own target; placing it here first would be a wasted move.
     if (event.target.closest('a[href]')) return;
     const card = event.target.closest<HTMLElement>('[data-comment-thread-id]');
     if (!card || !event.currentTarget.contains(card)) return;
@@ -1187,9 +1180,7 @@ function App() {
     );
     if (!thread) throw new Error(`No thread ${card.dataset.commentThreadId} for a diff comment`);
     const position = findCommentPosition(thread, navigableFiles);
-    // Placed once the click is over: a click on a label goes on to click its radio, and moving
-    // the cursor in between loses the radio's change, so a reply's intent would not switch.
-    if (position) setTimeout(() => setCursorPosition(position, 'none'), 0);
+    if (position) setCursorPosition(position, 'none');
   };
 
   // The file list's comment count jumps to the file's first comment, which gets the cursor;
@@ -1582,9 +1573,6 @@ function App() {
           name: formatReviewSelection(selection),
           selection,
           threads: conversationThreads,
-          showAuthorBadges: hasMultipleCommentAuthors(
-            conversationThreads.flatMap((thread) => thread.messages),
-          ),
         };
       };
       setReviewConversations([
@@ -1815,13 +1803,10 @@ function App() {
       body: string,
       codeContent?: string,
       side?: DiffSide,
-      options?: CommentSubmitOptions,
     ): Promise<void> => {
       addThread({
         filePath: file,
         body,
-        isQuestion: options?.isQuestion,
-        intent: options?.intent,
         side: side || 'new',
         line: typeof line === 'number' ? line : { start: line[0], end: line[1] },
         codeSnapshot:
@@ -1857,8 +1842,8 @@ function App() {
   };
 
   const handleReplyToThread = useCallback(
-    (threadId: string, body: string, intent?: CommentIntent): Promise<void> => {
-      replyToThread({ threadId, body, intent });
+    (threadId: string, body: string): Promise<void> => {
+      replyToThread({ threadId, body });
       return Promise.resolve();
     },
     [replyToThread],
@@ -2064,6 +2049,9 @@ function App() {
   return (
     <ReviewProviders
       agentUpdates={agentReadContext}
+      deliveryStatus={deliveryStatus}
+      server={server}
+      unsent={reviewOps.unsent}
       draftScope={draftScope}
       followCommentLink={commentLinks.follow}
     >
@@ -2443,7 +2431,6 @@ function App() {
                     <DiffViewer
                       file={file}
                       threads={fileThreads}
-                      showAuthorBadges={showAuthorBadges}
                       diffMode={diffMode}
                       reviewedFiles={viewedFiles}
                       viewedStateReady={viewedStateReady}
@@ -2589,11 +2576,10 @@ function App() {
           onThreadFocused={clearThreadToFocus}
           onNavigate={handleNavigateToComment}
           comments={displayThreads}
-          onAddGeneralComment={(body, options) => {
-            addReviewThread(body, options);
+          onAddGeneralComment={(body) => {
+            addReviewThread(body);
             return Promise.resolve();
           }}
-          showAuthorBadges={showAuthorBadges}
           onToggleThreadResolved={handleToggleThreadResolved}
           onRemoveThread={removeThread}
           onRestoreComment={restoreComment}

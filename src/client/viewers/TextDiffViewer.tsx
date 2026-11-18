@@ -15,7 +15,6 @@ import type { DiffViewerBodyProps } from './types';
 export function TextDiffViewer({
   file,
   threads,
-  showAuthorBadges,
   diffMode,
   syntaxTheme,
   cursor,
@@ -130,9 +129,7 @@ export function TextDiffViewer({
           syntaxTheme={syntaxTheme}
           title={`Comment on ${describeLines(anchor)}, which is not shown here`}
           autoFocus={false}
-          onSubmit={(body, options, code) =>
-            onAddComment(anchor.lineNumber, body, code, anchor.side, options)
-          }
+          onSubmit={(body, code) => onAddComment(anchor.lineNumber, body, code, anchor.side)}
           onClose={() => {}}
         />
       ))}
@@ -161,7 +158,6 @@ export function TextDiffViewer({
                 chunk={mergedChunk}
                 chunkIndex={mergedIndex}
                 threads={threads}
-                showAuthorBadges={showAuthorBadges}
                 onAddComment={onAddComment}
                 onGenerateThreadPrompt={onGenerateThreadPrompt}
                 onToggleThreadResolved={onToggleThreadResolved}

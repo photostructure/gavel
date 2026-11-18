@@ -1,6 +1,5 @@
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
-import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest';
 import '@testing-library/jest-dom';
 
@@ -310,7 +309,6 @@ it('keeps unsent drafts of two different stdin patches apart', async () => {
       [draftKey(anchor)]: {
         anchor,
         body: 'For patch A',
-        intent: 'comment',
         updatedAt: Date.now(),
       },
     }),
@@ -629,21 +627,6 @@ describe('App Component - Clear Comments Functionality', () => {
       expect(cursorText()).toContain('const second = 1;');
     });
 
-    // Placing the cursor on a click inside a comment must not get in the way of the comment's
-    // own controls, such as the intent of a reply.
-    it.each(['Change request', 'Question'])(
-      'lets a reply choose %s with a mouse click',
-      async (intent) => {
-        const user = userEvent.setup();
-        await renderTwoFiles();
-        await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
-
-        await user.click(screen.getByRole('radio', { name: intent }));
-
-        expect(screen.getByRole('radio', { name: intent })).toBeChecked();
-      },
-    );
-
     it('moves to the target of a link clicked inside a comment', async () => {
       mockComments = [
         createMockThread({
@@ -725,37 +708,17 @@ describe('App Component - Clear Comments Functionality', () => {
     });
   });
 
-  it('shows author badges in the comments modal when the diff has multiple authors', async () => {
+  it('shows the author in the comments modal even when the review has one author', async () => {
     mockComments = [
       createMockThread({ id: 'test-1', filePath: 'test.ts', line: 10, body: 'User comment' }),
-      createMockThread({
-        id: 'test-2',
-        filePath: 'other.ts',
-        line: 20,
-        body: 'Reviewer comment',
-        author: 'Reviewer',
-      }),
     ];
-    mockFetch({
-      ...mockDiffResponse,
-      files: [
-        ...mockDiffResponse.files,
-        {
-          path: 'other.ts',
-          status: 'modified',
-          additions: 1,
-          deletions: 1,
-          chunks: [],
-        },
-      ],
-    });
+    mockFetch(mockDiffResponse);
 
     renderApp();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Conversation' }));
 
-    expect(await screen.findByText('User')).toBeInTheDocument();
-    expect(screen.getByText('Reviewer')).toBeInTheDocument();
+    expect(await screen.findByRole('img', { name: 'User' })).toBeInTheDocument();
   });
 
   describe('Copy All Prompt Button', () => {

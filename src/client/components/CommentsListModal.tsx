@@ -12,14 +12,14 @@ import {
 } from 'react';
 import { useHotkeys, useHotkeysContext } from 'react-hotkeys-hook';
 
-import type { CommentIntent, CommentThread, DiffSelection } from '../../types/diff';
+import type { CommentThread, DiffSelection } from '../../types/diff';
 import { CommentLinkContext, type FollowCommentLink } from '../contexts/CommentLinkContext';
 import { hasActiveTextSelection } from '../utils/domUtils';
 import { useDraftAnchors } from '../hooks/useCommentDrafts';
 import type { AgentUpdate } from '../hooks/useAgentUpdates';
 import { useSlideOver } from '../hooks/useSlideOver';
 
-import { CommentForm, type CommentSubmitOptions } from './CommentForm';
+import { CommentForm } from './CommentForm';
 import { CommentThreadCard } from './CommentThreadCard';
 import type { AppearanceSettings } from './SettingsModal';
 import { UnsentDrafts } from './UnsentDrafts';
@@ -30,7 +30,6 @@ export interface OtherReviewConversation {
   name: string;
   selection: DiffSelection;
   threads: CommentThread[];
-  showAuthorBadges: boolean;
   /** An agent deleted this named review; its threads stay readable but open nothing. */
   deleted?: true;
 }
@@ -50,7 +49,7 @@ interface CommentsListModalProps {
   onThreadFocused?: () => void;
   isOpen: boolean;
   onClose: () => void;
-  onAddGeneralComment?: (body: string, options: CommentSubmitOptions) => Promise<void>;
+  onAddGeneralComment?: (body: string) => Promise<void>;
   onNavigate: (thread: CommentThread) => void;
   // Shows the Unsent drafts section when given.
   unsentDrafts?: Pick<
@@ -58,19 +57,13 @@ interface CommentsListModalProps {
     'diffFilePaths' | 'onAddComment' | 'onNavigateToLine' | 'codeFor'
   >;
   comments: CommentThread[];
-  showAuthorBadges?: boolean;
   onToggleThreadResolved: (threadId: string) => void;
   onRemoveThread?: (threadId: string) => void;
   onRestoreComment?: (threadId: string, messageId?: string) => void;
   onGenerateThreadPrompt: (thread: CommentThread) => string;
-  onReplyToThread: (threadId: string, body: string, intent?: CommentIntent) => Promise<void>;
+  onReplyToThread: (threadId: string, body: string) => Promise<void>;
   onRemoveMessage: (threadId: string, messageId: string) => void;
-  onUpdateMessage: (
-    threadId: string,
-    messageId: string,
-    newBody: string,
-    intent?: CommentIntent,
-  ) => void;
+  onUpdateMessage: (threadId: string, messageId: string, newBody: string) => void;
 
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
 }
@@ -124,7 +117,6 @@ export function CommentsListModal({
   onNavigate,
   unsentDrafts,
   comments,
-  showAuthorBadges = false,
   onToggleThreadResolved,
   onRemoveThread,
   onRestoreComment,
@@ -159,10 +151,7 @@ export function CommentsListModal({
     }
     return grouped;
   }, [unreadUpdates]);
-  const [generalDraft, setGeneralDraft] = useState<{
-    body: string;
-    intent: CommentIntent;
-  }>({ body: '', intent: 'comment' });
+  const [generalDraft, setGeneralDraft] = useState('');
   const commentRefs = useRef<(HTMLDivElement | null)[]>([]);
   const dialogRef = useRef<HTMLDivElement>(null);
   const { enableScope, disableScope } = useHotkeysContext();
@@ -533,33 +522,21 @@ export function CommentsListModal({
                 <CommentForm
                   embedded
                   submitLabel="Send"
-                  value={generalDraft.body}
-                  onChange={(nextBody) =>
-                    setGeneralDraft((current) => {
-                      const body =
-                        typeof nextBody === 'function' ? nextBody(current.body) : nextBody;
-                      return body === current.body ? current : { ...current, body };
-                    })
-                  }
-                  intentValue={generalDraft.intent}
-                  onIntentChange={(intent) =>
-                    setGeneralDraft((current) => ({ ...current, intent }))
-                  }
+                  value={generalDraft}
+                  onChange={setGeneralDraft}
                   dismissOnOutsideClick={false}
                   autoFocus={false}
                   title="General comment or question"
                   placeholder="Comment or ask about this review…"
-                  onSubmit={async (body, options) => {
+                  onSubmit={async (body) => {
                     const submittedDraft = generalDraft;
-                    await onAddGeneralComment(body, options);
-                    setGeneralDraft((current) =>
-                      current === submittedDraft ? { body: '', intent: 'comment' } : current,
-                    );
+                    await onAddGeneralComment(body);
+                    setGeneralDraft((current) => (current === submittedDraft ? '' : current));
                   }}
                   onCancel={(text) => {
                     // Cancel passes ''; Escape passes the text, which stays in the
                     // draft for the next open, as in the panel's other forms.
-                    if (!text.trim()) setGeneralDraft({ body: '', intent: 'comment' });
+                    if (!text.trim()) setGeneralDraft('');
                     onClose();
                   }}
                 />
@@ -631,9 +608,6 @@ export function CommentsListModal({
                                       : undefined
                                   }
                                   thread={thread}
-                                  showAuthorBadges={
-                                    group.review?.showAuthorBadges ?? showAuthorBadges
-                                  }
                                   onGeneratePrompt={onGenerateThreadPrompt}
                                   onRemoveThread={onRemoveThread ? handleRemoveThread : undefined}
                                   onRestoreComment={onRestoreComment}

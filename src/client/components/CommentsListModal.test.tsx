@@ -81,7 +81,7 @@ describe('CommentsListModal', () => {
     vi.unstubAllGlobals();
   });
 
-  it('sends a general question and filters resolved conversations without navigating', async () => {
+  it('sends a general comment and filters resolved conversations without navigating', async () => {
     const user = userEvent.setup();
     const onAddGeneralComment = vi.fn();
     const onNavigate = vi.fn();
@@ -126,12 +126,8 @@ describe('CommentsListModal', () => {
     const composer = within(
       screen.getByPlaceholderText('Comment or ask about this review…').closest('form')!,
     );
-    await user.click(composer.getByRole('radio', { name: 'Question' }));
     await user.click(composer.getByRole('button', { name: 'Send' }));
-    expect(onAddGeneralComment).toHaveBeenCalledWith('How does this work?', {
-      isQuestion: true,
-      intent: 'question',
-    });
+    expect(onAddGeneralComment).toHaveBeenCalledWith('How does this work?');
     await user.click(screen.getByRole('radio', { name: 'Resolved' }));
     expect(screen.queryByText('First root comment')).not.toBeInTheDocument();
     await user.click(screen.getByText('Review conversation'));
@@ -237,14 +233,13 @@ describe('CommentsListModal', () => {
     expect(filter.closest('.overflow-y-auto')).toBeNull();
   });
 
-  it('shows author badges when enabled', () => {
+  it("shows each comment's author", () => {
     render(
       <CommentsListModal
         isOpen={true}
         onClose={vi.fn()}
         onNavigate={vi.fn()}
         comments={mockThreads}
-        showAuthorBadges={true}
         onToggleThreadResolved={mockToggleThreadResolved}
         onGenerateThreadPrompt={mockGenerateThreadPrompt}
         onReplyToThread={mockReplyToThread}
@@ -254,8 +249,8 @@ describe('CommentsListModal', () => {
       { wrapper },
     );
 
-    expect(screen.getAllByText('User').length).toBeGreaterThan(0);
-    expect(screen.getByText('Reviewer')).toBeInTheDocument();
+    expect(screen.getAllByRole('img', { name: 'User' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('img', { name: 'Reviewer' })).toBeInTheDocument();
   });
 
   it('navigates when clicking a thread', () => {
@@ -323,7 +318,7 @@ describe('CommentsListModal', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('keeps the modal open when clicking inside the reply form', async () => {
+  it('keeps the modal open when clicking inside a reply box', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const onNavigate = vi.fn();
@@ -343,14 +338,11 @@ describe('CommentsListModal', () => {
       { wrapper },
     );
 
-    await user.click(screen.getAllByRole('button', { name: 'Write a reply...' })[0]!);
-    await user.click(screen.getByPlaceholderText('Write a reply...'));
+    const reply = screen.getAllByPlaceholderText('Write a reply...')[0]!;
+    await user.click(reply);
+    await user.type(reply, 'Still here');
 
-    expect(
-      within(screen.getByPlaceholderText('Write a reply...').closest('form')!).getByText(
-        'Reply to thread',
-      ),
-    ).toBeInTheDocument();
+    expect(reply).toHaveValue('Still here');
     expect(onNavigate).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });

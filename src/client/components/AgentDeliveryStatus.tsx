@@ -119,6 +119,15 @@ export type DeliveryState =
 const isDead = (state: DeliveryState) =>
   state === 'unreachable' || state === 'disconnected' || state === 'uncertain';
 
+/**
+ * Whether the header robot is dead: the comment cards show unsent comments as unplugged then.
+ * Without a delivery report the header shows no robot, so nothing is down.
+ */
+export const deliveryDown = (status: InboxDelivery['status'] | undefined, server: ServerState) =>
+  status !== undefined &&
+  server !== 'replaced' &&
+  (server !== 'reachable' || status === 'failed' || status === 'uncertain');
+
 type RobotLook = 'awake' | 'dead' | 'asking';
 
 /**
@@ -127,7 +136,7 @@ type RobotLook = 'awake' | 'dead' | 'asking';
  * is bent over and its eyes are crosses where the awake eyes are; asking, its eyes are awake and
  * its antenna curls into a question mark.
  */
-function Robot({ look, className }: { look: RobotLook; className?: string }) {
+export function Robot({ look, className }: { look: RobotLook; className?: string }) {
   return (
     <svg
       width={18}

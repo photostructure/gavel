@@ -5,7 +5,6 @@ import { HotkeysProvider } from 'react-hotkeys-hook';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CommentThread } from '../../types/diff';
-import type { CommentSubmitOptions } from './CommentForm';
 import { CommentsListModal } from './CommentsListModal';
 
 // Reply and edit forms save unsent text to localStorage; start each test without it.
@@ -56,7 +55,7 @@ function TriggerHarness({
   onAddGeneralComment,
 }: {
   onNavigate: (thread: CommentThread) => void;
-  onAddGeneralComment: (body: string, options: CommentSubmitOptions) => Promise<void>;
+  onAddGeneralComment: (body: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -101,10 +100,7 @@ describe('Conversation keyboard navigation', () => {
     await user.tab();
     expect(generalComposer().getByRole('button', { name: 'Send' })).toHaveFocus();
     await user.keyboard('{Enter}');
-    expect(onAddGeneralComment).toHaveBeenCalledWith('Why this approach?', {
-      isQuestion: false,
-      intent: 'comment',
-    });
+    expect(onAddGeneralComment).toHaveBeenCalledWith('Why this approach?');
     expect(onNavigate).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
@@ -139,11 +135,10 @@ it('deletes a general thread immediately without removing adjacent discussions',
   expect(screen.getByRole('dialog')).toBeInTheDocument();
 });
 
-it('keeps a reply draft visible after a click outside the reply form', async () => {
+it('keeps a reply draft visible after a click outside the reply box', async () => {
   const user = userEvent.setup();
   render(<TriggerHarness onNavigate={vi.fn()} onAddGeneralComment={vi.fn()} />);
   await user.click(screen.getByRole('button', { name: 'Open conversation' }));
-  await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
   const reply = screen.getByPlaceholderText('Write a reply...');
   await user.type(reply, 'Keep this reply');
   await user.click(screen.getByRole('button', { name: 'Thread actions' }));
@@ -156,7 +151,6 @@ it('closes the panel on Escape in a reply with text and keeps the reply', async 
   const user = userEvent.setup();
   render(<TriggerHarness onNavigate={vi.fn()} onAddGeneralComment={vi.fn()} />);
   await user.click(screen.getByRole('button', { name: 'Open conversation' }));
-  await user.click(screen.getByRole('button', { name: 'Write a reply...' }));
   await user.type(screen.getByPlaceholderText('Write a reply...'), 'Keep this reply');
   await user.keyboard('{Escape}');
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -172,18 +166,14 @@ describe('Conversation drafts', () => {
     render(<TriggerHarness onNavigate={onNavigate} onAddGeneralComment={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     await user.type(generalComposer().getByRole('textbox'), 'Why this approach?');
-    await user.click(generalComposer().getByRole('radio', { name: 'Question' }));
-    await user.click(generalComposer().getByRole('radio', { name: 'Change request' }));
     await user.click(screen.getByText('Thread A'));
     expect(onNavigate).toHaveBeenCalledWith(inline);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     expect(generalComposer().getByRole('textbox')).toHaveValue('Why this approach?');
-    expect(generalComposer().getByRole('radio', { name: 'Change request' })).toBeChecked();
     await user.click(screen.getByRole('button', { name: 'Close conversation' }));
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     expect(generalComposer().getByRole('textbox')).toHaveValue('Why this approach?');
-    expect(generalComposer().getByRole('radio', { name: 'Change request' })).toBeChecked();
   });
 
   it('discards the draft when explicitly cancelling with Cancel', async () => {
@@ -191,12 +181,10 @@ describe('Conversation drafts', () => {
     render(<TriggerHarness onNavigate={vi.fn()} onAddGeneralComment={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     await user.type(generalComposer().getByRole('textbox'), 'Never mind');
-    await user.click(generalComposer().getByRole('radio', { name: 'Question' }));
     await user.click(generalComposer().getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     expect(generalComposer().getByRole('textbox')).toHaveValue('');
-    expect(generalComposer().getByRole('radio', { name: 'Comment' })).toBeChecked();
   });
 
   // Escape never discards unsaved text: it closes the panel and keeps the draft.
@@ -205,13 +193,11 @@ describe('Conversation drafts', () => {
     render(<TriggerHarness onNavigate={vi.fn()} onAddGeneralComment={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     await user.type(generalComposer().getByRole('textbox'), 'Not yet');
-    await user.click(generalComposer().getByRole('radio', { name: 'Question' }));
     await user.click(generalComposer().getByRole('textbox'));
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     expect(generalComposer().getByRole('textbox')).toHaveValue('Not yet');
-    expect(generalComposer().getByRole('radio', { name: 'Question' })).toBeChecked();
   });
 
   it('clears the saved draft after sending successfully', async () => {
@@ -220,18 +206,12 @@ describe('Conversation drafts', () => {
     render(<TriggerHarness onNavigate={vi.fn()} onAddGeneralComment={onAddGeneralComment} />);
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     await user.type(generalComposer().getByRole('textbox'), 'Why this approach?');
-    await user.click(generalComposer().getByRole('radio', { name: 'Question' }));
     await user.click(generalComposer().getByRole('button', { name: 'Send' }));
-    expect(onAddGeneralComment).toHaveBeenCalledWith('Why this approach?', {
-      isQuestion: true,
-      intent: 'question',
-    });
+    expect(onAddGeneralComment).toHaveBeenCalledWith('Why this approach?');
     expect(generalComposer().getByRole('textbox')).toHaveValue('');
-    expect(generalComposer().getByRole('radio', { name: 'Comment' })).toBeChecked();
     await user.click(screen.getByRole('button', { name: 'Close conversation' }));
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     expect(generalComposer().getByRole('textbox')).toHaveValue('');
-    expect(generalComposer().getByRole('radio', { name: 'Comment' })).toBeChecked();
   });
 
   it('keeps a newer draft if an earlier send finishes after reopening', async () => {
@@ -251,11 +231,8 @@ describe('Conversation drafts', () => {
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     await user.clear(generalComposer().getByRole('textbox'));
     await user.type(generalComposer().getByRole('textbox'), 'Second question');
-    await user.click(generalComposer().getByRole('radio', { name: 'Question' }));
-    await user.click(generalComposer().getByRole('radio', { name: 'Change request' }));
     await act(async () => finishSend());
     expect(generalComposer().getByRole('textbox')).toHaveValue('Second question');
-    expect(generalComposer().getByRole('radio', { name: 'Change request' })).toBeChecked();
   });
 
   it('retains a draft after a failed send and reopening the drawer', async () => {
@@ -265,12 +242,10 @@ describe('Conversation drafts', () => {
     render(<TriggerHarness onNavigate={vi.fn()} onAddGeneralComment={onAddGeneralComment} />);
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     await user.type(generalComposer().getByRole('textbox'), 'Why this approach?');
-    await user.click(generalComposer().getByRole('radio', { name: 'Question' }));
     await user.click(generalComposer().getByRole('button', { name: 'Send' }));
     expect(error).toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Close conversation' }));
     await user.click(screen.getByRole('button', { name: 'Open conversation' }));
     expect(generalComposer().getByRole('textbox')).toHaveValue('Why this approach?');
-    expect(generalComposer().getByRole('radio', { name: 'Question' })).toBeChecked();
   });
 });

@@ -1,11 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 
-import {
-  type DeletedComment,
-  type CommentIntent,
-  type DiffCommentThread,
-  type DiffSide,
-} from '../../types/diff';
+import { type DeletedComment, type DiffCommentThread, type DiffSide } from '../../types/diff';
 import type { ReviewOp } from '../../types/reviewOps';
 import {
   type CommentPromptDiffContext,
@@ -22,17 +17,14 @@ import { includeDeletedComments } from '../utils/commentDeletion';
 interface AddThreadParams {
   filePath: string;
   body: string;
-  intent?: CommentIntent;
   side: DiffSide;
   line: number | { start: number; end: number };
   codeSnapshot?: DiffCommentThread['codeSnapshot'];
-  isQuestion?: boolean;
 }
 
 interface ReplyToThreadParams {
   threadId: string;
   body: string;
-  intent?: CommentIntent;
 }
 
 function withoutThreadProgress(thread: DiffCommentThread): DiffCommentThread {
@@ -67,7 +59,7 @@ export function useDiffComments(
   );
 
   const newThread = useCallback(
-    (fields: Partial<DiffCommentThread>, body: string, intent?: CommentIntent) => {
+    (fields: Partial<DiffCommentThread>, body: string) => {
       const now = new Date().toISOString();
       const id = createId();
       const thread = {
@@ -76,10 +68,9 @@ export function useDiffComments(
           ? { capture: { version: capture.version, patchDigest: capture.patchDigest } }
           : {}),
         ...fields,
-        ...(intent === 'question' ? { isQuestion: true } : {}),
         createdAt: now,
         updatedAt: now,
-        messages: [{ id, body, intent, author: 'User', createdAt: now, updatedAt: now }],
+        messages: [{ id, body, author: 'User', createdAt: now, updatedAt: now }],
       } as DiffCommentThread;
       enqueue({ type: 'thread.add', thread });
       return thread;
@@ -99,18 +90,13 @@ export function useDiffComments(
           },
         },
         params.body,
-        params.intent ?? (params.isQuestion ? 'question' : undefined),
       ),
     [newThread],
   );
 
   const addReviewThread = useCallback(
-    (body: string, options?: { isQuestion?: boolean; intent?: CommentIntent }) => {
-      newThread(
-        { scope: 'review' },
-        body,
-        options?.intent ?? (options?.isQuestion ? 'question' : undefined),
-      );
+    (body: string) => {
+      newThread({ scope: 'review' }, body);
     },
     [newThread],
   );
@@ -129,12 +115,12 @@ export function useDiffComments(
   );
 
   const replyToThread = useCallback(
-    ({ threadId, body, intent }: ReplyToThreadParams) => {
+    ({ threadId, body }: ReplyToThreadParams) => {
       const now = new Date().toISOString();
       enqueue({
         type: 'message.add',
         threadId,
-        message: { id: createId(), body, intent, author: 'User', createdAt: now, updatedAt: now },
+        message: { id: createId(), body, author: 'User', createdAt: now, updatedAt: now },
       });
     },
     [enqueue],
@@ -227,13 +213,12 @@ export function useDiffComments(
   );
 
   const updateMessage = useCallback(
-    (threadId: string, messageId: string, newBody: string, intent?: CommentIntent) => {
+    (threadId: string, messageId: string, newBody: string) => {
       enqueue({
         type: 'message.edit',
         threadId,
         messageId,
         body: newBody,
-        intent,
         at: new Date().toISOString(),
       });
     },

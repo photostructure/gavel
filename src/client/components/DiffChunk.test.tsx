@@ -97,7 +97,6 @@ describe('DiffChunk line-number selection', () => {
     fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'Dragged' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
   };
-  const options = { isQuestion: false, intent: 'comment' };
 
   // Unified rows are [old number, new number, code]; split rows are
   // [old number, old code, new number, new code].
@@ -116,9 +115,7 @@ describe('DiffChunk line-number selection', () => {
       fireEvent.mouseUp(document);
 
       await sendDraft();
-      await waitFor(() =>
-        expect(onAddComment).toHaveBeenCalledWith(line, 'Dragged', code, side, options),
-      );
+      await waitFor(() => expect(onAddComment).toHaveBeenCalledWith(line, 'Dragged', code, side));
     },
   );
 
@@ -183,13 +180,7 @@ describe('DiffChunk line-number selection', () => {
 
     await sendDraft();
     await waitFor(() =>
-      expect(onAddComment).toHaveBeenCalledWith(
-        [30, 32],
-        'Dragged',
-        'before\nadded\nafter',
-        'new',
-        options,
-      ),
+      expect(onAddComment).toHaveBeenCalledWith([30, 32], 'Dragged', 'before\nadded\nafter', 'new'),
     );
   });
 
@@ -314,7 +305,6 @@ describe('DiffChunk range comments', () => {
           'Exact snapshot',
           side === 'old' ? 'before\n\t hidden  \nafter' : 'new before\n hidden\t\nnew after',
           side,
-          { isQuestion: false, intent: 'comment' },
         ),
       );
     },
@@ -373,12 +363,7 @@ describe('DiffChunk range comments', () => {
       fireEvent.mouseUp(document);
       fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'Dragged' } });
       fireEvent.click(screen.getByRole('button', { name: 'Send' }));
-      await waitFor(() =>
-        expect(onAddComment).toHaveBeenCalledWith(line, 'Dragged', code, side, {
-          isQuestion: false,
-          intent: 'comment',
-        }),
-      );
+      await waitFor(() => expect(onAddComment).toHaveBeenCalledWith(line, 'Dragged', code, side));
     },
   );
 
@@ -433,12 +418,7 @@ describe('DiffChunk range comments', () => {
       fireEvent.mouseUp(document);
       fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'Dragged' } });
       fireEvent.click(screen.getByRole('button', { name: 'Send' }));
-      await waitFor(() =>
-        expect(onAddComment).toHaveBeenCalledWith(line, 'Dragged', code, side, {
-          isQuestion: false,
-          intent: 'comment',
-        }),
-      );
+      await waitFor(() => expect(onAddComment).toHaveBeenCalledWith(line, 'Dragged', code, side));
     },
   );
 
@@ -475,7 +455,6 @@ describe('DiffChunk range comments', () => {
         'Please revisit this range',
         ['const first = 1;', 'const second = 2;', 'const third = 3;'].join('\n'),
         'new',
-        { isQuestion: false, intent: 'comment' },
       );
     });
   });
@@ -512,7 +491,6 @@ describe('DiffChunk range comments', () => {
         'Please revisit this range',
         ['const first = 1;', 'const second = 2;', 'const third = 3;'].join('\n'),
         'new',
-        { isQuestion: false, intent: 'comment' },
       );
     });
   });
@@ -544,10 +522,7 @@ describe('DiffChunk range comments', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => {
-      expect(onAddComment).toHaveBeenCalledWith(12, 'Single line only', 'const third = 3;', 'new', {
-        isQuestion: false,
-        intent: 'comment',
-      });
+      expect(onAddComment).toHaveBeenCalledWith(12, 'Single line only', 'const third = 3;', 'new');
     });
   });
 
@@ -587,7 +562,6 @@ describe('DiffChunk range comments', () => {
         'Please revisit this range',
         ['const first = 1;', 'const second = 2;', 'const third = 3;'].join('\n'),
         'new',
-        { isQuestion: false, intent: 'comment' },
       );
     });
   });
@@ -627,7 +601,6 @@ describe('DiffChunk range comments', () => {
         'Please revisit this range',
         ['const first = 1;', 'const second = 2;', 'const third = 3;'].join('\n'),
         'new',
-        { isQuestion: false, intent: 'comment' },
       );
     });
   });
@@ -668,13 +641,11 @@ describe('DiffChunk comment drafts', () => {
     (mode) => {
       const first = renderChunk(mode);
       clickLine(first.container, mode, 2);
-      fireEvent.click(screen.getByRole('radio', { name: 'Question' }));
       fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Half a thought' } });
       first.unmount();
 
       renderChunk(mode);
       expect(screen.getByRole('textbox')).toHaveValue('Half a thought');
-      expect(screen.getByRole('radio', { name: 'Question' })).toBeChecked();
     },
   );
 
@@ -697,10 +668,7 @@ describe('DiffChunk comment drafts', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ship it' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() =>
-      expect(onAddComment).toHaveBeenCalledWith(12, 'Ship it', 'const third = 3;', 'new', {
-        isQuestion: false,
-        intent: 'comment',
-      }),
+      expect(onAddComment).toHaveBeenCalledWith(12, 'Ship it', 'const third = 3;', 'new'),
     );
     await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument());
     first.unmount();
@@ -847,7 +815,6 @@ describe('DiffChunk drafts across reviews', () => {
         'Whole range',
         ['line 7', 'line 8', 'line 9', 'line 10', 'line 11', 'line 12'].join('\n'),
         'new',
-        { isQuestion: false, intent: 'comment' },
       ),
     );
   });
@@ -923,10 +890,7 @@ describe('DiffChunk drafts across reviews', () => {
     renderLines(changed, onAddComment);
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() =>
-      expect(onAddComment).toHaveBeenCalledWith(12, 'About line 12', 'line 12, edited', 'new', {
-        isQuestion: false,
-        intent: 'comment',
-      }),
+      expect(onAddComment).toHaveBeenCalledWith(12, 'About line 12', 'line 12, edited', 'new'),
     );
   });
 });

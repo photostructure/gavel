@@ -5,7 +5,6 @@ import {
   type DiffLine,
   type DiffSide,
   type CommentThread,
-  type CommentIntent,
   type LineNumber,
   type DiffViewMode,
   type LineSelection,
@@ -20,7 +19,6 @@ import {
   type DiffSegment,
 } from '../utils/wordLevelDiff';
 
-import type { CommentSubmitOptions } from './CommentForm';
 import { CommentThreadCard } from './CommentThreadCard';
 import { DiffLineRow } from './DiffLineRow';
 import {
@@ -40,26 +38,19 @@ interface DiffChunkProps {
   chunk: DiffChunkType & { snapshotLines?: DiffLine[] };
   chunkIndex: number;
   threads: CommentThread[];
-  showAuthorBadges?: boolean;
   onAddComment: (
     line: LineNumber,
     body: string,
     codeContent?: string,
     side?: DiffSide,
-    options?: CommentSubmitOptions,
   ) => Promise<void>;
   onGenerateThreadPrompt: (thread: CommentThread) => string;
   onToggleThreadResolved: (threadId: string) => void;
   onRemoveThread?: (threadId: string) => void;
   onRestoreComment?: (threadId: string, messageId?: string) => void;
-  onReplyToThread: (threadId: string, body: string, intent?: CommentIntent) => Promise<void>;
+  onReplyToThread: (threadId: string, body: string) => Promise<void>;
   onRemoveMessage: (threadId: string, messageId: string) => void;
-  onUpdateMessage: (
-    threadId: string,
-    messageId: string,
-    newBody: string,
-    intent?: CommentIntent,
-  ) => void;
+  onUpdateMessage: (threadId: string, messageId: string, newBody: string) => void;
 
   mode?: DiffViewMode;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
@@ -85,7 +76,6 @@ export const DiffChunk = memo(function DiffChunk({
   chunk,
   chunkIndex,
   threads,
-  showAuthorBadges = false,
   onAddComment,
   onGenerateThreadPrompt,
   onToggleThreadResolved,
@@ -277,7 +267,6 @@ export const DiffChunk = memo(function DiffChunk({
         chunk={chunk}
         chunkIndex={chunkIndex}
         threads={threads}
-        showAuthorBadges={showAuthorBadges}
         onAddComment={onAddComment}
         onGenerateThreadPrompt={onGenerateThreadPrompt}
         onToggleThreadResolved={onToggleThreadResolved}
@@ -394,7 +383,6 @@ export const DiffChunk = memo(function DiffChunk({
                           >
                             <CommentThreadCard
                               thread={thread}
-                              showAuthorBadges={showAuthorBadges}
                               onGeneratePrompt={onGenerateThreadPrompt}
                               onToggleThreadResolved={onToggleThreadResolved}
                               onRemoveThread={onRemoveThread}
@@ -430,8 +418,8 @@ export const DiffChunk = memo(function DiffChunk({
                             anchor={anchor}
                             selectedCode={shownCodeFor(codeLines, anchor)}
                             syntaxTheme={syntaxTheme}
-                            onSubmit={(body, options, code) =>
-                              onAddComment(anchor.lineNumber, body, code, anchor.side, options)
+                            onSubmit={(body, code) =>
+                              onAddComment(anchor.lineNumber, body, code, anchor.side)
                             }
                             onClose={() => closeComposer(anchor)}
                             autoFocus={isComposerFor(anchor, commentingLine)}

@@ -7,7 +7,7 @@ import {
   type SetStateAction,
 } from 'react';
 
-import type { CommentIntent, DiffSide, LineNumber } from '../../types/diff';
+import type { DiffSide, LineNumber } from '../../types/diff';
 
 // Unsent comment text lives in localStorage, so a reload, a crash, a dev-server hot
 // update, a closed tab, or a switch to another review does not delete it, and two
@@ -23,7 +23,6 @@ export type LineDraftAnchor = Extract<DraftAnchor, { kind: 'line' }>;
 interface CommentDraft<A extends DraftAnchor = DraftAnchor> {
   anchor: A;
   body: string;
-  intent: CommentIntent;
   // For a line draft, the code under its lines when it was first saved.
   code?: string;
   // Milliseconds since the epoch, set by every change; sweepExpiredDrafts reads it.
@@ -171,22 +170,21 @@ function useDraftSlice<T>(select: (drafts: Drafts) => T): [string, T] {
 
 export function useCommentDraft<A extends DraftAnchor>(
   anchor: A,
-  initial: { body: string; intent: CommentIntent } = { body: '', intent: 'comment' },
+  initialBody = '',
   // Saved with the first write and kept after that; see CommentDraft.code.
   code?: string,
 ) {
   const key = draftKey(anchor);
   const [scope, draft] = useDraftSlice((drafts) => drafts[key] as CommentDraft<A> | undefined);
-  const body = draft?.body ?? initial.body;
-  const intent = draft?.intent ?? initial.intent;
+  const body = draft?.body ?? initialBody;
 
   // Every change is saved, even one back to the starting text: a restored form
   // stays open only while its draft exists, so only clear() (Send, Cancel, an outside
   // click on an empty form, or Escape in an empty form or an edit you have not
   // changed) deletes it.
-  const save = (current: Drafts, next: { body: string; intent: CommentIntent }) => {
+  const save = (current: Drafts, nextBody: string) => {
     const savedCode = current[key]?.code ?? code;
-    const fields = { anchor, ...next, updatedAt: Date.now() };
+    const fields = { anchor, body: nextBody, updatedAt: Date.now() };
     const saved = savedCode === undefined ? fields : { ...fields, code: savedCode };
     savedByThisPage.add(saved);
     return { ...current, [key]: saved };
@@ -194,18 +192,9 @@ export function useCommentDraft<A extends DraftAnchor>(
 
   const setBody = (next: SetStateAction<string>) =>
     writeDrafts(scope, (current) => {
-      const saved = current[key];
-      const previous = saved?.body ?? initial.body;
-      return save(current, {
-        body: typeof next === 'function' ? next(previous) : next,
-        intent: saved?.intent ?? initial.intent,
-      });
+      const previous = current[key]?.body ?? initialBody;
+      return save(current, typeof next === 'function' ? next(previous) : next);
     });
-
-  const setIntent = (next: CommentIntent) =>
-    writeDrafts(scope, (current) =>
-      save(current, { body: current[key]?.body ?? initial.body, intent: next }),
-    );
 
   const clear = () => writeDrafts(scope, (current) => without(current, key));
 
@@ -215,10 +204,8 @@ export function useCommentDraft<A extends DraftAnchor>(
     draft,
     fromStorage,
     body,
-    intent,
     savedCode: draft?.code,
     setBody,
-    setIntent,
     clear,
   };
 }

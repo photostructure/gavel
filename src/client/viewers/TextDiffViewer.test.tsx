@@ -211,10 +211,7 @@ describe('drafts on lines no longer in the diff', () => {
     expect(screen.getByRole('textbox')).toHaveValue('Draft on 9');
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() =>
-      expect(onAddComment).toHaveBeenCalledWith(9, 'Draft on 9', undefined, 'new', {
-        isQuestion: false,
-        intent: 'comment',
-      }),
+      expect(onAddComment).toHaveBeenCalledWith(9, 'Draft on 9', undefined, 'new'),
     );
   });
 

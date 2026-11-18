@@ -4,8 +4,6 @@ import { describe, it, expect, vi } from 'vitest';
 
 import type { DiffCommentThread } from '../../types/diff';
 import type { ReviewOp } from '../../types/reviewOps';
-import { Conversation } from '../../server/conversation';
-import type { ConversationStreamEvent } from '../../types/conversation';
 import { applyReviewOp } from '../../utils/reviewOps';
 import { useDiffComments } from './useDiffComments';
 
@@ -53,11 +51,11 @@ const importedFinding = (): DiffCommentThread => ({
 describe('useDiffComments', () => {
   it('queues each comment change as a review op', () => {
     const { result } = renderHook(() => useComments());
-    act(() => result.current.addReviewThread('Why?', { intent: 'question' }));
+    act(() => result.current.addReviewThread('Why?'));
     const threadId = result.current.threads[0]!.id;
     act(() => result.current.replyToThread({ threadId, body: 'Because.' }));
     const replyId = result.current.threads[0]!.messages[1]!.id;
-    act(() => result.current.updateMessage(threadId, replyId, 'Because of this.', 'comment'));
+    act(() => result.current.updateMessage(threadId, replyId, 'Because of this.'));
     act(() => result.current.toggleThreadResolved(threadId));
     act(() => result.current.removeMessage(threadId, replyId));
     act(() => result.current.removeThread(threadId));
@@ -74,14 +72,13 @@ describe('useDiffComments', () => {
     expect(result.current.threads).toEqual([]);
   });
 
-  it('stores general questions without a file location and preserves resolved conversations', () => {
+  it('stores general comments without a file location and preserves resolved conversations', () => {
     const { result } = renderHook(() => useComments());
-    act(() => result.current.addReviewThread('Why this approach?', { intent: 'question' }));
+    act(() => result.current.addReviewThread('Why this approach?'));
     const thread = result.current.threads[0]!;
     expect(thread.scope).toBe('review');
     expect(thread).not.toHaveProperty('filePath');
     expect(thread).not.toHaveProperty('position');
-    expect(thread.messages[0]!.intent).toBe('question');
     expect(result.current.generateThreadPrompt(thread.id)).toContain('Review conversation');
     act(() => result.current.toggleThreadResolved(thread.id));
     expect(result.current.threads[0]!.resolution?.resolved).toBe(true);
@@ -140,75 +137,12 @@ describe('useDiffComments', () => {
     expect(result.current.threads[0]!.messages[0]!.progress).toBeUndefined();
   });
 
-  it('delivers an intent-only edit on an imported finding as a user revision', () => {
-    const imported = [importedFinding()];
-    const { result } = renderHook(() => useComments(imported));
-    const message = imported[0]!.messages[0]!;
-    const selection = { baseCommitish: 'main', targetCommitish: 'feature' };
-    const events: ConversationStreamEvent[] = [];
-    const journal = new Conversation((event) => events.push(event));
-    journal.update(selection, [], imported, 'agent');
-    events.length = 0;
-
-    act(() => result.current.updateMessage('finding', message.id, message.body, 'question'));
-    journal.update(selection, imported, result.current.threads, 'user');
-
-    const edited = result.current.threads[0]!.messages[0]!;
-    expect(edited).toMatchObject({ body: message.body, intent: 'question', origin: 'user' });
-    expect(edited.updatedAt).not.toBe(message.updatedAt);
-    expect(edited.progress).toBeUndefined();
-    expect(result.current.threads[0]!.isQuestion).toBe(true);
-    expect(events).toEqual([
-      expect.objectContaining({ type: 'comment.updated', origin: 'user', intent: 'question' }),
-    ]);
-    expect(journal.snapshot().reviews[0]!.threads[0]!.messages[0]!.progress?.status).toBe('queued');
-  });
-
-  it.each(['comment', 'change'] as const)(
-    'clears a legacy root question marker when its intent is explicitly changed to %s',
-    (intent) => {
-      const { result } = renderHook(() => useComments());
-      act(() => result.current.addReviewThread('Why?', { isQuestion: true }));
-      const legacy = structuredClone(result.current.threads);
-      delete legacy[0]!.messages[0]!.intent;
-      act(() => result.current.replaceThreads(legacy));
-      const thread = result.current.threads[0]!;
-      const message = thread.messages[0]!;
-
-      act(() => result.current.updateMessage(thread.id, message.id, message.body, intent));
-
-      expect(result.current.threads[0]!.isQuestion).toBeUndefined();
-      expect(result.current.threads[0]!.messages[0]).toMatchObject({ intent, origin: 'user' });
-      expect(result.current.generateThreadPrompt(thread.id)).not.toContain('[QUESTION');
-    },
-  );
-
-  it.each([
-    { rootIntent: 'question', replyIntent: 'comment' },
-    { rootIntent: 'comment', replyIntent: 'question' },
-  ] as const)('keeps the root $rootIntent intent when a reply becomes $replyIntent', (intents) => {
+  it('preserves a stored intent and origin when the body is edited', () => {
     const { result } = renderHook(() => useComments());
-    act(() => result.current.addReviewThread('Root', { intent: intents.rootIntent }));
-    const threadId = result.current.threads[0]!.id;
-    act(() => result.current.replyToThread({ threadId, body: 'Reply' }));
-    const thread = result.current.threads[0]!;
-    const reply = thread.messages[1]!;
-
-    act(() => result.current.updateMessage(threadId, reply.id, reply.body, intents.replyIntent));
-
-    expect(result.current.threads[0]!.isQuestion).toBe(thread.isQuestion);
-    expect(result.current.threads[0]!.messages[0]).toEqual(thread.messages[0]);
-    expect(result.current.threads[0]!.messages[1]).toMatchObject({
-      body: reply.body,
-      intent: intents.replyIntent,
-      origin: 'user',
-    });
-  });
-
-  it('preserves existing intent and origin when a body edit omits intent', () => {
-    const { result } = renderHook(() => useComments());
-    act(() => result.current.addReviewThread('Why?', { intent: 'question' }));
+    act(() => result.current.addReviewThread('Why?'));
     const imported = structuredClone(result.current.threads);
+    imported[0]!.isQuestion = true;
+    imported[0]!.messages[0]!.intent = 'question';
     imported[0]!.messages[0]!.origin = 'agent';
     act(() => result.current.replaceThreads(imported));
     const thread = result.current.threads[0]!;
@@ -222,62 +156,6 @@ describe('useDiffComments', () => {
       intent: 'question',
       origin: 'agent',
     });
-  });
-
-  it.each(['review', 'line'] as const)(
-    'uses explicit intent before the legacy question flag for new %s threads',
-    (scope) => {
-      const { result } = renderHook(() => useComments());
-      const cases = [
-        { intent: 'comment', isQuestion: true, expected: undefined },
-        { intent: 'change', isQuestion: true, expected: undefined },
-        { intent: 'question', isQuestion: false, expected: true },
-        { isQuestion: true, expected: true },
-      ] as const;
-      for (const { expected, ...options } of cases) {
-        act(() => {
-          if (scope === 'review') result.current.addReviewThread('Body', options);
-          else
-            result.current.addThread({
-              filePath: 'a.ts',
-              side: 'new',
-              line: 1,
-              body: 'Body',
-              ...options,
-            });
-        });
-        const thread = result.current.threads.at(-1)!;
-        expect(thread.isQuestion).toBe(expected);
-        expect(thread.messages[0]!.intent).toBe('intent' in options ? options.intent : 'question');
-      }
-    },
-  );
-
-  it.each(['review', 'line'] as const)('keeps %s question labels through replies', (scope) => {
-    const { result } = renderHook(() => useComments());
-    act(() => {
-      if (scope === 'review') result.current.addReviewThread('Why?', { isQuestion: true });
-      else
-        result.current.addThread({
-          filePath: 'src/a.ts',
-          side: 'new',
-          line: 3,
-          body: 'Why?',
-          isQuestion: true,
-        });
-    });
-    const id = result.current.threads[0]!.id;
-    act(() => result.current.replyToThread({ threadId: id, body: 'Here is why.' }));
-    expect(result.current.threads[0]).toMatchObject({
-      isQuestion: true,
-      messages: [{ body: 'Why?' }, { body: 'Here is why.' }],
-    });
-    expect(result.current.generateThreadPrompt(id)).toContain(
-      "[QUESTION — answer, don't change code]",
-    );
-    expect(result.current.generateAllCommentsPrompt()).toContain(
-      "[QUESTION — answer, don't change code]",
-    );
   });
 
   describe('generateThreadPrompt', () => {

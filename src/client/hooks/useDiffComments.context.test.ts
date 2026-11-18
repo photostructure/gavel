@@ -53,7 +53,7 @@ describe('comment context isolation', () => {
 describe('comment deletion undo', () => {
   it('removes deleted content from live data and prompts, then restores it in place', () => {
     const { result } = renderHook(() => useReview('feature'));
-    act(() => result.current.addReviewThread('Root question', { intent: 'question' }));
+    act(() => result.current.addReviewThread('Root question'));
     const root = result.current.threads[0]!;
     act(() => result.current.replyToThread({ threadId: root.id, body: 'Delete this reply' }));
     const reply = result.current.threads[0]!.messages[1]!;
@@ -64,7 +64,7 @@ describe('comment deletion undo', () => {
     expect(result.current.generateAllCommentsPrompt()).not.toContain('Delete this reply');
     expect(result.current.deletedComments).toHaveLength(1);
 
-    act(() => result.current.updateMessage(root.id, root.id, 'Edited root', 'change'));
+    act(() => result.current.updateMessage(root.id, root.id, 'Edited root'));
     act(() => result.current.replyToThread({ threadId: root.id, body: 'New reply' }));
     act(() => result.current.restoreComment(root.id, reply.id));
     expect(result.current.threads[0]!.messages.map((message) => message.body)).toEqual([

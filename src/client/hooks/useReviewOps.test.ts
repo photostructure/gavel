@@ -397,6 +397,18 @@ describe('useReviewOps', () => {
     expect(result.current.alert).toBeNull();
   });
 
+  it('names the messages whose add or edit has not reached the server', async () => {
+    const { answers } = server();
+    answers['/api/review-ops']!.push({ status: 503, version: 1, threads: [] });
+    const { result } = mount();
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    expect([...result.current.unsent]).toEqual([]);
+
+    await act(async () => void (await result.current.enqueue(add('waiting')).sent));
+
+    expect([...result.current.unsent]).toEqual(['waiting']);
+  });
+
   it('sends the waiting changes again on request, without reloading the comments', async () => {
     const { answers, sent } = server();
     answers['/api/review-ops']!.push({ status: 503, version: 1, threads: [] });

@@ -9,7 +9,6 @@ import {
   type LineDraftAnchor,
 } from '../hooks/useCommentDrafts';
 
-import type { CommentSubmitOptions } from './CommentForm';
 import { describeLines, LineCommentComposer } from './LineCommentComposer';
 import type { AppearanceSettings } from './SettingsModal';
 
@@ -25,7 +24,6 @@ interface UnsentDraftsProps {
     body: string,
     codeContent?: string,
     side?: DiffSide,
-    options?: CommentSubmitOptions,
   ) => Promise<void>;
   onNavigateToLine: (anchor: LineDraftAnchor) => void;
   // The code the diff shows now under a draft's lines, or undefined when the diff
@@ -120,8 +118,8 @@ function LineDraftEntry({
           inDiff ? '' : ', which is not in this diff'
         }`}
         autoFocus={false}
-        onSubmit={(body, options, code) =>
-          onAddComment(anchor.filePath, anchor.lineNumber, body, code, anchor.side, options)
+        onSubmit={(body, code) =>
+          onAddComment(anchor.filePath, anchor.lineNumber, body, code, anchor.side)
         }
         onClose={() => {}}
         onEscape={onClosePanel}

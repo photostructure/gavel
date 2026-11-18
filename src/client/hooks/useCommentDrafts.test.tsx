@@ -26,7 +26,7 @@ function scoped(scope: string) {
 }
 
 function storedDraft(body: string, updatedAt = Date.now()) {
-  return JSON.stringify({ [draftKey(anchor)]: { anchor, body, intent: 'comment', updatedAt } });
+  return JSON.stringify({ [draftKey(anchor)]: { anchor, body, updatedAt } });
 }
 
 function deliverStorageEvent(key: string | null) {
@@ -52,7 +52,6 @@ afterEach(() => {
 describe('useCommentDraft', () => {
   it('keeps a draft in localStorage across a remount', () => {
     const first = renderHook(() => useCommentDraft(anchor), { wrapper: scoped('review-a') });
-    act(() => first.result.current.setIntent('question'));
     act(() => first.result.current.setBody('Half a thought'));
     first.unmount();
 
@@ -60,7 +59,6 @@ describe('useCommentDraft', () => {
     expect(second.result.current.draft).toEqual({
       anchor,
       body: 'Half a thought',
-      intent: 'question',
       updatedAt: expect.any(Number),
     });
   });
@@ -82,7 +80,6 @@ describe('useCommentDraft', () => {
     expect(result.current.draft).toEqual({
       anchor,
       body: '',
-      intent: 'comment',
       updatedAt: expect.any(Number),
     });
     act(() => result.current.clear());
@@ -275,13 +272,13 @@ describe('sweepExpiredDrafts', () => {
     });
     act(() => result.current.setBody('First'));
     vi.setSystemTime(start + 6 * DAY_MS);
-    act(() => result.current.setIntent('question'));
+    act(() => result.current.setBody('Second'));
 
     vi.setSystemTime(start + 8 * DAY_MS);
     sweepExpiredDrafts();
     rerender();
 
-    expect(result.current.body).toBe('First');
+    expect(result.current.body).toBe('Second');
   });
 });
 

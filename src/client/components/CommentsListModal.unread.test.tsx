@@ -171,7 +171,6 @@ describe('unread conversations', () => {
       { wrapper },
     );
     const revision = agentMessageRevision(a.messages[1]!);
-    fireEvent.click(screen.getByRole('button', { name: 'Write a reply...' }));
     fireEvent.change(screen.getByPlaceholderText('Write a reply...'), {
       target: { value: 'Thanks' },
     });
