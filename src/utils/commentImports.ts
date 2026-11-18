@@ -157,6 +157,17 @@ export function normalizeCommentImports(input: unknown): CommentImport[] {
   return [normalizeCommentImportEntry(input)];
 }
 
+/** Credits imports that name no author to `agent`, the host that launched the review. */
+export function creditCommentImports(
+  commentImports: CommentImport[],
+  agent: string | undefined,
+): CommentImport[] {
+  return commentImports.map((commentImport) => ({
+    ...commentImport,
+    author: commentImport.author ?? agent,
+  }));
+}
+
 export function parseCommentImportValue(value: string): CommentImport[] {
   let parsed: unknown;
   try {

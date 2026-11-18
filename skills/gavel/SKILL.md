@@ -201,7 +201,9 @@ saved. `approval status <sha>` also reads saved approval after server shutdown.
 
 Every review, including read-only reviews, needs a summary and reading-guide
 comments. Use repeatable `--comment` arguments or `comment add` on a running
-server. Discover payloads with `schema import` and command `--help`.
+server. Discover payloads with `schema import` and command `--help`. Omit
+`author` here and in replies: gavel names your comments after the agent host
+that launched the server.
 
 ```sh
 <gavel-command> <target> [base] --keep-alive \

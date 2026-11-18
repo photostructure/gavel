@@ -166,6 +166,27 @@ describe('CLI GitHub utils', () => {
       });
     });
 
+    it('names comments from deleted GitHub accounts ghost, as GitHub does', () => {
+      const result = parsePrCommentImportsResponse({
+        data: {
+          repository: {
+            pullRequest: {
+              reviewThreads: {
+                nodes: [
+                  createReviewThread({
+                    comments: { nodes: [createReviewComment({ author: null })] },
+                  }),
+                ],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
+      });
+
+      expect(result.commentImports.map(({ author }) => author)).toEqual(['ghost']);
+    });
+
     it('maps RIGHT and LEFT threads to new and old diff positions for single and multi-line comments', () => {
       const response = {
         data: {

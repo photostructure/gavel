@@ -271,7 +271,8 @@ function toCommentImportsForThread(thread: GitHubReviewThreadNode): CommentImpor
       filePath,
       position,
       body: rootComment.body,
-      author: rootComment.author?.login ?? undefined,
+      // GitHub returns no author for deleted accounts and shows them as ghost.
+      author: rootComment.author?.login ?? 'ghost',
       createdAt: rootComment.createdAt,
       updatedAt: rootComment.updatedAt,
     },
@@ -294,7 +295,7 @@ function toCommentImportsForThread(thread: GitHubReviewThreadNode): CommentImpor
       filePath,
       position,
       body: comment.body,
-      author: comment.author?.login ?? undefined,
+      author: comment.author?.login ?? 'ghost',
       createdAt: comment.createdAt,
       updatedAt: comment.updatedAt,
     });

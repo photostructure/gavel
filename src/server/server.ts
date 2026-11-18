@@ -44,6 +44,7 @@ import {
 } from '../types/live.js';
 import { formatCommentsOutput } from '../utils/commentFormatting.js';
 import {
+  creditCommentImports,
   mergeCommentImports,
   mergeCommentThreads,
   normalizeCommentImports,
@@ -369,7 +370,7 @@ export async function startServer(options: ServerOptions): Promise<{
     editorCommand !== '' &&
     editorArgsTemplate !== '' &&
     customEditorArgsSafe;
-  const initialCommentImports = options.commentImports || [];
+  const initialCommentImports = creditCommentImports(options.commentImports ?? [], options.agent);
   const initialSelection =
     initialNamedReview?.selection ?? options.selection ?? createDiffSelection('', '');
   const commentImportId =
@@ -1541,6 +1542,7 @@ export async function startServer(options: ServerOptions): Promise<{
       broadcastCommentsChanged,
       presence,
       storeStatus,
+      options.agent,
     );
   }
 
@@ -1905,7 +1907,7 @@ export async function startServer(options: ServerOptions): Promise<{
     try {
       const selection = getCommentSelectionFromQuery(req.query as Record<string, unknown>);
       const session = getOrCreateCommentSession(selection);
-      const commentImports = normalizeCommentImports(req.body);
+      const commentImports = creditCommentImports(normalizeCommentImports(req.body), options.agent);
       const importId = createHash('sha256')
         .update(serializeCommentImports(commentImports))
         .digest('hex');

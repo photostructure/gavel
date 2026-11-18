@@ -563,7 +563,7 @@ const definitions: Record<string, Schema> = {
       ['reviewId', 'threadId', 'inReplyTo', 'body'],
     ),
     description:
-      'JSON input to comment reply. inReplyTo is an event messageId. Optional cursor pins the exact comment revision and is required to mark it replied; retries are idempotent. Author defaults to Agent.',
+      'JSON input to comment reply. inReplyTo is an event messageId. Optional cursor pins the exact comment revision and is required to mark it replied; retries are idempotent. Omit author: it defaults to the agent that launched the server (reviewContext.agent), else Agent.',
   },
   ReplyResponse: object({
     success: { const: true },
@@ -615,7 +615,7 @@ const definitions: Record<string, Schema> = {
   CommentImport: object(importFields, ['type', 'filePath', 'position', 'body']),
   CommentImportRequest: {
     description:
-      'JSON input to --comment / comment add (POST /api/comment-imports). A single object or array. Import timestamps must be parseable dates; body is trimmed. Reply imports target the newest matching file/position thread.',
+      'JSON input to --comment / comment add (POST /api/comment-imports). A single object or array. Import timestamps must be parseable dates; body is trimmed. Reply imports target the newest matching file/position thread. Omit author: it defaults to the agent that launched the server (reviewContext.agent).',
     oneOf: [ref('CommentImport'), array(ref('CommentImport'))],
   },
   CommentImportResponse: object({

@@ -3811,6 +3811,59 @@ describe('Server Integration Tests', () => {
       ]);
     });
 
+    // Comment pills name the harness that launched the review when the agent gives no author.
+    // Run: pnpm test src/server/server.test.ts -t 'credits agent comments'
+    it('credits agent comments without an author to the launching agent', async () => {
+      const at = (body: string) => ({
+        filePath: 'a.ts',
+        position: { side: 'new' as const, line: 1 },
+        body,
+      });
+      const { port, server } = await startObservedServer({
+        conversation: true,
+        agent: 'Codex desktop',
+        commentImports: [{ type: 'thread', ...at('Launch guide.') }],
+      });
+      servers.push(server);
+      const origin = `http://localhost:${port}`;
+      const post = (path: string, body: unknown) =>
+        fetch(`${origin}${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      await post('/api/comment-imports', [
+        { type: 'reply', ...at('Imported reply.') },
+        { type: 'reply', ...at('Named reply.'), author: 'Reviewer' },
+      ]);
+      await post('/api/comments', {
+        comments: [{ id: 'q', file: 'b.ts', line: 1, body: 'Why?' }],
+      });
+      const event = capturedEvents(port).events.find(
+        (candidate): candidate is ConversationEvent =>
+          isCommentEvent(candidate) && candidate.origin === 'user',
+      )!;
+      const reply = {
+        reviewId: event.reviewId,
+        threadId: event.threadId,
+        inReplyTo: event.messageId,
+        body: 'Because.',
+      };
+      expect((await post('/api/conversation/reply', reply)).status).toBe(200);
+      const { threads } = (await (await fetch(`${origin}/api/comments-json`)).json()) as {
+        threads: DiffCommentThread[];
+      };
+      expect(
+        threads.flatMap((thread) => thread.messages.map(({ body, author }) => ({ body, author }))),
+      ).toEqual([
+        { body: 'Launch guide.', author: 'Codex desktop' },
+        { body: 'Imported reply.', author: 'Codex desktop' },
+        { body: 'Named reply.', author: 'Reviewer' },
+        { body: 'Why?', author: undefined },
+        { body: 'Because.', author: 'Codex desktop' },
+      ]);
+    });
+
     // Snapshots expose identities for outstanding reviews after missed process output.
     // Run: pnpm test src/server/server.test.ts -t 'reconciles outstanding reviews'
     it('reconciles outstanding reviews from a snapshot and emits subsequent replies', async () => {

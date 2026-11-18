@@ -574,6 +574,7 @@ export function registerConversationRoutes(
   progressChanged: (selection: DiffSelection) => void,
   presence?: ReviewPresence,
   storeStatus?: () => ReviewStoreStatus | undefined,
+  agent?: string,
 ): void {
   app.get('/api/conversation/snapshot', (_req, res) => {
     const store = storeStatus?.();
@@ -693,7 +694,7 @@ export function registerConversationRoutes(
       return;
     }
     // Retrying a reply after a lost HTTP response must not duplicate the answer.
-    const author = typeof input.author === 'string' ? input.author.trim() : 'Agent';
+    const author = typeof input.author === 'string' ? input.author.trim() : (agent ?? 'Agent');
     const id = createHash('sha256')
       .update(
         JSON.stringify([
