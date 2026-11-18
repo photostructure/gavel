@@ -53,7 +53,8 @@ composing JSON. Write JSON with a file-writing tool, then send it on stdin:
 ```
 
 Status requires `reviewId`, `threadId`, `messageId`, the message revision `cursor`,
-and `status`: `delivered`, `read`, `thinking`, `replying`, or `noted`.
+and `status`: `delivered`, `read`, `thinking`, `replying`, or `noted`. In Claude Code
+the server marks a comment `delivered` once a message carrying it reaches your inbox.
 Reply requires `reviewId`, `threadId`, `inReplyTo` (the message ID), `cursor`, and
 `body`. Replies mark Replied. Neither action resolves a thread.
 Summary and approval events need no comment receipt.

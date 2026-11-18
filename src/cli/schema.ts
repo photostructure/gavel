@@ -580,7 +580,7 @@ const definitions: Record<string, Schema> = {
       status: enumeration('delivered', 'read', 'thinking', 'replying', 'noted'),
     }),
     description:
-      'JSON input to comment status. Must identify an existing user message and its exact revision. Progress only advances; queued and replied are server-managed.',
+      'JSON input to comment status. Must identify an existing user message and its exact revision. Progress only advances; queued and replied are server-managed, and the server marks a comment delivered once a message carrying it reaches a Claude Code inbox.',
   },
   StatusResponse: ref('SuccessResponse'),
   SuccessResponse: object({ success: { const: true } }),

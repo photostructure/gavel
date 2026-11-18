@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fetch, startServer } from './test-access-token.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ConversationSnapshot } from '../types/conversation.js';
 import type { DiffResponse } from '../types/diff.js';
 import type { InboxDelivery } from '../types/presence.js';
 import { DiffMode } from '../types/watch.js';
@@ -150,6 +151,25 @@ describe('pushing review activity to the owning session', () => {
     expect(message.message.content).not.toContain('secret-token');
     expect(await deliveries()).toEqual([expect.objectContaining({ status: 'sent', via: 'inbox' })]);
   });
+
+  // The reviewer's progress icon moves to Delivered once the comment reaches the agent's chat,
+  // without waiting for the agent's receipt. A verdict brings the send forward to its settle delay.
+  it('marks a comment the inbox accepted as delivered', async () => {
+    const socket = join(runtimeDir, 'inbox.sock');
+    await listen(socket);
+    const diff = await start(socket);
+    const query = new URLSearchParams({ base: diff.baseCommitish!, target: diff.targetCommitish! });
+    await approve(diff);
+    await call(`/api/comments?${query}`, {
+      comments: [{ id: 'question', file: 'a.txt', line: 1, body: 'Why?' }],
+    });
+    await vi.waitFor(() => expect(received).toHaveLength(1), { timeout: 5000 });
+    // The server marks the comment once its send settles, just after the inbox reads the message.
+    await vi.waitFor(async () => {
+      const { reviews } = await call<ConversationSnapshot>('/api/conversation/snapshot');
+      expect(reviews[0]!.threads[0]!.messages[0]!.progress?.status).toBe('delivered');
+    });
+  }, 10_000);
 
   it('records a failed send and hands the approval to the next attach', async () => {
     const diff = await start(join(runtimeDir, 'gone.sock'));

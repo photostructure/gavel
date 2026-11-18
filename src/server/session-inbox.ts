@@ -136,6 +136,20 @@ function unsent(review: ReviewActivity): QueuedEvent[] {
   return review.queue.filter((queued) => queued.generation > (review.delivered?.generation ?? 0));
 }
 
+// The comments, at the revision each carries, that a message sending a review's activity up to
+// `generation` includes.
+function carriedComments(
+  reviewId: string,
+  review: ReviewActivity,
+  generation: number,
+): [reviewId: string, threadId: string, messageId: string, cursor: string][] {
+  return review.queue.flatMap(({ generation: queued, event }) =>
+    queued <= generation && (event.type === 'comment.created' || event.type === 'comment.updated')
+      ? [[reviewId, event.threadId, event.messageId, event.cursor]]
+      : [],
+  );
+}
+
 function verdictLabel(review: SnapshotReview): string {
   switch (review.approval.verdict) {
     // The receiving agent may not have the gavel skill loaded, so say what Approve asks for.
@@ -244,6 +258,9 @@ export class SessionInbox {
       send?: (target: InboxTarget, content: string) => Promise<void | QueueReceipt>;
       // Called after any review's delivery state changes, so browsers can refresh it.
       onDeliveryChange?: () => void;
+      // Called for each comment a message carried into the agent's chat, so its progress can
+      // move to Delivered without waiting for the agent's receipt.
+      onDelivered?: (reviewId: string, threadId: string, messageId: string, cursor: string) => void;
     },
   ) {}
 
@@ -277,11 +294,14 @@ export class SessionInbox {
       ([id]) => this.delivery(id).status === 'failed',
     );
     if (!failed.length) return undefined;
-    const content = this.message(failed);
+    const { content, carriesEvents } = this.message(failed);
     const at = new Date().toISOString();
-    for (const [, review] of failed) {
+    for (const [id, review] of failed) {
       const generation = unsent(review).at(-1)?.generation ?? review.generation;
       review.delivered = { generation, at, receipt: { status: 'sent', via: 'prompt' } };
+      if (carriesEvents)
+        for (const comment of carriedComments(id, review, generation))
+          this.options.onDelivered?.(...comment);
       review.queue = review.queue.filter((queued) => queued.generation > generation);
     }
     this.options.onDeliveryChange?.();
@@ -446,10 +466,14 @@ export class SessionInbox {
     });
     if (!sending.length) return;
     for (const { review, generation } of sending) review.inFlight = generation;
-    const content = this.message(
+    const { content, carriesEvents } = this.message(
       sending.map(({ id, review }) => [id, review] as const),
       target.kind === 'codex',
     );
+    // Taken before the send: a later send that finishes first clears these from the queue.
+    const carried = carriesEvents
+      ? sending.flatMap(({ id, review, generation }) => carriedComments(id, review, generation))
+      : [];
     let error: string | undefined;
     let receipt: QueueReceipt | { status: 'sent'; via: 'inbox' } = { status: 'sent', via: 'inbox' };
     try {
@@ -471,17 +495,23 @@ export class SessionInbox {
         review.failed = { generation, at, error };
       }
     }
+    // A Codex queue receipt only queued the message; an inbox send put it in the chat.
+    if (error === undefined && receipt.status === 'sent')
+      for (const comment of carried) this.options.onDelivered?.(...comment);
     this.options.onDeliveryChange?.();
     // The session reattached while this send used its old inbox: carry the activity to the new one.
     if (error !== undefined && this.targets.get(sessionId) !== target && !this.disposed)
       await this.flush(sessionId);
   }
 
-  /** Each review's one-line state, then the human events no message has carried yet. */
+  /**
+   * Each review's one-line state, then the human events no message has carried yet, unless they
+   * are too large; `carriesEvents` says whether the comments themselves are in the message.
+   */
   private message(
     entries: readonly (readonly [string, ReviewActivity])[],
     forCodex = false,
-  ): string {
+  ): { content: string; carriesEvents: boolean } {
     const snapshot = this.options.snapshot();
     const { host, port } = this.options.server;
     const command = `gavel comment snapshot --host ${host} --port ${port}`;
@@ -498,7 +528,8 @@ export class SessionInbox {
     const events = JSON.stringify(
       entries.flatMap(([, review]) => unsent(review).map((queued) => agentEvent(queued.event))),
     );
-    const message = [
+    const carriesEvents = forCodex || events.length <= MAX_EVENTS_CHARS;
+    const content = [
       `gavel: new review activity at http://${host.includes(':') ? `[${host}]` : host}:${port}`,
       ...(forCodex ? [scope] : []),
       ...lines,
@@ -509,10 +540,10 @@ export class SessionInbox {
       'This message reports activity; it is not an approval by itself. Handle it as the gavel skill directs: answer or mark Noted each pending message, and before committing read a fresh',
       `\`${command}\` (using the gavel launcher this checkout prescribes) and check its approval.`,
       '',
-      forCodex || events.length <= MAX_EVENTS_CHARS
+      carriesEvents
         ? `Your human events since the last message (each comment's cursor is its revision for receipts and replies; read the snapshot for a thread's earlier messages, and a fresh one before acting on a verdict):\n${events}`
         : "The new events are too large to include; read that command's output.",
     ].join('\n');
-    return message;
+    return { content, carriesEvents };
   }
 }

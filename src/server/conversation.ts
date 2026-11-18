@@ -500,6 +500,21 @@ export class Conversation {
     }));
   }
 
+  /**
+   * Moves a comment to Delivered once a message carried this revision of it into the agent's
+   * chat. A comment deleted or edited since keeps its progress, as an agent's stale receipt would.
+   */
+  markDelivered(
+    reviewId: string,
+    threadId: string,
+    messageId: string,
+    cursor: string,
+  ): DiffSelection | undefined {
+    const progress = this.findReview(reviewId)?.progress.get(JSON.stringify([threadId, messageId]));
+    if (progress?.cursor !== cursor) return undefined;
+    return this.setProgress(reviewId, threadId, messageId, cursor, 'delivered');
+  }
+
   setProgress(
     reviewId: string,
     threadId: string,

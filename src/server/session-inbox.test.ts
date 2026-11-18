@@ -376,6 +376,92 @@ describe('SessionInbox', () => {
     expect(inbox.delivery('r1')).toMatchObject({ status: 'sent' });
   });
 
+  // The reviewer's progress icon moves to Delivered once the comment reaches the agent's chat.
+  describe('reports the comments that reached the agent', () => {
+    let delivered: ReturnType<
+      typeof vi.fn<(reviewId: string, threadId: string, messageId: string, cursor: string) => void>
+    >;
+    let reporting: SessionInbox;
+    beforeEach(() => {
+      delivered = vi.fn();
+      reporting = new SessionInbox({
+        snapshot: () => snapshot,
+        server: { host: 'localhost', port: 4966, pid: 123 },
+        runtimeDir,
+        send,
+        onDelivered: delivered,
+      });
+    });
+    afterEach(() => reporting.dispose());
+
+    it('after a Claude Code inbox accepts them, not after a failed send', async () => {
+      reporting.setOwner('r1', owner);
+      send.mockRejectedValueOnce(new Error('inbox closed'));
+      reporting.handle(approvalEvent('r1'));
+      reporting.handle({ ...commentEvent('r1'), messageId: 'm1', cursor: 's:2' });
+      await vi.advanceTimersByTimeAsync(INBOX_SETTLE_MS);
+      expect(delivered).not.toHaveBeenCalled();
+
+      reporting.handle({ ...commentEvent('r1'), messageId: 'm2', cursor: 's:3' });
+      await vi.advanceTimersByTimeAsync(INBOX_QUIET_MS);
+      expect(delivered.mock.calls).toEqual([
+        ['r1', 't1', 'm1', 's:2'],
+        ['r1', 't1', 'm2', 's:3'],
+      ]);
+    });
+
+    it('when a reattaching session takes them in its prompt', async () => {
+      reporting.setOwner('r1', owner);
+      send.mockRejectedValueOnce(new Error('inbox closed'));
+      reporting.handle({ ...commentEvent('r1'), messageId: 'm1', cursor: 's:2' });
+      await vi.advanceTimersByTimeAsync(INBOX_QUIET_MS);
+      expect(reporting.attach({ ...owner, socket: '/run/a2.sock' })).toContain('why?');
+      expect(delivered.mock.calls).toEqual([['r1', 't1', 'm1', 's:2']]);
+    });
+
+    // A slow send can finish after a later one that already cleared the queue.
+    it('for a slow send that finishes after a later one', async () => {
+      reporting.setOwner('r1', owner);
+      let finishFirst!: () => void;
+      send.mockImplementationOnce(() => new Promise<void>((resolve) => (finishFirst = resolve)));
+      reporting.handle({ ...commentEvent('r1'), messageId: 'm1', cursor: 's:2' });
+      await vi.advanceTimersByTimeAsync(INBOX_QUIET_MS);
+      reporting.handle({ ...commentEvent('r1'), messageId: 'm2', body: 'x'.repeat(60_000) });
+      reporting.handle(approvalEvent('r1'));
+      await vi.advanceTimersByTimeAsync(INBOX_SETTLE_MS);
+      expect(send).toHaveBeenCalledTimes(2);
+      finishFirst();
+      await reporting.drain();
+      expect(delivered.mock.calls).toEqual([['r1', 't1', 'm1', 's:2']]);
+    });
+
+    // An oversized message names only the snapshot command, so the comment text never arrived.
+    it('not when the message was too large to carry them', async () => {
+      reporting.setOwner('r1', owner);
+      reporting.handle({ ...commentEvent('r1'), body: 'x'.repeat(60_000) });
+      await vi.advanceTimersByTimeAsync(INBOX_QUIET_MS);
+      expect(send.mock.calls[0]![1]).toContain('too large to include');
+      expect(delivered).not.toHaveBeenCalled();
+
+      send.mockRejectedValueOnce(new Error('inbox closed'));
+      reporting.handle({ ...commentEvent('r1'), messageId: 'm2', body: 'y'.repeat(60_000) });
+      await vi.advanceTimersByTimeAsync(INBOX_QUIET_MS);
+      expect(reporting.attach({ ...owner, socket: '/run/a2.sock' })).toContain(
+        'too large to include',
+      );
+      expect(delivered).not.toHaveBeenCalled();
+    });
+
+    it('not when a Codex queue only queued them', async () => {
+      send.mockResolvedValue({ status: 'queued' });
+      reporting.setOwner('r1', codex);
+      reporting.handle(commentEvent('r1'));
+      await reporting.drain();
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(delivered).not.toHaveBeenCalled();
+    });
+  });
+
   it('sends only the newest version of a comment edited before the message went out', async () => {
     inbox.setOwner('r1', owner);
     inbox.handle({ ...commentEvent('r1'), body: 'first wording' });

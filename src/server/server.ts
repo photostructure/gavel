@@ -2362,6 +2362,10 @@ export async function startServer(options: ServerOptions): Promise<{
           type: 'inboxDeliveryChanged',
           timestamp: new Date().toISOString(),
         }),
+      onDelivered: (reviewId, threadId, messageId, cursor) => {
+        const selection = conversation.markDelivered(reviewId, threadId, messageId, cursor);
+        if (selection) broadcastCommentsChanged(selection);
+      },
     });
     if (options.inbox) inbox.setDefaultOwner(options.inbox);
   }

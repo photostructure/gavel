@@ -216,6 +216,26 @@ describe('Conversation state and events', () => {
     expect(() => set('thinking')).toThrow('no longer exists');
   });
 
+  it('marks a delivered comment only at the revision the message carried, and never backwards', () => {
+    const { journal, events } = observedConversation();
+    journal.update(selection, [], [thread], 'user');
+    const event = events[0]!;
+    if (event.type !== 'comment.created') throw new Error('Expected comment event');
+    const deliver = (cursor = event.cursor) =>
+      journal.markDelivered(event.reviewId, event.threadId, event.messageId, cursor);
+    const progress = () => journal.snapshot().reviews[0]!.threads[0]!.messages[0]!.progress;
+
+    expect(deliver('stale')).toBeUndefined();
+    expect(progress()?.status).toBe('queued');
+    expect(deliver()).toEqual(selection);
+    expect(progress()?.status).toBe('delivered');
+    journal.setProgress(event.reviewId, event.threadId, event.messageId, event.cursor, 'replied');
+    expect(deliver()).toBeUndefined();
+    expect(progress()?.status).toBe('replied');
+    journal.update(selection, [thread], [], 'user');
+    expect(deliver()).toBeUndefined();
+  });
+
   it('notifies consumers only after all messages and progress are saved', () => {
     const observed: unknown[] = [];
     const journal = new Conversation(() => observed.push(journal.snapshot()));
