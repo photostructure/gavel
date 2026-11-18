@@ -168,10 +168,8 @@ Acceptance for each: the listed tests pass unchanged, `pnpm build` and `pnpm che
      global.css.
    - The rAF scroll handler in useCursorFile.ts:49-66 and useTopVisibleFile.ts:72-89: a
      `useRafScroll(measure)` hook.
-   - Intent labels (CommentThreadCard.tsx:301-305, CommentForm.tsx:134-136), the card
-     frame classes (CommentThreadCard.tsx:528, UnsentDrafts.tsx:178), the `'User'` author
-     string
-     (CommentThreadCard.tsx:157, useDiffComments.ts:82, 137).
+   - The card frame classes (CommentThreadCard.tsx:558, CommentForm.tsx:142,
+     UnsentDrafts.tsx:176) and the `'User'` author string (useDiffComments.ts:73, 123).
    - `client/utils/autoViewedPatterns.ts` and `client/services/autoViewedPatterns.ts`
      share a basename but hold unrelated code; rename one.
 

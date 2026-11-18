@@ -218,12 +218,8 @@ the `Changelog:` trailer what an agent must change.
   3741, 3825, 4285, 4368). Afterwards such a body gets HTTP 400.
 - **`comment remove` alias** (comment.ts:138). Tests comment.test.ts:94-96, 379-394.
 - **Thread-level `isQuestion`**, which predates root-message `intent` (498a059 then
-  e56fe35). No saved data can hold `isQuestion` without a root intent, but the field is
-  in the schema's `CommentThread` (schema.ts:64), so agents can read it. Read fallbacks:
-  commentFormatting.ts:151, CommentThreadCard.tsx:682. Writers and pass-throughs:
-  useDiffComments.ts:29, 79, 102, 108-112; reviewOps.ts:179-181; commentImports.ts:350,
-  453-456; commentThreads.ts:12; server.ts:1381, 1423; App.tsx:1835; CommentForm.tsx:11, 86. Types: types/diff.ts:154, 239. About 46
-  fixture references across 12 test files (`rg -c isQuestion src`).
+  e56fe35). Moved to p2-20261117-drop-comment-intents.md, which removes it together with
+  `intent`; the page stopped reading and writing both in 429df7f.
 - **Reply without a revision cursor** (conversation.ts:661-665, 676, 690, 716;
   schema.ts:563-566; the `reply` argument help in
   src/cli/conversation.ts:155, which says "optional cursor/author"). The skill already
