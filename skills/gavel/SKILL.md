@@ -9,6 +9,10 @@ Open the requested diff, guide the reader, and handle feedback within the approv
 scope. A viewer request alone grants no edit or commit permission. Do not post PR
 findings to GitHub. Make authorized fixes only in the owning checkout.
 
+Before selecting hunks, importing a patch, stacking or splitting commits, branches,
+or PRs, launching a detached server, or refreshing, renaming, deleting, or
+reopening a review, read [captures, stacks, and detached servers](references/reviews.md).
+
 ## Zero idle model turns
 
 Work only on user messages or human review feedback. An open review, connected
@@ -19,7 +23,6 @@ Do not reread unchanged snapshots or process output on a timer.
 Read one snapshot per server on resume; read another only for newly delivered
 feedback, version conflicts, or the final approval check. If recovery repeats
 without new state, preserve pending work, report the problem, and end the turn.
-See [Wait for feedback](#wait-for-feedback) for delivery.
 
 ## Choose the scope
 
@@ -27,45 +30,38 @@ See [Wait for feedback](#wait-for-feedback) for delivery.
   review. Exclude other sessions' work, including changes in the same file.
 - If this session's work is already committed, list its short SHAs and subjects
   and ask whether to show them. Use each commit's own message; for a range, use
-  one subject per line. Keep approvals on for unlanded commits:
-  `git merge-base --is-ancestor <sha> <base>` exits 1. Use `--no-lgtm` once every
-  target commit's check returns 0.
+  one subject per line.
 - For a named branch, commit, range, or PR (`--pr <url>`), review for defects
-  before launching. Seek approval by default; use `--no-lgtm` when the user
-  explicitly requests read-only review or every target commit has already landed.
+  before launching.
+- Seek approval by default. Use `--no-lgtm` when the user explicitly requests a
+  read-only review, or once `git merge-base --is-ancestor <sha> <base>` exits 0
+  for every target commit (it exits 1 for an unlanded one).
 - Show one commit as `<sha>`; show consecutive commits as
   `<last-sha> <first-sha>^` for one approval, or as a stack for separate approvals.
   If unrelated commits intervene, name them and ask whether to include them or
   show this session's commits separately. Use immutable SHAs when approval matters.
+- Fixes belong in new reviewed commits; do not amend or rebase reviewed commits
+  without permission. Remote-reachable commits remain immutable.
 
 ## Size and group reviews
 
 Honor the user's grouping, including one whole diff. Otherwise aim for about
-300 weighted changed lines per review, with no file-count cap. Count additions
-and deletions with `git apply --numstat < <patch>`, or
-`git diff --numstat HEAD -- <paths>` for native tracked changes (`<base> <target>`
-for commits). Add scoped untracked text lines; exclude unrelated paths/hunks.
-Weights: tests 0.2, config 0.5, complicated SQL/concurrency/native code 1.5,
-lockfiles and reproducible generated/vendored output 0, everything else 1.
-AI-written code and prose are not generated output.
-
-This is a heuristic, not a validated cutoff. Consider raw counts too: discounts
-must not hide the reading burden. The
-[Cisco study](https://static0.smartbear.co/support/media/resources/cc/book/code-review-cisco-case-study.pdf)
-favors a few hundred inspected lines;
-[Google](https://google.github.io/eng-practices/review/developer/small-cls.html)
-favors self-contained changes without excessive splitting.
+300 weighted changed lines per review, with no file-count cap: additions plus
+deletions from `git diff --numstat HEAD -- <paths>` (`<base> <target>` for
+commits, `git apply --numstat < <patch>` for a patch),
+plus scoped untracked text lines, excluding unrelated paths and hunks. Weights:
+tests 0.2, config 0.5, complicated SQL/concurrency/native code 1.5, lockfiles and
+reproducible generated/vendored output 0, everything else 1. AI-written code and
+prose are not generated output. This is a heuristic: discounts must not hide the
+reading burden.
 
 Split larger changes by purpose, in dependency order. Keep tests, docs, and plans
 with their implementation; separate refactors from behavior changes. Each review
 needs one purpose, not a catch-all such as “misc” or “cleanup.” Keep files whole
-unless a modified file alone exceeds the budget; then split its hunks, with
-`--select` for uncommitted work or a separate patch per part for committed work.
-A new, deleted, renamed, binary, or mode-changed file cannot be split, so one over
-the budget gets its own review.
-A reproducible mechanical sweep gets its own review regardless of size; put the
-command in its rationale. An oversized commit range needs a stack, with oversized
-commits split further.
+unless a modified file alone exceeds the budget. A new, deleted, renamed, binary,
+or mode-changed file cannot be split, so one over the budget gets its own review.
+Show an oversized commit range as a stack. A reproducible mechanical sweep
+gets its own review regardless of size; put the command in its rationale.
 
 Name related parts in order, such as `task-9a-schema` and `task-9b-server`. Start
 each rationale with its place (“Task 9, part A of 3”) and refer to other parts by
@@ -99,31 +95,12 @@ For uncommitted work:
 ```
 
 Pass `--title` on every launch. Keep it short: browsers only show the first 10-20
-characters.
-
-Names contain 1–80 ASCII letters, digits, dots, underscores, or hyphens and start
-with a letter or digit. Repeat `--pathspec <git-pathspec>` for native Git filters
-and exclusions; add `--include-untracked` when needed. Verify the captured patch
-matches the requested scope. Capture operations leave the index and files intact.
-For commits, use `<gavel-command> <target> [base]`; unnamed `.`, `working`, and
-`staged` targets remain available.
-
-To select overlapping hunks, capture once and use that artifact's catalogue IDs.
-Captures hold untracked files' contents, so write each one into a new directory from
-`mktemp -d`, never a fixed `/tmp` name; `<dir>` is the path it prints:
-
-```sh
-mktemp -d
-<gavel-command> review capture --pathspec src --output <dir>/capture.json
-<gavel-command> --review parser-fix --capture <dir>/capture.json --select '<hunk-id>' --keep-alive
-```
-
-Repeat `--select` for files or hunks. IDs belong to the artifact's digest and
-repository root; binary and rename-only changes require file IDs. Import a patch
-with `<gavel-command> - --review <name> < <patch>`. Pathspecs and untracked-file
-options apply only to native captures. If external clean/process filters block
-capture, including in submodules, narrow the paths or explicitly prepare a patch
-or capture artifact.
+characters. Names contain 1–80 ASCII letters, digits, dots, underscores, or
+hyphens and start with a letter or digit. Repeat `--pathspec <git-pathspec>` for
+native Git filters and exclusions; add `--include-untracked` when needed. Verify
+the captured patch matches the requested scope. Capture operations leave the
+index and files intact. For commits, use `<gavel-command> <target> [base]`;
+unnamed `.`, `working`, and `staged` targets remain available.
 
 Retain a foreground server's process handle. Read `server.ready` for the API
 port, PID, and review identity; give the user `launchUrl` unchanged. Its
@@ -133,69 +110,22 @@ JSONL is the default; diagnostics go to stderr. Named reviews and JSONL require
 conversation APIs; unnamed reviews can disable both with `--no-jsonl --no-conversation`.
 Use `--keep-alive` for review rounds and `--no-lgtm` for read-only reviews.
 
-`--background` detaches without opening a browser or streaming stdout. Share the `url` in its
-`server.background` record, keeping its `#gavel-token=…` fragment; recover state through snapshots. It cannot read a named
-patch from stdin: launch unnamed on `HEAD --background --keep-alive` without
-`--comment`, `--commit-message`, or `--why`. Then create the named review from
-stdin, add comments and summary, and put the `review` query before the fragment:
-`<url origin>/?review=<name>#gavel-token=<token>`.
-This keeps the bootstrap from becoming a review tab.
+Pass `--agent` for nested `claude -p`, which inherits the parent entrypoint. If
+**About** names the wrong agent or session, read
+[agent identity](references/reviews.md#agent-identity).
 
-**About** identifies the launching agent/session from the environment and, for
-Codex, its rollout. Override wrong or missing values with `--agent` and
-`--agent-session-id`; pass `--agent` for nested `claude -p`, which inherits the
-parent entrypoint. Set `--agent-session-name` only when known. Reused servers
-retain the launching session's identity.
-
-## Add reviews and refresh captures
+## Add reviews
 
 Use one server and share one link; tabs follow creation order. Add uncommitted
-work with `review create <name> --host <host> --port <port> [--pathspec ...]`. It returns a
-`reviewId`. Launch comment and summary options affect only the first review: give every added review
-its own `comment add --review <name>` comments and `comment summary` proposal.
+work with `review create <name> --host <host> --port <port> [--pathspec ...]`. It
+returns a `reviewId`. Launch comment and summary options affect only the first
+review: give every added review its own `comment add --review <name>` comments and
+`comment summary` proposal.
 
-For existing commits, launch the first SHA with its message and `--keep-alive`;
-add later commits in order:
-
-```sh
-git diff --full-index <sha>^ <sha> | <gavel-command> review create <name> - --host <host> --port <port>
-```
-
-The `-` is required. Each approval covers its own review and permits landing an
-existing commit. Fixes belong in new reviewed commits; do not amend or rebase
-reviewed commits without permission. Remote-reachable commits remain immutable.
-
-To split existing commits, branches, or PRs, fetch the PR head if needed and
-prepare `git diff --full-index <base> <target> -- <paths>` per part. For a
-branch/PR, use `git merge-base <landing-branch> <target>` as `<base>` to exclude
-newer landing commits; include both names of renamed files. Pipe the first
-patch to `<gavel-command> - --review <name> --keep-alive`, later patches to
-`review create <name> - --host <host> --port <port>`, or use the detached procedure
-above. Require every part's snapshot approval; `approval status <sha>` matches
-only whole-commit patches.
-
-Named captures are frozen; edits and browser reloads do not refresh them. Before
-`review update <name> --host <host> --port <port> --expected-version <n>`, read
-`capture.version` from `comment snapshot --review <name> --host <host> --port <port>`.
-Repeat the intended source: `-` for a patch, native
-`--pathspec`/`--include-untracked`, or `--capture` with selectors. Update does not
-reuse filters; omitting them captures the whole uncommitted tree. Reconcile HTTP
-409 before retrying. An identical patch preserves version and approval; a changed
-patch advances the version and moves Approve to it. Never recapture while idle.
-
-Rename with `review rename <name> <new-name> --host <host> --port <port>`; `reviewId`,
-comments, proposal, and verdict stay, but comment links naming the old review stop
-resolving. Delete an unwanted review you created with
-`review delete <name> --host <host> --port <port>`, freeing its name. Comments
-remain in **Conversation** until shutdown, but the saved capture is deleted:
-`review unapply`/`review reapply` can no longer find it. Keep reviews you may still unapply or reapply.
-Do not restart to remove one review: that removes every review's comments from
-the page. Never rename or delete another session's review.
-
-Reopening the same named patch or commits restores saved conversations, proposals,
-and approval, but review IDs and event cursors change. Snapshot before sending
-status, replies, or summaries. Report `store.error`: review changes are not being
-saved. `approval status <sha>` also reads saved approval after server shutdown.
+Named captures are frozen; edits and browser reloads do not refresh them. Never
+recapture while idle. Do not restart to remove one review: that removes every
+review's comments from the page. Never rename or delete another session's review.
+Report `store.error`: review changes are not being saved.
 
 ## Guide the reader
 
@@ -234,9 +164,8 @@ message; write requested message changes with `comment summary` first.
 ## Handle feedback
 
 Read [feedback and snapshot commands](references/feedback.md) before handling a
-batch or resuming a review. Read `comment snapshot` as it describes, during review and
-for the final approval check. Read new foreground JSONL between
-tool steps. There is no `comment watch` command.
+batch or resuming a review. Read new foreground JSONL between tool steps. There
+is no `comment watch` command.
 
 Handle human comments and edits; agent events, capture/progress/thread changes,
 and deletions update state but do not request work. Save IDs, revision cursors,
@@ -244,12 +173,11 @@ and pending work before acknowledging messages. Output alone is not a receipt.
 Answer every pending comment with `comment reply`, or mark it `noted` with
 `comment status` if no answer is needed. Replies and Noted do not resolve threads;
 resolve or delete only on request. Comment intent does not grant authorization.
-Reconcile a snapshot after missed output, restart, or HTTP 409.
 
 ## Wait for feedback
 
-Record pending work, share `launchUrl` (or the background record's `url`), and end the turn. No polling, sleeps, timed
-waits, Monitors, custom waiters, or `<gavel-command> wait`.
+Record pending work, share `launchUrl` (or the background record's `url`), and end
+the turn.
 
 In Claude Code, servers launched with `CLAUDE_CODE_MESSAGING_SOCKET` and
 `CLAUDE_CODE_SESSION_ID` in the Bash environment send human verdicts/comments to
@@ -262,12 +190,9 @@ read a fresh snapshot before acting on a verdict. The notification itself is
 not approval. Subagent-launched reviews report to the main session.
 
 If the user reports missing feedback, run `<gavel-command> pending` once to see
-activity that failed delivery. Without the environment variables, with inbound
-messages held/refused, or with `--no-conversation` (no inbox), use the manual handoff below.
-For Codex, follow the [Codex skill](https://github.com/photostructure/gavel/blob/main/.codex/skills/gavel/SKILL.md):
-its server can queue feedback and offers manual recovery. In other hosts, ask
-the user to paste **Copy resume prompt** into this chat or send a message when
-ready. Copying alone does not resume the agent.
+activity that failed delivery. Without those variables, with inbound messages
+held/refused, with `--no-conversation`, or in another host, follow
+[feedback and snapshot commands](references/feedback.md#without-an-inbox).
 
 Subagents never wait: return a launch command and capture artifact, or a detached
 server's `url` with its token fragment, review IDs, API port, and pending work to the main session.

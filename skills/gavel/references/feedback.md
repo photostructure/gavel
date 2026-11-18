@@ -79,3 +79,10 @@ For other selections, use:
 For renamed files, `filePath` is the new name. Find the old name with
 `git diff --find-renames --name-status`, passing `<base> <target>` for commits,
 `--cached <base>` for `staged`, `<base>` for `.`, or no revision for `working`.
+
+## Without an inbox
+
+For Codex, follow the [Codex skill](https://github.com/photostructure/gavel/blob/main/.codex/skills/gavel/SKILL.md):
+its server can queue feedback and offers manual recovery. Elsewhere, ask the
+user to paste **Copy resume prompt** into this chat or send a message when ready.
+Copying alone does not resume the agent.
