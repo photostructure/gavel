@@ -64,7 +64,8 @@ without new state, preserve pending work, report the problem, and end the turn.
 ## Size and group reviews
 
 Honor the user's grouping, including one whole diff. Otherwise aim for about
-300 weighted changed lines per review, with no file-count cap: additions plus
+300–500 weighted changed lines per review, unless the user's instructions give
+another size, with no file-count cap: additions plus
 deletions from `git diff --numstat HEAD -- <paths>` (`<base> <target>` for
 commits, `git apply --numstat < <patch>` for a patch),
 plus scoped untracked text lines, excluding unrelated paths and hunks. Weights:

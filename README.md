@@ -68,6 +68,10 @@ To require review before commits, add this to `AGENTS.md` or `CLAUDE.md`:
 
 > Before committing your changes, request my review through the gavel skill.
 
+Agents split changes into reviews of about 300–500 changed lines. To change
+that, add a size to the same file, such as "Keep each gavel review under 200
+changed lines."
+
 ### Open a diff yourself
 
 ```sh
