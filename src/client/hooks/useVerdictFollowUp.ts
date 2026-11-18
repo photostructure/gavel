@@ -53,7 +53,8 @@ export function useVerdictFollowUp<
   // In the order the server created them.
   reviews: T[];
   current: DiffSelection | null;
-  // From the open review's own approval state, which is fresher than its entry in reviews.
+  // From the open review's own approval state with this page's waiting verdict change applied,
+  // which is fresher than its entry in reviews.
   currentHasVerdict: boolean;
   requiresResume?: boolean;
   // The open review, which the resume prompt names; undefined until it loads.

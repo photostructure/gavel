@@ -396,6 +396,13 @@ function App() {
     diffData?.shipIt && commentSessionQueryString ? getCommentApiUrl('/api/approval') : null,
   );
   const refreshApproval = approval.refresh;
+  // The server's verdict with this page's waiting verdict change applied on top.
+  const shownVerdict =
+    reviewOps.verdict === undefined
+      ? approval.verdict
+      : reviewOps.verdict === 'clear'
+        ? undefined
+        : reviewOps.verdict;
   const commentsCaptureKey = diffData?.capture
     ? `${diffData.capture.version}:${diffData.capture.patchDigest}`
     : null;
@@ -427,7 +434,8 @@ function App() {
     answer: ReviewOpAnswer,
     click: number,
     generation: number,
-    shownVerdict: ReviewVerdict | undefined,
+    // The verdict the buttons showed when the reviewer clicked.
+    shownAtClick: ReviewVerdict | undefined,
   ) => {
     // The reviewer moved to another review, so its reload and next step no longer apply.
     const sameReview = () => activeCommentsContextRef.current.generation === generation;
@@ -449,6 +457,8 @@ function App() {
         if (sameReview()) setReloadVersion((prev) => prev + 1);
         return;
       }
+      // Applied now or, for a duplicate, by a send whose answer was lost.
+      approval.applied(verdict);
       await refreshApproval();
       // A later click replaced this verdict, so its burst and next step would be wrong.
       if (!latest()) return;
@@ -459,7 +469,7 @@ function App() {
       // Another tab or reviewer may have changed or cleared the verdict before this read.
       const stillGiven = () => latest() && approval.servedVerdict() === verdict;
       if (!stillGiven()) return;
-      if (verdict === 'approve' && shownVerdict !== 'approve' && approvalControlRef.current) {
+      if (verdict === 'approve' && shownAtClick !== 'approve' && approvalControlRef.current) {
         // An approval after Undo starts a second burst; the first ends rather than outlive it.
         stopCelebrationRef.current?.();
         stopCelebrationRef.current = celebrateApproval(
@@ -494,6 +504,9 @@ function App() {
       return;
     }
 
+    // The shown next step answers the earlier verdict; the server's answer to this one starts
+    // its own.
+    verdictFollowUp.cancel();
     setIsShipping(true);
     try {
       // Reject does not endorse the proposed message, so it sends no summaryVersion.
@@ -507,7 +520,7 @@ function App() {
       });
       const click = ++verdictClickRef.current;
       const finished = answer.then((result) =>
-        finishVerdictRef.current(verdict, result, click, commentsGeneration, approval.verdict),
+        finishVerdictRef.current(verdict, result, click, commentsGeneration, shownVerdict),
       );
       // After a failed send the verdict waits in the queue, and the header says so; the controls
       // free up, and the answer to a later retry finishes it.
@@ -1153,7 +1166,7 @@ function App() {
       // Only a review with the verdict buttons takes a verdict. Unlike its pressed button, the
       // key for the verdict the review already has does nothing: clearing a verdict takes a click.
       onVerdict: (verdict) => {
-        if (diffData?.shipIt && approval.verdict !== verdict) void handleVerdict(verdict);
+        if (diffData?.shipIt && shownVerdict !== verdict) void handleVerdict(verdict);
       },
     });
 
@@ -1675,7 +1688,7 @@ function App() {
   const verdictFollowUp = useVerdictFollowUp({
     reviews: approvalRequests,
     current: resolvedSelection,
-    currentHasVerdict: approval.verdict !== undefined,
+    currentHasVerdict: shownVerdict !== undefined,
     // The reviewer hands the review back with the resume prompt when the verdict did not reach
     // the owning session: the send failed or went unconfirmed, or nothing reaches a Codex chat
     // (a server without an inbox, or no queue). The send settles after the verdict, so the
@@ -2234,7 +2247,7 @@ function App() {
                 <VerdictControl
                   key={commentsContextKey}
                   containerRef={setVerdictControl}
-                  verdict={approval.verdict}
+                  verdict={shownVerdict}
                   busy={isShipping || captureReloading}
                   disabled={!approval.ready || !hasLoadedComments}
                   approveDisabled={!summary.ready}
@@ -2248,7 +2261,7 @@ function App() {
                 <VerdictFollowUpNotice
                   anchor={verdictAnchor}
                   step={verdictFollowUp.step}
-                  verdict={approval.verdict}
+                  verdict={shownVerdict}
                   delivery={inboxDelivery.delivery}
                   busy={isShipping || captureReloading}
                   onDismiss={verdictFollowUp.cancel}

@@ -696,6 +696,74 @@ describe('comment and verdict changes the server has not confirmed', () => {
     await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approved$/));
   });
 
+  // Each click on Approved read the server's verdict, so the button stayed pressed and queued
+  // another clear, and the unsaved-changes count rose by one per click.
+  it('shows a waiting verdict change on the verdict buttons', async () => {
+    const state = server();
+    state.verdict = 'approve';
+    mount();
+    await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approved$/));
+    await waitForServerThreads();
+    state.fail = 'network';
+    const verdictsQueued = () =>
+      queued().flatMap((op) => (op.type === 'verdict.set' ? [op.verdict] : []));
+
+    await userEvent.click(approveButton());
+
+    expect(await findNotSavedAlert()).toHaveTextContent('1 change not saved');
+    expect(verdictsQueued()).toEqual(['clear']);
+    expect(approveButton()).toHaveTextContent(/^Approve$/);
+    expect(approveButton()).toHaveAttribute('aria-pressed', 'false');
+    // The shortcut for the verdict the page shows does nothing, as it does for a saved one.
+    await userEvent.keyboard('{Shift>}X{/Shift}');
+    await waitFor(() => expect(verdictsQueued()).toEqual(['clear', 'reject']));
+    await userEvent.keyboard('{Shift>}X{/Shift}');
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    await waitFor(() => expect(verdictsQueued()).toEqual(['clear', 'reject', 'clear']));
+
+    await userEvent.click(approveButton());
+
+    await waitFor(() => expect(verdictsQueued()).toEqual(['clear', 'reject', 'clear', 'approve']));
+    expect(approveButton()).toHaveAttribute('aria-pressed', 'true');
+    expect(await findNotSavedAlert()).toHaveTextContent('4 changes not saved');
+    expect(state.verdict).toBe('approve');
+  });
+
+  // The answer removes the verdict from the queue before the page reads the server's verdict
+  // back, so the button showed the old verdict in between.
+  it('keeps showing a verdict the server applied while the page reads it back', async () => {
+    const state = server();
+    mount();
+    await waitForServerThreads();
+    state.holdApprovalReads = true;
+
+    await userEvent.click(approveButton());
+
+    await waitFor(() => expect(state.heldApprovalReads).toHaveLength(1));
+    expect(queued()).toEqual([]);
+    expect(approveButton()).toHaveAttribute('aria-pressed', 'true');
+    state.holdApprovalReads = false;
+    await act(async () => state.heldApprovalReads.shift()!());
+    expect(approveButton()).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  // The toast's next step answers the confirmed approval; under a waiting Reject it read
+  // "Rejected You can close this page." while the server still held the approval.
+  it('closes the next step for a confirmed verdict when a new verdict waits', async () => {
+    const state = server();
+    mount();
+    await waitForServerThreads();
+    await userEvent.click(approveButton());
+    expect(await screen.findByRole('dialog', { name: 'Next step' })).toBeVisible();
+    state.fail = 'network';
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
+
+    await findNotSavedAlert();
+    expect(screen.queryByRole('dialog', { name: 'Next step' })).toBeNull();
+    expect(state.verdict).toBe('approve');
+  });
+
   it('shows the next step for a verdict that a retry gets confirmed', async () => {
     const state = server();
     mount();
@@ -710,7 +778,7 @@ describe('comment and verdict changes the server has not confirmed', () => {
     expect(await screen.findByRole('dialog', { name: 'Next step' })).toBeVisible();
   });
 
-  it('celebrates once for two approvals clicked while the first waits', async () => {
+  it('celebrates once for an approval given again after a waiting clear', async () => {
     let bursts = 0;
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
       bursts++;
@@ -722,14 +790,21 @@ describe('comment and verdict changes the server has not confirmed', () => {
     state.fail = 'status';
     await userEvent.click(approveButton());
     await findNotSavedAlert();
+    // The first click on Approved clears the waiting approval; the second approves again.
     await userEvent.click(approveButton());
-    await waitFor(() => expect(queued()).toHaveLength(2));
+    await waitFor(() => expect(approveButton()).toHaveTextContent(/^Approve$/));
+    await userEvent.click(approveButton());
+    await waitFor(() => expect(queued()).toHaveLength(3));
     state.fail = false;
 
     reconnect();
 
     expect(await screen.findByRole('dialog', { name: 'Next step' })).toBeVisible();
-    expect(state.applied.map(({ type }) => type)).toEqual(['verdict.set', 'verdict.set']);
+    expect(state.applied.map((op) => op.type === 'verdict.set' && op.verdict)).toEqual([
+      'approve',
+      'clear',
+      'approve',
+    ]);
     expect(bursts).toBe(1);
   });
 
@@ -741,9 +816,13 @@ describe('comment and verdict changes the server has not confirmed', () => {
     state.fail = 'status';
     await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
     await findNotSavedAlert();
-    await userEvent.click(approveButton());
+    // The waiting Reject shows pressed, so clicking it again clears the verdict.
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
     await waitFor(() =>
-      expect(queued().map(({ type }) => type)).toEqual(['verdict.set', 'verdict.set']),
+      expect(queued().map((op) => op.type === 'verdict.set' && op.verdict)).toEqual([
+        'reject',
+        'clear',
+      ]),
     );
     state.fail = false;
     let releaseReviews = () => {};

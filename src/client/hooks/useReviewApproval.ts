@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ReviewApproval } from '../../types/conversation';
+import type { ReviewApproval, ReviewVerdict } from '../../types/conversation';
 import { apiFetch } from '../utils/accessToken';
 
 /**
@@ -51,6 +51,22 @@ export function useReviewApproval(url: string | null) {
     void refresh();
   }, [refresh]);
 
+  /**
+   * Shows the verdict the server applied for one of this page's verdict changes. The answer that
+   * says so takes the change out of the review-ops queue, and the page would show the old verdict
+   * until the read that follows answers. A read that started before the change answers with the
+   * old verdict, so it is ignored.
+   */
+  const applied = useCallback((verdict: ReviewVerdict | 'clear') => {
+    if (served.current?.url !== activeUrl.current) return;
+    const approval = { ...served.current.approval };
+    if (verdict === 'clear') delete approval.verdict;
+    else approval.verdict = verdict;
+    keptId.current = requestId.current;
+    served.current = { url: served.current.url, approval };
+    setState(served.current);
+  }, []);
+
   const servedVerdict = useCallback(
     () => (served.current?.url === activeUrl.current ? served.current.approval.verdict : undefined),
     [],
@@ -62,6 +78,7 @@ export function useReviewApproval(url: string | null) {
     ready: current !== null,
     error,
     refresh,
+    applied,
     servedVerdict,
   };
 }

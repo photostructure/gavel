@@ -66,10 +66,11 @@ function settle(waiters: Waiters, id: string, answer: ReviewOpAnswer): void {
 
 /**
  * A review's comments as the server holds them, with this browser's unconfirmed changes applied
- * on top. Each change waits in localStorage, in order, until the server answers it; nothing else
- * removes it. `scope` names the review as the server finds it; `query` selects it on the server,
- * as for /api/comments-json. Each batch names `repositoryId` and `agentSessionId`, the review's
- * owner, so a server for another repository or session at this address refuses it.
+ * on top, and its latest unconfirmed verdict change. Each change waits in localStorage, in order,
+ * until the server answers it; nothing else removes it. `scope` names the review as the server
+ * finds it; `query` selects it on the server, as for /api/comments-json. Each batch names
+ * `repositoryId` and `agentSessionId`, the review's owner, so a server for another repository or
+ * session at this address refuses it.
  */
 export function useReviewOps(
   scope: string | null,
@@ -255,6 +256,10 @@ export function useReviewOps(
   );
 
   const loaded = base?.scope === scope;
+  // The latest verdict change waiting, which the page shows over the server's verdict.
+  const verdict = loaded
+    ? queue.flatMap((op) => (op.type === 'verdict.set' ? [op.verdict] : [])).at(-1)
+    : undefined;
   // Shown in a toast of its own, since it can stay up for as long as the server is unreachable;
   // the toast words the count and the failure message.
   const unsaved: UnsavedChanges | null =
@@ -268,6 +273,7 @@ export function useReviewOps(
   return {
     loaded,
     threads,
+    verdict,
     waiting: queue.length > 0,
     unsent,
     enqueue,
