@@ -39,8 +39,3 @@ No token left the origin in any of these cases.
   protocol-relative URLs; the backslash case of the regex is pinned by the unit tests in
   `markdownUtils.test.ts`.
 - The remote-image and Referrer-Policy bullets moved to `p3-20261115-http-security-headers.md`.
-
-## Review
-
-`coding:second-opinion`: Verdict LAND. Claude reviewer LAND; Codex slot missing (skipped for a
-front-end batch, per the maintainer's standing instruction). No findings were vetoed.

@@ -42,15 +42,15 @@ other refs (`?ref=<rev>`) stay as they are: those objects are inside the reposit
   with a real `.GIT` directory on case-sensitive ext4, and the Windows 8.3 case through a mock
   plus a manual Node probe on Windows 11.
 
-## Open questions for the maintainer
+## Limits
 
 - Files inside an initialized submodule's checkout are now refused on working-tree reads,
   because the parent repository's `git check-ignore` exits 128 ("is in submodule"). Diffs show
   a submodule as one entry (`--submodule=short`), so only Markdown links from the
-  superproject into a submodule hit this. Options measured: (A) keep refusing them, as
-  shipped; (B) run `check-ignore` from the file's directory, which lets a nested
+  superproject into a submodule hit this. Decision (2026-11-17, question DF-12, accepted as
+  recommended): keep refusing them, as shipped. Rejected: running `check-ignore` from the file's directory, which lets a nested
   non-submodule repository inside an ignored directory (`vendor/dep` under an ignored
-  `vendor/`) report its files as not ignored; (C) pass `--no-index`, which serves submodule
+  `vendor/`) report its files as not ignored; passing `--no-index`, which serves submodule
   files but refuses force-added tracked files under ignored patterns.
 - Only the first segment is checked, as decided, so a nested non-submodule repository's
   metadata (`vendor/lib/.git/config`, when `vendor/lib` is not ignored) is still served. Git

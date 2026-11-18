@@ -32,8 +32,3 @@ Tests in `src/cli/unapply.test.ts` reproduce both repros (each fails at `47c5959
 a reapply whose deletion empties a directory while another hunk is rejected (it throws
 `ENOENT` without the existence check). The existing tests that assert `shared.txt.rej` is gone
 still cover removal inside the worktree.
-
-## Review
-
-`coding:second-opinion` on `47c5959`, one batch (`src/cli/unapply.ts`,
-`src/cli/unapply.test.ts`): Codex LAND, Claude LAND. No findings were vetoed.

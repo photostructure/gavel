@@ -8,9 +8,8 @@ section: Review capture
 
 Placeholder. Not started.
 
-The fix planned in `p3-20261115-quadratic-diff-header-parse.md` makes `parseDiffHeaderPaths` in
-`src/server/git-diff.ts` test only the two boundaries Git can write; at `47c5959` it still decodes
-both halves at every boundary. `gitHeaderPaths` in
+`p3-20261115-quadratic-diff-header-parse.md` made `parseDiffHeaderPaths` in `src/server/git-diff.ts`
+test only the two boundaries Git can write. `gitHeaderPaths` in
 `src/server/review-capture.ts` (line 223 at `47c5959`), which `capturePatch` and
 `validateCapture` use on every capture a token holder posts, still decodes both halves at every
 ` a/`-style boundary. A second-opinion reviewer of that change measured one header at 4 KB in
@@ -18,5 +17,5 @@ both halves at every boundary. `gitHeaderPaths` in
 growing faster than linearly.
 
 Fix direction: apply the same two-boundary test in `gitHeaderPaths`, or call the git-diff.ts
-parser once that fix has landed, test-first with a test that counts decode calls rather than
+parser, test-first with a test that counts decode calls rather than
 timing.

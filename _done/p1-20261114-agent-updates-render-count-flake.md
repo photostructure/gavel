@@ -16,4 +16,4 @@ Both render-count tests ("opens and closes" and "a reply is marked read", which 
 
 Reverting 1ef8304's changes to `src/client/App.tsx` and `src/client/hooks/useAgentUpdates.ts` still fails both tests (`expected 40 to be 28`, `expected 58 to be 56`), as does making only `handleToggleThreadResolved` a new function on each render.
 
-Review: `coding:second-opinion` verdict LAND (Codex and Claude) on the diff against base commit `47c5959`. No findings were vetoed.
+Base commit: `47c5959`.

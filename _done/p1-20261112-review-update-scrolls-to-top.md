@@ -47,12 +47,12 @@ review open, the page scrolled back to the top.
 A built server in a scratch repository, with the page scrolled down, then
 `gavel review update` with a patch that changes lines above the viewport:
 
-| Case | Before (47c5959) | After |
-| --- | --- | --- |
-| 2 files, Chromium | scrollTop 2500 to 0 | 2500 to 2600, same line (`clientValue157`) |
-| 2 files, Firefox | scrollTop 2500 to 0 | 2500 to 2600, same line |
-| 12 files, in the 11th, Chromium | dips to 314, back after about 0.7 s | 20944 to 21044, same line, no dip |
-| 12 files, in the 11th, Firefox | ends at 6307 in `f04.ts` | 20945 to 21045, same line, no dip |
+| Case                            | Before (47c5959)                    | After                                      |
+| ------------------------------- | ----------------------------------- | ------------------------------------------ |
+| 2 files, Chromium               | scrollTop 2500 to 0                 | 2500 to 2600, same line (`clientValue157`) |
+| 2 files, Firefox                | scrollTop 2500 to 0                 | 2500 to 2600, same line                    |
+| 12 files, in the 11th, Chromium | dips to 314, back after about 0.7 s | 20944 to 21044, same line, no dip          |
+| 12 files, in the 11th, Firefox  | ends at 6307 in `f04.ts`            | 20945 to 21045, same line, no dip          |
 
 The 100 px change is the scroll anchoring for the rows the update added above.
 
@@ -69,14 +69,11 @@ The 100 px change is the scroll anchoring for the rows the update added above.
   `p1-20261114-split-app-tsx.md`, `p1-20261114-delete-dead-code.md`,
   `p3-20261114-client-shared-ui.md`.
 
-## Review
-
-Verdict: LAND on base `47c5959`. Codex skipped (front-end; maintainer's standing
-instruction); Claude reviewer LAND after two passes. No findings were vetoed.
-
 ## Open
 
 - A new capture still re-collapses every large file, including one the
   reviewer loaded, and the `commentsCaptureKey` reset re-collapses viewed
   files. A reviewer reading inside such a file loses the visible line. Not
-  reproduced in a browser.
+  reproduced in a browser. Filed as `p3-20261117-capture-update-recollapses-large-files.md`
+  and `p3-20261117-capture-update-recollapses-viewed-files.md` (question DF-13, accepted as
+  recommended).

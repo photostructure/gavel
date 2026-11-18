@@ -47,13 +47,6 @@ first and last files; Shift+N went to lines 9 and 11; a second `?` closed the he
 - The split view's unchanged rows no longer get a shallow copy of the line as `newLine`;
   nothing compares the two objects.
 
-## Review
-
-Second opinion: `LAND`, with no findings, on the first pass of both batches (the
-`chunkLinePairs.ts` extraction, then the keyboard and help fixes). Only the Claude reviewer
-ran; Codex was skipped because the change is front-end only (maintainer's standing
-instruction).
-
 ## Not done
 
 - `p3-20261116-split-side-switch-empty-cell.md`: h / l from a row whose other cell is

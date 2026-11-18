@@ -35,8 +35,3 @@ directory the user had opened was open.
   migrating.
 - `FileList.test.tsx` gains a reload test (fails at `47c5959`: `src/client/App.tsx` is
   not rendered) and a test of single-directory collapse, expand all, and collapse all.
-
-## Review
-
-`coding:second-opinion`: Verdict LAND, no findings. Codex skipped (front-end;
-maintainer's standing instruction).

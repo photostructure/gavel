@@ -45,8 +45,3 @@ Complete. Base commit `47c5959`.
 - `p3-20261115-unapply-help-digest-source.md`: the `--patch-digest` help text in
   `src/cli/review.ts` still says to take the digest from a dry run. Not edited here because
   another session has uncommitted edits to that file.
-
-## Review
-
-Final verdict: LAND from both the Codex and the Claude reviewer through `coding:second-opinion`,
-on the diff against `47c5959`. No findings were vetoed.

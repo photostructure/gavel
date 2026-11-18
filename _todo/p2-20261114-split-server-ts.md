@@ -29,7 +29,7 @@ Next: after `p1-20261114-delete-dead-code.md`, `p1-20261114-remove-backward-comp
 `/api/ship-it` and the legacy `comments` body; do not move them first.
 
 - [x] Map and conflict analysis (below)
-- [ ] Design settled (proposed below)
+- [x] Design settled (below)
 - [ ] Deletions and duplicate removal in place (step 1)
 - [ ] Extractions, one commit each (steps 2-6)
 - [ ] `server.test.ts` split (with each step, then step 7)
@@ -113,7 +113,9 @@ make server.ts easier to read, not to remove many conflicts.
 - `/api/conversation/events` is a long poll, not SSE.
 - knip fails on an export left unused after a move.
 
-## Design (proposed, confirm before step 2)
+## Design
+
+Settled 2026-11-17 (question DF-19, accepted as recommended): `register*Routes(app, deps)`.
 
 - **Routes register as `register*Routes(app, deps)`**, following
   `registerConversationRoutes` (conversation.ts:555). Alternative: `express.Router`

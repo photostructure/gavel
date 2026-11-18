@@ -50,9 +50,3 @@ Tests in `src/server/git-diff.metadata.test.ts`:
   `diff --git a/my\ file b/my file`: the old code yielded `my file`, the new code yields no header
   path. Git does not write unquoted escapes, so such a header reaches the parser only from a
   hand-edited imported patch or capture.
-
-## Review
-
-`coding:second-opinion`, one batch (`src/server/git-diff.ts`,
-`src/server/git-diff.metadata.test.ts`), 2 passes: Codex LAND, Claude LAND. No findings were
-vetoed.

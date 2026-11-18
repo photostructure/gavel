@@ -51,12 +51,8 @@ was checked by breaking its behavior and confirming a remaining test failed.
 `CommentsListModal.test.tsx`: `mockRemoveThread` is renamed `mockToggleThreadResolved`,
 and the one test that also passed it as `onRemoveThread` now passes `vi.fn()` there.
 
-## Review
-
-Second opinion: `LAND` from both Codex and Claude on the first pass, with no findings.
-
 ## Not done
 
 "should not trigger refresh when onRefresh is not provided" still names an outcome
-nobody can observe (there is no callback to trigger); a reviewer suggested "should
-ignore shift+r when onRefresh is not provided" as a Minor item.
+nobody can observe (there is no callback to trigger); "should ignore shift+r when
+onRefresh is not provided" would name the outcome.

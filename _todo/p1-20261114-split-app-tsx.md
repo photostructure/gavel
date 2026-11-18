@@ -25,7 +25,7 @@ Next: after `p1-20261114-delete-dead-code.md`, `p1-20261114-remove-backward-comp
 `p1-20261114-shared-test-helpers.md` task 2 land, step 1 below.
 
 - [x] Map and conflict analysis (below)
-- [ ] Design settled: composition root, props only (proposed)
+- [x] Design settled: composition root, props only
 - [ ] Deletions and duplicate removal in place (step 1)
 - [ ] Extractions, one commit each, in the order below (steps 2-12)
 - [ ] `App.test.tsx` split along the new modules (step 13)
@@ -139,7 +139,9 @@ Mechanisms seen in sampled diffs (b963ee6, a4699a2, 99ea7f0, 9d9d6ee, f26016e):
   clearComments flag is true in response" asserts on `mockClearViewedFiles`. So the
   progress count (552-555) and the `--clean` viewed-file clear (1724-1734) stay in App.
 
-## Design (proposed, confirm before step 2)
+## Design
+
+Settled 2026-11-17 (question DF-18, accepted as recommended).
 
 **Composition root, props only.** Each extracted hook returns one object, and App passes it
 whole (`<VerdictArea verdict={verdict} …/>`), so a new field in a hook's result does not
