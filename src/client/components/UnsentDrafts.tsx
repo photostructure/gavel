@@ -8,6 +8,7 @@ import {
   type DraftAnchor,
   type LineDraftAnchor,
 } from '../hooks/useCommentDrafts';
+import { renderBidiText } from '../utils/bidiControls';
 
 import { describeLines, LineCommentComposer } from './LineCommentComposer';
 import type { AppearanceSettings } from './SettingsModal';
@@ -114,9 +115,12 @@ function LineDraftEntry({
         anchor={anchor}
         selectedCode={selectedCode}
         syntaxTheme={syntaxTheme}
-        title={`Comment on ${anchor.filePath} ${describeLines(anchor)}${
-          inDiff ? '' : ', which is not in this diff'
-        }`}
+        title={
+          <>
+            Comment on {renderBidiText(anchor.filePath)} {describeLines(anchor)}
+            {inDiff ? '' : ', which is not in this diff'}
+          </>
+        }
         autoFocus={false}
         onSubmit={(body, code) =>
           onAddComment(anchor.filePath, anchor.lineNumber, body, code, anchor.side)
@@ -161,15 +165,20 @@ function ThreadDraftRow({
   // A deleted thread's card stays collapsed and a deleted message has no editor, so
   // only a live thread has a form to jump to.
   const liveThread = thread && !thread.deleted && !messageGone ? thread : undefined;
-  const label = !thread
-    ? `${action} on a thread that is not loaded`
-    : thread.deleted
-      ? `${action} on a deleted thread`
-      : messageGone
-        ? 'Edit of a deleted message'
-        : thread.scope === 'review'
-          ? `${action} on the review conversation`
-          : `${action} on ${thread.file}:${Array.isArray(thread.line) ? `${thread.line[0]}-${thread.line[1]}` : thread.line}`;
+  const label = !thread ? (
+    `${action} on a thread that is not loaded`
+  ) : thread.deleted ? (
+    `${action} on a deleted thread`
+  ) : messageGone ? (
+    'Edit of a deleted message'
+  ) : thread.scope === 'review' ? (
+    `${action} on the review conversation`
+  ) : (
+    <>
+      {action} on {renderBidiText(thread.file)}:
+      {Array.isArray(thread.line) ? `${thread.line[0]}-${thread.line[1]}` : thread.line}
+    </>
+  );
   // Discard is the only way to drop a draft whose thread or message is gone: no form
   // shows it anywhere else.
   return (

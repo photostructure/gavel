@@ -20,7 +20,7 @@ interface CommentFormProps {
   // One line that grows as you type, with no title, and its buttons shown once it has text: a
   // thread's reply box, always ready without opening it first.
   compact?: boolean;
-  title?: string;
+  title?: React.ReactNode;
   submitLabel?: string;
   placeholder?: string;
   autoFocus?: boolean;

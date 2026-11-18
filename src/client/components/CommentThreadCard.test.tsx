@@ -1506,3 +1506,27 @@ describe('thread drafts across saves, copies, and resolution', () => {
     );
   });
 });
+
+describe('CommentThreadCard bidi controls', () => {
+  it('marks bidi controls in the file label and the comment body', () => {
+    const { container } = render(
+      <CommentThreadCard
+        thread={{
+          ...mockThread,
+          file: 'x\u202Egnp.js',
+          messages: [{ ...mockThread.messages[0]!, body: 'user\u202E admin' }],
+        }}
+        onGeneratePrompt={() => ''}
+        onToggleThreadResolved={vi.fn()}
+        onReplyToThread={vi.fn()}
+        onRemoveMessage={vi.fn()}
+        onUpdateMessage={vi.fn()}
+      />,
+    );
+
+    const markers = [...container.querySelectorAll('.bidi-control')];
+    expect(markers.map((el) => el.getAttribute('data-codepoint'))).toEqual(['U+202E', 'U+202E']);
+    // The line number stays outside the file name's marker.
+    expect(markers[0]!.parentElement).toHaveTextContent('x\u202Egnp.js:80');
+  });
+});

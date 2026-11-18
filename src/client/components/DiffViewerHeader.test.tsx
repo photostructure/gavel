@@ -292,3 +292,17 @@ describe('DiffViewerHeader', () => {
     });
   });
 });
+
+describe('DiffViewerHeader bidi controls', () => {
+  it('marks bidi controls in the path and the old path', () => {
+    const { container } = render(
+      <DiffViewerHeader
+        {...baseProps}
+        file={{ ...file, path: 'x\u202Egnp.js', oldPath: 'y\u2066.js', status: 'renamed' }}
+      />,
+    );
+
+    const markers = [...container.querySelectorAll('.bidi-control')];
+    expect(markers.map((el) => el.getAttribute('data-codepoint'))).toEqual(['U+202E', 'U+2066']);
+  });
+});

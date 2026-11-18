@@ -2,6 +2,7 @@ import { type Token } from 'prism-react-renderer';
 import React, { useCallback } from 'react';
 
 import { useWordHighlight } from '../contexts/WordHighlightContext';
+import { renderBidiText } from '../utils/bidiControls';
 import { isWordToken } from '../utils/wordDetection';
 
 import { PrismSyntaxHighlighter, type PrismSyntaxHighlighterProps } from './PrismSyntaxHighlighter';
@@ -42,7 +43,11 @@ export const EnhancedPrismSyntaxHighlighter = React.memo(function EnhancedPrismS
 
       // If only one part and it's not a word, render as-is
       if (parts.length === 1 && parts[0] && !isWordToken(parts[0])) {
-        return <span key={key} {...tokenProps} />;
+        return (
+          <span key={key} {...tokenProps}>
+            {renderBidiText(token.content)}
+          </span>
+        );
       }
 
       // Render each part, checking if it's a word
@@ -60,13 +65,13 @@ export const EnhancedPrismSyntaxHighlighter = React.memo(function EnhancedPrismS
               className={`word-token ${isHighlighted ? 'word-highlight' : ''}`}
               data-word={trimmedPart}
             >
-              {part}
+              {renderBidiText(part)}
             </span>
           );
         }
 
         // Not a word, render as plain text
-        return <span key={`${key}-${index}`}>{part}</span>;
+        return <span key={`${key}-${index}`}>{renderBidiText(part)}</span>;
       });
 
       // Wrap all parts in a span with the original token props (for syntax highlighting)

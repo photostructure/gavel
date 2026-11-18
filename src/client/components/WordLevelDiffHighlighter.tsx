@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 
+import { renderBidiText } from '../utils/bidiControls';
 import { type DiffSegment } from '../utils/wordLevelDiff';
 
 interface WordLevelDiffHighlighterProps {
@@ -26,7 +27,7 @@ export const WordLevelDiffHighlighter = React.memo(function WordLevelDiffHighlig
 
       return (
         <span key={index} className={diffClass}>
-          {segment.value}
+          {renderBidiText(segment.value)}
         </span>
       );
     });

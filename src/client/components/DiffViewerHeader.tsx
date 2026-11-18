@@ -16,6 +16,7 @@ import {
 import { type MouseEvent, useEffect, useRef, useState } from 'react';
 
 import type { DiffFile } from '../../types/diff';
+import { renderBidiText } from '../utils/bidiControls';
 import { copyTextToClipboard } from '../utils/clipboard';
 import { isDisclosureRowClick } from '../utils/domUtils';
 
@@ -122,7 +123,7 @@ export const DiffViewerHeader = ({
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="text-sm font-mono text-github-text-primary m-0 overflow-hidden text-ellipsis whitespace-nowrap">
-              {file.path}
+              {renderBidiText(file.path)}
             </h2>
             <button
               className={`${HIT_SLOP} shrink-0 bg-transparent border-none cursor-pointer px-1.5 py-1 rounded text-sm transition-all hover:bg-github-bg-tertiary ${
@@ -169,7 +170,7 @@ export const DiffViewerHeader = ({
           {file.oldPath && file.oldPath !== file.path && (
             <div className="mt-0.5 text-xs text-github-text-muted">
               {file.status === 'copied' ? 'Copied from' : 'Renamed from'}{' '}
-              <span className="font-mono break-all">{file.oldPath}</span>
+              <span className="font-mono break-all">{renderBidiText(file.oldPath)}</span>
             </div>
           )}
           {file.hasNonUtf8Path && (

@@ -23,6 +23,7 @@ import {
   type DiffCommentMessage,
   type DiffSelection,
 } from '../../types/diff';
+import { renderBidiText } from '../utils/bidiControls';
 import { copyTextToClipboard } from '../utils/clipboard';
 import { useFocusedAgentMessage } from '../hooks/useFocusedAgentMessage';
 import { agentMessageRevision } from '../hooks/useAgentUpdates';
@@ -595,7 +596,13 @@ export function CommentThreadCard({
               color: 'var(--color-yellow-path-text)',
             }}
           >
-            {thread.scope === 'review' ? 'Review conversation' : `${thread.file}:${lineLabel}`}
+            {thread.scope === 'review' ? (
+              'Review conversation'
+            ) : (
+              <>
+                {renderBidiText(thread.file)}:{lineLabel}
+              </>
+            )}
           </span>
           {thread.deleted ? (
             <span>Deleted</span>

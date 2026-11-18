@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 
 import type { CommentThread, DiffLine, DiffSide, LineNumber } from '../../types/diff';
 import {
@@ -137,7 +137,7 @@ interface LineCommentComposerProps {
   // the code the draft saved with its first write.
   selectedCode?: string | undefined;
   syntaxTheme?: AppearanceSettings['syntaxTheme'];
-  title?: string;
+  title?: ReactNode;
   // Only the form the reviewer just opened takes focus; a restored draft does not.
   autoFocus: boolean;
   onSubmit: (body: string, code?: string) => Promise<void>;

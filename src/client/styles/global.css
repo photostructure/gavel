@@ -476,6 +476,28 @@ tr.drag-selected-last td::after {
   --word-highlight-color: #fffd54;
 }
 
+/* A bidi control character (see bidiControls.tsx) shows as its code point, such as
+   <U+202E>. The label is generated content, so a copy takes the character, not the label.
+   As an inline-block the marker is its own bidi paragraph, so the character inside it
+   cannot reorder the text around it. */
+.bidi-control {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 0 2px;
+  border: 1px solid var(--color-github-warning);
+  border-radius: 3px;
+  color: var(--color-github-warning);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1.2;
+}
+
+.bidi-control::before {
+  content: "<" attr(data-codepoint) ">";
+}
+
 /* Word-level diff highlighting */
 .word-diff-added {
   background-color: var(--word-diff-added-bg);

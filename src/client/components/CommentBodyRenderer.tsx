@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { type DiffLine, type ExpandedLine } from '../../types/diff';
 import { hasSuggestionBlock, parseSuggestionBlocks } from '../../utils/suggestionUtils';
 import { CommentLinkContext, type CommentLinkSource } from '../contexts/CommentLinkContext';
+import { rehypeBidiControls, renderBidiText } from '../utils/bidiControls';
 import { parseCommentLink } from '../utils/commentLinks';
 import { reviewHref } from '../utils/reviewNavigation';
 import {
@@ -21,6 +22,7 @@ import { PrismSyntaxHighlighter } from './PrismSyntaxHighlighter';
 import type { AppearanceSettings } from './SettingsModal';
 
 const COMMENT_REMARK_PLUGINS = [remarkGfm, remarkBreaks];
+const COMMENT_REHYPE_PLUGINS = [rehypeBidiControls];
 
 // Gavel links include `?review=…`, a relative URL that isSafeUrl does not list.
 const transformCommentUrl = (url: string) =>
@@ -92,7 +94,7 @@ function CommentDiffCodeBlock({ code }: { code: string }) {
     <div className="my-2 rounded-md border border-github-border bg-github-bg-secondary overflow-x-auto font-mono text-xs leading-5">
       {code.split('\n').map((line, index) => (
         <div key={index} className={`px-3 whitespace-pre ${getDiffCodeLineClass(line)}`}>
-          {line || ' '}
+          {renderBidiText(line || ' ')}
         </div>
       ))}
     </div>
@@ -357,6 +359,7 @@ export function CommentBodyRenderer({
             <div key={index}>
               <ReactMarkdown
                 remarkPlugins={COMMENT_REMARK_PLUGINS}
+                rehypePlugins={COMMENT_REHYPE_PLUGINS}
                 urlTransform={transformCommentUrl}
                 components={markdownComponents}
               >

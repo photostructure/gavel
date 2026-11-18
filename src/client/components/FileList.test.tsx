@@ -448,3 +448,24 @@ it('puts an unread dot on the comment button of files with unread agent replies'
   const readButton = screen.getByRole('button', { name: 'Jump to first comment in read.ts' });
   expect(readButton.querySelector('circle')).toBeNull();
 });
+
+describe('FileList bidi controls', () => {
+  it('marks bidi controls in file and directory names', () => {
+    const { container } = render(
+      <FileList
+        files={[createFile('d\u2067ir/x\u202Egnp.js')]}
+        onScrollToFile={vi.fn()}
+        comments={[]}
+        unreadUpdates={[]}
+        reviewedFiles={new Set()}
+        onToggleReviewed={vi.fn()}
+        onToggleFolderReviewed={vi.fn()}
+        selectedFilePath={null}
+      />,
+    );
+
+    const markers = [...container.querySelectorAll('.bidi-control')];
+    expect(markers.map((el) => el.getAttribute('data-codepoint'))).toEqual(['U+2067', 'U+202E']);
+    expect(markers[1]!.parentElement).toHaveTextContent('x\u202Egnp.js');
+  });
+});

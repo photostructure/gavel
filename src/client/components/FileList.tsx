@@ -27,6 +27,7 @@ import {
 
 import { type DiffFile, type CommentThread } from '../../types/diff';
 import type { AgentUpdate } from '../hooks/useAgentUpdates';
+import { renderBidiText } from '../utils/bidiControls';
 import { isSafariBrowser } from '../utils/browser';
 
 import { Checkbox } from './Checkbox';
@@ -469,7 +470,7 @@ export const FileList = memo(function FileList({
                 }`}
                 title={node.path}
               >
-                {node.name}
+                {renderBidiText(node.name)}
               </span>
             </div>
           )}
@@ -525,7 +526,7 @@ export const FileList = memo(function FileList({
             }`}
             title={node.file.path}
           >
-            {node.name}
+            {renderBidiText(node.name)}
           </span>
           {commentCount > 0 && (
             <button

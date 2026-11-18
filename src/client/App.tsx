@@ -93,6 +93,7 @@ import {
 import { saveAutoViewedPatterns } from './services/autoViewedPatterns';
 import { celebrateApproval } from './utils/approvalCelebration';
 import { hasVerdict } from './utils/verdict';
+import { renderBidiText } from './utils/bidiControls';
 import { copyTextToClipboard } from './utils/clipboard';
 import { getFileElementId, resetEmptyCommentFormsOutside } from './utils/domUtils';
 import { findCommentPosition, findSidePosition } from './utils/navigation/positionHelpers';
@@ -2497,7 +2498,7 @@ function App() {
                         <div className="min-w-0">
                           <div className="text-xs ui-heading">Deferred Rendering</div>
                           <div className="text-sm font-mono text-github-text-primary truncate">
-                            {file.path}
+                            {renderBidiText(file.path)}
                           </div>
                         </div>
                         <button

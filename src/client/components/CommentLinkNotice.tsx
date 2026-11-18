@@ -1,5 +1,7 @@
 import { Link2Off, X } from 'lucide-react';
 
+import { renderBidiText } from '../utils/bidiControls';
+
 import {
   toastClasses,
   toastDetailClasses,
@@ -40,7 +42,7 @@ export function CommentLinkNotice({
           </div>
           <div className="col-start-2 row-start-1">
             <div className={toastTitleClasses}>Link not followed</div>
-            <div className={toastDetailClasses}>{message}</div>
+            <div className={toastDetailClasses}>{renderBidiText(message)}</div>
           </div>
           <div className="col-start-3 row-start-1">
             <button

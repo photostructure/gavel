@@ -285,3 +285,23 @@ describe('CommentBodyRenderer', () => {
     });
   });
 });
+
+describe('CommentBodyRenderer bidi controls', () => {
+  const markers = (container: HTMLElement) =>
+    [...container.querySelectorAll('.bidi-control')].map((el) => el.getAttribute('data-codepoint'));
+
+  it.each([
+    ['text', 'a\u202Eb'],
+    ['a fenced code block', '```js\na\u202Eb\n```'],
+    ['a diff code block', '```diff\n+a\u202Eb\n```'],
+    ['a suggestion', '```suggestion\na\u202Eb\n```'],
+  ])('marks bidi controls in %s', (_kind, body) => {
+    const { container } = render(
+      <WordHighlightProvider>
+        <CommentBodyRenderer body={body} />
+      </WordHighlightProvider>,
+    );
+
+    expect(markers(container)).toEqual(['U+202E']);
+  });
+});

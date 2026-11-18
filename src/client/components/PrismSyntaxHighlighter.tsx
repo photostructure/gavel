@@ -2,6 +2,7 @@ import { Highlight, type Token, type RenderProps } from 'prism-react-renderer';
 import React, { useCallback } from 'react';
 
 import { useHighlightedCode } from '../hooks/useHighlightedCode';
+import { renderBidiText } from '../utils/bidiControls';
 import { getPrismLanguageFromFilename } from '../utils/languageDetection';
 import Prism from '../utils/prism';
 import { getSyntaxTheme } from '../utils/syntaxThemes';
@@ -69,7 +70,9 @@ export const PrismSyntaxHighlighter = React.memo(function PrismSyntaxHighlighter
                   renderToken ? (
                     renderToken(token, key, getTokenProps)
                   ) : (
-                    <span key={key} {...getTokenProps({ token })} />
+                    <span key={key} {...getTokenProps({ token })}>
+                      {renderBidiText(token.content)}
+                    </span>
                   ),
                 )}
               </span>
