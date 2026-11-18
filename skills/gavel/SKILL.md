@@ -13,12 +13,30 @@ Before selecting hunks, importing a patch, stacking or splitting commits, branch
 or PRs, launching a detached server, or refreshing, renaming, deleting, or
 reopening a review, read [captures, stacks, and detached servers](references/reviews.md).
 
-## Zero idle model turns
+## Never wait for the user
 
-Work only on user messages or human review feedback. An open review, connected
-browser, empty result, timeout, or process exit is not work. Never poll, sleep,
-run `gavel wait`, schedule a monitor, or keep a subagent alive awaiting review.
-Do not reread unchanged snapshots or process output on a timer.
+After sharing a review, end the turn. The user's feedback reaches you as a new
+message: gavel sends it to your inbox, or, without one, the user sends it (see
+[Wait for feedback](#wait-for-feedback)). Either way nothing needs watching.
+Every check you make rereads this whole conversation, so a wait spends tokens
+and finds nothing that message would not bring.
+
+NEVER DO ANY OF THE FOLLOWING:
+
+- run `<gavel-command> wait`, `sleep`, `watch`, or a `for`/`while`/`until` loop
+  that reruns `comment snapshot`, `pending`, `curl`, or any other check;
+- block on the server's output, `tail -f` it, or hold open a long-poll, event
+  stream, or WebSocket until review activity arrives;
+- start a background command, Monitor, ScheduleWakeup, `/loop`, cron job, or
+  subagent to wait for review activity;
+- reread an unchanged snapshot or process output on a timer;
+- run any other command, script, or tool call that blocks or repeats until
+  review activity appears.
+
+Running the gavel server itself in the background is not waiting.
+
+Work only on user messages or delivered review feedback. An open review,
+connected browser, empty result, timeout, or process exit is not work.
 
 Read one snapshot per server on resume; read another only for newly delivered
 feedback, version conflicts, or the final approval check. If recovery repeats
@@ -177,7 +195,7 @@ resolve or delete only on request. Comment intent does not grant authorization.
 ## Wait for feedback
 
 Record pending work, share `launchUrl` (or the background record's `url`), and end
-the turn.
+the turn. Do not wait in any form [listed above](#never-wait-for-the-user).
 
 In Claude Code, servers launched with `CLAUDE_CODE_MESSAGING_SOCKET` and
 `CLAUDE_CODE_SESSION_ID` in the Bash environment send human verdicts/comments to
