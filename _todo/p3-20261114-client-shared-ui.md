@@ -162,7 +162,7 @@ Acceptance for each: the listed tests pass unchanged, `pnpm build` and `pnpm che
    useAppearanceSettings.ts:57, SettingsModal.tsx:33, 159, 172, themeLoader.ts:23-29.
    Acceptance: `pnpm build`.
 8. **Small repeats.**
-   - `getFileIcon`: identical in DiffViewerHeader.tsx:50-63 and FileList.tsx:316-329.
+   - `getFileIcon`: identical in DiffViewerHeader.tsx:50-63 and FileList.tsx:320-333.
    - The yellow button with JS hover (CommentButton.tsx:16-28, CommentForm.tsx:226-238,
      CommentsDropdown.tsx:63-76, 85-100): one `.btn-yellow` class with `:hover` in
      global.css.

@@ -125,7 +125,7 @@ Mechanisms seen in sampled diffs (b963ee6, a4699a2, 99ea7f0, 9d9d6ee, f26016e):
   render-count test in App.agentUpdates.test.tsx pin that. That test waits for the initial
   load to finish before counting (`p1-20261114-agent-updates-render-count-flake.md`), so a
   count mismatch means a real extra render.
-- `FileList` is `memo` (FileList.tsx:214), but App passes it callbacks and JSX recreated
+- `FileList` is `memo` (FileList.tsx:218), but App passes it callbacks and JSX recreated
   every render (`handleFileOpened` 1216, `handleFirstCommentOpened` 1205, the inline
   `onScrollToSummary` 2369-2377, `headerStatus` 2350-2364), so the memo never skips a
   render. Remove the `memo` in step 1 instead of stabilizing the props: stabilizing would
@@ -264,7 +264,7 @@ A move then carries less code and reads as a move.
   declared by 360 (`recentReviewsRequestRef`, `selectedRevisionRef`, `reviewIdsRef`,
   `retargetOpsRef`, `switchReviewRef`). Declare it before `finishVerdict` (417), call it
   directly, and delete the ref.
-- Remove `FileList`'s `memo` (FileList.tsx:214). It never skips a render, because
+- Remove `FileList`'s `memo` (FileList.tsx:218). It never skips a render, because
   `headerStatus` is new JSX on every render (2350-2364), so removing it changes no render.
 - Candidate; check before doing it: `approvalControlRef` (190) holds the same element as
   the `verdictAnchor` state (192). Its only reader is `finishVerdict` (459, 463), which runs
