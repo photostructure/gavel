@@ -8,7 +8,7 @@ interface FileWatchHook {
   isConnected: boolean;
   // The live connection closed and is trying again.
   reconnecting: boolean;
-  // A reconnect the reviewer asked for found another review's gavel server at this address.
+  // A requested reconnect found another review's gavel server at this address.
   otherReview: boolean;
   // Tries the live connection again now; see reconnectLive.
   reconnect: (review: LiveReview) => void;

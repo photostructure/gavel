@@ -16,7 +16,8 @@ export interface LiveListener {
   onMessage?(message: LiveServerMessage): void;
   /**
    * The connection closed; `retrying` is false once the page needs a reload. `otherReview` is
-   * true when a reconnect the reviewer asked for found another review's server at this address.
+   * true when a requested reconnect (a click on the robot, or the network coming back) found
+   * another review's server at this address.
    */
   onLost?(retrying: boolean, otherReview?: boolean): void;
 }
@@ -42,7 +43,7 @@ export interface LiveReview {
   agentSessionId?: string;
 }
 
-// While a reconnect the reviewer asked for has not reached a server yet, this page's review; a
+// While a requested reconnect has not reached a server yet, this page's review; a
 // restarted server for it refuses the page with LIVE_RESTARTED.
 let reloadFor: LiveReview | undefined;
 
@@ -99,7 +100,7 @@ function connect() {
     greeted = false;
     latest.clear();
     const refused = event.code === LIVE_OTHER_SERVER;
-    // The reviewer asked to reconnect and this review's restarted server answered; only a reload
+    // A reconnect was requested and this review's restarted server answered; only a reload
     // loads it. Another review's server keeps the page, whose waiting changes it would hide.
     if (refused && reloadFor !== undefined && event.reason === LIVE_RESTARTED) {
       window.location.reload();
@@ -134,12 +135,12 @@ function reset() {
 }
 
 /**
- * Tries the live connection again now, for a reviewer who asks: after it gave up, or while it
- * waits between automatic retries. It retries five more times. A server that answers but is not
- * the one this page started with refuses it: the page reloads when that server serves `review`'s
- * repository for its agent session, this review restarted, and otherwise reports another review
- * at this address. Queued changes and comment drafts are kept in localStorage. Nothing happens
- * while a socket is open or opening.
+ * Tries the live connection again now, when the reviewer asks or the network comes back: after it
+ * gave up, or while it waits between automatic retries. It retries five more times. A server that
+ * answers but is not the one this page started with refuses it: the page reloads when that server
+ * serves `review`'s repository for its agent session, this review restarted, and otherwise reports
+ * another review at this address. Queued changes and comment drafts are kept in localStorage.
+ * Nothing happens while a socket is open or opening.
  */
 export function reconnectLive(review: LiveReview): void {
   if (socket || listeners.size === 0) return;

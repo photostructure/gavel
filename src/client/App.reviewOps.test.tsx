@@ -444,6 +444,24 @@ describe('comment and verdict changes the server has not confirmed', () => {
     expect(bodiesOf(state.threads)).toEqual(['Written offline']);
   });
 
+  // After the live connection's retries run out, the network coming back does what a click on
+  // the robot does, so a laptop that slept or changed networks sends its waiting changes.
+  it('reconnects and sends waiting changes when the browser comes back online', async () => {
+    const state = server();
+    mount();
+    await waitForServerThreads();
+    state.fail = 'network';
+    await sendGeneralComment('Written offline');
+    await findNotSavedAlert();
+    state.fail = false;
+
+    act(() => void window.dispatchEvent(new Event('online')));
+
+    expect(watch.reconnect).toHaveBeenCalledOnce();
+    await waitFor(() => expect(notSavedAlert()).toBeNull());
+    expect(bodiesOf(state.threads)).toEqual(['Written offline']);
+  });
+
   it('says the robot is reconnecting while the lost live connection retries', async () => {
     server();
     mount();

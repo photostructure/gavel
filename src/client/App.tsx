@@ -1101,6 +1101,12 @@ function App() {
       console.error('Failed to refresh comments from server:', commentsError),
     );
   }, [reconnect, repositoryId, diffData?.reviewContext?.agentSessionId, retryReviewOps]);
+  // The live connection stops retrying after a few seconds; the network coming back, after a
+  // laptop slept or changed networks, does what a click on the robot does.
+  useEffect(() => {
+    window.addEventListener('online', reconnectServer);
+    return () => window.removeEventListener('online', reconnectServer);
+  }, [reconnectServer]);
 
   // Track which file the mouse is over so `v` works without a cursor
   const hoveredFileIndexRef = useRef<number | null>(null);
