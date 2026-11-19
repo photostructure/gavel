@@ -14,6 +14,16 @@ gets a launch link, say from a chat log, a screenshot, or shell history, can rea
 on every review you serve until then. To limit who can reach gavel at all, add an
 authenticated proxy such as Cloudflare Access or Tailscale.
 
+The token controls network access; gavel does not isolate reviews from other OS users
+on the same workstation. Those users may be able to read a browser launch URL in process
+arguments. After a server stops, another local process can reuse its port and receive a
+token from an open tab's retries, or read the origin's browser storage after a reload.
+Deleting the token file does not revoke the copy held by a running server: stop every
+server when rotating it.
+The same OS-account boundary applies to Windows named pipes: an SMB client with pipe-write
+permission can reach the control pipe. Possessing the gavel token alone does not grant that
+OS permission.
+
 ## What the proxy must do
 
 - Serve HTTPS. The token travels in the `X-Gavel-Token` header of every API request
