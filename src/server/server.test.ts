@@ -1278,6 +1278,23 @@ describe('Server Integration Tests', () => {
       });
     });
 
+    it('reports why it could not read the agent session name instead of failing the page', async () => {
+      const result = await startServer({
+        selection: { targetCommitish: 'HEAD', baseCommitish: 'HEAD^' },
+        preferredPort: 9098,
+        agentSessionId: '823b3140-526b-4b91-82b1-920d0b66d08f',
+        readAgentSessionName: () => Promise.reject(new Error('transcript.jsonl: Unexpected end')),
+      });
+      servers.push(result.server);
+      const response = await fetch(`http://localhost:${result.port}/api/diff`);
+      expect(response.ok).toBe(true);
+      const data = (await response.json()) as import('../types/diff.js').DiffResponse;
+      expect(data.reviewContext).toMatchObject({
+        agentSessionNameError: 'transcript.jsonl: Unexpected end',
+      });
+      expect(data.reviewContext).not.toHaveProperty('agentSessionName');
+    });
+
     it('names the agent session as it is called when the page loads', async () => {
       let sessionName: string | undefined;
       const result = await startServer({

@@ -78,23 +78,28 @@ export async function detectAgentSession(env: NodeJS.ProcessEnv): Promise<AgentS
  * Codex thread in CODEX_THREAD_ID: the newest custom title in the Claude Code transcript,
  * else its newest automatic title, or the newest Codex thread name in the session index.
  * Both files only grow, so the newest record wins, and they are streamed because a
- * transcript reaches tens of megabytes. Untitled and unrecorded sessions have no name.
+ * transcript reaches tens of megabytes. Untitled sessions have no name. Neither host
+ * documents these files, so a missing file or a record of another shape throws an error
+ * that names the file, rather than passing for an untitled session.
  */
 export async function readAgentSessionName(env: NodeJS.ProcessEnv): Promise<string | undefined> {
   const claudeSession = toNotBlank(env.CLAUDE_CODE_SESSION_ID);
   if (claudeSession !== undefined) {
-    const transcript = await findClaudeTranscript(
-      join(toNotBlank(env.CLAUDE_CONFIG_DIR) ?? join(homedir(), '.claude'), 'projects'),
-      claudeSession,
+    const projects = join(
+      toNotBlank(env.CLAUDE_CONFIG_DIR) ?? join(homedir(), '.claude'),
+      'projects',
     );
-    if (transcript === undefined) return undefined;
+    const transcript = await findClaudeTranscript(projects, claudeSession);
+    if (transcript === undefined) {
+      throw new Error(`No transcript for Claude Code session ${claudeSession} under ${projects}`);
+    }
     let customTitle: string | undefined;
     let aiTitle: string | undefined;
     for await (const line of readLines(transcript)) {
       if (line.includes('"type":"custom-title"')) {
-        customTitle = (JSON.parse(line) as { customTitle: string }).customTitle;
+        customTitle = stringField(transcript, parseRecord(transcript, line), 'customTitle');
       } else if (line.includes('"type":"ai-title"')) {
-        aiTitle = (JSON.parse(line) as { aiTitle: string }).aiTitle;
+        aiTitle = stringField(transcript, parseRecord(transcript, line), 'aiTitle');
       }
     }
     return customTitle ?? aiTitle;
@@ -108,14 +113,33 @@ export async function readAgentSessionName(env: NodeJS.ProcessEnv): Promise<stri
   let threadName: string | undefined;
   try {
     for await (const line of readLines(index)) {
-      const record = JSON.parse(line) as { id: string; thread_name: string };
-      if (record.id === codexThread) threadName = record.thread_name;
+      const record = parseRecord(index, line);
+      if (record.id === codexThread) threadName = stringField(index, record, 'thread_name');
     }
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`No Codex session index at ${index}`, { cause: error });
+    }
     throw error;
   }
   return threadName;
+}
+
+function parseRecord(path: string, line: string): Record<string, unknown> {
+  try {
+    return JSON.parse(line) as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(`${path}: ${(error as Error).message}`, { cause: error });
+  }
+}
+
+function stringField(path: string, record: Record<string, unknown>, field: string): string {
+  const value = record[field];
+  if (typeof value !== 'string') {
+    const kind = typeof record.type === 'string' ? record.type : 'session index';
+    throw new Error(`${path}: expected a string ${field} in a ${kind} record`);
+  }
+  return value;
 }
 
 function readLines(path: string): AsyncIterable<string> {

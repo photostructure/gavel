@@ -55,6 +55,23 @@ describe('ReviewContext', () => {
     expect(screen.getByText('823b3140-526b-4b91-82b1-920d0b66d08f')).toBeVisible();
   });
 
+  it('shows in orange that the agent session name failed to parse, with the cause', () => {
+    render(
+      <ReviewContext
+        context={{
+          ...context,
+          agentSessionNameError: 'No transcript for Claude Code session s-1 under /c/projects',
+          agentSessionId: 's-1',
+        }}
+      />,
+    );
+    expect(screen.getByText('Agent session name')).toBeVisible();
+    expect(screen.getByText('failed to parse')).toHaveClass('text-github-warning');
+    expect(
+      screen.getByText('No transcript for Claude Code session s-1 under /c/projects'),
+    ).toBeVisible();
+  });
+
   it.each([
     ['Agent', 'Claude Code desktop'],
     ['Agent session name', 'Add agent session to About'],

@@ -221,6 +221,7 @@ const definitions: Record<string, Schema> = {
       hostname: string,
       agent: string,
       agentSessionName: string,
+      agentSessionNameError: string,
       agentSessionId: string,
     },
     ['source', 'workingDirectory', 'hostname'],

@@ -190,10 +190,31 @@ describe('readAgentSessionName', () => {
     expect(await readAgentSessionName(claudeEnv())).toBeUndefined();
   });
 
-  it('has no name for a Claude Code session without a transcript', async () => {
-    expect(await readAgentSessionName(claudeEnv())).toBeUndefined();
-    await mkdir(join(claudeHome, 'projects', '-home-someone'), { recursive: true });
-    expect(await readAgentSessionName(claudeEnv())).toBeUndefined();
+  it('fails, naming where it looked, for a Claude Code session without a transcript', async () => {
+    const projects = join(claudeHome, 'projects');
+    const missing = `No transcript for Claude Code session ${claudeSession} under ${projects}`;
+    await expect(readAgentSessionName(claudeEnv())).rejects.toThrow(missing);
+    await mkdir(join(projects, '-home-someone'), { recursive: true });
+    await expect(readAgentSessionName(claudeEnv())).rejects.toThrow(missing);
+  });
+
+  it('fails, naming the transcript, on a title record that is not JSON', async () => {
+    await writeTranscript({ type: 'custom-title', customTitle: 'first name' });
+    const transcript = join(
+      claudeHome,
+      'projects',
+      '-home-someone-elsewhere',
+      `${claudeSession}.jsonl`,
+    );
+    await writeFile(transcript, '{"type":"custom-title","customTitle":"cut off\n', { flag: 'a' });
+    await expect(readAgentSessionName(claudeEnv())).rejects.toThrow(`${transcript}: `);
+  });
+
+  it('fails on a title record without a string title', async () => {
+    await writeTranscript({ type: 'custom-title', title: 'renamed field' });
+    await expect(readAgentSessionName(claudeEnv())).rejects.toThrow(
+      'expected a string customTitle in a custom-title record',
+    );
   });
 
   it('reads the newest thread name of a Codex thread from the session index', async () => {
@@ -213,9 +234,29 @@ describe('readAgentSessionName', () => {
   });
 
   it('has no name for a Codex thread missing from the session index', async () => {
+    await writeFile(
+      join(codexHome, 'session_index.jsonl'),
+      `${JSON.stringify({ id: 'another-thread', thread_name: 'not this one' })}\n`,
+    );
     expect(
       await readAgentSessionName({ CODEX_THREAD_ID: threadId, CODEX_HOME: codexHome }),
     ).toBeUndefined();
+  });
+
+  it('fails, naming where it looked, without a Codex session index', async () => {
+    await expect(
+      readAgentSessionName({ CODEX_THREAD_ID: threadId, CODEX_HOME: codexHome }),
+    ).rejects.toThrow(`No Codex session index at ${join(codexHome, 'session_index.jsonl')}`);
+  });
+
+  it('fails on a Codex index line for the thread without a string thread name', async () => {
+    await writeFile(
+      join(codexHome, 'session_index.jsonl'),
+      `${JSON.stringify({ id: threadId, name: 'renamed field' })}\n`,
+    );
+    await expect(
+      readAgentSessionName({ CODEX_THREAD_ID: threadId, CODEX_HOME: codexHome }),
+    ).rejects.toThrow('expected a string thread_name in a session index record');
   });
 
   it('prefers the Claude Code session when both hosts exported their variables', async () => {

@@ -77,8 +77,9 @@ patch advances the version and moves Approve to it.
 Codex, its rollout. Override wrong or missing values with `--agent` and
 `--agent-session-id`. The session name comes from the Claude Code transcript or
 the Codex session index, read again on each page load so renames show; pass
-`--agent-session-name` only to replace it. Reused servers retain the launching
-session's identity.
+`--agent-session-name` only to replace it. When that file is missing or a record
+has changed shape, About shows the name as "failed to parse" with the cause.
+Reused servers retain the launching session's identity.
 
 ## Rename, delete, or reopen a review
 

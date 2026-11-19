@@ -89,6 +89,12 @@ export function ReviewContext({ context }: { context?: ReviewContextData }) {
         {context.agentSessionName && (
           <CopyableDetail label="Agent session name" value={context.agentSessionName} />
         )}
+        {context.agentSessionNameError && (
+          <Detail label="Agent session name">
+            <span className="text-github-warning">failed to parse</span>{' '}
+            <span className="text-github-text-secondary">{context.agentSessionNameError}</span>
+          </Detail>
+        )}
         {context.agentSessionId && (
           <CopyableDetail label="Agent session ID" mono value={context.agentSessionId} />
         )}

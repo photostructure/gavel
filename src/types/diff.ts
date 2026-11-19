@@ -65,6 +65,8 @@ export interface ReviewContext {
   hostname: string;
   agent?: string;
   agentSessionName?: string;
+  /** Why the agent session's name could not be read. */
+  agentSessionNameError?: string;
   agentSessionId?: string;
 }
 

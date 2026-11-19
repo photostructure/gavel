@@ -392,9 +392,14 @@ export async function startServer(options: ServerOptions): Promise<{
     ...(options.agent ? { agent: options.agent } : {}),
     ...(options.agentSessionId ? { agentSessionId: options.agentSessionId } : {}),
   };
+  // The name comes from files the agent hosts do not document; About shows a failed read.
   async function currentReviewContext(): Promise<ReviewContext> {
-    const agentSessionName = await options.readAgentSessionName?.();
-    return agentSessionName ? { ...reviewContext, agentSessionName } : reviewContext;
+    try {
+      const agentSessionName = await options.readAgentSessionName?.();
+      return agentSessionName ? { ...reviewContext, agentSessionName } : reviewContext;
+    } catch (error) {
+      return { ...reviewContext, agentSessionNameError: (error as Error).message };
+    }
   }
   const fileWatcher = new FileWatcherService();
   const presence = new ReviewPresence();
