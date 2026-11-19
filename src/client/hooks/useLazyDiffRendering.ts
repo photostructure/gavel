@@ -310,7 +310,8 @@ export function useLazyDiffRendering({
       if (
         !renderedFilePaths.has(file.path) ||
         file.isGenerated !== false ||
-        file.status === 'deleted'
+        file.status === 'deleted' ||
+        file.conflicted
       ) {
         return;
       }

@@ -22,6 +22,8 @@ import {
 import { isGeneratedFile } from './generated-file-check.js';
 import { createGitClient, PATCH_HEADER_OPTIONS } from './git-client.js';
 
+const UNMERGED_PATH_PREFIX = '* Unmerged path ';
+
 export class GitDiffParser {
   private git: SimpleGit;
   private repoPath: string;
@@ -198,16 +200,22 @@ export class GitDiffParser {
     const files: DiffFile[] = [];
     // Git records are LF-delimited; CR and Unicode line separators may be file content.
     const fileBlocks = diffText
-      .split(/(?<=^|\n)(?=diff --(?:git|cc) )/)
-      .filter((block) => block.startsWith('diff --'));
+      .split(/(?<=^|\n)(?=diff --(?:git|cc) |\* Unmerged path )/)
+      .filter((block) => block.startsWith('diff --') || block.startsWith(UNMERGED_PATH_PREFIX));
 
     if (fileBlocks.length > 0) {
+      let previousUnmerged = false;
       for (const block of fileBlocks) {
-        const file = this.parseFileBlock(block);
+        const unmerged = block.startsWith(UNMERGED_PATH_PREFIX);
+        const file = unmerged ? this.parseUnmergedPath(block) : this.parseFileBlock(block);
         if (!file) continue;
         const previous = files.at(-1);
-        // Git writes a type change as a deletion and an addition of one path.
-        if (
+        // When the index holds our side of an unmerged path, Git follows the unmerged
+        // line with that path's diff against our side, which replaces the bare entry.
+        if (previousUnmerged && previous?.path === file.path) {
+          files[files.length - 1] = { ...file, conflicted: true };
+        } else if (
+          // Git writes a type change as a deletion and an addition of one path.
           previous?.path === file.path &&
           previous.status === 'deleted' &&
           file.status === 'added'
@@ -216,6 +224,7 @@ export class GitDiffParser {
         } else {
           files.push(file);
         }
+        previousUnmerged = unmerged;
       }
 
       return files;
@@ -229,6 +238,27 @@ export class GitDiffParser {
     }
 
     return files;
+  }
+
+  /**
+   * Git writes an unmerged path it does not show as a combined diff (a modify/delete
+   * conflict, or any conflict in a staged diff) as one line naming the path, so it appears
+   * like a content conflict: under its path, with no hunks. Git leaves that path unquoted
+   * whatever core.quotePath says, so a name that is not valid UTF-8 shows replacement
+   * characters instead of its quoted form.
+   */
+  private parseUnmergedPath(block: string): DiffFile {
+    const [line] = block.split('\n', 1);
+    const path = line.slice(UNMERGED_PATH_PREFIX.length);
+    return {
+      path,
+      status: 'modified',
+      additions: 0,
+      deletions: 0,
+      chunks: [],
+      isGenerated: isGeneratedFile(path).isGenerated,
+      conflicted: true,
+    };
   }
 
   private foldTypeChange(deleted: DiffFile, added: DiffFile): DiffFile {
@@ -254,6 +284,8 @@ export class GitDiffParser {
       additions: deleted.additions + added.additions,
       deletions: deleted.deletions + added.deletions,
       chunks,
+      // The deletion replaced an unmerged path's bare entry.
+      ...(deleted.conflicted ? { conflicted: true } : {}),
     };
   }
 
@@ -670,6 +702,8 @@ export class GitDiffParser {
       chunks,
       isGenerated: isGeneratedFile(path).isGenerated,
       ...(isBinary ? { isBinary } : {}),
+      // Git writes a content conflict as a combined diff.
+      ...(headerLine.startsWith('diff --cc ') ? { conflicted: true } : {}),
     };
   }
 

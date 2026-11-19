@@ -41,6 +41,9 @@ export const getViewerForFile = (file: DiffFile): DiffViewerRegistration => {
   if (!fallback) {
     throw new Error('No diff viewers registered');
   }
+  // The image, Markdown and notebook viewers read whole files by Git ref, which an unmerged
+  // path does not have.
+  if (file.conflicted) return fallback;
   return viewers.find((viewer) => viewer.match(file)) ?? fallback;
 };
 
@@ -51,6 +54,7 @@ export function fileCanExpandHiddenLines(
 ): boolean {
   const hasBlobContent =
     !file.contextUnavailable &&
+    !file.conflicted &&
     source.baseCommitish !== 'stdin' &&
     source.targetCommitish !== 'stdin';
   // The server refuses a non-UTF-8 path, so an expansion would fill the gap with blank rows.

@@ -14,6 +14,8 @@ export interface DiffFile {
   hasNonUtf8Path?: boolean;
   /** A named review cannot rebuild this file, so lines outside its hunks can't load. */
   contextUnavailable?: boolean;
+  /** An unmerged path of an unresolved merge, which has no stage-0 entry in the index to read. */
+  conflicted?: boolean;
 }
 
 export interface DiffChunk {

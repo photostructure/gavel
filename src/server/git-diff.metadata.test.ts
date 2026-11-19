@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -428,9 +428,9 @@ describe('combined diffs of a conflicted working tree', () => {
 
     const { files } = await parseWorking(fixture.root);
 
-    expect(files.map(({ path, status }) => ({ path, status }))).toEqual([
-      { path: 'conflict space.txt', status: 'modified' },
-      { path: 'conflict.bin', status: 'modified' },
+    expect(files.map(({ path, status, conflicted }) => ({ path, status, conflicted }))).toEqual([
+      { path: 'conflict space.txt', status: 'modified', conflicted: true },
+      { path: 'conflict.bin', status: 'modified', conflicted: true },
       { path: 'a-first.txt', status: 'modified' },
       { path: 'z-last.txt', status: 'modified' },
     ]);
@@ -447,5 +447,90 @@ describe('combined diffs of a conflicted working tree', () => {
     const { files } = await parseWorking(root);
 
     expect(files.map((file) => file.path)).toEqual(['conflict space.txt', 'conflict.bin']);
+  });
+
+  function createModifyDeleteConflict(): Fixture {
+    const fixture = createFixture();
+    const { root, git } = fixture;
+    git('checkout', '--quiet', '-b', 'fixture-base');
+    writeFileSync(join(root, 'deleted by them.txt'), 'base\n');
+    writeFileSync(join(root, 'deleted by us.txt'), 'base\n');
+    git('add', '.');
+    fixture.commit();
+    git('checkout', '--quiet', '-b', 'fixture-theirs');
+    git('rm', '--quiet', 'deleted by them.txt');
+    writeFileSync(join(root, 'deleted by us.txt'), 'theirs\n');
+    git('commit', '--quiet', '--no-verify', '-am', 'theirs');
+    git('checkout', '--quiet', 'fixture-base');
+    writeFileSync(join(root, 'deleted by them.txt'), 'ours\n');
+    git('rm', '--quiet', 'deleted by us.txt');
+    git('commit', '--quiet', '--no-verify', '-am', 'ours');
+    expect(() => git('merge', '--no-edit', 'fixture-theirs')).toThrow();
+    expect(git('status', '--porcelain')).toBe('UD "deleted by them.txt"\nDU "deleted by us.txt"\n');
+    return fixture;
+  }
+
+  it('lists each side of a modify/delete conflict under its own path', async () => {
+    const { root, git } = createModifyDeleteConflict();
+    // Ground truth: Git names each modify/delete conflict on one line, with no diff block.
+    expect(git('diff')).toBe(
+      '* Unmerged path deleted by them.txt\n* Unmerged path deleted by us.txt\n',
+    );
+
+    const { files, isEmpty } = await parseWorking(root);
+
+    expect(isEmpty).toBe(false);
+    expect(
+      files.map(({ path, status, chunks, conflicted }) => ({ path, status, chunks, conflicted })),
+    ).toEqual([
+      { path: 'deleted by them.txt', status: 'modified', chunks: [], conflicted: true },
+      { path: 'deleted by us.txt', status: 'modified', chunks: [], conflicted: true },
+    ]);
+    // A staged diff names every unmerged path the same way.
+    const staged = await new GitDiffParser(root).parseDiff({
+      baseCommitish: 'HEAD',
+      targetCommitish: 'staged',
+    });
+    expect(staged.files.map(({ path, conflicted }) => ({ path, conflicted }))).toEqual([
+      { path: 'deleted by them.txt', conflicted: true },
+      { path: 'deleted by us.txt', conflicted: true },
+    ]);
+  });
+
+  it('lists an edited or removed modify/delete conflict once, as its diff against our side', async () => {
+    const { root, git } = createModifyDeleteConflict();
+    const summarize = async () =>
+      (await parseWorking(root)).files.map(({ path, status, chunks, conflicted }) => ({
+        path,
+        status,
+        hunks: chunks.length,
+        conflicted,
+      }));
+
+    writeFileSync(join(root, 'deleted by them.txt'), 'edited\n');
+    // Ground truth: Git follows the unmerged line with a diff against our side.
+    expect(git('diff')).toMatch(
+      /^\* Unmerged path deleted by them\.txt\ndiff --git a\/deleted by them\.txt b\/deleted by them\.txt\n/,
+    );
+    expect(await summarize()).toEqual([
+      { path: 'deleted by them.txt', status: 'modified', hunks: 1, conflicted: true },
+      { path: 'deleted by us.txt', status: 'modified', hunks: 0, conflicted: true },
+    ]);
+
+    rmSync(join(root, 'deleted by them.txt'));
+    expect(await summarize()).toEqual([
+      { path: 'deleted by them.txt', status: 'deleted', hunks: 1, conflicted: true },
+      { path: 'deleted by us.txt', status: 'modified', hunks: 0, conflicted: true },
+    ]);
+
+    symlinkSync('deleted by us.txt', join(root, 'deleted by them.txt'));
+    // Ground truth: Git writes the type change as a deletion and an addition of the path.
+    expect(git('diff')).toMatch(
+      /^\* Unmerged path deleted by them\.txt\ndiff --git [^\n]+\ndeleted file mode 100644\n[\s\S]*\ndiff --git [^\n]+\nnew file mode 120000\n/,
+    );
+    expect(await summarize()).toEqual([
+      { path: 'deleted by them.txt', status: 'modified', hunks: 1, conflicted: true },
+      { path: 'deleted by us.txt', status: 'modified', hunks: 0, conflicted: true },
+    ]);
   });
 });

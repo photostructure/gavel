@@ -393,7 +393,7 @@ export const DiffViewer = memo(function DiffViewer({
 
   const fileLevelTokens = useFileLevelTokens({
     file,
-    enabled: wholeFileHighlight && !isCapture,
+    enabled: wholeFileHighlight && !isCapture && !file.conflicted,
     baseCommitish,
     targetCommitish,
     reloadKey: diffVersion,

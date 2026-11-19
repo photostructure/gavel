@@ -73,6 +73,26 @@ describe('useLazyDiffRendering', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('does not ask Git for the generated-file status of a conflicted file', () => {
+    // Git keeps no stage-0 entry for an unmerged path, so reading it from the index fails.
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    const ordinary = captured('alpha');
+    renderHook(() =>
+      useLazyDiffRendering({
+        diffData: {
+          ...ordinary,
+          capture: undefined,
+          targetCommitish: 'staged',
+          files: ordinary.files.map((file) => ({ ...file, conflicted: true })),
+        },
+        diffScrollContainerRef: { current: null },
+        setDiffData: vi.fn(),
+      }),
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('starts rendering the new capture files when the named review changes', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
     const { result, rerender } = renderHook(

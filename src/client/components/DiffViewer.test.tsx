@@ -342,3 +342,57 @@ describe('DiffViewer in a named review', () => {
     expect(screen.getByText('16 lines outside this patch')).toBeInTheDocument();
   });
 });
+
+describe('DiffViewer for a conflicted file', () => {
+  // Git keeps no stage-0 entry for an unmerged path, so every read of it by Git ref fails and
+  // Git prints `fatal:` to the terminal running gavel.
+  it.each([
+    ['merge.png', false],
+    ['notes.md', false],
+    ['book.ipynb', false],
+    ['Card.vue', false],
+    ['notes.txt', true],
+  ] as const)('reads nothing of %s by Git ref', async (path, hasHunks) => {
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(private readonly onChange: IntersectionObserverCallback) {}
+        observe() {
+          this.onChange(
+            [{ isIntersecting: true } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver,
+          );
+        }
+        disconnect() {}
+      },
+    );
+    const fetchSpy = vi.fn<typeof fetch>(async () => new Response(''));
+    vi.stubGlobal('fetch', fetchSpy);
+    const prefetchFileContent = vi.fn(async () => {});
+    const conflicted: DiffFile = {
+      ...file,
+      path,
+      chunks: hasHunks ? file.chunks : [],
+      conflicted: true,
+    };
+
+    renderViewer(
+      vi.fn(async () => {}),
+      hasHunks ? mergedChunks : [],
+      vi.fn(async () => {}),
+      null,
+      conflicted,
+      {
+        baseCommitish: 'staged',
+        targetCommitish: 'working',
+        prefetchFileContent,
+      },
+    );
+    await act(async () => {});
+
+    expect(prefetchFileContent).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(document.querySelector('[src*="/api/blob/"]')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Expand all/ })).toBeNull();
+  });
+});
