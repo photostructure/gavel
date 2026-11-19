@@ -164,6 +164,44 @@ describe('review queue bar', () => {
     }
   });
 
+  // A tinted tab or menu item has a verdict, so the untinted ones are left to review.
+  it('tints the tabs and menu items of reviews with a verdict in that verdict’s color', () => {
+    const queue = [
+      request('parser', approved),
+      request('tests', { verdict: 'reject' }),
+      request('docs'),
+      request('open', approved),
+    ];
+    const props = { reviews: queue, current: queue[3]!.selection, onSelect: vi.fn() };
+    const { rerender } = render(<ReviewQueueBar {...props} approvals />);
+    const tab = (name: string) =>
+      within(within(bar()).getByRole('list')).getByRole('button', {
+        name: new RegExp(`^${name},`),
+      });
+    expect(tab('parser')).toHaveClass('bg-github-accent/15');
+    expect(tab('tests')).toHaveClass('bg-verdict-reject/15');
+    expect(tab('docs').className).not.toMatch(/\/15/);
+    // The open tab keeps the background that joins it to the review below.
+    expect(tab('open')).toHaveClass('bg-github-bg-secondary');
+    expect(tab('open').className).not.toMatch(/\/15/);
+
+    fireEvent.click(within(bar()).getByRole('button', { name: /^All reviews/ }));
+    const items = within(screen.getByRole('dialog'))
+      .getAllByRole('listitem')
+      .map((item) => within(item).getByRole('button'));
+    expect(items[0]).toHaveClass('bg-github-accent/15');
+    expect(items[1]).toHaveClass('bg-verdict-reject/15');
+    expect(items[2]!.className).not.toMatch(/\/15/);
+    expect(items[3]).toHaveClass('bg-github-accent/15', 'border-l-github-accent');
+    expect(items[3]).not.toHaveClass('bg-github-bg-tertiary');
+
+    // With --no-lgtm nothing has a verdict to show.
+    rerender(<ReviewQueueBar {...props} approvals={false} />);
+    for (const button of within(bar()).getAllByRole('button')) {
+      expect(button.className).not.toMatch(/\/15/);
+    }
+  });
+
   it('counts reject as a verdict and marks it with an X', () => {
     const queue = [
       request('parser', approved),

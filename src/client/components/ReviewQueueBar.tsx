@@ -25,14 +25,28 @@ const isDone = (review: ApprovalRequest) => hasVerdict(review.approval);
 // The inset focus outline keeps the tab row's overflow from clipping it.
 const tabClasses =
   'inline-flex items-center gap-1 rounded-t-md border px-3 py-1.5 focus-visible:-outline-offset-2';
-// Each verdict's color, the same hue as its chosen button in VerdictControl.
+// Each verdict's color, the same hue as its chosen button in VerdictControl. A review with a
+// verdict also gets a light tint in that color, so the untinted tabs and menu items are the
+// ones left to review.
 const verdictColor = ({ verdict }: ReviewApproval) =>
   verdict === 'reject'
-    ? { text: 'text-verdict-reject', topBorder: 'border-t-verdict-reject' }
+    ? {
+        text: 'text-verdict-reject',
+        topBorder: 'border-t-verdict-reject',
+        tint: 'bg-verdict-reject/15 hover:bg-verdict-reject/25',
+      }
     : verdict === 'approve'
-      ? { text: 'text-github-accent', topBorder: 'border-t-github-accent' }
+      ? {
+          text: 'text-github-accent',
+          topBorder: 'border-t-github-accent',
+          tint: 'bg-github-accent/15 hover:bg-github-accent/25',
+        }
       : // No verdict yet: neutral, since green would read as approval.
-        { text: 'text-github-text-muted', topBorder: 'border-t-github-text-secondary' };
+        {
+          text: 'text-github-text-muted',
+          topBorder: 'border-t-github-text-secondary',
+          tint: undefined,
+        };
 
 // The open tab overlaps the bar's bottom border and shares the secondary background of the
 // file list and the Change summary below it, so it reads as attached to the review. Its top
@@ -105,6 +119,8 @@ export function ReviewQueueBar({
 }) {
   const hasUnread = (review: ApprovalRequest) =>
     unreadReviews.has(getDiffSelectionKey(review.selection));
+  const tintOf = (review: ApprovalRequest) =>
+    approvals ? verdictColor(review.approval).tint : undefined;
   // Two identically animated classes: switching between them restarts the animation.
   const pulseClass = (review: ApprovalRequest) =>
     approvals && pulse > 0 && !isDone(review) ? ` verdict-pulse-${pulse % 2}` : '';
@@ -165,6 +181,7 @@ export function ReviewQueueBar({
           const isOpen = review === open;
           const state = approvals ? approvalLabel(review.approval) : undefined;
           const unread = hasUnread(review);
+          const tint = tintOf(review);
           return (
             <li key={getDiffSelectionKey(review.selection)} className="shrink-0">
               <button
@@ -177,7 +194,7 @@ export function ReviewQueueBar({
                 }
                 title={[review.title, state, unread && 'Unread replies'].filter(Boolean).join('\n')}
                 onClick={() => onSelect(review.selection)}
-                className={`${tabClasses} ${isOpen ? openTabClasses(review.approval, approvals) : 'border-transparent text-github-text-secondary hover:bg-github-bg-secondary hover:text-github-text-primary'}${pulseClass(review)}`}
+                className={`${tabClasses} ${isOpen ? openTabClasses(review.approval, approvals) : `border-transparent text-github-text-secondary hover:text-github-text-primary ${tint ?? 'hover:bg-github-bg-secondary'}`}${pulseClass(review)}`}
               >
                 {state && <ApprovalMark approval={review.approval} />}
                 <span>{review.name}</span>
@@ -215,6 +232,7 @@ export function ReviewQueueBar({
         <ol className="-m-3 divide-y divide-github-border">
           {reviews.map((review) => {
             const isOpen = review === open;
+            const tint = tintOf(review);
             return (
               <li key={getDiffSelectionKey(review.selection)}>
                 <button
@@ -222,7 +240,7 @@ export function ReviewQueueBar({
                   data-close-menu
                   aria-current={isOpen ? 'page' : undefined}
                   onClick={() => onSelect(review.selection)}
-                  className={`flex w-full items-start gap-2 px-3 py-2 text-left text-xs hover:bg-github-bg-tertiary ${isOpen ? 'border-l-4 border-l-github-accent bg-github-bg-tertiary pl-2' : ''}`}
+                  className={`flex w-full items-start gap-2 px-3 py-2 text-left text-xs ${tint ?? `hover:bg-github-bg-tertiary${isOpen ? ' bg-github-bg-tertiary' : ''}`} ${isOpen ? 'border-l-4 border-l-github-accent pl-2' : ''}`}
                 >
                   {approvals && (
                     <span className="pt-0.5">
