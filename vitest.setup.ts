@@ -17,8 +17,8 @@ const testConfigDirectory = join(tmpdir(), `gavel-test-config-${process.pid}`);
 process.env.GAVEL_CONFIG_DIR = testConfigDirectory;
 afterAll(() => rmSync(testConfigDirectory, { recursive: true, force: true }));
 
-// Tests often run inside a Claude Code session. Without these, servers and CLIs under test
-// cannot register with that session or send its inbox their test reviews' activity.
+// Test verdicts must not reach the Codex or Claude Code session running the tests.
+delete process.env.CODEX_THREAD_ID;
 delete process.env.CLAUDE_CODE_MESSAGING_SOCKET;
 delete process.env.CLAUDE_CODE_MESSAGING_TOKEN;
 
