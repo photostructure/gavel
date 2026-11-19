@@ -2371,6 +2371,19 @@ describe('Server Integration Tests', () => {
       expect(buffer.byteLength).toBeGreaterThan(0);
     });
 
+    it.each(['vector.svg', 'document.html'])(
+      'sandboxes untrusted blob documents: %s',
+      async (filename) => {
+        const response = await fetch(`http://localhost:${port}/api/blob/${filename}?ref=HEAD`);
+        expect(response.status).toBe(200);
+        expect(response.headers.get('Content-Security-Policy')).toBe(
+          "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+        );
+        expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+        expect(await response.text()).toBe('mock image data');
+      },
+    );
+
     it('sets correct content type for different image formats', async () => {
       const testCases = [
         { filename: 'photo.jpg', expectedType: 'image/jpeg' },

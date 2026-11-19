@@ -94,3 +94,7 @@ Open the HTTPS page with no certificate warning, adding the token fragment on th
 visit. Choose **Copy prompt** from a comment's ⋯ menu and paste it into a text editor.
 Add a comment from the remote browser, and confirm that the agent's reply appears
 without a refresh.
+
+SVG previews remain images. Opening a repository SVG directly uses an isolated document
+with scripts and external resources blocked; inline styles and embedded data images remain
+available.

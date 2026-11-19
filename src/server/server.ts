@@ -1302,6 +1302,12 @@ export async function startServer(options: ServerOptions): Promise<{
       const contentType = contentTypes[ext || ''] || 'application/octet-stream';
 
       res.setHeader('Content-Type', contentType);
+      // A blob opened as a document must not acquire the review application's origin or scripts.
+      res.setHeader(
+        'Content-Security-Policy',
+        "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+      );
+      res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
