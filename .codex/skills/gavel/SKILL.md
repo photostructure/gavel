@@ -154,7 +154,8 @@ reconciliation before retrying. Do not recapture as an idle activity.
 ## Split large changes
 
 Honor the user's grouping, including a request for one whole diff. Otherwise aim
-for about 300 weighted changed lines per coherent review, with no file-count cap.
+for about 300–500 weighted changed lines per coherent review, unless the user's
+instructions give another size, with no file-count cap.
 This is a heuristic, not a validated cutoff. Count additions and deletions with
 `git apply --numstat < <patch>`, or `git diff --numstat HEAD -- <paths>` for native
 tracked changes (`<base> <target>` for commits). Add scoped untracked text lines;
