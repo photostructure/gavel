@@ -87,17 +87,16 @@ Acceptance for each: the listed tests pass unchanged, `pnpm build` and `pnpm che
    SettingsModal, AboutPanel, RevisionDetailModal tests.
 3. **Copy feedback.** Two kinds of copy button exist today. AgentDeliveryStatus.tsx:82-104,
    ReviewPresenceIndicator.tsx:21-63 and AccessTokenGate.tsx:24-48 never reset: they show
-   "…copied" until unmount and "Copy failed; try again" on rejection.
-   CommentThreadCard.tsx:170-180 and 412-475, DiffViewerHeader.tsx:84 and 137-141, and
-   App.tsx:188 and 1862-1864 reset after 2000 ms and have no error label. Export the
+   "…copied" until unmount and "Copy failed; try again" on rejection. The file-path,
+   About, Copy reply, Copy prompt and Copy All Prompt buttons already share `useCopy`
+   (src/client/hooks/useCopy.ts), which resets after 2000 ms and shows a failure on the
+   control and in the `CopyFailedNotice` toast. Export the
    existing `CopyResumePrompt` (AgentDeliveryStatus.tsx:74-106) and render it in
    ReviewPresenceIndicator in place of its inline copy (21-63), which has the same state,
    handler and labels. The two differ only in `title` (AgentDeliveryStatus has one) and in
    classes (`shrink-0 text-xs` against `justify-center`). Use the AgentDeliveryStatus
    markup for both, as its own commit, since the presence button gains a tooltip. Leave
-   AccessTokenGate alone (its labels differ), and the timed buttons too: their missing
-   timer clear (DiffViewerHeader, App) is fixed in place, see
-   `p2-20261114-small-audit-defects.md`. Leave
+   AccessTokenGate alone (its labels differ), and the `useCopy` buttons too. Leave
    `useVerdictFollowUp.ts:144-156` alone; it is a phase machine.
 4. **Revision menu parts.** `getItemClasses` is identical in DiffQuickMenu.tsx:403-419
    and RevisionSelector.tsx:157-173. The commit and branch button bodies and the empty
