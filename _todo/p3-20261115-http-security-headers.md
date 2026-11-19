@@ -1,26 +1,29 @@
 ---
-title: The server sends no HTTP security headers
+title: Complete HTTP security headers
 priority: p3
 section: Server
 ---
 
-# The server sends no HTTP security headers
+# Complete HTTP security headers
 
-Placeholder. Not started.
+Partially complete. Repository blob isolation landed in `06aa96a`; UI and shared
+response headers remain.
 
-`src/server/server.ts` sets no `Content-Security-Policy`, `X-Content-Type-Options`,
-`frame-ancestors`/`X-Frame-Options`, or `Referrer-Policy` on the UI, the static assets, or
-`/api`, and Express still sends `X-Powered-By: Express`. No exploit depends on this alone; it
-leaves nothing to contain a script that reaches the gavel origin, where the localStorage token
-authorizes every API call.
+## Completed
 
-Fix direction:
+- `/api/blob` sends `Content-Security-Policy: sandbox; default-src 'none'; style-src
+  'unsafe-inline'; img-src data:` and `X-Content-Type-Options: nosniff`. Directly opened
+  repository documents cannot execute scripts or access the review origin; image previews
+  retain inline styles and embedded data images. External resources are blocked.
+- Regression: `src/server/server.test.ts`, `sandboxes untrusted blob documents` covers SVG
+  and HTML-named blobs. Matthew passed the SVG play test in Firefox and Chrome.
 
-- `/api/blob`: `Content-Security-Policy: sandbox; default-src 'none'` and
-  `X-Content-Type-Options: nosniff`. This also closes the 2026-11-15 Codex security report's
-  finding that a repository SVG opened in its own tab (from the token-bearing `/api/blob` URL)
-  runs script on the gavel origin. No plan here records that finding yet;
-  `p4-20261112-svg-rendered-source-views.md` covers only SVGs shown in `<img>`.
+## Remaining
+
+The UI and other responses still lack the headers below, and Express still sends
+`X-Powered-By: Express`. This leaves no document policy to contain a script that reaches
+the UI origin, where the localStorage token authorizes API calls.
+
 - UI: a CSP with `script-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, and an
   `img-src` that still allows the remote Markdown images the UI loads today (or decide to stop
   loading them; see the remote-image bullet below). Check Mermaid's inline styles and the theme
@@ -31,3 +34,12 @@ Fix direction:
   `Referer` header, and that origin names the tunnel hostname when gavel runs behind a tunnel.
   `Referrer-Policy: no-referrer` stops that leak; the maintainer still has to decide whether
   remote images keep loading without a click.
+
+The SVG source/rendered-view work remains separate in
+`p4-20261112-svg-rendered-source-views.md`.
+
+## Working log
+
+- 2026-11-19, Codex `01a1dd62-e525-76b2-9a1c-00aca968960c`: the archive audit caught this
+  placeholder still describing the landed blob policy as unstarted. Updated its status;
+  no security implementation changes remain uncommitted from this session.
