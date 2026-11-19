@@ -1,8 +1,8 @@
-import { Check, Copy } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Check, CircleAlert, Copy } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import type { ReviewContext as ReviewContextData } from '../../types/diff';
-import { copyTextToClipboard } from '../utils/clipboard';
+import { useCopy } from '../hooks/useCopy';
 
 // A fixed label column, not max-content, so every group's labels and values line up. 11em fits
 // "Uncommitted changes", the longest label, on one line.
@@ -46,12 +46,13 @@ function CopyableDetail({
   mono?: boolean;
   value: string;
 }) {
-  const [isCopied, setIsCopied] = useState(false);
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(copyTimer.current), []);
-  const action = isCopied
-    ? `${label} copied`
-    : `Copy ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+  const { status, copy } = useCopy();
+  const action =
+    status === 'copied'
+      ? `${label} copied`
+      : status === 'failed'
+        ? 'Copy failed; select the text instead'
+        : `Copy ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
   return (
     <Detail label={label} mono={mono}>
       {/* A flex row keeps the button beside a value that wraps, not alone on its last line. */}
@@ -59,19 +60,15 @@ function CopyableDetail({
         <span className="min-w-0">{value}</span>
         <button
           type="button"
-          onClick={() => {
-            void copyTextToClipboard(value).then(() => {
-              setIsCopied(true);
-              clearTimeout(copyTimer.current);
-              copyTimer.current = setTimeout(() => setIsCopied(false), 2000);
-            });
-          }}
+          onClick={() => copy(value)}
           title={action}
           aria-label={action}
           className="inline-flex shrink-0 rounded p-0.5 text-github-text-secondary transition-colors hover:bg-github-bg-tertiary hover:text-github-text-primary"
         >
-          {isCopied ? (
+          {status === 'copied' ? (
             <Check size={12} aria-hidden="true" />
+          ) : status === 'failed' ? (
+            <CircleAlert size={12} aria-hidden="true" className="text-github-danger" />
           ) : (
             <Copy size={12} aria-hidden="true" />
           )}

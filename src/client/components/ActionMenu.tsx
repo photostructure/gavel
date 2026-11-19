@@ -12,8 +12,10 @@ import {
   useListNavigation,
   useRole,
 } from '@floating-ui/react';
-import { Check, Ellipsis } from 'lucide-react';
+import { Check, CircleAlert, Ellipsis } from 'lucide-react';
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+
+import type { CopyStatus } from '../hooks/useCopy';
 
 export interface ActionMenuItem {
   label: string;
@@ -30,17 +32,17 @@ export const iconButtonClasses =
 const MENU_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Home', 'End', 'Escape', 'Tab']);
 
 /**
- * A "⋯" button that opens a menu of actions. `confirmation`, while set, replaces
- * the icon with a check and becomes the button's name, as "Copied!" after a copy.
+ * A "⋯" button that opens a menu of actions. After one of its items copies, `copyStatus` replaces
+ * the icon and the button's name: a check and "Copied!", or an alert and "Copy failed".
  */
 export function ActionMenu({
   label,
   items,
-  confirmation,
+  copyStatus = 'idle',
 }: {
   label: string;
   items: readonly ActionMenuItem[];
-  confirmation?: string;
+  copyStatus?: CopyStatus;
 }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -81,7 +83,8 @@ export function ActionMenu({
     }
   };
 
-  const name = confirmation ?? label;
+  const name =
+    copyStatus === 'copied' ? 'Copied!' : copyStatus === 'failed' ? 'Copy failed' : label;
   return (
     <>
       <button
@@ -100,8 +103,10 @@ export function ActionMenu({
           },
         })}
       >
-        {confirmation ? (
+        {copyStatus === 'copied' ? (
           <Check aria-hidden="true" size={12} />
+        ) : copyStatus === 'failed' ? (
+          <CircleAlert aria-hidden="true" size={12} className="text-github-danger" />
         ) : (
           <Ellipsis aria-hidden="true" size={12} />
         )}

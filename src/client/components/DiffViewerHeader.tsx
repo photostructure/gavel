@@ -2,6 +2,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  CircleAlert,
   Copy,
   ExternalLink,
   FileDiff,
@@ -13,12 +14,14 @@ import {
   Square,
   UnfoldVertical,
 } from 'lucide-react';
-import { type MouseEvent, useEffect, useRef, useState } from 'react';
+import type { MouseEvent } from 'react';
 
 import type { DiffFile } from '../../types/diff';
+import { useCopy } from '../hooks/useCopy';
 import { renderBidiText } from '../utils/bidiControls';
-import { copyTextToClipboard } from '../utils/clipboard';
 import { isDisclosureRowClick } from '../utils/domUtils';
+
+const copyFailed = 'Copy failed; select the text instead';
 
 interface FullFileToggle {
   expanded: boolean;
@@ -82,9 +85,7 @@ export const DiffViewerHeader = ({
   onOpenInEditor,
   repositoryPath,
 }: DiffViewerHeaderProps) => {
-  const [isCopied, setIsCopied] = useState(false);
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(copyTimer.current), []);
+  const { status: copyStatus, copy } = useCopy();
 
   const toggleCollapsed = (e: MouseEvent) => {
     if (e.altKey) {
@@ -127,34 +128,34 @@ export const DiffViewerHeader = ({
             </h2>
             <button
               className={`${HIT_SLOP} shrink-0 bg-transparent border-none cursor-pointer px-1.5 py-1 rounded text-sm transition-all hover:bg-github-bg-tertiary ${
-                isCopied
+                copyStatus === 'copied'
                   ? 'text-github-accent-text'
                   : 'text-github-text-secondary hover:text-github-text-primary'
               }`}
               onClick={(event) => {
                 // Shift or Alt means "more", as on the gap arrows: the full path.
-                const copied =
+                copy(
                   repositoryPath !== undefined && (event.shiftKey || event.altKey)
                     ? fullPath(repositoryPath, file.path)
-                    : file.path;
-                void copyTextToClipboard(copied)
-                  .then(() => {
-                    setIsCopied(true);
-                    clearTimeout(copyTimer.current);
-                    copyTimer.current = setTimeout(() => setIsCopied(false), 2000);
-                  })
-                  .catch((err) => {
-                    console.error('Failed to copy file path:', err);
-                  });
+                    : file.path,
+                );
               }}
               title={
-                repositoryPath === undefined
-                  ? 'Copy file path'
-                  : 'Copy file path (Shift+Click or Alt+Click for the full path)'
+                copyStatus === 'failed'
+                  ? copyFailed
+                  : repositoryPath === undefined
+                    ? 'Copy file path'
+                    : 'Copy file path (Shift+Click or Alt+Click for the full path)'
               }
-              aria-label="Copy file path"
+              aria-label={copyStatus === 'failed' ? copyFailed : 'Copy file path'}
             >
-              {isCopied ? <Check size={14} /> : <Copy size={14} />}
+              {copyStatus === 'copied' ? (
+                <Check size={14} />
+              ) : copyStatus === 'failed' ? (
+                <CircleAlert size={14} className="text-github-danger" />
+              ) : (
+                <Copy size={14} />
+              )}
             </button>
             {onOpenInEditor && (
               <button

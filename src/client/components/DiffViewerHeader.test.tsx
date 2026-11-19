@@ -53,6 +53,16 @@ describe('DiffViewerHeader', () => {
     expect(vi.mocked(copyTextToClipboard).mock.calls).toEqual([['src/app.ts']]);
   });
 
+  it('says when a copy fails', async () => {
+    vi.mocked(copyTextToClipboard).mockRejectedValueOnce(new Error('Failed to copy text'));
+    render(<DiffViewerHeader {...baseProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy file path' }));
+    const failed = await screen.findByRole('button', {
+      name: 'Copy failed; select the text instead',
+    });
+    expect(failed).toHaveAttribute('title', 'Copy failed; select the text instead');
+  });
+
   it('keeps the copied check for 2 s after the latest click', async () => {
     vi.useFakeTimers();
     try {

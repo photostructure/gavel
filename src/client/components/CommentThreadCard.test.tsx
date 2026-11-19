@@ -765,6 +765,26 @@ describe('CommentThreadCard', () => {
 });
 
 describe('reply copy actions', () => {
+  it('says when copying a reply fails', async () => {
+    vi.mocked(copyTextToClipboard).mockRejectedValueOnce(new Error('Failed to copy text'));
+    const user = userEvent.setup();
+    render(
+      <CommentThreadCard
+        thread={mockThread}
+        onGeneratePrompt={() => 'thread prompt'}
+        onToggleThreadResolved={vi.fn()}
+        onRemoveThread={vi.fn()}
+        onReplyToThread={vi.fn().mockResolvedValue(undefined)}
+        onRemoveMessage={vi.fn()}
+        onUpdateMessage={vi.fn()}
+      />,
+    );
+
+    await chooseAction(user, 'Reply actions', 'Copy reply');
+
+    expect(await screen.findByRole('button', { name: 'Copy failed' })).toBeInTheDocument();
+  });
+
   it('copies the body of a reply authored by someone else', async () => {
     const user = userEvent.setup();
 
@@ -1152,6 +1172,16 @@ describe('thread disclosure and replies', () => {
     await user.keyboard(' ');
     expect(disclosure).toHaveAttribute('aria-expanded', 'true');
     expect(disclosure).toHaveFocus();
+  });
+
+  it('says when copying the thread prompt fails', async () => {
+    vi.mocked(copyTextToClipboard).mockRejectedValueOnce(new Error('Failed to copy text'));
+    const user = userEvent.setup();
+    renderThread();
+
+    await chooseAction(user, 'Thread actions', 'Copy prompt');
+
+    expect(await screen.findByRole('button', { name: 'Copy failed' })).toBeInTheDocument();
   });
 
   it('keeps Copy prompt independent from disclosure and navigation', async () => {

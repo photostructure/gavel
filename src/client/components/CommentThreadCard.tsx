@@ -15,7 +15,7 @@ import {
   Unplug,
   User,
 } from 'lucide-react';
-import React, { useContext, useEffect, useId, useRef, useState, type ReactElement } from 'react';
+import React, { useContext, useEffect, useId, useState, type ReactElement } from 'react';
 
 import {
   type CommentProgress,
@@ -24,12 +24,12 @@ import {
   type DiffSelection,
 } from '../../types/diff';
 import { renderBidiText } from '../utils/bidiControls';
-import { copyTextToClipboard } from '../utils/clipboard';
 import { useFocusedAgentMessage } from '../hooks/useFocusedAgentMessage';
 import { agentMessageRevision } from '../hooks/useAgentUpdates';
 import { AgentUpdatesContext, type AgentUpdatesReadState } from '../contexts/AgentUpdatesContext';
 import { CommentDeliveryContext } from '../contexts/CommentDeliveryContext';
 import { useCommentDraft, useThreadHadDraftOnMount } from '../hooks/useCommentDrafts';
+import { useCopy } from '../hooks/useCopy';
 import { hasActiveTextSelection, isDisclosureRowClick } from '../utils/domUtils';
 
 import { ActionMenu, iconButtonClasses, type ActionMenuItem } from './ActionMenu';
@@ -221,20 +221,7 @@ function ThreadMessageItem({
     setEditForm('opened');
   }
   const isEditing = editForm !== 'closed';
-  const [isCopied, setIsCopied] = useState(false);
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(copyTimer.current), []);
-
-  const handleCopy = async () => {
-    try {
-      await copyTextToClipboard(message.body);
-      setIsCopied(true);
-      clearTimeout(copyTimer.current);
-      copyTimer.current = setTimeout(() => setIsCopied(false), 2000);
-    } catch (error) {
-      console.error('Failed to copy message:', error);
-    }
-  };
+  const { status: copyStatus, copy } = useCopy();
 
   const replyRead =
     !isRootMessage && message.origin === 'agent' && readState
@@ -248,7 +235,7 @@ function ThreadMessageItem({
           {
             label: 'Copy reply',
             icon: <Copy aria-hidden="true" size={12} />,
-            onSelect: handleCopy,
+            onSelect: () => copy(message.body),
           },
           ...(isUserAuthoredMessage
             ? [
@@ -366,11 +353,7 @@ function ThreadMessageItem({
                   <ReadToggle mark={replyRead} enabled={readState.enabled} />
                 )}
                 {replyActions.length > 0 && (
-                  <ActionMenu
-                    label="Reply actions"
-                    items={replyActions}
-                    confirmation={isCopied ? 'Copied!' : undefined}
-                  />
+                  <ActionMenu label="Reply actions" items={replyActions} copyStatus={copyStatus} />
                 )}
               </div>
             )}
@@ -450,9 +433,7 @@ export function CommentThreadCard({
   syntaxTheme,
   onEscapeKeepingDraft,
 }: CommentThreadCardProps) {
-  const [isCopied, setIsCopied] = useState(false);
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(copyTimer.current), []);
+  const { status: copyStatus, copy } = useCopy();
   const contentId = useId();
   // A resolved thread that held an unsent reply or edit when it mounted opens, so
   // the restored draft shows.
@@ -496,18 +477,6 @@ export function CommentThreadCard({
 
   const [rootEditRequest, setRootEditRequest] = useState(0);
 
-  const handleCopyThread = async () => {
-    try {
-      const prompt = onGeneratePrompt(thread);
-      await copyTextToClipboard(prompt);
-      setIsCopied(true);
-      clearTimeout(copyTimer.current);
-      copyTimer.current = setTimeout(() => setIsCopied(false), 2000);
-    } catch (error) {
-      console.error('Failed to copy thread prompt:', error);
-    }
-  };
-
   const rootMessage = thread.messages[0];
   if (!rootMessage) return null;
 
@@ -528,7 +497,7 @@ export function CommentThreadCard({
     {
       label: 'Copy prompt',
       icon: <Copy aria-hidden="true" size={12} />,
-      onSelect: handleCopyThread,
+      onSelect: () => copy(onGeneratePrompt(thread)),
     },
     {
       label: 'Edit comment',
@@ -694,11 +663,7 @@ export function CommentThreadCard({
               </button>
             )}
             {!readOnly && !isCollapsed && (
-              <ActionMenu
-                label="Thread actions"
-                items={threadActions}
-                confirmation={isCopied ? 'Copied!' : undefined}
-              />
+              <ActionMenu label="Thread actions" items={threadActions} copyStatus={copyStatus} />
             )}
           </div>
         )}

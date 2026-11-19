@@ -1,11 +1,12 @@
-import { Copy, Eraser, ChevronDown, Check, List } from 'lucide-react';
+import { Copy, Eraser, ChevronDown, Check, CircleAlert, List } from 'lucide-react';
 import { useState, useRef } from 'react';
 
 import { useClickOutside } from '../hooks/useClickOutside';
+import type { CopyStatus } from '../hooks/useCopy';
 
 interface CommentsDropdownProps {
   commentsCount: number;
-  isCopiedAll: boolean;
+  copyStatus: CopyStatus;
   onCopyAll: () => void;
   onDeleteAll: () => void;
   onViewAll?: () => void;
@@ -15,7 +16,7 @@ interface CommentsDropdownProps {
 
 export function CommentsDropdown({
   commentsCount,
-  isCopiedAll,
+  copyStatus,
   onCopyAll,
   onDeleteAll,
   onViewAll,
@@ -44,13 +45,16 @@ export function CommentsDropdown({
     setIsOpen(false);
   };
 
-  const copyLabel = isCompact
-    ? isCopiedAll
-      ? 'Copied'
-      : `Copy All (${commentsCount})`
-    : isCopiedAll
-      ? 'Copied All!'
-      : `Copy All Prompt (${commentsCount})`;
+  const copyLabel =
+    copyStatus === 'failed'
+      ? 'Copy failed'
+      : isCompact
+        ? copyStatus === 'copied'
+          ? 'Copied'
+          : `Copy All (${commentsCount})`
+        : copyStatus === 'copied'
+          ? 'Copied All!'
+          : `Copy All Prompt (${commentsCount})`;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -76,7 +80,13 @@ export function CommentsDropdown({
           }}
           title={`Copy all ${commentsCount} comments to AI coding agent`}
         >
-          {isCopiedAll ? <Check size={12} /> : <Copy size={12} />}
+          {copyStatus === 'copied' ? (
+            <Check size={12} />
+          ) : copyStatus === 'failed' ? (
+            <CircleAlert size={12} className="text-github-danger" />
+          ) : (
+            <Copy size={12} />
+          )}
           {copyLabel}
         </button>
         <button

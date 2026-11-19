@@ -62,9 +62,11 @@ import { ToastStack } from './components/ToastStack';
 import { UnsavedChangesToast } from './components/UnsavedChangesToast';
 import { VerdictFollowUpNotice } from './components/VerdictFollowUpNotice';
 import { CommentLinkNotice } from './components/CommentLinkNotice';
+import { CopyFailedNotice } from './components/CopyFailedNotice';
 import { ReviewProviders } from './contexts/ReviewProviders';
 import { useAppearanceSettings } from './hooks/useAppearanceSettings';
 import { filesWithDrafts, useDraftCount, type LineDraftAnchor } from './hooks/useCommentDrafts';
+import { onCopyFailure, useCopy } from './hooks/useCopy';
 import { threadLineAnchor, useCommentLinks } from './hooks/useCommentLinks';
 import { useDiffComments } from './hooks/useDiffComments';
 import { useExpandedLines, type MergedChunk } from './hooks/useExpandedLines';
@@ -94,7 +96,6 @@ import { saveAutoViewedPatterns } from './services/autoViewedPatterns';
 import { celebrateApproval } from './utils/approvalCelebration';
 import { hasVerdict } from './utils/verdict';
 import { renderBidiText } from './utils/bidiControls';
-import { copyTextToClipboard } from './utils/clipboard';
 import { getFileElementId, resetEmptyCommentFormsOutside } from './utils/domUtils';
 import { findCommentPosition, findSidePosition } from './utils/navigation/positionHelpers';
 import { createScrollToElement, linkScrollBehavior } from './hooks/keyboardNavigation/scrollUtils';
@@ -180,9 +181,9 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [settingsSaveError, setSettingsSaveError] = useState<string | null>(null);
   useEffect(() => onSettingsSaveError(setSettingsSaveError), []);
-  const [isCopiedAll, setIsCopiedAll] = useState(false);
-  const copyAllTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(copyAllTimer.current), []);
+  const { status: copyAllStatus, copy: copyAll } = useCopy();
+  const [copyFailure, setCopyFailure] = useState<number | null>(null);
+  useEffect(() => onCopyFailure(() => setCopyFailure((count) => (count ?? 0) + 1)), []);
   const [isShipping, setIsShipping] = useState(false);
   const approvalControlRef = useRef<HTMLDivElement>(null);
   // The same element, as state, so the header's toast stack re-renders once it can anchor to it.
@@ -1147,7 +1148,7 @@ function App() {
       },
       onCopyAllComments: () => {
         if (threads.length > 0) {
-          void handleCopyAllComments();
+          handleCopyAllComments();
         }
       },
       onDeleteAllComments: () => {
@@ -1842,24 +1843,17 @@ function App() {
     [addThread],
   );
 
-  const handleCopyAllComments = async () => {
-    try {
-      const prompt = generateAllCommentsPrompt({
+  const handleCopyAllComments = () =>
+    copyAll(
+      generateAllCommentsPrompt({
         ...promptOrigin,
         requestedBaseCommitish: diffData?.requestedBaseCommitish,
         requestedTargetCommitish: diffData?.requestedTargetCommitish,
         baseMode: normalizeBaseMode(diffData?.requestedBaseMode),
         resolvedBaseCommitish: diffData?.baseCommitish,
         resolvedTargetCommitish: diffData?.targetCommitish,
-      });
-      await copyTextToClipboard(prompt);
-      setIsCopiedAll(true);
-      clearTimeout(copyAllTimer.current);
-      copyAllTimer.current = setTimeout(() => setIsCopiedAll(false), 2000);
-    } catch (error) {
-      console.error('Failed to copy all comments prompt:', error);
-    }
-  };
+      }),
+    );
 
   const handleReplyToThread = useCallback(
     (threadId: string, body: string): Promise<void> => {
@@ -2274,6 +2268,7 @@ function App() {
                   message={commentLinks.notice}
                   onDismiss={commentLinks.dismissNotice}
                 />
+                <CopyFailedNotice failure={copyFailure} onDismiss={() => setCopyFailure(null)} />
               </ToastStack>
               {approval.error && (
                 <span role="alert" className="w-full text-xs text-github-danger">
@@ -2575,7 +2570,7 @@ function App() {
               {threads.length > 0 && (
                 <CommentsDropdown
                   commentsCount={threads.length}
-                  isCopiedAll={isCopiedAll}
+                  copyStatus={copyAllStatus}
                   onCopyAll={handleCopyAllComments}
                   onDeleteAll={clearAllComments}
                 />

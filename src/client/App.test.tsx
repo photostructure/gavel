@@ -750,6 +750,31 @@ describe('App Component - Clear Comments Functionality', () => {
         });
       });
     });
+    it('says when copying all comments fails', async () => {
+      mockComments = [
+        createMockThread({ id: 'test-1', filePath: 'test.ts', line: 10, body: 'Test comment' }),
+      ];
+      const writeText = vi
+        .spyOn(navigator.clipboard, 'writeText')
+        .mockRejectedValue(new Error('denied'));
+      const execCommand = Object.getOwnPropertyDescriptor(document, 'execCommand');
+      Object.defineProperty(document, 'execCommand', { configurable: true, value: () => false });
+      try {
+        renderApp();
+        fireEvent.click(await screen.findByRole('button', { name: 'Conversation' }));
+        const copy = await screen.findByTitle('Copy all 1 comments to AI coding agent');
+        fireEvent.click(copy);
+        await waitFor(() => expect(copy).toHaveTextContent('Copy failed'));
+        expect(screen.getByRole('status', { name: 'Copy failed' })).toHaveTextContent(
+          'The browser blocked clipboard access.',
+        );
+      } finally {
+        writeText.mockRestore();
+        if (execCommand) Object.defineProperty(document, 'execCommand', execCommand);
+        else Reflect.deleteProperty(document, 'execCommand');
+      }
+    });
+
     it('keeps "Copied All!" for 2 s after the latest click', async () => {
       mockComments = [
         createMockThread({ id: 'test-1', filePath: 'test.ts', line: 10, body: 'Test comment' }),
