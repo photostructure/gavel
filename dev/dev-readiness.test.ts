@@ -22,23 +22,16 @@ describe.skipIf(process.platform === 'win32')('development readiness protocol', 
           await mkdir(join(directory, folder), { recursive: true });
         }
         await writeFile(join(directory, 'package.json'), '{"type":"module"}');
-        for (const file of ['scripts/dev.js', 'dev/dev-lifecycle.js', 'dev/dev-stdout.js']) {
+        for (const file of [
+          'scripts/dev.js',
+          'dev/dev-lifecycle.js',
+          'dev/dev-output.js',
+          'dev/dev-process.js',
+        ]) {
           await copyFile(
             join(dirname(fileURLToPath(import.meta.url)), '..', file),
             join(directory, file),
           );
-        }
-        // Later launcher lifecycle changes load these helpers and run Node directly.
-        // Keep this protocol regression usable before and after that separate change.
-        for (const file of ['dev/dev-output.js', 'dev/dev-process.js']) {
-          try {
-            await copyFile(
-              join(dirname(fileURLToPath(import.meta.url)), '..', file),
-              join(directory, file),
-            );
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-          }
         }
         await writeFile(
           join(directory, 'worker.js'),
@@ -77,6 +70,8 @@ await import('../worker.js');
           `
 import { existsSync, writeFileSync } from 'node:fs';
 const ready = { type: 'server.ready', url: 'http://localhost:4966', launchUrl: 'http://localhost:4966?mode=fixture#gavel-token=capability', port: 4966 };
+process.send({ port: ready.port, url: ready.launchUrl, pid: process.pid });
+process.disconnect();
 if (${jsonl}) process.stdout.write(JSON.stringify(ready) + '\\n');
 else process.stderr.write('🚀 gavel server started on ' + ready.launchUrl + '\\n');
 if (${JSON.stringify(mode)} === 'burst') {

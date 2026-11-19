@@ -18,7 +18,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { fetch } from 'undici';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadAccessToken } from '../server/access-token.js';
 import type { ServerEvent } from '../types/events.js';
@@ -122,6 +122,7 @@ function launch(
   readySignal?: 'SIGINT' | 'SIGTERM' | 'SIGHUP',
   environment: Record<string, string> = {},
   input?: string,
+  ipc = false,
 ) {
   const child = spawn(process.execPath, [entrypoint, ...args], {
     cwd: directory,
@@ -131,7 +132,12 @@ function launch(
       GIT_CONFIG_SYSTEM: devNull,
       ...environment,
     },
-    stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+    stdio: [
+      input === undefined ? 'ignore' : 'pipe',
+      'pipe',
+      'pipe',
+      ...(ipc ? ['ipc' as const] : []),
+    ],
   });
   let stdout = '';
   let stderr = '';
@@ -361,6 +367,69 @@ describe('named review stdin sources', () => {
 });
 
 describe('actual CLI launch protocol', () => {
+  it.each([
+    { label: 'Git', args: ['HEAD~1'], input: undefined },
+    {
+      label: 'stdin',
+      args: ['-'],
+      input:
+        'diff --git a/fixture.txt b/fixture.txt\n--- a/fixture.txt\n+++ b/fixture.txt\n@@ -1 +1 @@\n-before\n+after\n',
+    },
+    {
+      label: 'named',
+      args: ['-', '--review', 'ipc-review'],
+      input:
+        'diff --git a/fixture.txt b/fixture.txt\n--- a/fixture.txt\n+++ b/fixture.txt\n@@ -1 +1 @@\n-before\n+after\n',
+    },
+  ])(
+    'sends foreground IPC readiness for a $label review without owning the invoking chat',
+    async ({ args, input }) => {
+      const fixture = launch(
+        [...args, '--host', '127.0.0.1', '--port', '0', '--no-open', '--keep-alive'],
+        undefined,
+        {},
+        input,
+        true,
+      );
+      let handshake: BackgroundServerInfo | undefined;
+      fixture.child.once('message', (message) => {
+        handshake = message as BackgroundServerInfo;
+      });
+      try {
+        await vi.waitFor(
+          () =>
+            expect(handshake).toMatchObject({
+              port: expect.any(Number),
+              url: expect.any(String),
+              pid: fixture.child.pid,
+            }),
+          { timeout: 5000 },
+        );
+        let ready: { launchUrl: string } | undefined;
+        await vi.waitFor(() => {
+          const line = fixture
+            .output()
+            .stdout.split('\n')
+            .find((entry) => entry.includes('"type":"server.ready"'));
+          expect(line).toBeDefined();
+          ready = JSON.parse(line!) as { launchUrl: string };
+        });
+        expect(handshake!.url).toBe(ready!.launchUrl);
+        const response = await fetchLaunched('/api/inbox', handshake!.url);
+        const inbox = (await response.json()) as { reviews: { delivery: { status: string } }[] };
+        expect(inbox.reviews.length).toBeGreaterThan(0);
+        expect(inbox.reviews.every((review) => review.delivery.status === 'unavailable')).toBe(
+          true,
+        );
+      } finally {
+        fixture.child.kill('SIGTERM');
+        await fixture.closed;
+        await stop(fixture.child);
+      }
+    },
+    10000,
+  );
+
   it.each([
     { label: 'explicit stdin', args: ['-'] },
     { label: 'automatically detected stdin', args: [] },

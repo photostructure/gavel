@@ -34,7 +34,7 @@ import { createReviewCommand, resolveNamedReview } from './review.js';
 import { getPrPatch, getPrCommentImports } from './github.js';
 import {
   BACKGROUND_CHILD_ENV,
-  emitBackgroundHandshake,
+  emitServerHandshake,
   ignoreStdioErrorsForBackgroundDaemon,
   startBackgroundProcess,
 } from './background.js';
@@ -399,8 +399,8 @@ Editor configuration (set before starting gavel):
           ...(commentImports.length > 0 ? { commentImports } : {}),
         });
 
+        emitServerHandshake({ port, url: launchUrl, pid: process.pid });
         if (backgroundMode) {
-          emitBackgroundHandshake({ port, url: launchUrl, pid: process.pid });
           if (isBackgroundChild) ignoreStdioErrorsForBackgroundDaemon();
           return;
         }
@@ -440,8 +440,8 @@ Editor configuration (set before starting gavel):
           ...(commentImports.length > 0 ? { commentImports } : {}),
         });
 
+        emitServerHandshake({ port, url: launchUrl, pid: process.pid });
         if (backgroundMode) {
-          emitBackgroundHandshake({ port, url: launchUrl, pid: process.pid });
           if (isBackgroundChild) {
             ignoreStdioErrorsForBackgroundDaemon();
           }
@@ -515,8 +515,8 @@ Editor configuration (set before starting gavel):
         ...(commentImports.length > 0 ? { commentImports } : {}),
       });
 
+      emitServerHandshake({ port, url: launchUrl, pid: process.pid });
       if (backgroundMode) {
-        emitBackgroundHandshake({ port, url: launchUrl, pid: process.pid });
         if (isBackgroundChild) {
           ignoreStdioErrorsForBackgroundDaemon();
         }

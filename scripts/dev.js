@@ -4,7 +4,6 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
 import { getCompileCloseExitCode } from '../dev/dev-lifecycle.js';
-import { createCliStdoutProxy } from '../dev/dev-stdout.js';
 import { createOutputWriter } from '../dev/dev-output.js';
 import { getManagedSpawnOptions, stopProcessTree } from '../dev/dev-process.js';
 
@@ -41,40 +40,24 @@ function startVite(cliServerUrl) {
   viteProcess.stderr.on('data', writeStderr);
 }
 
-const cliStdoutProxy = createCliStdoutProxy({
-  onServerUrl: startVite,
-  onOutput: writeStdout,
-});
-const cliStderrProxy = createCliStdoutProxy({
-  onServerUrl: startVite,
-  onOutput: writeStderr,
-});
-
 function startCliProcess() {
   cliProcess = spawn(process.execPath, ['dist/cli/index.js', ...cliArgs], {
     // Keep stdin attached so CLI can decide stdin mode by itself.
     ...getManagedSpawnOptions(),
-    stdio: ['inherit', 'pipe', 'pipe'],
+    stdio: ['inherit', 'pipe', 'pipe', 'ipc'],
     env: {
       ...process.env,
       NODE_ENV: 'development',
     },
   });
 
-  cliProcess.stdout.setEncoding('utf8');
-  cliProcess.stderr.setEncoding('utf8');
-  cliProcess.stdout.on('data', (data) => {
-    // Wait for CLI server before starting Vite to prevent proxy connection errors.
-    // Forward JSONL intact while readiness starts the Vite UI.
-    cliStdoutProxy.push(data);
-  });
-
-  cliProcess.stderr.on('data', (data) => cliStderrProxy.push(data));
+  // Git diagnostics can contain repository filenames that look like readiness records.
+  // Only the CLI's separate IPC channel may choose Vite's proxy destination.
+  cliProcess.once('message', (message) => startVite(message.url));
+  cliProcess.stdout.on('data', writeStdout);
+  cliProcess.stderr.on('data', writeStderr);
 
   cliProcess.on('close', (code) => {
-    cliStdoutProxy.flush();
-    cliStderrProxy.flush();
-
     if (code !== 0 && code !== null && !isShuttingDown) {
       writeStderr(`CLI server exited with code ${code}\n`);
     }

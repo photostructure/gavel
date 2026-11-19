@@ -25,8 +25,9 @@ export function parseBackgroundHandshakeMessage(message: unknown): BackgroundSer
   return null;
 }
 
-export function emitBackgroundHandshake(info: BackgroundServerInfo): void {
-  process.send?.(info);
+export function emitServerHandshake(info: BackgroundServerInfo): void {
+  if (!process.send) return;
+  process.send(info);
   process.disconnect?.();
 }
 

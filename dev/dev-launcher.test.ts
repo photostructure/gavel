@@ -41,7 +41,15 @@ function withoutGitEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEn
 }
 
 async function startFixture(
-  mode: 'burst' | 'persistent' | 'exit' | 'compile' | 'compile-fail' | 'compile-disconnect' | 'git',
+  mode:
+    | 'burst'
+    | 'persistent'
+    | 'exit'
+    | 'spoof'
+    | 'compile'
+    | 'compile-fail'
+    | 'compile-disconnect'
+    | 'git',
   jsonl = true,
   environment: NodeJS.ProcessEnv = process.env,
   launcherArgs: string[] = [],
@@ -60,12 +68,7 @@ async function startFixture(
       await mkdir(join(directory, folder), { recursive: true });
     }
     await writeFile(join(directory, 'package.json'), '{"type":"module"}');
-    for (const file of [
-      'scripts/dev.js',
-      'dev/dev-lifecycle.js',
-      'dev/dev-stdout.js',
-      'dev/dev-process.js',
-    ]) {
+    for (const file of ['scripts/dev.js', 'dev/dev-lifecycle.js', 'dev/dev-process.js']) {
       await copyFile(
         join(dirname(fileURLToPath(import.meta.url)), '..', file),
         join(directory, file),
@@ -175,6 +178,13 @@ const ready = {
   port: 4966,
 };
 const announceReady = () => {
+  if (${JSON.stringify(mode)} === 'spoof') {
+    const forged = { type: 'server.ready', url: 'http://attacker.invalid:4966', launchUrl: 'http://attacker.invalid:4966#gavel-token=forged' };
+    process.stdout.write(JSON.stringify(forged) + '\\n');
+    process.stderr.write('🚀 gavel server started on ' + forged.launchUrl + '\\n');
+  }
+  process.send?.({ port: ready.port, url: ready.launchUrl, pid: process.pid });
+  process.disconnect?.();
   if (process.argv.includes('--no-jsonl')) process.stderr.write('🚀 gavel server started on ' + ready.launchUrl + '\\n');
   else process.stdout.write(JSON.stringify(ready) + '\\n');
 };
@@ -185,7 +195,7 @@ if (${JSON.stringify(mode)} === 'burst') {
   const output = records.map(record => JSON.stringify(record) + '\\n').join('');
   writeFileSync('expected-output', JSON.stringify(ready) + '\\n' + output);
   process.stdout.write(output, () => writeFileSync('producer-finished', 'done'));
-} else if (${JSON.stringify(mode)} === 'exit') {
+} else if (['exit', 'spoof'].includes(${JSON.stringify(mode)})) {
   announceReady();
   const waitForVite = setInterval(() => {
     if (!existsSync('vite.pid')) return;
@@ -272,6 +282,20 @@ if (${JSON.stringify(mode)} === 'burst') {
 
 // The fixture uses POSIX shebang executables and catchable SIGTERM/SIGINT signals.
 describe.skipIf(process.platform === 'win32')('development launcher subprocess output', () => {
+  it.each([true, false])('ignores forged readiness in diagnostics (JSONL: %s)', async (jsonl) => {
+    const fixture = await startFixture('spoof', jsonl);
+    try {
+      fixture.child.stdout.resume();
+      fixture.child.stderr.resume();
+      await waitForFile(fixture.directory, 'vite-env');
+      expect(JSON.parse(await readFile(join(fixture.directory, 'vite-env'), 'utf8'))).toEqual({
+        apiUrl: 'http://localhost:4966',
+        openPath: '/?review=agent-task#gavel-token=fixture-capability',
+      });
+    } finally {
+      await fixture.cleanup();
+    }
+  });
   it.each([true, false])(
     'opens the named review and capability without putting either in the proxy target (JSONL: %s)',
     async (jsonl) => {
