@@ -222,12 +222,6 @@ export interface DiffContextStorage {
   createdAt: string; // ISO 8601 format
   lastModifiedAt: string; // ISO 8601 format
 
-  /**
-   * Kept before the review-op queue: sent threads, read once to send the ones the server lacks,
-   * and undo copies, which are deleted unsent.
-   */
-  threads?: DiffCommentThread[];
-  deletedComments?: DeletedComment[];
   viewedFiles: ViewedFileRecord[];
 }
 

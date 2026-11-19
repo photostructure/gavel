@@ -81,7 +81,6 @@ import { useSlideOver } from './hooks/useSlideOver';
 import { useVerdictFollowUp } from './hooks/useVerdictFollowUp';
 import { useReviewPresence } from './hooks/useReviewPresence';
 import { useViewedFiles } from './hooks/useViewedFiles';
-import { storageService } from './services/StorageService';
 import { useViewport } from './hooks/useViewport';
 import { useHeaderFit } from './hooks/useHeaderFit';
 import { useHideHeaderOnScroll } from './hooks/useHideHeaderOnScroll';
@@ -1730,37 +1729,6 @@ function App() {
       clearViewedFiles();
     }
   }, [diffData?.clearComments, clearViewedFiles]);
-
-  // Earlier versions kept a copy of sent threads, and undo copies, in the browser. The threads in
-  // it that the server lacks are sent once, unless --clean asked for none, and then both go.
-  const migratedRecordsRef = useRef(new Set<string>());
-  useEffect(() => {
-    if (!hasLoadedComments || !storageSelection) return;
-    const record = [
-      storageSelection.baseCommitish,
-      storageSelection.targetCommitish,
-      storageCommit,
-      undefined,
-      diffData?.repositoryId,
-      storageSelection.baseMode,
-    ] as const;
-    const recordKey = JSON.stringify(record);
-    if (migratedRecordsRef.current.has(recordKey)) return;
-    migratedRecordsRef.current.add(recordKey);
-    const kept = storageService.getCommentThreads(...record);
-    if (!diffData?.clearComments)
-      for (const thread of kept)
-        if (!threads.some(({ id }) => id === thread.id)) enqueue({ type: 'thread.add', thread });
-    storageService.removeCommentThreads(...record);
-  }, [
-    hasLoadedComments,
-    storageSelection,
-    storageCommit,
-    diffData?.repositoryId,
-    diffData?.clearComments,
-    threads,
-    enqueue,
-  ]);
 
   const reviewPresence = useReviewPresence();
   const reviewContext = diffData?.reviewContext;

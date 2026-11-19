@@ -13,7 +13,6 @@ import { applyReviewOp } from '../utils/reviewOps';
 
 import App from './App';
 import { MockWebSocket } from './utils/liveConnection.testing';
-import { storageService } from './services/StorageService';
 import { copyTextToClipboard } from './utils/clipboard';
 
 vi.mock('./utils/clipboard', () => ({
@@ -275,13 +274,6 @@ const renderApp = () =>
       <App />
     </HotkeysProvider>,
   );
-// Earlier versions kept sent threads in the storage record of a review.
-function keepLegacyThreads(ref: string, threads: DiffCommentThread[]) {
-  storageService.saveViewedFiles(ref, ref, [], ref, undefined, initialCapture.repositoryId);
-  const key = Object.keys(localStorage).find((item) => item.startsWith('gavel-storage-v1/'))!;
-  const record = JSON.parse(localStorage.getItem(key)!) as object;
-  localStorage.setItem(key, JSON.stringify({ ...record, threads }));
-}
 const opPosts = (reviewName: string) =>
   vi
     .mocked(fetch)
@@ -642,47 +634,6 @@ describe('named captures in the browser', () => {
     );
     expect(drawn).not.toContain(false);
   });
-
-  it.each(['task.a', 'task_2e_a'])(
-    'does not restore ambiguous legacy discussion into %s',
-    async (reviewName) => {
-      keepLegacyThreads('review:task.a', [originalThread]);
-      const legacyKey = Object.keys(localStorage)[0]!;
-      const legacyValue = localStorage.getItem(legacyKey);
-      const state = fixture();
-      state.capture.name = reviewName;
-      window.history.replaceState(null, '', `/?review=${reviewName}`);
-      renderApp();
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: /^(Approve|Approved)$/ })).toBeEnabled(),
-      );
-      expect(
-        opPosts(reviewName).some(([, init]) =>
-          String(init?.body).includes('Original capture discussion'),
-        ),
-      ).toBe(false);
-      expect(localStorage.getItem(legacyKey)).toBe(legacyValue);
-    },
-  );
-
-  it.each(['parser-manual-test', 'commit-01-parser'])(
-    'recovers the existing unambiguous legacy discussion for %s',
-    async (reviewName) => {
-      const ref = `review:${reviewName}`;
-      keepLegacyThreads(ref, [originalThread]);
-      const state = fixture();
-      state.capture.name = reviewName;
-      window.history.replaceState(null, '', `/?review=${reviewName}`);
-      renderApp();
-      await waitFor(() =>
-        expect(
-          opPosts(reviewName).some(([, init]) =>
-            String(init?.body).includes('Original capture discussion'),
-          ),
-        ).toBe(true),
-      );
-    },
-  );
 
   it.each([
     { name: '', status: 400 },

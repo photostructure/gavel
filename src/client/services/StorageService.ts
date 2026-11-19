@@ -1,6 +1,5 @@
 import {
   type BaseMode,
-  type DiffCommentThread,
   type ViewedFileRecord,
   type DiffContextStorage,
   type ViewedHashIndex,
@@ -231,61 +230,6 @@ export class StorageService {
         console.error('Error saving diff context data:', error);
       }
     }
-  }
-
-  /**
-   * Sent threads that versions before the review-op queue kept for a diff context
-   */
-  getCommentThreads(
-    baseCommitish: string,
-    targetCommitish: string,
-    currentCommitHash?: string,
-    branchToHash?: Map<string, string>,
-    repositoryId?: string,
-    baseMode?: BaseMode,
-  ): DiffCommentThread[] {
-    const data = this.getDiffContextData(
-      baseCommitish,
-      targetCommitish,
-      currentCommitHash,
-      branchToHash,
-      repositoryId,
-      baseMode,
-    );
-    return data?.threads ?? [];
-  }
-
-  /**
-   * Remove the sent threads and undo copies that versions before the review-op queue kept
-   */
-  removeCommentThreads(
-    baseCommitish: string,
-    targetCommitish: string,
-    currentCommitHash?: string,
-    branchToHash?: Map<string, string>,
-    repositoryId?: string,
-    baseMode?: BaseMode,
-  ): void {
-    const data = this.getDiffContextData(
-      baseCommitish,
-      targetCommitish,
-      currentCommitHash,
-      branchToHash,
-      repositoryId,
-      baseMode,
-    );
-    if (!data || (data.threads === undefined && data.deletedComments === undefined)) return;
-    delete data.threads;
-    delete data.deletedComments;
-    this.saveDiffContextData(
-      baseCommitish,
-      targetCommitish,
-      data,
-      currentCommitHash,
-      branchToHash,
-      repositoryId,
-      baseMode,
-    );
   }
 
   /**

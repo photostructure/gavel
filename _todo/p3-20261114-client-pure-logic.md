@@ -111,8 +111,7 @@ functions have unit tests in a `*.test.ts` beside the file that holds them, and
    all three of `'.'`, `'working'`, `'staged'`. Lines 60 and 183 test only `'.'` and
    `'working'` and map `'staged'` to a separate `STAGED` key; `isWorkingTreeTarget` there
    would make staged reviews share the working-tree records. Add a test that `staged`
-   and `working` targets give different keys (none exists). Pins: StorageService.test.ts; the key strings at App.reviewOps.test.tsx:74,
-   App.namedReviews.test.tsx:280.
+   and `working` targets give different keys (none exists). Pins: the key strings in StorageService.test.ts.
 6. **NotebookDiffViewer.** First add unit tests for the regex path, pairing by id with
    reorder / add / delete, pairing by index, a whitespace-only change cell, and an
    unparseable blob (the file has two tests today). Then store `beforeText` /

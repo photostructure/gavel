@@ -84,11 +84,7 @@ remove only the ops it confirms.
   threads and undo copies in `StorageService` and `useDiffComments`, and the
   page's direct `PUT`/`DELETE /api/approval` calls. `POST /api/comments` stays for
   agents and imports, JSON only; the server no longer parses `text/plain` bodies.
-- Migration: on load, threads in an old `gavel-storage-v1/…` record that the
-  server lacks become `thread.add` ops once (none when `--clean` emptied that
-  review), and the record's `threads` and `deletedComments` are removed from every
-  record examined, also one with nothing to send. The undo copies are deleted, not
-  migrated. Ops waiting in the queue are sent after a `--clean` launch too.
+- Ops waiting in the queue are sent after a `--clean` launch too.
 
 ## What the browser stores now
 
@@ -96,7 +92,7 @@ remove only the ops it confirms.
   ops the server has not answered, one key each.
 - `localStorage` `gavel-storage-v1/<repo>/<base-target>` (`StorageService`): viewed
   files. Records from earlier versions may also hold `appliedCommentImportIds`,
-  which nothing reads.
+  `threads` and `deletedComments`, which nothing reads or removes.
 - `localStorage` `gavel-viewed-index-v1/<repo>`: viewed-file hash index.
 - `localStorage` agent-reply read marks (`useAgentUpdates`).
 - `localStorage` `gavel:comment-drafts:<scope>` unsent drafts (`useCommentDrafts`),

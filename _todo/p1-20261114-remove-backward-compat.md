@@ -15,7 +15,8 @@ ephemeral, so every compatibility path goes. This plan lists each path found at
 
 ## Current phase
 
-Next: task 1 (in-process compat), one commit per item.
+Next: task 1 (in-process compat), one commit per item. Task 2's thread-copy item is done
+(it ran first, as the arc orders).
 
 - [x] Inventory (below)
 - [ ] In-process compat removed
@@ -156,7 +157,7 @@ Each removal silently drops some of Matthew's existing browser or saved data. Th
 accepted by his 2026-11-14 decision; the effect of each is recorded so it does not
 surprise him.
 
-- **Copy of pre-review-op browser threads into the op queue**: App.tsx:1736-1765,
+- Done: **Copy of pre-review-op browser threads into the op queue**: App.tsx:1736-1765,
   `getCommentThreads` / `removeCommentThreads` (StorageService.ts:235-283), and the
   `threads?` / `deletedComments?` fields of `DiffContextStorage` (types/diff.ts:222-227;
   `DeletedComment` itself stays, `useDiffComments` uses it). Tests: App.reviewOps
@@ -170,8 +171,9 @@ surprise him.
 - **Old `review:<name>` storage key** (`getNamedReviewStorageRef`, App.tsx:167-174).
   Replace with the hex key for every name (keeping only one form avoids the
   `a.b` / `a_2e_b` collision that `generateStorageKey`, StorageService.ts:31-34,
-  creates). Tests: App.namedReviews.test.tsx:612-651 ("does not restore ambiguous legacy
-  discussion into %s", "recovers the existing unambiguous legacy discussion for %s").
+  creates). Tests: the two App.namedReviews tests that pinned this key observed it only
+  through the thread copy and went with it, so no App-level test covers the
+  `named-review:` hex branch until this item adds one.
   Effect, for every existing named review whose name has no `.`: its unsent line,
   reply and edit drafts are no longer shown (the ref feeds `draftScope`,
   App.tsx:274-314, and useCommentDrafts.ts:68-75; they expire from localStorage after 7

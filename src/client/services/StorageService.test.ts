@@ -152,50 +152,6 @@ describe('StorageService - Repository Isolation', () => {
       expect(keys.some((key: string) => key.endsWith('-direct'))).toBe(false);
     });
   });
-
-  it('reads and removes the sent threads earlier versions kept, and keeps viewed files', () => {
-    const thread = {
-      id: 'kept',
-      scope: 'review' as const,
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z',
-      messages: [
-        {
-          id: 'kept',
-          body: 'Sent',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-        },
-      ],
-    };
-    localStorage.setItem(
-      'gavel-storage-v1/repo-1/base-target',
-      JSON.stringify({
-        version: 2,
-        baseCommitish: 'base',
-        targetCommitish: 'target',
-        createdAt: '2024-01-01T00:00:00Z',
-        lastModifiedAt: '2024-01-01T00:00:00Z',
-        threads: [thread],
-        deletedComments: [{ thread, followingIds: [], precedingIds: [] }],
-        viewedFiles: viewed('file.ts'),
-        appliedCommentImportIds: [],
-      }),
-    );
-
-    expect(service.getCommentThreads('base', 'target', undefined, undefined, 'repo-1')).toEqual([
-      thread,
-    ]);
-    service.removeCommentThreads('base', 'target', undefined, undefined, 'repo-1');
-
-    const record = JSON.parse(localStorage.getItem('gavel-storage-v1/repo-1/base-target')!);
-    expect(record).not.toHaveProperty('threads');
-    expect(record).not.toHaveProperty('deletedComments');
-    expect(service.getCommentThreads('base', 'target', undefined, undefined, 'repo-1')).toEqual([]);
-    expect(service.getViewedFiles('base', 'target', undefined, undefined, 'repo-1')).toEqual(
-      viewed('file.ts'),
-    );
-  });
 });
 
 describe('StorageService - Viewed Hash Index', () => {

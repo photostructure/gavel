@@ -9,7 +9,6 @@ import type { ReviewOp, ReviewOpResult } from '../types/reviewOps';
 import { applyReviewOp } from '../utils/reviewOps';
 
 import App from './App';
-import { storageService } from './services/StorageService';
 import { copyTextToClipboard } from './utils/clipboard';
 import { MockWebSocket } from './utils/liveConnection.testing';
 
@@ -70,8 +69,6 @@ vi.mock('./hooks/useFileWatch', async () => {
   };
 });
 
-// The browser's storage record for this review: repository `repo`, main vs feature.
-const STORAGE_KEY = 'gavel-storage-v1/repo/main-feature';
 const QUEUE_PREFIX = 'gavel:review-ops:';
 const time = '2026-11-11T00:00:00.000Z';
 
@@ -97,7 +94,6 @@ function server(initialThreads: DiffCommentThread[] = []) {
     threads: structuredClone(initialThreads),
     version: 1,
     commit: 'abc123',
-    clean: false,
     shipIt: true,
     ledger: new Set<string>(),
     applied: [] as QueuedOp[],
@@ -160,7 +156,6 @@ function server(initialThreads: DiffCommentThread[] = []) {
         requestedTargetCommitish: 'feature',
         files: [{ path: 'a.ts', status: 'modified', additions: 1, deletions: 0, chunks: [] }],
         shipIt: state.shipIt,
-        clearComments: state.clean,
         reviewContext: state.reviewContext,
       } satisfies DiffResponse);
     if (url.pathname === '/api/comments-json') {
@@ -236,12 +231,6 @@ const queued = (): QueuedOp[] =>
     .sort()
     .map((key) => JSON.parse(localStorage.getItem(key) ?? 'null') as QueuedOp);
 
-const savedRecord = () =>
-  JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as {
-    threads?: DiffCommentThread[];
-    deletedComments?: unknown[];
-  };
-
 const notSavedAlert = () =>
   screen.queryAllByRole('alert').find((alert) => alert.textContent.includes('not saved')) ?? null;
 
@@ -276,18 +265,6 @@ const bodiesOf = (threads: DiffCommentThread[]) =>
 
 const queuedBodies = () =>
   queued().map((op) => (op.type === 'thread.add' ? op.thread.messages[0]?.body : op.type));
-
-const legacyRecord = (threads: DiffCommentThread[]) =>
-  JSON.stringify({
-    version: 2,
-    baseCommitish: 'main',
-    targetCommitish: 'feature',
-    createdAt: time,
-    lastModifiedAt: time,
-    threads,
-    viewedFiles: [],
-    appliedCommentImportIds: [],
-  });
 
 function reconnect() {
   act(() => watch.setConnected?.(false));
@@ -672,7 +649,6 @@ describe('comment and verdict changes the server has not confirmed', () => {
     expect(await conversation.findByText('Still on the server')).toBeVisible();
     expect(conversation.queryByText('Deleted in another browser')).not.toBeInTheDocument();
     expect(state.batches).toEqual([]);
-    expect(savedRecord().threads).toBeUndefined();
   });
 
   it('sends a verdict given after a queued comment after that comment', async () => {
@@ -1003,18 +979,6 @@ describe('comment and verdict changes the server has not confirmed', () => {
     expect(requests()).toBe(before);
   });
 
-  it('reads the old browser copy of a review once, not after each comment', async () => {
-    server();
-    const read = vi.spyOn(storageService, 'getCommentThreads');
-    mount();
-    await waitForServerThreads();
-
-    await sendGeneralComment('One');
-    await sendGeneralComment('Two');
-
-    expect(read).toHaveBeenCalledTimes(1);
-  });
-
   it('drops a stale verdict the server rejects and shows its error', async () => {
     const state = server();
     state.staleVerdict = 'Review capture or summary changed; reload before choosing a verdict';
@@ -1132,68 +1096,6 @@ describe('comment and verdict changes the server has not confirmed', () => {
 
     await expectShown('Agent change');
     await expectShown('Mine');
-  });
-
-  it('sends the threads an earlier version kept in the browser once, then removes them', async () => {
-    const state = server([generalThread('server', 'On the server')]);
-    localStorage.setItem(
-      STORAGE_KEY,
-      legacyRecord([
-        generalThread('server', 'On the server'),
-        generalThread('browser-only', 'Only ever reached this browser'),
-      ]),
-    );
-    const first = mount();
-
-    await waitFor(() =>
-      expect(bodiesOf(state.threads)).toEqual(['On the server', 'Only ever reached this browser']),
-    );
-    expect(state.applied.map((op) => op.type === 'thread.add' && op.thread.id)).toEqual([
-      'browser-only',
-    ]);
-    expect(savedRecord().threads).toBeUndefined();
-    expect(queued()).toEqual([]);
-    first.unmount();
-
-    mount();
-    await expectShown('Only ever reached this browser');
-    expect(state.batches).toHaveLength(1);
-  });
-
-  it.each([false, true])(
-    'removes undo copies an earlier version kept with no threads (--clean: %s)',
-    async (clean) => {
-      const state = server();
-      state.clean = clean;
-      const deleted = generalThread('deleted', 'Deleted before the upgrade');
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          ...(JSON.parse(legacyRecord([])) as object),
-          deletedComments: [{ thread: deleted, followingIds: [], precedingIds: [] }],
-        }),
-      );
-
-      mount();
-      await waitForServerThreads();
-
-      await waitFor(() => expect(savedRecord().deletedComments).toBeUndefined());
-      expect(state.batches).toEqual([]);
-    },
-  );
-
-  it('does not send the threads an earlier version kept when started with --clean', async () => {
-    const state = server([generalThread('server', 'On the server')]);
-    state.clean = true;
-    localStorage.setItem(
-      STORAGE_KEY,
-      legacyRecord([generalThread('browser-only', 'Cleared by --clean')]),
-    );
-    mount();
-
-    await expectShown('On the server');
-    expect(state.batches).toEqual([]);
-    expect(savedRecord().threads).toBeUndefined();
   });
 });
 
