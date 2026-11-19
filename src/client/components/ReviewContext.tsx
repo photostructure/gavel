@@ -1,6 +1,8 @@
-import type { ReactNode } from 'react';
+import { Check, Copy } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { ReviewContext as ReviewContextData } from '../../types/diff';
+import { copyTextToClipboard } from '../utils/clipboard';
 
 // A fixed label column, not max-content, so every group's labels and values line up. 11em fits
 // "Uncommitted changes", the longest label, on one line.
@@ -34,6 +36,51 @@ export function Detail({
   );
 }
 
+/** A detail row with a button that copies its value. */
+function CopyableDetail({
+  label,
+  mono = false,
+  value,
+}: {
+  label: string;
+  mono?: boolean;
+  value: string;
+}) {
+  const [isCopied, setIsCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(copyTimer.current), []);
+  const action = isCopied
+    ? `${label} copied`
+    : `Copy ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+  return (
+    <Detail label={label} mono={mono}>
+      {/* A flex row keeps the button beside a value that wraps, not alone on its last line. */}
+      <span className="flex items-start gap-1.5">
+        <span className="min-w-0">{value}</span>
+        <button
+          type="button"
+          onClick={() => {
+            void copyTextToClipboard(value).then(() => {
+              setIsCopied(true);
+              clearTimeout(copyTimer.current);
+              copyTimer.current = setTimeout(() => setIsCopied(false), 2000);
+            });
+          }}
+          title={action}
+          aria-label={action}
+          className="inline-flex shrink-0 rounded p-0.5 text-github-text-secondary transition-colors hover:bg-github-bg-tertiary hover:text-github-text-primary"
+        >
+          {isCopied ? (
+            <Check size={12} aria-hidden="true" />
+          ) : (
+            <Copy size={12} aria-hidden="true" />
+          )}
+        </button>
+      </span>
+    </Detail>
+  );
+}
+
 export function ReviewContext({ context }: { context?: ReviewContextData }) {
   const name = context?.repositoryName || 'Imported diff';
   if (!context) return null;
@@ -41,32 +88,26 @@ export function ReviewContext({ context }: { context?: ReviewContextData }) {
   return (
     <section aria-label="Review context" className="flex min-w-0 flex-col gap-5">
       <DetailGroup title="This review">
-        {context.agent && <Detail label="Agent">{context.agent}</Detail>}
+        {context.agent && <CopyableDetail label="Agent" value={context.agent} />}
         {context.agentSessionName && (
-          <Detail label="Agent session name">{context.agentSessionName}</Detail>
+          <CopyableDetail label="Agent session name" value={context.agentSessionName} />
         )}
         {context.agentSessionId && (
-          <Detail label="Agent session ID" mono>
-            {context.agentSessionId}
-          </Detail>
+          <CopyableDetail label="Agent session ID" mono value={context.agentSessionId} />
         )}
-        {context.source === 'stdin' && <Detail label="Review source">Imported diff</Detail>}
+        {context.source === 'stdin' && (
+          <CopyableDetail label="Review source" value="Imported diff" />
+        )}
         {context.repositoryPath && (
           <>
-            <Detail label="Repository">{name}</Detail>
-            <Detail label="Worktree" mono>
-              {context.repositoryPath}
-            </Detail>
+            <CopyableDetail label="Repository" value={name} />
+            <CopyableDetail label="Worktree" mono value={context.repositoryPath} />
           </>
         )}
       </DetailGroup>
       <DetailGroup title="Server">
-        <Detail label="Server host" mono>
-          {context.hostname}
-        </Detail>
-        <Detail label="Launched from" mono>
-          {context.workingDirectory}
-        </Detail>
+        <CopyableDetail label="Server host" mono value={context.hostname} />
+        <CopyableDetail label="Launched from" mono value={context.workingDirectory} />
       </DetailGroup>
     </section>
   );

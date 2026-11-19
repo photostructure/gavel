@@ -1,8 +1,11 @@
-import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { ReviewContext as ReviewContextData } from '../../types/diff';
+import { copyTextToClipboard } from '../utils/clipboard';
 import { ReviewContext } from './ReviewContext';
+
+vi.mock('../utils/clipboard', () => ({ copyTextToClipboard: vi.fn(async () => {}) }));
 
 const context: ReviewContextData = {
   source: 'git',
@@ -50,6 +53,41 @@ describe('ReviewContext', () => {
     expect(screen.getByText('Add agent session to About')).toBeVisible();
     expect(screen.getByText('Agent session ID')).toBeVisible();
     expect(screen.getByText('823b3140-526b-4b91-82b1-920d0b66d08f')).toBeVisible();
+  });
+
+  it.each([
+    ['Agent', 'Claude Code desktop'],
+    ['Agent session name', 'Add agent session to About'],
+    ['Agent session ID', '823b3140-526b-4b91-82b1-920d0b66d08f'],
+    ['Repository', 'gavel'],
+    ['Worktree', context.repositoryPath],
+    ['Server host', 'review-host'],
+    ['Launched from', context.workingDirectory],
+  ])('copies the %s', async (label, value) => {
+    render(
+      <ReviewContext
+        context={{
+          ...context,
+          agent: 'Claude Code desktop',
+          agentSessionName: 'Add agent session to About',
+          agentSessionId: '823b3140-526b-4b91-82b1-920d0b66d08f',
+        }}
+      />,
+    );
+    const lower = `${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+    fireEvent.click(screen.getByRole('button', { name: `Copy ${lower}` }));
+    expect(copyTextToClipboard).toHaveBeenLastCalledWith(value);
+    expect(await screen.findByRole('button', { name: `${label} copied` })).toBeVisible();
+  });
+
+  it('copies the review source of an imported diff', () => {
+    render(
+      <ReviewContext
+        context={{ source: 'stdin', workingDirectory: '/launcher', hostname: 'host' }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Copy review source' }));
+    expect(copyTextToClipboard).toHaveBeenLastCalledWith('Imported diff');
   });
 
   it('omits agent session rows when the launcher did not supply them', () => {
