@@ -1,6 +1,7 @@
 import { InvalidArgumentError } from 'commander';
 
 import { loadAccessToken } from '../server/access-token.js';
+import { localControlFetch } from '../server/local-control.js';
 import { ACCESS_TOKEN_HEADER } from '../utils/accessToken.js';
 
 export function parseServerPort(value: string): number {
@@ -35,4 +36,19 @@ export function serverFetch(
     ...init,
     headers: { ...init.headers, [ACCESS_TOKEN_HEADER]: accessToken },
   });
+}
+
+/** Discover an instance over HTTP, but send agent ownership only over its local socket. */
+export async function localServerFetch(
+  host: string,
+  port: number,
+  path: string,
+  body: string,
+  signal: AbortSignal,
+): Promise<Response> {
+  const token = loadAccessToken();
+  const discovery = await serverFetch(host, port, '/api/local-control', { signal }, token);
+  if (!discovery.ok) return discovery;
+  const { id } = (await discovery.json()) as { id: string };
+  return localControlFetch(id, path, body, token, signal);
 }

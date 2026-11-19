@@ -2,7 +2,7 @@ import { toCommentThread } from '../utils/commentThreads.js';
 import { spawn } from 'child_process';
 import { createHash, randomUUID, timingSafeEqual } from 'crypto';
 import { type Server } from 'http';
-import type { AddressInfo } from 'net';
+import type { AddressInfo, Socket } from 'net';
 import { hostname } from 'os';
 import { join, dirname, isAbsolute, resolve, sep } from 'path';
 import { fileURLToPath } from 'url';
@@ -68,10 +68,10 @@ import { ReviewPresence } from './review-presence.js';
 import {
   SessionInbox,
   inboxRuntimeDir,
-  isThisHost,
   parseInboxTarget,
   type InboxTarget,
 } from './session-inbox.js';
+import { startLocalControl } from './local-control.js';
 import { emptyReviewSummary, parseReviewSummaryInput } from './review-summary.js';
 import { GitDiffParser } from './git-diff.js';
 import {
@@ -405,6 +405,9 @@ export async function startServer(options: ServerOptions): Promise<{
     options.onEvent?.(event);
   };
   const liveServerId = randomUUID();
+  const localConnections = new WeakSet<Socket>();
+  let localControl: Server | undefined;
+  const isLocalControl = (req: express.Request) => localConnections.has(req.socket);
   const conversation = conversationEnabled
     ? new Conversation(
         (event) => {
@@ -815,8 +818,8 @@ export async function startServer(options: ServerOptions): Promise<{
           'Expected inbox with sessionId, socket, and optional token',
           400,
         );
-      if (owner && !isThisHost(req.socket.remoteAddress))
-        throw new NamedReviewError('Only a process on this machine can name an inbox', 403);
+      if (owner && !isLocalControl(req))
+        throw new NamedReviewError('Inbox targets require the local control socket', 403);
       const capture = validateCapture(input.capture);
       parser.parseStdinDiff(capture.patch);
       const review = createNamedReview(input.name, capture);
@@ -2281,8 +2284,8 @@ export async function startServer(options: ServerOptions): Promise<{
   // gavel pending, run from the owning session's prompt hooks, re-points that session's reviews
   // at its current inbox and collects the activity no message carried.
   app.post('/api/inbox/attach', (req, res) => {
-    if (!isThisHost(req.socket.remoteAddress)) {
-      res.status(403).json({ error: 'Only a process on this machine can name an inbox' });
+    if (!isLocalControl(req)) {
+      res.status(403).json({ error: 'Inbox targets require the local control socket' });
       return;
     }
     const target = parseInboxTarget(req.body);
@@ -2291,6 +2294,14 @@ export async function startServer(options: ServerOptions): Promise<{
       return;
     }
     res.json({ pending: inbox?.attach(target) ?? null });
+  });
+
+  app.get('/api/local-control', (_req, res) => {
+    if (!conversation) {
+      res.status(400).json({ error: 'Named reviews require conversation mode' });
+      return;
+    }
+    res.json({ id: liveServerId });
   });
 
   app.get('/api/inbox', (_req, res) => {
@@ -2465,10 +2476,8 @@ export async function startServer(options: ServerOptions): Promise<{
         reviewerDisconnectTimer = setTimeout(async () => {
           if (presence.snapshot().reviewers.connected > 0) return;
           console.error('Client disconnected, shutting down server...');
-          await inbox?.drain();
-          await fileWatcher.stop();
           outputFinalComments();
-          outputShutdown('client-disconnected');
+          await shutdown('client-disconnected');
           process.stdout.write('', () => process.exit(0));
         }, 100);
       }
@@ -2499,6 +2508,13 @@ export async function startServer(options: ServerOptions): Promise<{
       await fileWatcher.stop();
       outputShutdown(reason);
       for (const live of liveSockets.clients) live.terminate();
+      const control = localControl;
+      if (control) {
+        await new Promise<void>((resolveShutdown) => {
+          control.close(() => resolveShutdown());
+          control.closeAllConnections();
+        });
+      }
       await new Promise<void>((resolveShutdown) => {
         server.close(() => resolveShutdown());
         server.closeAllConnections();
@@ -2517,6 +2533,8 @@ export async function startServer(options: ServerOptions): Promise<{
       .map(({ selection }) => `review "${reviewLabel(selection)}" has no verdict`);
   }
   server.once('close', () => {
+    localControl?.close();
+    localControl?.closeAllConnections();
     flushSaves();
     storeReleased = true;
     storeServer?.release();
@@ -2527,6 +2545,14 @@ export async function startServer(options: ServerOptions): Promise<{
     outputShutdown('closed');
     void fileWatcher.stop();
   });
+  if (conversation) {
+    try {
+      localControl = await startLocalControl(app, liveServerId, localConnections);
+    } catch (error) {
+      await shutdown('closed');
+      throw error;
+    }
+  }
   // Security warning for non-localhost binding
   if (options.host && options.host !== '127.0.0.1' && options.host !== 'localhost') {
     console.warn('\n⚠️  WARNING: Server is accessible from external network!');

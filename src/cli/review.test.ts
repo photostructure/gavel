@@ -18,6 +18,9 @@ import { createReviewCommand, resolveNamedReview, validateReviewName } from './r
 import { findSavedCapture, revertCapture, type RevertResult } from './unapply.js';
 import { detectStdinSource, readStdin } from './utils.js';
 import { loadAccessToken } from '../server/access-token.js';
+import { localControlFetch } from '../server/local-control.js';
+
+vi.mock('../server/local-control.js', () => ({ localControlFetch: vi.fn() }));
 
 vi.mock('../server/review-capture.js', () => ({
   capturePatch: vi.fn(),
@@ -272,8 +275,14 @@ describe('named review CLI', () => {
     const sessionId = '01a1d14e-3f20-7a62-b380-2a1ce396a0d5';
     vi.stubEnv('CODEX_THREAD_ID', sessionId);
     vi.stubEnv('CODEX_HOME', '/home/test/.codex');
+    fetchMock.mockResolvedValue(Response.json({ id: 'local-server' }));
+    vi.mocked(localControlFetch).mockResolvedValue(Response.json({ updated: true }));
     await run('create', 'task-b', '--port', '4983');
-    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { inbox: unknown };
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      'http://localhost:4983/api/local-control',
+      expect.objectContaining({ headers: { 'X-Gavel-Token': loadAccessToken() } }),
+    );
+    const body = JSON.parse(vi.mocked(localControlFetch).mock.calls[0]![2]) as { inbox: unknown };
     expect(body.inbox).toEqual({ kind: 'codex', sessionId, home: '/home/test/.codex' });
   });
 
@@ -281,9 +290,10 @@ describe('named review CLI', () => {
     vi.stubEnv('CLAUDE_CODE_SESSION_ID', 'session-b');
     vi.stubEnv('CLAUDE_CODE_MESSAGING_SOCKET', '/run/user/1000/cc-socks/7.sock');
     vi.stubEnv('CLAUDE_CODE_MESSAGING_TOKEN', 'tok');
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ updated: true })));
+    fetchMock.mockResolvedValue(Response.json({ id: 'local-server' }));
+    vi.mocked(localControlFetch).mockResolvedValue(Response.json({ updated: true }));
     await run('create', 'task-b', '--port', '4983');
-    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { inbox: unknown };
+    const body = JSON.parse(vi.mocked(localControlFetch).mock.calls[0]![2]) as { inbox: unknown };
     expect(body.inbox).toEqual({
       sessionId: 'session-b',
       socket: '/run/user/1000/cc-socks/7.sock',

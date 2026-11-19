@@ -1,6 +1,6 @@
 import { lstatSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { createConnection, isIP } from 'node:net';
-import { networkInterfaces, tmpdir } from 'node:os';
+import { createConnection } from 'node:net';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
 import type { ConversationSnapshot, ConversationStreamEvent } from '../types/conversation.js';
@@ -87,20 +87,6 @@ export function parseInboxTarget(input: unknown): InboxTarget | undefined {
   if (typeof socket !== 'string' || !isAbsolute(socket)) return undefined;
   if (token !== undefined && typeof token !== 'string') return undefined;
   return { sessionId, socket, ...(token ? { token } : {}) };
-}
-
-/**
- * Whether a request came from this machine. An inbox is a local socket, and only a process on
- * this machine can name a session's real one; the server may also listen on a LAN address.
- */
-export function isThisHost(address: string | undefined): boolean {
-  if (!address) return false;
-  const ip = address.startsWith('::ffff:') ? address.slice(7) : address;
-  if (!isIP(ip)) return false;
-  if (ip === '::1' || ip.startsWith('127.')) return true;
-  return Object.values(networkInterfaces()).some((entries) =>
-    entries?.some((entry) => entry.address === ip),
-  );
 }
 
 /**

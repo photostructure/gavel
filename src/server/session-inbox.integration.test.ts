@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
+import { createServer as createHttpServer, request as httpRequest } from 'node:http';
 import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { fetch, startServer } from './test-access-token.js';
+import { fetch, startServer, TEST_ACCESS_TOKEN } from './test-access-token.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationSnapshot } from '../types/conversation.js';
@@ -13,6 +14,7 @@ import type { InboxDelivery } from '../types/presence.js';
 import { DiffMode } from '../types/watch.js';
 
 import { captureWorkingTree } from './review-capture.js';
+import { localControlFetch, localControlPath } from './local-control.js';
 
 describe('pushing review activity to the owning session', () => {
   let root: string;
@@ -54,6 +56,19 @@ describe('pushing review activity to the owning session', () => {
             body: JSON.stringify(body),
           }),
     });
+    expect(response.status).toBe(status);
+    return (await response.json()) as T;
+  }
+
+  async function localCall<T>(path: string, body: unknown, status = 200): Promise<T> {
+    const { id } = await call<{ id: string }>('/api/local-control');
+    const response = await localControlFetch(
+      id,
+      path,
+      JSON.stringify(body),
+      TEST_ACCESS_TOKEN,
+      AbortSignal.timeout(2000),
+    );
     expect(response.status).toBe(status);
     return (await response.json()) as T;
   }
@@ -179,7 +194,7 @@ describe('pushing review activity to the owning session', () => {
         expect(await deliveries()).toEqual([expect.objectContaining({ status: 'failed' })]),
       { timeout: 5000 },
     );
-    const { pending } = await call<{ pending: string | null }>('/api/inbox/attach', {
+    const { pending } = await localCall<{ pending: string | null }>('/api/inbox/attach', {
       sessionId: 'session-a',
       socket: join(runtimeDir, 'restarted.sock'),
     });
@@ -191,7 +206,7 @@ describe('pushing review activity to the owning session', () => {
     ]);
     expect(
       (
-        await call<{ pending: string | null }>('/api/inbox/attach', {
+        await localCall<{ pending: string | null }>('/api/inbox/attach', {
           sessionId: 'session-a',
           socket: join(runtimeDir, 'restarted.sock'),
         })
@@ -212,7 +227,7 @@ describe('pushing review activity to the owning session', () => {
 
     async function createAndApprove(name: string, inbox: unknown, status = 200) {
       const capture = await captureWorkingTree({ cwd: root, pathspecs: ['a.txt'] });
-      const created = await call<{ reviewId?: string }>(
+      const created = await (inbox === null ? call : localCall)<{ reviewId?: string }>(
         '/api/reviews',
         { name, capture, inbox },
         status,
@@ -301,8 +316,87 @@ describe('pushing review activity to the owning session', () => {
 
   it('rejects a malformed attach', async () => {
     await start(join(runtimeDir, 'inbox.sock'));
-    await call('/api/inbox/attach', { sessionId: '../x', socket: '/s' }, 400);
+    await localCall('/api/inbox/attach', { sessionId: '../x', socket: '/s' }, 400);
   });
+
+  it('rejects target assignment through a loopback proxy even with the public control ID', async () => {
+    const socket = join(runtimeDir, 'inbox.sock');
+    await listen(socket);
+    const diff = await start(socket);
+    const { id } = await call<{ id: string }>('/api/local-control');
+    const proxy = createHttpServer((request, response) => {
+      const upstream = httpRequest(
+        new URL(request.url!, running!.url),
+        {
+          method: request.method!,
+          headers: request.headers,
+          agent: false,
+        },
+        (incoming) => {
+          response.writeHead(incoming.statusCode!, incoming.headers);
+          incoming.pipe(response);
+        },
+      );
+      request.pipe(upstream);
+    });
+    await new Promise<void>((resolve) => proxy.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = proxy.address();
+      if (typeof address !== 'object' || !address) throw new Error('Proxy did not listen');
+      const base = `http://127.0.0.1:${address.port}`;
+      const capture = await captureWorkingTree({ cwd: root, pathspecs: ['a.txt'] });
+      const targets = [
+        { sessionId: 'session-b', socket: '/unrelated/inbox.sock' },
+        {
+          kind: 'codex',
+          sessionId: '01a1d14e-3f20-7a62-b380-2a1ce396a0d5',
+          home: '/unrelated/.codex',
+        },
+      ];
+      for (const [index, inbox] of targets.entries()) {
+        const response = await fetch(`${base}/api/reviews`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Gavel-Control': id,
+            'X-Forwarded-For': '127.0.0.1',
+          },
+          body: JSON.stringify({ name: `remote-${index}`, capture, inbox }),
+        });
+        expect(response.status).toBe(403);
+        await call(`/api/reviews/remote-${index}`, undefined, 404);
+      }
+      const attach = await fetch(`${base}/api/inbox/attach`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Gavel-Control': id },
+        body: JSON.stringify({ sessionId: 'session-a', socket: '/unrelated/inbox.sock' }),
+      });
+      expect(attach.status).toBe(403);
+      await approve(diff);
+      await vi.waitFor(() => expect(received).toHaveLength(1), { timeout: 5000 });
+      expect(received[0]).toContain('"session_id":"session-a"');
+    } finally {
+      await new Promise<void>((resolve) => {
+        proxy.close(() => resolve());
+        proxy.closeAllConnections();
+      });
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'closes its local control socket when the HTTP server closes directly',
+    async () => {
+      await start(join(runtimeDir, 'inbox.sock'));
+      const { id } = await call<{ id: string }>('/api/local-control');
+      expect(existsSync(localControlPath(id))).toBe(true);
+      const server = running!.server!;
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      });
+      await vi.waitFor(() => expect(existsSync(localControlPath(id))).toBe(false));
+    },
+  );
 
   it('removes its session registration when it shuts down', async () => {
     await start(join(runtimeDir, 'inbox.sock'));

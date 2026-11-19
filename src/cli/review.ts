@@ -13,7 +13,7 @@ import { inboxTargetFromEnv, type InboxTarget } from '../server/session-inbox.js
 import type { NamedReviewStart, ReviewCapture, ReviewCaptureUpdate } from '../types/review.js';
 import { validateReviewName } from '../utils/review-name.js';
 
-import { serverUrl, serverFetch } from './server-url.js';
+import { serverUrl, serverFetch, localServerFetch } from './server-url.js';
 import { findSavedCapture, revertCapture, type RevertResult } from './unapply.js';
 
 import { detectStdinSource, readStdin } from './utils.js';
@@ -304,16 +304,18 @@ export function createReviewCommand(): Command {
   ).action(async (name: string, patchSource: string | undefined, options: SourceOptions) => {
     try {
       const namedReview = await resolveCommandReview(name, patchSource, options);
-      const response = await serverFetch(options.host, options.port, '/api/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // The review's feedback goes to this session's inbox, or, with null, to no session.
-        body: serializeReviewRequest({
-          ...namedReview,
-          inbox: inboxTargetFromEnv(process.env) ?? null,
-        }),
-        signal: AbortSignal.timeout(30000),
-      });
+      const target = inboxTargetFromEnv(process.env);
+      // The review's feedback goes to this session's inbox, or, with null, to no session.
+      const body = serializeReviewRequest({ ...namedReview, inbox: target ?? null });
+      const signal = AbortSignal.timeout(30000);
+      const response = target
+        ? await localServerFetch(options.host, options.port, '/api/reviews', body, signal)
+        : await serverFetch(options.host, options.port, '/api/reviews', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+            signal,
+          });
       console.log(JSON.stringify(await readResponse(response, namedReview.name)));
     } catch (error) {
       reportError(error, options.port, options.host);

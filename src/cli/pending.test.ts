@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { loadAccessToken } from '../server/access-token.js';
+import type { localServerFetch } from './server-url.js';
 
 import { collectPending } from './pending';
 
@@ -15,7 +15,7 @@ describe('collectPending', () => {
     CLAUDE_CODE_MESSAGING_SOCKET: '/run/user/1000/cc-socks/42.sock',
     CLAUDE_CODE_MESSAGING_TOKEN: 'tok',
   };
-  const fetchMock = vi.fn<typeof fetch>();
+  const fetchMock = vi.fn<typeof localServerFetch>();
 
   function register(port: number, pid: number) {
     const dir = join(runtimeDir, 'gavel', 'sessions', 'session-a');
@@ -35,7 +35,12 @@ describe('collectPending', () => {
   });
 
   it('prints nothing and contacts nothing when this session owns no review', async () => {
-    const result = await collectPending({ env, runtimeDir, fetch: fetchMock, isAlive: () => true });
+    const result = await collectPending({
+      env,
+      runtimeDir,
+      request: fetchMock,
+      isAlive: () => true,
+    });
     expect(result).toEqual({ output: '', errors: [] });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -43,24 +48,28 @@ describe('collectPending', () => {
   it("re-points each server at the session's current inbox and prints undelivered activity", async () => {
     register(4966, 100);
     register(4967, 101);
-    fetchMock.mockImplementation(async (url) =>
+    fetchMock.mockImplementation(async (_host, port) =>
       Response.json({
-        pending: String(url).includes('4966') ? 'gavel: new review activity at 4966' : null,
+        pending: port === 4966 ? 'gavel: new review activity at 4966' : null,
       }),
     );
-    const result = await collectPending({ env, runtimeDir, fetch: fetchMock, isAlive: () => true });
+    const result = await collectPending({
+      env,
+      runtimeDir,
+      request: fetchMock,
+      isAlive: () => true,
+    });
     expect(result).toEqual({ output: 'gavel: new review activity at 4966', errors: [] });
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4966/api/inbox/attach',
-      expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
-        body: JSON.stringify({
-          sessionId: 'session-a',
-          socket: '/run/user/1000/cc-socks/42.sock',
-          token: 'tok',
-        }),
+      'localhost',
+      4966,
+      '/api/inbox/attach',
+      JSON.stringify({
+        sessionId: 'session-a',
+        socket: '/run/user/1000/cc-socks/42.sock',
+        token: 'tok',
       }),
+      expect.any(AbortSignal),
     );
   });
 
@@ -69,7 +78,7 @@ describe('collectPending', () => {
     const result = await collectPending({
       env,
       runtimeDir,
-      fetch: fetchMock,
+      request: fetchMock,
       isAlive: () => false,
     });
     expect(result.output).toBe('');
@@ -80,11 +89,16 @@ describe('collectPending', () => {
   it('reports a live server it cannot reach without failing the others', async () => {
     register(4966, 100);
     register(4967, 101);
-    fetchMock.mockImplementation(async (url) => {
-      if (String(url).includes('4966')) throw new TypeError('fetch failed');
+    fetchMock.mockImplementation(async (_host, port) => {
+      if (port === 4966) throw new TypeError('fetch failed');
       return Response.json({ pending: 'activity at 4967' });
     });
-    const result = await collectPending({ env, runtimeDir, fetch: fetchMock, isAlive: () => true });
+    const result = await collectPending({
+      env,
+      runtimeDir,
+      request: fetchMock,
+      isAlive: () => true,
+    });
     expect(result.output).toBe('activity at 4967');
     expect(result.errors).toEqual([expect.stringContaining('4966.json: fetch failed')]);
   });
@@ -95,7 +109,7 @@ describe('collectPending', () => {
       register(4966, 100);
       chmodSync(join(runtimeDir, 'gavel'), 0o777);
       await expect(
-        collectPending({ env, runtimeDir, fetch: fetchMock, isAlive: () => true }),
+        collectPending({ env, runtimeDir, request: fetchMock, isAlive: () => true }),
       ).rejects.toThrow(/other users cannot write/);
       expect(fetchMock).not.toHaveBeenCalled();
     },
@@ -109,7 +123,12 @@ describe('collectPending', () => {
       rmSync(second, { force: true });
       return Response.json({ pending: 'activity at 4966' });
     });
-    const result = await collectPending({ env, runtimeDir, fetch: fetchMock, isAlive: () => true });
+    const result = await collectPending({
+      env,
+      runtimeDir,
+      request: fetchMock,
+      isAlive: () => true,
+    });
     expect(result).toEqual({ output: 'activity at 4966', errors: [] });
   });
 
@@ -118,7 +137,7 @@ describe('collectPending', () => {
     const result = await collectPending({
       env: {},
       runtimeDir,
-      fetch: fetchMock,
+      request: fetchMock,
       isAlive: () => true,
     });
     expect(result).toEqual({ output: '', errors: [] });

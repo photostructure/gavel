@@ -3,16 +3,14 @@ import { join } from 'node:path';
 
 import { Command } from 'commander';
 
-import { loadAccessToken } from '../server/access-token.js';
 import {
   inboxRuntimeDir,
   inboxTargetFromEnv,
   privateDirectory,
   registryRoot,
 } from '../server/session-inbox.js';
-import { ACCESS_TOKEN_HEADER } from '../utils/accessToken.js';
 
-import { serverUrl } from './server-url.js';
+import { localServerFetch } from './server-url.js';
 import { detectStdinSource, readStdin } from './utils.js';
 
 interface Registration {
@@ -39,7 +37,7 @@ function processAlive(pid: number): boolean {
 export async function collectPending(options: {
   env: NodeJS.ProcessEnv;
   runtimeDir: string;
-  fetch: typeof fetch;
+  request: typeof localServerFetch;
   isAlive: (pid: number) => boolean;
 }): Promise<{ output: string; errors: string[] }> {
   const target = inboxTargetFromEnv(options.env);
@@ -78,13 +76,13 @@ export async function collectPending(options: {
         rmSync(file, { force: true });
         continue;
       }
-      const url = serverUrl(registration.host, registration.port, '/api/inbox/attach');
-      const response = await options.fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', [ACCESS_TOKEN_HEADER]: loadAccessToken() },
-        body: JSON.stringify(target),
-        signal: AbortSignal.timeout(2000),
-      });
+      const response = await options.request(
+        registration.host,
+        registration.port,
+        '/api/inbox/attach',
+        JSON.stringify(target),
+        AbortSignal.timeout(2000),
+      );
       const body = (await response.json()) as { pending?: string | null; error?: string };
       if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
       if (body.pending) outputs.push(body.pending);
@@ -133,7 +131,7 @@ before /clear belong to the old session; paste the page's Copy resume prompt ins
       const { output, errors } = await collectPending({
         env,
         runtimeDir: inboxRuntimeDir(process.env),
-        fetch,
+        request: localServerFetch,
         isAlive: processAlive,
       });
       for (const error of errors) console.error(error);

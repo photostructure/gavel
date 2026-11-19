@@ -45,6 +45,10 @@ Open the proxy's origin with the launch link's query and token fragment: for
 remembers the token for that origin. Agent commands keep talking to localhost on the
 repository machine.
 
+Run agent-owned `gavel review create` and `gavel pending` on the repository machine.
+They assign feedback to an agent session through a local socket. Review access over HTTP,
+including through a loopback proxy, cannot name an agent chat or inbox.
+
 ## Cloudflare Tunnel
 
 Create a [named Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/get-started/)

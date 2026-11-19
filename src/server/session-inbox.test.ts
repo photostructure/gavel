@@ -18,7 +18,6 @@ import {
   SessionInbox,
   inboxRuntimeDir,
   inboxTargetFromEnv,
-  isThisHost,
   parseInboxTarget,
   sendToInbox,
   type InboxTarget,
@@ -685,19 +684,6 @@ describe('parseInboxTarget', () => {
     { sessionId: 'a', socket: '/s', token: 5 },
   ])('rejects %j', (input) => {
     expect(parseInboxTarget(input)).toBeUndefined();
-  });
-});
-
-describe('isThisHost', () => {
-  it('accepts loopback addresses, including IPv4-mapped ones', () => {
-    expect(isThisHost('127.0.0.1')).toBe(true);
-    expect(isThisHost('::1')).toBe(true);
-    expect(isThisHost('::ffff:127.0.0.1')).toBe(true);
-  });
-
-  it('rejects an address no local interface has, and a missing one', () => {
-    expect(isThisHost('203.0.113.7')).toBe(false);
-    expect(isThisHost(undefined)).toBe(false);
   });
 });
 
