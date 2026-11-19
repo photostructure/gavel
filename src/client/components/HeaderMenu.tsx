@@ -22,6 +22,7 @@ export function HeaderMenu({
   title,
   children,
   className = '',
+  panelWidth = 'w-80',
   open: controlledOpen,
   onOpenChange,
 }: {
@@ -29,6 +30,8 @@ export function HeaderMenu({
   title?: string;
   children: ReactNode;
   className?: string;
+  /** Tailwind width class of the open panel. */
+  panelWidth?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -74,7 +77,7 @@ export function HeaderMenu({
             <div
               ref={refs.setFloating}
               style={floatingStyles}
-              className="review-menu z-50 w-80 overflow-y-auto rounded-md border border-github-border bg-github-bg-secondary p-3 text-sm text-github-text-primary shadow-lg"
+              className={`review-menu z-50 ${panelWidth} overflow-y-auto rounded-md border border-github-border bg-github-bg-secondary p-3 text-sm text-github-text-primary shadow-lg`}
               {...getFloatingProps({
                 onClick(event) {
                   if ((event.target as Element).closest('[data-close-menu]')) setOpen(false);

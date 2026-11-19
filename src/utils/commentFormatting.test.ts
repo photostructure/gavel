@@ -169,10 +169,15 @@ Explain why this was removed.
     it('should give the repo, session, and wrong-window check on a thread', () => {
       const result = formatCommentThreadPrompt(
         { ...threads[0]!, isQuestion: true },
-        { reviewTabName: 'task-a', repo: '/src/one', session: 'session-1' },
+        {
+          reviewTabName: 'task-a',
+          repo: '/src/one',
+          session: 'session-1',
+          sessionName: 'Fix the parser',
+        },
       );
       expect(result)
-        .toBe(`<review-thread tab="task-a" repo="/src/one" session="session-1" location="docs/SUMMARY.md:L85 (old)">
+        .toBe(`<review-thread tab="task-a" repo="/src/one" session="session-1" session-name="Fix the parser" location="docs/SUMMARY.md:L85 (old)">
 <ask-if>Not your diff? Ask before continuing</ask-if>
 [QUESTION — answer, don't change code]
 <comment>
@@ -185,9 +190,10 @@ Explain why this was removed.
       const result = formatAllCommentThreadsPrompt(threads, {
         repo: '/src/one',
         session: 'session-1',
+        sessionName: 'Fix the parser',
       });
       expect(
-        result.startsWith(`<review-threads repo="/src/one" session="session-1">
+        result.startsWith(`<review-threads repo="/src/one" session="session-1" session-name="Fix the parser">
 <ask-if>Not your diff? Ask before continuing</ask-if>
 <review-thread location=`),
       ).toBe(true);

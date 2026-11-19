@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { detectAgentSession } from './agent-session';
+import { detectAgentSession, readAgentSessionName } from './agent-session';
 
 const threadId = '01a19e91-1182-7c53-b9af-60faeece2713';
 let codexHome: string;
@@ -126,5 +126,114 @@ describe('detectAgentSession', () => {
 
   it('detects nothing outside an agent', async () => {
     expect(await detectAgentSession({})).toEqual({});
+  });
+});
+
+describe('readAgentSessionName', () => {
+  const claudeSession = 'ce46f41a-af30-4e98-8251-49b0619a32df';
+  let claudeHome: string;
+
+  beforeEach(async () => {
+    claudeHome = await mkdtemp(join(tmpdir(), 'gavel-claude-home-'));
+  });
+
+  afterEach(async () => {
+    await rm(claudeHome, { recursive: true, force: true });
+  });
+
+  /** Writes the transcript under a project directory gavel cannot derive from its own cwd. */
+  async function writeTranscript(...records: object[]): Promise<void> {
+    const directory = join(claudeHome, 'projects', '-home-someone-elsewhere');
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+      join(directory, `${claudeSession}.jsonl`),
+      records.map((record) => `${JSON.stringify(record)}\n`).join(''),
+    );
+  }
+
+  const claudeEnv = () => ({
+    CLAUDE_CODE_SESSION_ID: claudeSession,
+    CLAUDE_CONFIG_DIR: claudeHome,
+  });
+
+  it('reads the newest custom title of a Claude Code session, over any automatic title', async () => {
+    await writeTranscript(
+      { type: 'ai-title', aiTitle: 'automatic one' },
+      { type: 'custom-title', customTitle: 'first name' },
+      { type: 'user', message: { content: 'the word "custom-title" in a prompt' } },
+      { type: 'ai-title', aiTitle: 'automatic two' },
+      { type: 'custom-title', customTitle: 'renamed' },
+    );
+    expect(await readAgentSessionName(claudeEnv())).toBe('renamed');
+  });
+
+  it('falls back to the newest automatic title of a Claude Code session', async () => {
+    await writeTranscript(
+      { type: 'ai-title', aiTitle: 'automatic one' },
+      { type: 'ai-title', aiTitle: 'automatic two' },
+    );
+    expect(await readAgentSessionName(claudeEnv())).toBe('automatic two');
+  });
+
+  it('reads a rename made after an earlier read', async () => {
+    await writeTranscript({ type: 'custom-title', customTitle: 'first name' });
+    expect(await readAgentSessionName(claudeEnv())).toBe('first name');
+    await writeTranscript(
+      { type: 'custom-title', customTitle: 'first name' },
+      { type: 'custom-title', customTitle: 'renamed' },
+    );
+    expect(await readAgentSessionName(claudeEnv())).toBe('renamed');
+  });
+
+  it('has no name for an untitled Claude Code session', async () => {
+    await writeTranscript({ type: 'user', message: { content: 'hello' } });
+    expect(await readAgentSessionName(claudeEnv())).toBeUndefined();
+  });
+
+  it('has no name for a Claude Code session without a transcript', async () => {
+    expect(await readAgentSessionName(claudeEnv())).toBeUndefined();
+    await mkdir(join(claudeHome, 'projects', '-home-someone'), { recursive: true });
+    expect(await readAgentSessionName(claudeEnv())).toBeUndefined();
+  });
+
+  it('reads the newest thread name of a Codex thread from the session index', async () => {
+    await writeFile(
+      join(codexHome, 'session_index.jsonl'),
+      [
+        { id: threadId, thread_name: 'first name', updated_at: '2026-11-02T15:21:10Z' },
+        { id: 'another-thread', thread_name: 'not this one', updated_at: '2026-11-02T15:22:10Z' },
+        { id: threadId, thread_name: 'renamed', updated_at: '2026-11-02T15:23:10Z' },
+      ]
+        .map((record) => `${JSON.stringify(record)}\n`)
+        .join(''),
+    );
+    expect(await readAgentSessionName({ CODEX_THREAD_ID: threadId, CODEX_HOME: codexHome })).toBe(
+      'renamed',
+    );
+  });
+
+  it('has no name for a Codex thread missing from the session index', async () => {
+    expect(
+      await readAgentSessionName({ CODEX_THREAD_ID: threadId, CODEX_HOME: codexHome }),
+    ).toBeUndefined();
+  });
+
+  it('prefers the Claude Code session when both hosts exported their variables', async () => {
+    await writeTranscript({ type: 'custom-title', customTitle: 'claude name' });
+    await writeFile(
+      join(codexHome, 'session_index.jsonl'),
+      `${JSON.stringify({ id: threadId, thread_name: 'codex name' })}\n`,
+    );
+    expect(
+      await readAgentSessionName({
+        ...claudeEnv(),
+        CODEX_THREAD_ID: threadId,
+        CODEX_HOME: codexHome,
+      }),
+    ).toBe('claude name');
+  });
+
+  it('has no name outside Claude Code and Codex', async () => {
+    expect(await readAgentSessionName({ AI_AGENT: 'github-copilot' })).toBeUndefined();
   });
 });

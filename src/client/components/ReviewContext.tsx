@@ -37,7 +37,7 @@ export function Detail({
 }
 
 /** A detail row with a button that copies its value. */
-function CopyableDetail({
+export function CopyableDetail({
   label,
   mono = false,
   value,

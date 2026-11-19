@@ -7,6 +7,7 @@ import { copyTextToClipboard } from '../utils/clipboard';
 import { buildResumePrompt } from '../utils/resumePrompt';
 
 import { HeaderMenu } from './HeaderMenu';
+import { CopyableDetail } from './ReviewContext';
 
 import './agent-delivery.css';
 
@@ -281,6 +282,8 @@ function DeliveryControl({
       : `${report.label}. ${report.detail}`;
   return (
     <HeaderMenu
+      // Wide enough for a session ID on one line beside its label.
+      panelWidth="w-[28rem]"
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
@@ -299,6 +302,16 @@ function DeliveryControl({
     >
       <p className="font-medium">{label}</p>
       <p className="mt-1 text-xs text-github-text-secondary">{status}</p>
+      {(review?.agentSessionName || review?.agentSessionId) && (
+        <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+          {review.agentSessionName && (
+            <CopyableDetail label="Session name" value={review.agentSessionName} />
+          )}
+          {review.agentSessionId && (
+            <CopyableDetail label="Session ID" mono value={review.agentSessionId} />
+          )}
+        </dl>
+      )}
       <div className="mt-3">
         <CopyResumePrompt review={review} replaced={replaced} />
       </div>

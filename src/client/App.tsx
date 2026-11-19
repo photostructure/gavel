@@ -1305,6 +1305,7 @@ function App() {
     () => ({
       repo: diffData?.reviewContext?.repositoryPath ?? diffData?.reviewContext?.workingDirectory,
       session: diffData?.reviewContext?.agentSessionId,
+      sessionName: diffData?.reviewContext?.agentSessionName,
     }),
     [diffData?.reviewContext],
   );

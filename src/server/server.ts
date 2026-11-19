@@ -133,7 +133,8 @@ export interface ServerOptions {
   contextLines?: number;
   title?: string;
   agent?: string;
-  agentSessionName?: string;
+  /** Reads the launching session's current name, which can change while the server runs. */
+  readAgentSessionName?: () => Promise<string | undefined>;
   agentSessionId?: string;
   /** The launching Claude Code session's inbox: human review activity is sent there. */
   inbox?: InboxTarget;
@@ -389,9 +390,12 @@ export async function startServer(options: ServerOptions): Promise<{
     workingDirectory: process.cwd(),
     hostname: hostname(),
     ...(options.agent ? { agent: options.agent } : {}),
-    ...(options.agentSessionName ? { agentSessionName: options.agentSessionName } : {}),
     ...(options.agentSessionId ? { agentSessionId: options.agentSessionId } : {}),
   };
+  async function currentReviewContext(): Promise<ReviewContext> {
+    const agentSessionName = await options.readAgentSessionName?.();
+    return agentSessionName ? { ...reviewContext, agentSessionName } : reviewContext;
+  }
   const fileWatcher = new FileWatcherService();
   const presence = new ReviewPresence();
   let closing = false;
@@ -1100,7 +1104,7 @@ export async function startServer(options: ServerOptions): Promise<{
         : {}),
       shipIt: options.shipIt,
       repositoryId,
-      reviewContext,
+      reviewContext: await currentReviewContext(),
       title: options.title,
       commentImports: shouldIncludeCommentImports ? initialCommentImports : undefined,
       commentImportId: shouldIncludeCommentImports ? commentImportId : undefined,
@@ -2587,6 +2591,7 @@ export async function startServer(options: ServerOptions): Promise<{
     }
   }
 
+  const readyReviewContext = await currentReviewContext();
   // Install caller-owned lifecycle handling only after slow startup, before readiness
   // becomes observable. The CLI retains default signal cancellation during startup.
   options.onReady?.({ shutdown, port, whyNotDone });
@@ -2597,7 +2602,7 @@ export async function startServer(options: ServerOptions): Promise<{
       url,
       launchUrl,
       pid: process.pid,
-      reviewContext,
+      reviewContext: readyReviewContext,
       selection: { ...launchReview.selection },
       reviewId: launchReview.id,
       ...(launchReview.capture ? { capture: launchReview.capture } : {}),

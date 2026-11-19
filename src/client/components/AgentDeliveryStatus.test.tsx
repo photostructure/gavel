@@ -236,6 +236,32 @@ for (const [name, Component] of [
       expect(prompt).toContain('comment snapshot');
     });
 
+    it('names the agent session its resume prompt is for in its menu, each value copyable', () => {
+      render(
+        <Component
+          delivery={{ status: 'ready' }}
+          server="reachable"
+          onReconnect={onReconnect}
+          review={{
+            source: 'git',
+            workingDirectory: '/src/repo',
+            hostname: 'host',
+            agentSessionName: 'TPP todo prioritization',
+            agentSessionId: 's-1',
+          }}
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Agent available' }));
+      expect(screen.getByText('Session name')).toBeInTheDocument();
+      expect(screen.getByText('TPP todo prioritization')).toBeInTheDocument();
+      expect(screen.getByText('Session ID')).toBeInTheDocument();
+      expect(screen.getByText('s-1')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Copy session name' }));
+      expect(copyTextToClipboard).toHaveBeenLastCalledWith('TPP todo prioritization');
+      fireEvent.click(screen.getByRole('button', { name: 'Copy session ID' }));
+      expect(copyTextToClipboard).toHaveBeenLastCalledWith('s-1');
+    });
+
     it('says in its menu that it is reconnecting', () => {
       render(
         <Component

@@ -516,21 +516,45 @@ describe('actual CLI launch protocol', () => {
       label: 'an environment default with an --agent override',
       args: ['HEAD', '--agent', 'Codex desktop'],
       environment: claudeEnvironment,
-      expected: { agent: 'Codex desktop', agentSessionId: 'environment-session' },
+      expected: {
+        agent: 'Codex desktop',
+        agentSessionName: 'Title from the transcript',
+        agentSessionId: 'environment-session',
+      },
     },
     {
       label: 'environment defaults alone',
       args: ['HEAD'],
       environment: claudeEnvironment,
-      expected: { agent: 'Claude Code terminal', agentSessionId: 'environment-session' },
+      expected: {
+        agent: 'Claude Code terminal',
+        agentSessionName: 'Title from the transcript',
+        agentSessionId: 'environment-session',
+      },
+    },
+    {
+      label: 'an --agent-session-id override, whose name the environment does not know',
+      args: ['HEAD', '--agent-session-id', 'session-1234'],
+      environment: claudeEnvironment,
+      expected: {
+        agent: 'Claude Code terminal',
+        agentSessionId: 'session-1234',
+      },
     },
   ])(
     'reports the launching agent session for $label',
     async ({ args, environment, expected }) => {
+      const claudeConfig = join(directory, 'claude-config');
+      const transcripts = join(claudeConfig, 'projects', '-elsewhere');
+      await mkdir(transcripts, { recursive: true });
+      await writeFile(
+        join(transcripts, 'environment-session.jsonl'),
+        `${JSON.stringify({ type: 'custom-title', customTitle: 'Title from the transcript' })}\n`,
+      );
       const fixture = launch(
         [...args, '--background', '--host', '127.0.0.1', '--port', '0', '--no-open'],
         undefined,
-        environment,
+        { ...environment, CLAUDE_CONFIG_DIR: claudeConfig },
       );
       let background: BackgroundServerInfo | undefined;
       try {
@@ -541,6 +565,7 @@ describe('actual CLI launch protocol', () => {
         const response = await fetchLaunched('/api/diff', background!.url);
         const diff = (await response.json()) as DiffResponse;
         expect(diff.reviewContext).toMatchObject(expected);
+        expect(diff.reviewContext?.agentSessionName).toBe(expected.agentSessionName);
       } finally {
         if (background) process.kill(background.pid, 'SIGKILL');
         await stop(fixture.child);

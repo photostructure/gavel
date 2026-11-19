@@ -1265,7 +1265,7 @@ describe('Server Integration Tests', () => {
         selection: { targetCommitish: 'HEAD', baseCommitish: 'HEAD^' },
         preferredPort: 9096,
         agent: 'Claude Code desktop',
-        agentSessionName: 'Add agent session to About',
+        readAgentSessionName: () => Promise.resolve('Add agent session to About'),
         agentSessionId: '823b3140-526b-4b91-82b1-920d0b66d08f',
       });
       servers.push(result.server);
@@ -1276,6 +1276,26 @@ describe('Server Integration Tests', () => {
         agentSessionName: 'Add agent session to About',
         agentSessionId: '823b3140-526b-4b91-82b1-920d0b66d08f',
       });
+    });
+
+    it('names the agent session as it is called when the page loads', async () => {
+      let sessionName: string | undefined;
+      const result = await startServer({
+        selection: { targetCommitish: 'HEAD', baseCommitish: 'HEAD^' },
+        preferredPort: 9097,
+        agentSessionId: '823b3140-526b-4b91-82b1-920d0b66d08f',
+        readAgentSessionName: () => Promise.resolve(sessionName),
+      });
+      servers.push(result.server);
+      const contextNow = async () =>
+        (
+          (await (
+            await fetch(`http://localhost:${result.port}/api/diff`)
+          ).json()) as import('../types/diff.js').DiffResponse
+        ).reviewContext;
+      expect(await contextNow()).not.toHaveProperty('agentSessionName');
+      sessionName = 'renamed after launch';
+      expect(await contextNow()).toMatchObject({ agentSessionName: 'renamed after launch' });
     });
 
     it('GET /api/diff includes the custom title when --title is set', async () => {

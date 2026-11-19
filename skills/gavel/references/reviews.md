@@ -75,8 +75,10 @@ patch advances the version and moves Approve to it.
 
 **About** identifies the launching agent/session from the environment and, for
 Codex, its rollout. Override wrong or missing values with `--agent` and
-`--agent-session-id`. Set `--agent-session-name` only when known. Reused servers
-retain the launching session's identity.
+`--agent-session-id`. The session name comes from the Claude Code transcript or
+the Codex session index, read again on each page load so renames show; pass
+`--agent-session-name` only to replace it. Reused servers retain the launching
+session's identity.
 
 ## Rename, delete, or reopen a review
 

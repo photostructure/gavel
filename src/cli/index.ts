@@ -22,7 +22,7 @@ import {
   readStdin,
 } from './utils.js';
 import { inboxTargetFromEnv } from '../server/session-inbox.js';
-import { detectAgentSession } from './agent-session.js';
+import { detectAgentSession, readAgentSessionName } from './agent-session.js';
 import { createCommentCommand } from './comment.js';
 import { createApprovalCommand } from './approval.js';
 import { createIdleCommand } from './idle.js';
@@ -191,7 +191,10 @@ program
     '--agent <name>',
     'agent host that launched this review (default: from $CLAUDE_CODE_ENTRYPOINT, the originator in the Codex thread rollout, or $AI_AGENT)',
   )
-  .option('--agent-session-name <name>', 'name of the agent session that launched this review')
+  .option(
+    '--agent-session-name <name>',
+    'name of the agent session that launched this review (default: the Claude Code session title or Codex thread name, read again on each page load)',
+  )
   .option(
     '--agent-session-id <id>',
     'ID of the agent session that launched this review (default: $CLAUDE_CODE_SESSION_ID or $CODEX_THREAD_ID)',
@@ -326,6 +329,14 @@ Editor configuration (set before starting gavel):
       const detectedAgent = await detectAgentSession(process.env);
       options.agent ??= detectedAgent.agent;
       options.agentSessionId ??= detectedAgent.agentSessionId;
+      const { agentSessionName } = options;
+      // The environment names the detected session, not one --agent-session-id substitutes.
+      const readSessionName =
+        agentSessionName !== undefined
+          ? () => Promise.resolve(agentSessionName)
+          : options.agentSessionId === detectedAgent.agentSessionId
+            ? () => readAgentSessionName(process.env)
+            : undefined;
       // A detached --background server inherits this environment and still reaches the session.
       const inbox = inboxTargetFromEnv(process.env);
 
@@ -380,7 +391,7 @@ Editor configuration (set before starting gavel):
           namedReview,
           title: options.title,
           agent: options.agent,
-          agentSessionName: options.agentSessionName,
+          readAgentSessionName: readSessionName,
           agentSessionId: options.agentSessionId,
           ...(inbox ? { inbox } : {}),
           repoPath: namedReview.capture.repositoryRoot,
@@ -434,7 +445,7 @@ Editor configuration (set before starting gavel):
           keepAlive: options.keepAlive,
           title: options.title,
           agent: options.agent,
-          agentSessionName: options.agentSessionName,
+          readAgentSessionName: readSessionName,
           agentSessionId: options.agentSessionId,
           ...(inbox ? { inbox } : {}),
           ...(commentImports.length > 0 ? { commentImports } : {}),
@@ -509,7 +520,7 @@ Editor configuration (set before starting gavel):
         repoPath,
         title: options.title,
         agent: options.agent,
-        agentSessionName: options.agentSessionName,
+        readAgentSessionName: readSessionName,
         agentSessionId: options.agentSessionId,
         ...(inbox ? { inbox } : {}),
         ...(commentImports.length > 0 ? { commentImports } : {}),

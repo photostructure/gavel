@@ -9,6 +9,7 @@ function getLineInfo(line: number | number[]): string {
 interface CommentPromptOrigin {
   repo?: string;
   session?: string;
+  sessionName?: string;
 }
 
 export interface CommentThreadPromptContext extends CommentPromptOrigin {
@@ -164,6 +165,7 @@ export function formatCommentThreadPrompt(
       tab: context.reviewTabName,
       repo: context.repo,
       session: context.session,
+      'session-name': context.sessionName,
       location:
         thread.scope === 'review'
           ? 'Review conversation'
@@ -187,6 +189,7 @@ export function formatAllCommentThreadsPrompt(
     formatOpenTag('review-threads', {
       repo: context.repo,
       session: context.session,
+      'session-name': context.sessionName,
       diff: formatDiffContextRange(context),
     }),
     ...formatWrongWindowCheck(context),
