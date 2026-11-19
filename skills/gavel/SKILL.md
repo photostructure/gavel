@@ -103,7 +103,7 @@ build throughout; report missing capabilities. The unscoped `gavel` package is
 an unrelated HTTP validator; `difit` is upstream's viewer.
 
 Before a review you initiate, run `<gavel-command> idle` once. A nonzero exit or
-`idleMs >= 600000` means do not launch: finish tests and independent review,
+`idleMs >= 3600000` (one hour) means do not launch: finish tests and independent review,
 report readiness, and end the turn. Do not poll. Skip this check when the latest
 user message explicitly requests review.
 

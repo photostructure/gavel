@@ -52,7 +52,7 @@ Use separate servers for Codex and Claude Code. Never add either host's reviews
 to the other's server: final-verdict handoff follows the launching host.
 
 Before a review you initiate, run `<launcher> idle` once. A nonzero exit or
-`idleMs >= 600000` means the user is away: do not launch. Finish everything else,
+`idleMs >= 3600000` (one hour) means the user is away: do not launch. Finish everything else,
 including tests and second-opinion review, report that the change is ready for gavel, and end the turn. Launch when the user
 asks; do not poll `idle`. Skip this check when the latest user message requests
 review, since they may be reading on another device.
