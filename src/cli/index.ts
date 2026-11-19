@@ -6,7 +6,7 @@ import { type SimpleGit } from 'simple-git';
 import pkg from '../../package.json' with { type: 'json' };
 import { createGitClient } from '../server/git-client.js';
 import { loadAccessToken } from '../server/access-token.js';
-import { startServer, type ServerOptions } from '../server/server.js';
+import { listenHost, startServer, type ServerOptions } from '../server/server.js';
 import { type CommentImport, type DiffSelection } from '../types/diff.js';
 import { createDiffSelection } from '../utils/diffSelection.js';
 import { DiffMode } from '../types/watch.js';
@@ -139,7 +139,7 @@ program
     'Optional: Compare with this commit/branch (shows diff between commit-ish and compare-with)',
   )
   .option('--port <port>', 'preferred port (auto-assigned if occupied)', parseInt)
-  .option('--host <host>', 'host address to bind', '')
+  .option('--host <host>', 'host address to bind (default: 127.0.0.1; localhost means 127.0.0.1)')
   .option('--no-open', 'do not automatically open browser')
   .option(
     '--comment <json>',
@@ -228,7 +228,7 @@ Editor configuration (set before starting gavel):
         registerShutdownHandlers(
           server,
           !options.jsonl && !backgroundMode,
-          options.host || 'localhost',
+          listenHost(options.host),
           accessToken,
         );
       if (options.review !== undefined && !options.conversation) {

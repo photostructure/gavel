@@ -260,7 +260,7 @@ describe('named review CLI', () => {
     await run('create', 'task-b', '--port', '4983');
     // null: without an inbox of its own, the review must not go to the launching session.
     expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
-      'http://localhost:4983/api/reviews',
+      'http://127.0.0.1:4983/api/reviews',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
@@ -279,7 +279,7 @@ describe('named review CLI', () => {
     vi.mocked(localControlFetch).mockResolvedValue(Response.json({ updated: true }));
     await run('create', 'task-b', '--port', '4983');
     expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
-      'http://localhost:4983/api/local-control',
+      'http://127.0.0.1:4983/api/local-control',
       expect.objectContaining({ headers: { 'X-Gavel-Token': loadAccessToken() } }),
     );
     const body = JSON.parse(vi.mocked(localControlFetch).mock.calls[0]![2]) as { inbox: unknown };
@@ -339,7 +339,7 @@ describe('named review CLI', () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify(result)));
     await run('delete', 'task', '--port', '4983');
     expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
-      'http://localhost:4983/api/reviews/task',
+      'http://127.0.0.1:4983/api/reviews/task',
       expect.objectContaining({ method: 'DELETE' }),
     );
     expect(log).toHaveBeenCalledExactlyOnceWith(JSON.stringify(result));
@@ -391,7 +391,7 @@ describe('named review CLI', () => {
       includeUntracked: true,
     });
     expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
-      'http://localhost:4983/api/reviews/task/capture',
+      'http://127.0.0.1:4983/api/reviews/task/capture',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
@@ -638,7 +638,7 @@ describe('named review CLI', () => {
     fetchMock.mockRejectedValue(new TypeError('fetch failed'));
     await run('update', 'task', '--port', '4983', '--expected-version', '1');
     expect(error).toHaveBeenCalledWith(
-      'Error: Cannot connect to gavel server at http://localhost:4983/. Check --host and --port.',
+      'Error: Cannot connect to gavel server at http://127.0.0.1:4983/. Check --host and --port.',
     );
     expect(process.exitCode).toBe(1);
   });

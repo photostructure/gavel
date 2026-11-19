@@ -151,7 +151,7 @@ describe('conversation commands', () => {
       JSON.stringify(status),
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4966/api/conversation/status',
+      'http://127.0.0.1:4966/api/conversation/status',
       expect.objectContaining({ method: 'POST', body: JSON.stringify(status) }),
     );
     expect(log).toHaveBeenCalledWith('{"success":true}');
@@ -171,7 +171,7 @@ describe('conversation commands', () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true })));
     await createCommentCommand().parseAsync(['node', 'gavel', 'status', '--port', '4966']);
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4966/api/conversation/status',
+      'http://127.0.0.1:4966/api/conversation/status',
       expect.objectContaining({ method: 'POST', body: JSON.stringify(status) }),
     );
     expect(error).not.toHaveBeenCalled();
@@ -189,7 +189,7 @@ describe('conversation commands', () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...input, version: 4 })));
     await createCommentCommand().parseAsync(['node', 'gavel', 'summary', '--port', '4966']);
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4966/api/conversation/summary',
+      'http://127.0.0.1:4966/api/conversation/summary',
       expect.objectContaining({ method: 'POST', body: JSON.stringify(input) }),
     );
     expect(error).not.toHaveBeenCalled();
@@ -200,7 +200,7 @@ describe('conversation commands', () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify(snapshot)));
     await createCommentCommand().parseAsync(['node', 'gavel', 'snapshot', '--port', '4966']);
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4966/api/conversation/snapshot',
+      'http://127.0.0.1:4966/api/conversation/snapshot',
       expect.anything(),
     );
     expect(log).toHaveBeenCalledWith(JSON.stringify(snapshot));
@@ -292,7 +292,7 @@ describe('conversation commands', () => {
       ]);
       expect(log).not.toHaveBeenCalled();
       expect(error).toHaveBeenCalledWith(
-        'Error: No review with the name, label, or ID "parser" on the gavel server at http://localhost:4966/',
+        'Error: No review with the name, label, or ID "parser" on the gavel server at http://127.0.0.1:4966/',
       );
       expect(process.exitCode).toBe(1);
     });
@@ -316,7 +316,7 @@ describe('conversation commands', () => {
       JSON.stringify(reply),
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4966/api/conversation/reply',
+      'http://127.0.0.1:4966/api/conversation/reply',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
@@ -364,7 +364,7 @@ describe('conversation commands', () => {
         ...(command === 'snapshot' ? [] : ['{}']),
       ]);
       expect(error).toHaveBeenCalledWith(
-        'Error: Cannot connect to gavel server at http://localhost:4966/. Check --host and --port.',
+        'Error: Cannot connect to gavel server at http://127.0.0.1:4966/. Check --host and --port.',
       );
       expect(process.exitCode).toBe(1);
     },
@@ -383,7 +383,7 @@ describe('conversation commands', () => {
     await createCommentCommand().parseAsync(['node', 'gavel', 'reply', '--port', '4966']);
     expect(readStdin).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4966/api/conversation/reply',
+      'http://127.0.0.1:4966/api/conversation/reply',
       expect.objectContaining({ body: JSON.stringify(reply) }),
     );
   });

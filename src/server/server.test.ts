@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { promises as fs, mkdtempSync, rmSync } from 'fs';
-import { connect, createServer } from 'node:net';
+import { connect, createServer, type AddressInfo } from 'node:net';
 import { hostname, tmpdir } from 'os';
 import { join, resolve } from 'path';
 import express from 'express';
@@ -695,7 +695,7 @@ describe('Server Integration Tests', () => {
         holder.once('error', (error: NodeJS.ErrnoException) =>
           error.code === 'EADDRINUSE' ? resolveHolder(undefined) : reject(error),
         );
-        holder.listen(port, 'localhost', () => resolveHolder(holder as unknown as Server));
+        holder.listen(port, '127.0.0.1', () => resolveHolder(holder as unknown as Server));
       });
 
     // A page keeps its unsent changes and drafts per address, so a server restarted for the same
@@ -1012,8 +1012,23 @@ describe('Server Integration Tests', () => {
       servers.push(result.server); // Track for cleanup
 
       expect(result.port).toBeGreaterThanOrEqual(preferredPort);
-      expect(result.url).toContain('http://localhost:');
+      expect(result.url).toBe(`http://127.0.0.1:${result.port}`);
+      expect((result.server!.address() as AddressInfo).address).toBe('127.0.0.1');
       expect(result.isEmpty).toBe(false);
+    });
+
+    // Chrome tries ::1 first for localhost, where another local process could listen.
+    it('listens on and links to 127.0.0.1 when asked for localhost', async () => {
+      const result = await startServer({
+        selection: { targetCommitish: 'HEAD', baseCommitish: 'HEAD^' },
+        host: 'localhost',
+        preferredPort: 9015,
+      });
+      servers.push(result.server);
+
+      expect((result.server!.address() as AddressInfo).address).toBe('127.0.0.1');
+      expect(result.url).toBe(`http://127.0.0.1:${result.port}`);
+      expect(new URL(result.launchUrl).host).toBe(`127.0.0.1:${result.port}`);
     });
 
     it('falls back to next port when preferred is occupied', async () => {
@@ -1036,7 +1051,7 @@ describe('Server Integration Tests', () => {
 
       expect(firstServer.port).toBeGreaterThanOrEqual(preferredPort);
       expect(secondServer.port).toBe(firstServer.port + 1);
-      expect(secondServer.url).toBe(`http://localhost:${secondServer.port}`);
+      expect(secondServer.url).toBe(`http://127.0.0.1:${secondServer.port}`);
     });
 
     it('binds to specified host', async () => {
@@ -1047,7 +1062,8 @@ describe('Server Integration Tests', () => {
       });
       servers.push(result.server);
 
-      expect(result.url).toContain('http://localhost:'); // Display host conversion
+      expect((result.server!.address() as AddressInfo).address).toBe('0.0.0.0');
+      expect(result.url).toBe(`http://127.0.0.1:${result.port}`);
     });
 
     it('passes context lines to the initial diff load', async () => {

@@ -148,7 +148,7 @@ describe('pushing review activity to the owning session', () => {
           'gavel',
           'sessions',
           'session-a',
-          `localhost_${new URL(running!.url).port}.json`,
+          `127.0.0.1_${new URL(running!.url).port}.json`,
         ),
       ),
     ).toBe(true);
@@ -405,7 +405,7 @@ describe('pushing review activity to the owning session', () => {
       'gavel',
       'sessions',
       'session-a',
-      `localhost_${new URL(running!.url).port}.json`,
+      `127.0.0.1_${new URL(running!.url).port}.json`,
     );
     expect(existsSync(file)).toBe(true);
     await running!.shutdown('closed');

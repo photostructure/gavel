@@ -10,7 +10,7 @@ set -euo pipefail
 PROJECT_ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 # This checkout's build. An array, so `timeout` can run it.
 GAVEL=(node "$PROJECT_ROOT/dist/cli/index.js")
-HOST=localhost
+HOST=127.0.0.1
 while [ $# -gt 0 ]; do
   case "$1" in
     --host) HOST=$2; shift 2 ;;

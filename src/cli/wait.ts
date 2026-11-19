@@ -170,7 +170,7 @@ export function createWaitCommand(): Command {
     .description(
       'Wait silently for human review activity on one or more servers, then print one JSON batch',
     )
-    .option('--host <host>', 'server hostname or IP address', 'localhost')
+    .option('--host <host>', 'server hostname or IP address', '127.0.0.1')
     .requiredOption('--port <port>', 'API port to wait on; repeat for several servers', collectPort)
     .option(
       '--after <cursor>',

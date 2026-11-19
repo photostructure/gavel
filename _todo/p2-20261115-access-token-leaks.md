@@ -6,8 +6,8 @@ section: Access token
 
 # Reduce accidental disclosure of the per-user access token
 
-Implementation not started. The accepted local-workstation limitations are documented in
-`docs/remote-review.md`.
+Fix 1 is done; fixes 2 and 3 remain. The accepted local-workstation limitations are documented
+in `docs/remote-review.md`.
 
 One token in `~/.gavel/access-token` opens every gavel server the user runs and never rotates,
 so a leaked token exposes all of them until that file is deleted and every running server is
@@ -24,7 +24,7 @@ disclosure through copied review URLs and links in untrusted review content rema
 
 ## Planned fixes
 
-1. Another local user can listen on `[::1]:<port>` and capture the launch link. Without
+1. Done: another local user can listen on `[::1]:<port>` and capture the launch link. Without
    `--host`, `listen(port, 'localhost')` binds only `127.0.0.1` on Debian/Ubuntu hosts whose
    `/etc/hosts` maps `::1` to `ip6-localhost`, but the launch URL says `http://localhost:P`
    (`startServerWithFallback` in `src/server/server.ts`), and Chrome connects to `::1` first.

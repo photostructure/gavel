@@ -232,6 +232,6 @@ export function createCommentCommand(): Command {
   }
 
   for (const command of comment.commands)
-    command.option('--host <host>', 'server hostname or IP address', 'localhost');
+    command.option('--host <host>', 'server hostname or IP address', '127.0.0.1');
   return comment;
 }

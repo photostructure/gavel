@@ -50,9 +50,9 @@ new launch link: every gavel server accepts the same token, so a proxy left on a
 port serves that server's review without an error.
 
 Open the proxy's origin with the launch link's query and token fragment: for
-`http://localhost:<port>/?review=parser-fix#gavel-token=<token>`, open
+`http://127.0.0.1:<port>/?review=parser-fix#gavel-token=<token>`, open
 `https://review.example.com/?review=parser-fix#gavel-token=<token>`. The browser
-remembers the token for that origin. Agent commands keep talking to localhost on the
+remembers the token for that origin. Agent commands keep talking to 127.0.0.1 on the
 repository machine.
 
 Run agent-owned `gavel review create` and `gavel pending` on the repository machine.
@@ -63,7 +63,7 @@ including through a loopback proxy, cannot name an agent chat or inbox.
 
 Create a [named Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/get-started/)
 with a hostname such as `review.example.com`, routed to service type HTTP at
-`localhost:<port>`. Add a Cloudflare Access policy for your reviewers to put a login in
+`127.0.0.1:<port>`. Add a Cloudflare Access policy for your reviewers to put a login in
 front of the token. [Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)
 have not been checked with gavel's WebSocket connection.
 
@@ -77,7 +77,7 @@ and gavel's port:
 ```caddyfile
 https://10-1-1-24.local-ip.sh:8443 {
     tls internal
-    reverse_proxy localhost:<port>
+    reverse_proxy 127.0.0.1:<port>
 }
 ```
 

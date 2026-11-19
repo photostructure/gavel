@@ -10,7 +10,7 @@ first line, and finishes in about ten seconds. `WORKTREE_ROOT` defaults to
 
 ```sh
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
-$PROJECT_ROOT/scripts/host-wait-e2e/run.sh                   # localhost
+$PROJECT_ROOT/scripts/host-wait-e2e/run.sh                   # 127.0.0.1
 $PROJECT_ROOT/scripts/host-wait-e2e/run.sh --host 10.1.1.24  # LAN-bound server
 ```
 

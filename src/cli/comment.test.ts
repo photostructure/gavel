@@ -196,7 +196,7 @@ describe('comment subcommand integration', () => {
       ]);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:4966/api/comment-imports',
+        'http://127.0.0.1:4966/api/comment-imports',
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
@@ -220,7 +220,7 @@ describe('comment subcommand integration', () => {
       ]);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:4966/api/comment-imports?review=second-task',
+        'http://127.0.0.1:4966/api/comment-imports?review=second-task',
         expect.objectContaining({ method: 'POST' }),
       );
     });
@@ -278,7 +278,7 @@ describe('comment subcommand integration', () => {
       const command = createCommentCommand();
       await command.parseAsync(['node', 'gavel', 'get', '--port', '4966']);
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:4966/api/comments-output', {
+      expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4966/api/comments-output', {
         headers: { 'X-Gavel-Token': loadAccessToken() },
       });
       expect(consoleOutput[0]).toBe('Comments output text');
@@ -290,7 +290,7 @@ describe('comment subcommand integration', () => {
       const command = createCommentCommand();
       await command.parseAsync(['node', 'gavel', 'get', '--port', '4966', '--format', 'json']);
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:4966/api/comments-json', {
+      expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4966/api/comments-json', {
         headers: { 'X-Gavel-Token': loadAccessToken() },
       });
       expect(consoleOutput[0]).toContain('"threads"');
@@ -324,7 +324,7 @@ describe('comment subcommand integration', () => {
       await command.parseAsync(['node', 'gavel', 'resolve', '--port', '4966', 'abc123', 'def456']);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:4966/api/comments/abc123/resolution',
+        'http://127.0.0.1:4966/api/comments/abc123/resolution',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
@@ -332,7 +332,7 @@ describe('comment subcommand integration', () => {
         },
       );
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:4966/api/comments/def456/resolution',
+        'http://127.0.0.1:4966/api/comments/def456/resolution',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
@@ -363,7 +363,7 @@ describe('comment subcommand integration', () => {
         'thread-1',
       ]);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:4966/api/comments/thread-1/resolution',
+        'http://127.0.0.1:4966/api/comments/thread-1/resolution',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },
@@ -382,7 +382,7 @@ describe('comment subcommand integration', () => {
       const command = createCommentCommand();
       await command.parseAsync(['node', 'gavel', 'remove', '--port', '4966', 'abc123']);
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:4966/api/comments/abc123', {
+      expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4966/api/comments/abc123', {
         method: 'DELETE',
         headers: { 'X-Gavel-Token': loadAccessToken() },
       });
@@ -409,7 +409,7 @@ describe('comment subcommand integration', () => {
         'thread-1',
       ]);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:4966/api/comments/thread-1?review=second%20task',
+        'http://127.0.0.1:4966/api/comments/thread-1?review=second%20task',
         { method: 'DELETE', headers: { 'X-Gavel-Token': loadAccessToken() } },
       );
       expect(JSON.parse(consoleOutput[0]!)).toMatchObject({ success: true, deleted: ['thread-1'] });
@@ -443,7 +443,7 @@ describe('comment subcommand integration', () => {
       await command.parseAsync(['node', 'gavel', 'resolve', '--port', '4966', 'a/b c']);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:4966/api/comments/a%2Fb%20c/resolution',
+        'http://127.0.0.1:4966/api/comments/a%2Fb%20c/resolution',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Gavel-Token': loadAccessToken() },

@@ -140,7 +140,7 @@ function addCaptureOptions(command: Command): Command {
 
 function addServerOptions(command: Command): Command {
   return command
-    .option('--host <host>', 'server hostname or IP address', 'localhost')
+    .option('--host <host>', 'server hostname or IP address', '127.0.0.1')
     .requiredOption('--port <port>', 'port of the running gavel server', (value: string) =>
       integerInRange(value, 1, 65535),
     );

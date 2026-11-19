@@ -2380,7 +2380,7 @@ export async function startServer(options: ServerOptions): Promise<{
           ? JSON.stringify([options.agentSessionId, repositoryPath])
           : repositoryPath,
       ),
-    options.host || 'localhost',
+    listenHost(options.host),
   );
   if (conversation) {
     const host = new URL(url).hostname.replace(/^\[(.*)\]$/, '$1');
@@ -2632,6 +2632,14 @@ export async function startServer(options: ServerOptions): Promise<{
   return { port, url, launchUrl, isEmpty: initialDiffData.isEmpty || false, server, shutdown };
 }
 
+/**
+ * The address a server listens on. `localhost` becomes 127.0.0.1: Chrome tries ::1 first for
+ * localhost, where another local process could listen and read the launch link's token.
+ */
+export function listenHost(host: string | undefined): string {
+  return !host || host === 'localhost' ? '127.0.0.1' : host;
+}
+
 async function startServerWithFallback(
   app: Express,
   preferredPort: number,
@@ -2642,7 +2650,7 @@ async function startServerWithFallback(
     // https://expressjs.com/en/5x/api.html#app.listen
     // so, an error will be an instance of NodeJS.ErrnoException
     const server = app.listen(preferredPort, host, (err: NodeJS.ErrnoException | undefined) => {
-      const displayHost = host === '0.0.0.0' ? 'localhost' : host;
+      const displayHost = host === '0.0.0.0' ? '127.0.0.1' : host;
       if (!err) {
         const { port } = server.address() as AddressInfo;
         const url = `http://${displayHost.includes(':') ? `[${displayHost}]` : displayHost}:${port}`;
