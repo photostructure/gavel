@@ -42,8 +42,9 @@ hash. Gavel now follows these links in place; see
   it is a dismissible `role="status"` bar at the bottom of the page.
 - Built in the session that proposed it (Matthew, 90-4).
 - A line number that is not a safe integer is a malformed link, so `line=1-` with 400
-  nines no longer expands every hidden gap in a file; a large finite range still does,
-  as **Expand all lines** does (Codex security review; 90-9 A accepted as recommended).
+  nines does not navigate (Codex security review; 90-9 A accepted as recommended).
+  The follow-up fix keeps a large finite range in the URL but opens hidden
+  context only around its final line.
 - Remote images in comments and in **Why this change** load when shown: the agent that
   writes them is trusted (Matthew, 90-10).
 - A jump to a comment scrolls its card to the top third of the screen when the card is not
@@ -90,3 +91,5 @@ hash. Gavel now follows these links in place; see
 ## Review
 
 - [x] Reviewed — LAND from Claude on every batch, including the click-test fixes; Codex slot skipped (front-end change, Matthew's standing instruction); base commit `d2a6638`
+- [x] Follow-up range fix approved in gavel as `comment-link-range-fix`; the full
+      Vitest suite passed (2,524 passed, 1 skipped), as did formatting, lint, and TypeScript.
