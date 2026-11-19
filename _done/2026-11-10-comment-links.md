@@ -73,9 +73,9 @@ hash. Gavel now follows these links in place; see
 - Link errors reach the reader, who did not write the link, so they start with
   "Can't follow this link:" and describe the link, not the grammar.
 - A fragment is a link place only when it contains `=` and one of `thread`, `file`,
-  `line`, or `side`; then any other key except `gavel-editor-token` is an error. Other
+  `line`, or `side`; then any other key except `gavel-token` is an error. Other
   fragments, such as `#summary`, stay ordinary anchors.
-- The launch URL carries `#gavel-editor-token=…` (`EDITOR_SESSION_FRAGMENT_KEY`).
+- The launch URL carries `#gavel-token=…` (`ACCESS_TOKEN_PARAM`).
   Rewriting the fragment keeps that key, or open-in-editor fails after a reload. A
   modified click on a link opens a URL without it.
 - `writeReviewLocation` runs after every diff load, so it drops a link's place only

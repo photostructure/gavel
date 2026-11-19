@@ -108,7 +108,7 @@ describe('useCommentLinks', () => {
       side: 'old',
       lineNumber: 52,
     });
-    expect(window.location.hash).toBe('#gavel-editor-token=k&file=src/a.ts&line=40-52&side=old');
+    expect(window.location.hash).toBe('#gavel-token=k&file=src/a.ts&line=40-52&side=old');
   });
 
   it('opens only the destination line of a wide range', () => {
@@ -123,7 +123,7 @@ describe('useCommentLinks', () => {
     expect(calls.canShowLine).toHaveBeenCalledWith(anchor);
     expect(calls.jumpToLine).toHaveBeenCalledWith(anchor);
     expect(window.location.hash).toBe(
-      `#gavel-editor-token=k&file=src/a.ts&line=1-${Number.MAX_SAFE_INTEGER}`,
+      `#gavel-token=k&file=src/a.ts&line=1-${Number.MAX_SAFE_INTEGER}`,
     );
   });
 
