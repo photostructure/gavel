@@ -49,7 +49,7 @@ Next: task 1 (characterization tests).
    split uses Tailwind `after:` utilities, unified uses global.css:397-436. Three tests
    assert the class names (DiffChunk.test.tsx:153-155, 217, 230).
 6. Keyboard comment trigger: S:203-215, D:122-135. The delete-line branches are
-   unreachable (the hotkey never fires on a deleted line, useKeyboardNavigation.ts:541-543).
+   unreachable (the `c` hotkey in `useKeyboardNavigation` skips a deleted line).
    In split mode D's effect also runs and calls `onCommentTriggerHandled` a second time
    (reasoned).
 7. Element IDs built by hand at D:316 and S:447-454 instead of `getElementId`
