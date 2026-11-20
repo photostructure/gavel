@@ -8,7 +8,7 @@ section: Diff parsing
 
 Placeholder. Not started.
 
-The `diff --git` header segmenter in `src/server/git-diff.ts` (about line 533 at `47c5959`)
+The `diff --git` header segmenter in `parseDiffHeaderPaths` (`src/server/git-diff.ts`)
 treats a quote preceded by a backslash as escaped (`char === '"' && prevChar !== '\\'`). Git
 writes a file named `x\` as `"a/x\\" "b/x\\"`, where the closing quote follows an escaped
 backslash, so the segmenter stays inside the quotes and the header does not split into two

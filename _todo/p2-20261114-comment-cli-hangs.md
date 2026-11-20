@@ -6,23 +6,23 @@ section: CLI
 
 # TPP: `gavel comment` hangs and truncation
 
-Found by reading during the 2026-11-14 refactor audit (line numbers at `d905dec`).
+Found by reading during the 2026-11-14 refactor audit (code as of `d905dec`).
 
 - `comment add`, `comment get` and `comment resolve` / `reopen` / `delete` send requests
-  with no timeout (comment.ts:74, 112, 167). The other companion commands pass
+  with no timeout (their `serverFetch` calls in `createCommentCommand`, comment.ts). The other companion commands pass
   `AbortSignal.timeout(30000)` at 9 sites. A server that accepts the connection and
   never answers makes these commands wait forever.
-- `comment.ts` calls `process.exit(1)` right after printing JSON (comment.ts:216-225).
-  Lines 30, 85 and 117 also exit, after a stderr message; once `process.exit` goes, 85
-  and 117 need a `return`, and `handleCommandError` (typed `never`) needs a new type. `conversation.ts:39` and `review.ts:260` set `process.exitCode` instead,
+- `comment.ts` calls `process.exit(1)` right after printing JSON (the `resolve` / `reopen` / `delete` action in `createCommentCommand`).
+  `handleCommandError` and the `!response.ok` branches of `comment add` and `comment get` also exit, after a stderr message; once `process.exit` goes, those two
+  branches need a `return`, and `handleCommandError` (typed `never`) needs a new type. `reportError` in conversation.ts and in review.ts set `process.exitCode` instead,
   with a comment saying this lets buffered output drain. Where piped stdout is
   asynchronous (macOS), the JSON could be cut off. Reasoned, not reproduced.
 
 Both are behavior changes an agent can observe (`Changelog:` trailer).
-Fix the timeout in `serverFetch` (cli/server-url.ts:27-38), not in comment.ts. Give it
+Fix the timeout in `serverFetch` (cli/server-url.ts), not in comment.ts. Give it
 a default `signal: AbortSignal.timeout(30000)` that a caller's `init.signal` replaces
-(index.ts:595 passes its own 3000 ms signal). Then delete the eight explicit 30 s
-signals passed to it: conversation.ts:61, 114, 143, 169 and review.ts:315, 348, 458, 482. This TPP owns that change. `p3-20261114-cli-cleanup.md` task 2 still owns
+(`registerShutdownHandlers` in index.ts passes its own 3000 ms signal). Then delete the eight explicit 30 s
+signals passed to it, in the `snapshot`, `summary`, `status` and `reply` commands of conversation.ts and the `create`, `update`, `rename` and `delete` commands of review.ts. This TPP owns that change. `p3-20261114-cli-cleanup.md` task 2 still owns
 `reportServerError`.
 
 Acceptance: a `comment.test.ts` case that stubs `AbortSignal.timeout` (asserting it is
