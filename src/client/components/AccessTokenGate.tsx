@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useState, useSyncExternalStore } from 'react';
 
 import { ACCESS_TOKEN_PARAM } from '../../utils/accessToken';
-import { getAccessToken, subscribeAccessToken } from '../utils/accessToken';
+import { fragmentWithoutToken, getAccessToken, subscribeAccessToken } from '../utils/accessToken';
 import { copyTextToClipboard } from '../utils/clipboard';
 
 // Never put a token value in this prompt; name the file that holds it instead. This screen shows
@@ -12,9 +12,7 @@ import { copyTextToClipboard } from '../utils/clipboard';
 function buildAccessLinkPrompt(): string {
   const address = window.location.href.split('#')[0];
   // Keep a comment link's place (`&file=…&line=…`), which shares the fragment with the token.
-  const place = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  place.delete(ACCESS_TOKEN_PARAM);
-  const rest = place.toString().replaceAll('%2F', '/');
+  const rest = fragmentWithoutToken();
   return `Please give me the full gavel link for this page: ${address}#${ACCESS_TOKEN_PARAM}=<the contents of \${GAVEL_CONFIG_DIR:-$HOME/.gavel}/access-token on the machine running gavel>${rest ? `&${rest}` : ''}. Without the token, the page shows only an access screen.`;
 }
 

@@ -2521,7 +2521,7 @@ describe('App Component - Review navigation', () => {
     mockConfirm.mockReturnValue(false);
   });
 
-  it('loads a bookmarked comparison and preserves other query parameters and fragments', async () => {
+  it('loads a bookmarked comparison, preserves other query parameters, and drops the token', async () => {
     window.history.replaceState(
       { retained: true },
       '',
@@ -2549,7 +2549,7 @@ describe('App Component - Review navigation', () => {
       expect(new URLSearchParams(window.location.search).get('base')).toBe('chosen-base'),
     );
     expect(new URLSearchParams(window.location.search).get('retained')).toBe('yes');
-    expect(window.location.hash).toBe('#gavel-token=fixture');
+    expect(window.location.hash).toBe('');
     expect(window.history.state).toMatchObject({ retained: true });
   });
 

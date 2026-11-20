@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseCommentLink, withLinkPlace, withoutLinkPlace } from './commentLinks';
+import { parseCommentLink, linkPlaceFragment, withoutLinkPlace } from './commentLinks';
 
 describe('parseCommentLink', () => {
   it('reads a thread in the same review', () => {
@@ -99,16 +99,7 @@ describe('parseCommentLink', () => {
   });
 });
 
-describe('withLinkPlace', () => {
-  it('replaces the place and keeps the access token', () => {
-    expect(
-      withLinkPlace('#gavel-token=abc&file=a.ts&line=3', {
-        kind: 'thread',
-        threadId: 'tour-2',
-      }),
-    ).toBe('#gavel-token=abc&thread=tour-2');
-  });
-
+describe('linkPlaceFragment', () => {
   it('writes a file place that reads back the same', () => {
     const place = {
       kind: 'file' as const,
@@ -116,17 +107,17 @@ describe('withLinkPlace', () => {
       side: 'old' as const,
       line: [4, 9] as [number, number],
     };
-    expect(parseCommentLink(withLinkPlace('', place))).toEqual({ place });
+    expect(parseCommentLink(linkPlaceFragment(place))).toEqual({ place });
   });
 
-  it('drops a plain heading anchor, and writes paths with their slashes', () => {
-    expect(
-      withLinkPlace('#summary', { kind: 'file', filePath: 'src/a b.ts', side: 'new', line: 3 }),
-    ).toBe('#file=src/a+b.ts&line=3');
+  it('writes paths with their slashes', () => {
+    expect(linkPlaceFragment({ kind: 'file', filePath: 'src/a b.ts', side: 'new', line: 3 })).toBe(
+      '#file=src/a+b.ts&line=3',
+    );
   });
 
-  it('drops the place and leaves an empty fragment empty', () => {
-    expect(withLinkPlace('#thread=tour-2', undefined)).toBe('');
+  it('is empty without a place', () => {
+    expect(linkPlaceFragment(undefined)).toBe('');
   });
 });
 

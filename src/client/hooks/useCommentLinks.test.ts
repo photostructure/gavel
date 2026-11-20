@@ -50,7 +50,7 @@ describe('useCommentLinks', () => {
   beforeEach(() => window.history.replaceState(null, '', '/?review=here#gavel-token=k'));
   afterEach(() => window.history.replaceState(null, '', '/'));
 
-  it('jumps to a thread and records both ends in history, keeping the access token', () => {
+  it('jumps to a thread and records both ends in history, leaving the access token out', () => {
     const { result, calls } = setup();
     const before = window.history.length;
     act(() => result.current.follow('#thread=t2', { threadId: 't1' }));
@@ -60,7 +60,7 @@ describe('useCommentLinks', () => {
       't2',
     );
     expect(calls.jumpToLine).not.toHaveBeenCalled();
-    expect(window.location.hash).toBe('#gavel-token=k&thread=t2');
+    expect(window.location.hash).toBe('#thread=t2');
     expect(window.history.length).toBe(before + 1);
   });
 
@@ -75,7 +75,7 @@ describe('useCommentLinks', () => {
       window.history.back();
       await popped;
     });
-    expect(window.location.hash).toBe('#gavel-token=k&thread=t1');
+    expect(window.location.hash).toBe('#thread=t1');
     expect(calls.jumpToThread).toHaveBeenCalledWith(
       expect.objectContaining({ filePath: 'src/a.ts', lineNumber: 4 }),
       't1',
@@ -108,7 +108,7 @@ describe('useCommentLinks', () => {
       side: 'old',
       lineNumber: 52,
     });
-    expect(window.location.hash).toBe('#gavel-token=k&file=src/a.ts&line=40-52&side=old');
+    expect(window.location.hash).toBe('#file=src/a.ts&line=40-52&side=old');
   });
 
   it('opens only the destination line of a wide range', () => {
@@ -122,9 +122,7 @@ describe('useCommentLinks', () => {
     };
     expect(calls.canShowLine).toHaveBeenCalledWith(anchor);
     expect(calls.jumpToLine).toHaveBeenCalledWith(anchor);
-    expect(window.location.hash).toBe(
-      `#gavel-token=k&file=src/a.ts&line=1-${Number.MAX_SAFE_INTEGER}`,
-    );
+    expect(window.location.hash).toBe(`#file=src/a.ts&line=1-${Number.MAX_SAFE_INTEGER}`);
   });
 
   it.each([
@@ -163,7 +161,7 @@ describe('useCommentLinks', () => {
     act(() => result.current.follow('?review=there#thread=t5', { threadId: 't1' }));
     expect(calls.switchReview).toHaveBeenCalledWith(other);
     expect(window.location.search).toBe('?review=there');
-    expect(window.location.hash).toBe('#gavel-token=k&thread=t5');
+    expect(window.location.hash).toBe('#thread=t5');
     // The switch adds the link's one entry.
     expect(window.history.length).toBe(before + 1);
     // The App shows the new review's comments only after loading them.
@@ -187,7 +185,7 @@ describe('useCommentLinks', () => {
       await popped;
     });
     expect(window.location.search).toBe('?review=here');
-    expect(window.location.hash).toBe('#gavel-token=k&thread=t1');
+    expect(window.location.hash).toBe('#thread=t1');
   });
 
   it('resolves a relative link in another review against that review', () => {
@@ -247,7 +245,7 @@ describe('useCommentLinks', () => {
     // The same link clicked again in t1, which is still on screen beside t2.
     act(() => result.current.follow('#thread=t2', { threadId: 't1' }));
     expect(window.history.length).toBe(length);
-    expect(window.location.hash).toBe('#gavel-token=k&thread=t2');
+    expect(window.location.hash).toBe('#thread=t2');
   });
 
   it('clears an earlier notice when a later link works', () => {

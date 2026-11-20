@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CommentThread, DiffSelection } from '../../types/diff';
 import { diffSelectionsEqual } from '../../utils/diffSelection';
 import type { FollowCommentLink } from '../contexts/CommentLinkContext';
-import { parseCommentLink, withLinkPlace, type CommentLinkPlace } from '../utils/commentLinks';
+import { parseCommentLink, linkPlaceFragment, type CommentLinkPlace } from '../utils/commentLinks';
 import { writeLocationHash } from '../utils/reviewNavigation';
 
 import type { LineDraftAnchor } from './useCommentDrafts';
@@ -174,12 +174,12 @@ export function useCommentLinks(options: UseCommentLinksOptions) {
         run = resolution.run;
       }
       setNotice(null);
-      const hash = withLinkPlace(window.location.hash, link.place);
+      const hash = linkPlaceFragment(link.place);
       // A link to the place already shown adds no entry and leaves the current one alone.
       if (switches || hash !== window.location.hash) {
         if (source && !source.review)
           writeLocationHash(
-            withLinkPlace(window.location.hash, { kind: 'thread', threadId: source.threadId }),
+            linkPlaceFragment({ kind: 'thread', threadId: source.threadId }),
             'replace',
           );
         // Switching review adds the link's entry itself.

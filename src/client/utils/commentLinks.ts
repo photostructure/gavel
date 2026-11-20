@@ -85,11 +85,9 @@ export function parseCommentLink(href: string): CommentLink | { error: string } 
   return { review, place };
 }
 
-/** A fragment (with its `#`, or empty) naming `place`, keeping only the access token of `hash`. */
-export function withLinkPlace(hash: string, place: CommentLinkPlace | undefined): string {
-  const token = new URLSearchParams(hash.replace(/^#/, '')).get(ACCESS_TOKEN_PARAM);
+/** A fragment (with its `#`, or empty) naming `place`. */
+export function linkPlaceFragment(place: CommentLinkPlace | undefined): string {
   const params = new URLSearchParams();
-  if (token !== null) params.set(ACCESS_TOKEN_PARAM, token);
   if (place?.kind === 'thread') params.set('thread', place.threadId);
   if (place?.kind === 'file') {
     params.set('file', place.filePath);

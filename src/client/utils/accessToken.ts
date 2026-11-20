@@ -11,15 +11,34 @@ function notify() {
   for (const listener of [...listeners]) listener();
 }
 
+/** This page's fragment without its access token, as comment links write it, without the `#`. */
+export function fragmentWithoutToken(): string {
+  const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  fragment.delete(ACCESS_TOKEN_PARAM);
+  // As comment links write them, with a literal slash in paths.
+  return fragment.toString().replaceAll('%2F', '/');
+}
+
 /**
  * The token from the launch link's fragment, or the one an earlier launch link left in this
- * origin's storage. Null when there is none, or when the server refused it.
+ * origin's storage. Null when there is none, or when the server refused it. A fragment token
+ * the server has not refused is stored and taken out of the address, so a copied address does
+ * not carry it.
  */
 export function getAccessToken(): string | null {
   const fromLink = new URLSearchParams(window.location.hash.replace(/^#/, '')).get(
     ACCESS_TOKEN_PARAM,
   );
-  if (fromLink && fromLink !== rejected) localStorage.setItem(STORAGE_KEY, fromLink);
+  if (fromLink && fromLink !== rejected) {
+    localStorage.setItem(STORAGE_KEY, fromLink);
+    const rest = fragmentWithoutToken();
+    const { pathname, search } = window.location;
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${pathname}${search}${rest ? `#${rest}` : ''}`,
+    );
+  }
   const token = fromLink ?? localStorage.getItem(STORAGE_KEY);
   return token === rejected ? null : token;
 }
@@ -47,7 +66,8 @@ export async function apiFetch(
     : fetch(input, init));
   if (response.status === 401 && token) {
     rejected = token;
-    localStorage.removeItem(STORAGE_KEY);
+    // A launch link opened while this request was in flight may have stored a newer token.
+    if (localStorage.getItem(STORAGE_KEY) === token) localStorage.removeItem(STORAGE_KEY);
     notify();
   }
   return response;

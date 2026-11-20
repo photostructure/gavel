@@ -226,7 +226,7 @@ describe('links in comments', () => {
     behaviors.length = 0;
     fireEvent.click(await screen.findByRole('link', { name: 'next' }));
     await waitFor(() => expect(cursorText()).toContain('old task-a'));
-    expect(window.location.hash).toBe('#gavel-token=token&thread=tour-2');
+    expect(window.location.hash).toBe('#thread=tour-2');
     // One animated scroll, to the comment card: a scroll to its line first would still be
     // moving when the card's position was measured.
     await waitFor(() => expect(scrolled).toEqual(['comment-thread-tour-2']));
@@ -236,7 +236,7 @@ describe('links in comments', () => {
     const requests = diffRequests();
 
     await back();
-    expect(window.location.hash).toBe('#gavel-token=token&thread=tour-1');
+    expect(window.location.hash).toBe('#thread=tour-1');
     await waitFor(() => expect(cursorText()).toContain('new task-a'));
     // Only the place changed, so the review does not reload.
     expect(diffRequests()).toEqual(requests);
@@ -343,7 +343,7 @@ describe('links in comments', () => {
     );
     await waitFor(() => expect(cursorText()).toContain('new task-b'));
     expect(new URLSearchParams(window.location.search).get('review')).toBe('task-b');
-    expect(window.location.hash).toBe('#gavel-token=token&file=file.md&line=2');
+    expect(window.location.hash).toBe('#file=file.md&line=2');
 
     await back();
     await waitFor(() =>
@@ -351,7 +351,7 @@ describe('links in comments', () => {
         'task-a',
       ),
     );
-    expect(window.location.hash).toBe('#gavel-token=token&thread=tour-1');
+    expect(window.location.hash).toBe('#thread=tour-1');
     await waitFor(() => expect(cursorText()).toContain('new task-a'));
   });
 

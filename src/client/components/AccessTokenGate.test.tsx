@@ -34,16 +34,17 @@ describe('AccessTokenGate', () => {
   });
 
   it('copies a prompt asking the agent for this address with the token, never the token itself', async () => {
-    // A refused token's fragment must not reach the prompt; the comment-link place must.
+    localStorage.setItem('gavel-access-token', 'refused');
+    renderGate();
+    vi.mocked(fetch).mockResolvedValue(new Response('{}', { status: 401 }));
+    await act(() => apiFetch('/api/diff'));
+    // Reopening a link with the refused token leaves it in the address. It must not reach the
+    // prompt; the comment-link place must.
     window.history.replaceState(
       null,
       '',
       '/?review=a#gavel-token=refused&file=src/parse.ts&line=40-52',
     );
-    localStorage.setItem('gavel-access-token', 'refused');
-    renderGate();
-    vi.mocked(fetch).mockResolvedValue(new Response('{}', { status: 401 }));
-    await act(() => apiFetch('/api/diff'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy prompt for your agent' }));
     await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalledTimes(1));
