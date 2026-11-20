@@ -34,19 +34,55 @@ describe('getAccessToken', () => {
   });
 });
 
-describe('apiFetch', () => {
-  it('keeps a launch link token that arrived while a request with the old one was refused', async () => {
+// Any link can put a token in the fragment: Markdown, a comment, a Mermaid diagram, or another
+// website navigating the tab. Only a page without a working token takes one from there.
+describe('a fragment token while the page holds a working one', () => {
+  it('is ignored and taken out of the address, keeping the rest', () => {
+    localStorage.setItem('gavel-access-token', 'mine');
+    window.history.replaceState(null, '', '/?review=a#gavel-token=other&thread=t2');
+
+    expect(getAccessToken()).toBe('mine');
+    expect(localStorage.getItem('gavel-access-token')).toBe('mine');
+    expect(window.location.hash).toBe('#thread=t2');
+  });
+
+  it('is taken once the server refuses the stored token', async () => {
     localStorage.setItem('gavel-access-token', 'old');
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('{}', { status: 401 }));
+    await apiFetch('/api/diff');
+    expect(getAccessToken()).toBeNull();
+
+    window.history.replaceState(null, '', '/#gavel-token=new');
+
+    expect(getAccessToken()).toBe('new');
+    expect(window.location.hash).toBe('');
+  });
+
+  it('is ignored while a request with the stored token is in flight, and taken after its 401', async () => {
+    localStorage.setItem('gavel-access-token', 'stale');
     let refuse!: (response: Response) => void;
     vi.mocked(fetch).mockReturnValueOnce(new Promise((resolve) => (refuse = resolve)));
     const request = apiFetch('/api/diff');
-    // The reviewer opens a fresh launch link in this tab while that request is in flight.
     window.history.replaceState(null, '', '/#gavel-token=new');
-    expect(getAccessToken()).toBe('new');
+    expect(getAccessToken()).toBe('stale');
 
     refuse(new Response('{}', { status: 401 }));
     await request;
-
+    // The access screen shows; reopening the launch link brings the review back.
+    expect(getAccessToken()).toBeNull();
+    window.history.replaceState(null, '', '/#gavel-token=new');
     expect(getAccessToken()).toBe('new');
+  });
+
+  it('is taken when another tab stored the token the server refused', async () => {
+    localStorage.setItem('gavel-access-token', 'refused-elsewhere');
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('{}', { status: 401 }));
+    await apiFetch('/api/diff');
+    // Another tab, which still holds the refused token, writes it back.
+    localStorage.setItem('gavel-access-token', 'refused-elsewhere');
+
+    window.history.replaceState(null, '', '/#gavel-token=fresh');
+
+    expect(getAccessToken()).toBe('fresh');
   });
 });

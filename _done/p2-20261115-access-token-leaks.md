@@ -6,7 +6,7 @@ section: Access token
 
 # Reduce accidental disclosure of the per-user access token
 
-Fix 1 is done; fixes 2 and 3 remain. The accepted local-workstation limitations are documented
+Done: all three planned fixes landed. The accepted local-workstation limitations are documented
 in `docs/remote-review.md`.
 
 One token in `~/.gavel/access-token` opens every gavel server the user runs and never rotates,
@@ -36,19 +36,25 @@ disclosure through copied review URLs and links in untrusted review content rema
    the same applies to the `0.0.0.0` → `localhost` display substitution. Preserve explicit
    LAN addresses. Update launch-link examples in the docs. This fixes an address mismatch;
    it does not establish isolation from other local users.
-2. The token stays in the address bar and every history entry: `getAccessToken`
+2. Done: the token stayed in the address bar and every history entry: `getAccessToken`
    (`src/client/utils/accessToken.ts`) never strips the fragment, and `withLinkPlace`
    (`src/client/utils/commentLinks.ts`) copies the token into each fragment it pushes, so a
    copied page URL hands out the token. Fix: `history.replaceState` without `gavel-token` once
    the token is stored, and stop `withLinkPlace` carrying it.
-3. Any Markdown link to `#gavel-token=X`, or any website navigating to
+3. Done: any Markdown link to `#gavel-token=X`, or any website navigating to
    `http://localhost:P/#gavel-token=X`, replaces the stored token: `getAccessToken` writes any
    fragment token to localStorage on every call, and the `hashchange` listener only makes the
    page re-read it. The next request gets a 401 and the page shows the access screen.
-   Availability only. Fix: render Markdown hrefs whose fragment names `gavel-token` as text.
-   Reading a fragment token stays, because opening a new launch link in an open tab relies on
-   it; a website's top-level navigation can still log the tab out, which costs reopening the
-   launch link.
+   Availability only. The planned fix rendered token-bearing hrefs as text in each Markdown
+   renderer; three review rounds each found a link that got past it (a Mermaid `click … href`,
+   a Gantt chart's script-opened link, and a tab entity inside the key that the browser drops
+   on navigation). What landed instead (2026-11-19, Matthew, question DF-34): `getAccessToken`
+   stores a fragment token only while the page has no working token (none stored, or the
+   stored one refused), and takes any fragment token out of the address. That covers every
+   link and a website's top-level navigation. Cost: after the token file is rotated, each
+   repository's origin still stores the old token, so the first request there, in an open tab
+   or in a newly opened launch link, is refused and shows the access screen; opening the launch
+   link again then takes the new token.
 
 ## Accepted local-workstation limitations
 
@@ -76,7 +82,7 @@ stopped, even if the token file is deleted.
 - Consuming a launch token removes only `gavel-token` from the address bar. Review selection,
   file/thread location, and ordinary anchors still work. Subsequent review navigation does
   not copy the token into history entries.
-- A legitimate new launch link still updates an already open tab's token. Token-bearing
-  Markdown links render as text in comments, Markdown previews, and notebook Markdown cells;
-  ordinary links still work.
+- A fragment token replaces the stored token only while the page has no working token, so a
+  link in review content or another website cannot log the tab out; a launch link opened on
+  the access screen still restores access.
 - Walk Matthew through the changed URL and preview behavior before proposing its commit.

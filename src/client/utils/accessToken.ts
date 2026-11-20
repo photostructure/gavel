@@ -20,17 +20,19 @@ export function fragmentWithoutToken(): string {
 }
 
 /**
- * The token from the launch link's fragment, or the one an earlier launch link left in this
- * origin's storage. Null when there is none, or when the server refused it. A fragment token
- * the server has not refused is stored and taken out of the address, so a copied address does
- * not carry it.
+ * The token this origin's storage holds, taken from a launch link's fragment. Null when there is
+ * none, or when the server refused it. Any link can put a token in the fragment (Markdown, a
+ * comment, a diagram, another website), so a fragment token is stored only while the page has no
+ * working token; a stored token the server has not refused stays. A fragment token the server
+ * has not refused is taken out of the address either way, so a copied address does not carry it.
  */
 export function getAccessToken(): string | null {
   const fromLink = new URLSearchParams(window.location.hash.replace(/^#/, '')).get(
     ACCESS_TOKEN_PARAM,
   );
   if (fromLink && fromLink !== rejected) {
-    localStorage.setItem(STORAGE_KEY, fromLink);
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === null || stored === rejected) localStorage.setItem(STORAGE_KEY, fromLink);
     const rest = fragmentWithoutToken();
     const { pathname, search } = window.location;
     window.history.replaceState(
@@ -39,7 +41,7 @@ export function getAccessToken(): string | null {
       `${pathname}${search}${rest ? `#${rest}` : ''}`,
     );
   }
-  const token = fromLink ?? localStorage.getItem(STORAGE_KEY);
+  const token = localStorage.getItem(STORAGE_KEY);
   return token === rejected ? null : token;
 }
 
@@ -66,7 +68,7 @@ export async function apiFetch(
     : fetch(input, init));
   if (response.status === 401 && token) {
     rejected = token;
-    // A launch link opened while this request was in flight may have stored a newer token.
+    // Another request's 401, or another tab, may have let a newer token in since this one started.
     if (localStorage.getItem(STORAGE_KEY) === token) localStorage.removeItem(STORAGE_KEY);
     notify();
   }
