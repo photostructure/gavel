@@ -8,7 +8,7 @@ section: Web UI
 
 Placeholder. Not started.
 
-`commentsCaptureKey` (`src/client/App.tsx`, line 399 at `ae0d9eb`) changes with every capture
+`commentsCaptureKey` (`src/client/App.tsx`) changes with every capture
 version, and the reset it triggers re-collapses viewed files when the agent runs
 `gavel review update` on the open review. A reviewer who had expanded a viewed file to read it
 loses their place. Found by reading the code during the scroll-position fix

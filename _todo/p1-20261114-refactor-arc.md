@@ -16,14 +16,14 @@ unnecessary (2026-11-14: no users besides him, servers are ephemeral). Across th
 of `src/` the same helpers and test fixtures are written several times.
 
 This file owns the order of the work and the lore every child needs. The children own
-the tasks. Audit date and base commit: 2026-11-14, `d905dec`. Line numbers in the
-children refer to that commit; prefer the named symbol when they drift.
+the tasks. Audit date and base commit: 2026-11-14, `d905dec`. The children cite code by
+name; search for the name, and use `git log -S` for code removed since then.
 
 ## Children, in order
 
 1. `p1-20261114-delete-dead-code.md` and `p1-20261114-remove-backward-compat.md`. They
    shrink the files before anything moves, so later steps move less code. Both edit
-   App.tsx:1736-1765 and `StorageService.getCommentThreads`, so run them one after the
+   the thread-copy effect in `App.tsx` (its `migratedRecordsRef`) and `StorageService.getCommentThreads`, so run them one after the
    other, the compat plan's thread-copy item first. The compat plan's `appliedOps` item cannot land before
    2026-11-20; the splits do not wait for it.
 2. `p1-20261114-shared-test-helpers.md`. The splits need only part of it. The App split

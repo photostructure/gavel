@@ -8,7 +8,7 @@ section: Web UI
 
 Placeholder. Not started.
 
-`largeFilesKey` (`src/client/App.tsx`, line 589 at `ae0d9eb`) includes the capture version, so
+`largeFilesKey` (`src/client/App.tsx`) includes the capture version, so
 when the agent runs `gavel review update` on the open review, every file over the large-diff
 limit collapses again, including one the reviewer opened with **Load diff**. A reviewer reading
 inside such a file loses their place. Found by reading the code during the scroll-position fix

@@ -49,25 +49,28 @@ Next: task 1.
   also avoids `await import` inside a factory (Matthew's CLAUDE.md forbids it).
 - `App.test.tsx` uses a different strategy from the other six App files: it mocks
   `useDiffComments`, `useViewedFiles` and `useViewport` with module-level `let` state
-  (App.test.tsx:33-72) and uses `mockFetch` from vitest.setup.ts:41-103. The others use
+  (its `vi.mock('./hooks/…')` factories) and uses `mockFetch` from vitest.setup.ts. The others use
   the real hooks behind a per-file fake server. Do not force one strategy on both in
   this plan.
 - The `git()` copies differ in three ways: `core.hooksPath` (`devNull`, a
   `disabled-hooks` directory, or `--no-verify` instead), whether `GIT_*` variables are
   stripped (inline filter or `vi.stubEnv` in `beforeEach`), and whether
   `GIT_CONFIG_GLOBAL` / `GIT_CONFIG_SYSTEM` are set. The helper settles one variant.
-  `withoutGitEnvironment` already exists at src/cli/index.integration.test.ts:33-37.
-- `server.test.ts:13` sets `process.env.VITEST_SERVER_TEST`, but vitest.setup.ts:26
-  reads it before the test file runs, and server.test.ts:81 overwrites `globalThis.fetch` anyway.
-  Delete line 13, and make vitest.setup.ts:26-28 assign `global.fetch = vi.fn()`
+  `withoutGitEnvironment` already exists in src/cli/index.integration.test.ts.
+- `server.test.ts` sets `process.env.VITEST_SERVER_TEST`, but the
+  `if (!process.env.VITEST_SERVER_TEST)` check in vitest.setup.ts reads it before the test
+  file runs, and server.test.ts's `globalThis.fetch = fetch` overwrites `globalThis.fetch` anyway.
+  Delete that `process.env.VITEST_SERVER_TEST = 'true'` assignment, and make that
+  `if (!process.env.VITEST_SERVER_TEST)` block in vitest.setup.ts assign `global.fetch = vi.fn()`
   unconditionally; `pnpm test` must still pass. Nothing else sets `VITEST_SERVER_TEST`
   (`rg VITEST_SERVER_TEST`).
 - `App.namedReviews.test.tsx` handles `PUT` / `DELETE /api/approval` in its fake router.
   No client code sends those; verdicts go through `review-ops`. Delete them
-  (App.namedReviews.test.tsx:194-196) when task 2 converts that file.
+  (the `init?.method === 'PUT'` and `'DELETE'` branches of its `/api/approval` route) when
+  task 2 converts that file.
 - Step 14 of the App split will need `App.test.tsx`'s `useDiffComments` /
-  `useViewedFiles` / `useViewport` mocks (App.test.tsx:33-72) in each new file. That
-  split decides how, once its file list is known. This plan does not build a fake server
+  `useViewedFiles` / `useViewport` mocks (its `vi.mock('./hooks/…')` factories) in each new
+  file. That split decides how, once its file list is known. This plan does not build a fake server
   for it.
 
 ## Tasks
@@ -78,8 +81,9 @@ Next: task 1.
    `src/server/test-server.ts` in the same commit. It already wraps `startServer` and
    `fetch` for tests; 8 files import it. Replace the copies in review-ops, named-reviews,
    review-store, live-approval, committed-summary and session-inbox integration tests,
-   approval.test.ts, unapply.test.ts, review-capture.test.ts (223-236 plus the inline
-   inits at 803, 836, 870, 984, 997, 1064), git-client.test.ts, git-diff.capture.test.ts,
+   approval.test.ts, unapply.test.ts, review-capture.test.ts (the `git` helper in its
+   "read-only working tree captures" block plus the inline `git('-C', …, 'init')` calls in
+   its submodule tests), git-client.test.ts, git-diff.capture.test.ts,
    git-diff.metadata.test.ts, and index.integration.test.ts. `rg "startsWith\('GIT_'\)"
    src --glob '*.test.*'` lists the environment-stripping copies. The inline inits in
    review-capture.test.ts create nested repos inside the fixture tree
@@ -88,9 +92,10 @@ Next: task 1.
    `rg "user.email=gavel@example.com" src --glob '*.test.*'` finds nothing (the helper is
    not a `*.test.*` file).
 2. **`useFileWatch` takes a named handler object** instead of 7 positional callbacks
-   (hooks/useFileWatch.ts:20-29, call at App.tsx:1064-1073). Make every handler in the
-   object required and drop the `?.()` at useFileWatch.ts:68-71 and 102-118: the one
-   caller (App.tsx:1065) passes all seven. Then add
+   (the `useFileWatch` signature in hooks/useFileWatch.ts, and its call in `App` in App.tsx).
+   Make every handler in the object required and drop the `?.()` on the
+   `callbacksRef.current` calls in useFileWatch.ts's `onOpen` and `onMessage` handlers: the
+   one caller (`App`) passes all seven. Then add
    `src/client/hooks/__mocks__/useFileWatch.ts` exporting the captured named callbacks and
    a connection setter (see Lore for why it cannot live in `App.testing.tsx`), and
    `src/client/App.testing.tsx` with `renderApp()`. Switch all seven App test files to
@@ -101,17 +106,18 @@ Next: task 1.
    signatures, so a shared version would need options to serve them.
    Acceptance: `pnpm test App useFileWatch` passes; the `__mocks__` file is the only
    mock implementation, and no test passes a factory to `vi.mock('./hooks/useFileWatch')`.
-3. **`server.test.ts` setup into shared modules.** Move the `GitDiffParserMock`
-   (122-185), `parserInstances`, the `review-capture` mock and saved-reviews temp dir
-   (108-120), the `process.exit` stub and cleanup (643-667), `openLive` / `closeLive` /
-   `liveUrl` (187-210), `putVerdict`, `postAgentSummary`, `startObservedServer`. Add a
-   `start(options)` that registers its own cleanup (removes 88 `servers.push` calls). Use
-   `preferredPort: 0` for tests that only need some free port. Keep `getAvailablePort`
-   (86-104) in the shared module, and keep explicit ports, for tests that need a known
+3. **`server.test.ts` setup into shared modules.** Move the `GitDiffParserMock`,
+   `parserInstances`, the `review-capture` mock and saved-reviews temp dir, the
+   `process.exit` stub and cleanup, `openLive` / `closeLive` / `liveUrl`, `putVerdict`,
+   `postAgentSummary`, `startObservedServer`. Add a `start(options)` that registers its own
+   cleanup (removes 88 `servers.push` calls). Use `preferredPort: 0` for tests that only need some free port. Keep `getAvailablePort`
+   in the shared module, and keep explicit ports, for tests that need a known
    port: those that send requests before `startServer` resolves ("buffers live
-   submissions during asynchronous startup until readiness", 906-928, and the request at
-   840-858), the busy-port test (670), the derived-port test that omits `preferredPort`
-   (710), and the fallback test (1019). `start(options)` passes its options to
+   submissions during asynchronous startup until readiness" and "pins readiness to the
+   launch review when browser revisions change during startup"), the busy-port test
+   ("sends busy-port diagnostics to stderr with jsonl=%s"), the derived-port test that
+   omits `preferredPort` ("first tries the port %s hashes to"), and the fallback test
+   ("falls back to next port when preferred is occupied"). `start(options)` passes its options to
    `startServer` unchanged and registers cleanup. Move `putVerdict`, `postAgentSummary`,
    `startObservedServer` and `openLive` / `closeLive` / `liveUrl` into the shared module
    when a second split-out file uses one; until then each moves with its describe block.
@@ -121,15 +127,17 @@ Next: task 1.
    `p2-20261114-weak-tests.md`, which edit `useKeyboardNavigation.test.tsx`):
    - `useKeyboardNavigation.test.tsx`: a `renderNav(overrides)` for the 48 near-identical
      `renderHook` blocks.
-   - `CommentThreadCard.test.tsx`: lift `props` (64-70) to module scope; 21 of its 34
-     renders do not spread it.
+   - `CommentThreadCard.test.tsx`: lift `props` (in its "thread and reply actions" block)
+     to module scope; 21 of its 34 renders do not spread it.
    - `DiffChunk.test.tsx`, `DiffQuickMenu.test.ts`, `CommentsListModal.test.tsx`: one
      module-level props object each.
    - `src/client/viewers/viewerProps.testing.ts` for the `DiffViewerBodyProps` builders
-     (MarkdownDiffViewer.test.tsx:22-62 and NotebookDiffViewer.test.tsx:34-85 are
-     byte-identical for 28 lines; ImageDiffViewer.test.tsx:14-28; TextDiffViewer.test.tsx).
-   - `StorageService.test.ts`'s 40-line `LocalStorageMock` (5-45): happy-dom's storage
-     replaces it; line 149 reads the mock's `_keys` and needs changing.
+     (`createFile`, `mergedChunks` and `createProps` in MarkdownDiffViewer.test.tsx and
+     NotebookDiffViewer.test.tsx are byte-identical for 28 lines; `baseProps` in
+     ImageDiffViewer.test.tsx; TextDiffViewer.test.tsx).
+   - `StorageService.test.ts`'s 40-line `LocalStorageMock`: happy-dom's storage
+     replaces it; the "separates direct and merge-base diff contexts" test reads the
+     mock's `_keys` and needs changing.
 
    Acceptance per file: the file passes with the same `it` names. Two-copy duplicates stay
    where they are: `updates(threads)` in the two `CommentsListModal` test files,
