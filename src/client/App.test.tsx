@@ -2429,6 +2429,17 @@ describe('App Component - Sidebar persistence', () => {
     fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF' });
     await waitFor(() => expect(toggleButton).toHaveAttribute('aria-expanded', 'true'));
   });
+
+  it('opens About with the a key, but not with Shift+A', async () => {
+    renderApp();
+    await screen.findByRole('button', { name: 'About' });
+
+    fireEvent.keyDown(document.body, { key: 'A', code: 'KeyA', shiftKey: true });
+    expect(screen.queryByRole('dialog', { name: 'About' })).toBeNull();
+
+    fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
+    expect(await screen.findByRole('dialog', { name: 'About' })).toBeInTheDocument();
+  });
 });
 
 describe('App Component - Mobile sidebar auto-close', () => {

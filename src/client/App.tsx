@@ -208,6 +208,10 @@ function App() {
   const [threadToFocus, setThreadToFocus] = useState<string | null>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const closeAbout = useCallback(() => setIsAboutOpen(false), []);
+  const openAbout = () => {
+    setIsCommentsListOpen(false);
+    setIsAboutOpen(true);
+  };
   const aboutSlide = useSlideOver(isAboutOpen);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
@@ -1161,6 +1165,7 @@ function App() {
         setIsCommentsListOpen(true);
       },
       onToggleFileTree: () => setIsFileTreeOpen((open) => !open),
+      onShowAbout: openAbout,
       onRefresh: () => {
         reload();
       },
@@ -2154,10 +2159,7 @@ function App() {
                 aria-label="About"
                 title="About"
                 className="inline-flex items-center justify-center gap-1.5 rounded-md border border-github-border px-3 py-1.5 font-medium hover:bg-github-bg-tertiary"
-                onClick={() => {
-                  setIsCommentsListOpen(false);
-                  setIsAboutOpen(true);
-                }}
+                onClick={openAbout}
               >
                 <Info size={14} aria-hidden="true" />
                 <span className="group-data-hide-labels/header:sr-only">About</span>

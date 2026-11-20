@@ -47,6 +47,7 @@ export interface UseKeyboardNavigationProps {
   onDeleteAllComments?: () => void;
   onShowCommentsList?: () => void;
   onToggleFileTree?: () => void;
+  onShowAbout?: () => void;
   onRefresh?: () => void;
   onVerdict?: (verdict: ReviewVerdict) => void;
   isModalOpen?: boolean;
