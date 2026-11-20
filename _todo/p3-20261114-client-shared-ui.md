@@ -28,7 +28,8 @@ Next: task 1.
 
 - `AGENTS.md`, `p1-20261114-refactor-arc.md`
 - Tasks that edit `App.tsx` (7) go after or into `p1-20261114-split-app-tsx.md`.
-  Task 5 also edits `server.ts:1225`; it goes after `p2-20261114-split-server-ts.md`.
+  Task 5 also edits the `/api/line-count` route in `server.ts`; it goes after
+  `p2-20261114-split-server-ts.md`.
 - `p3-20261114-diff-chunk-renderers.md` task 7 touches the same declarations as task 7
   here (`'left' | 'right'` in DiffChunk, SideBySideDiffChunk and `viewers/types.ts`); do
   them in one place.
@@ -49,8 +50,8 @@ Next: task 1.
 Acceptance for each: the listed tests pass unchanged, `pnpm build` and `pnpm check` pass.
 
 1. **Shared react-markdown entries.** `getMarkdownComponents` in
-   MarkdownDiffViewer.tsx:213-338 and NotebookDiffViewer.tsx:591-706, and
-   `getCommentMarkdownComponents` in CommentBodyRenderer.tsx:97-264, repeat some entries.
+   MarkdownDiffViewer.tsx and NotebookDiffViewer.tsx, and
+   `getCommentMarkdownComponents` in CommentBodyRenderer.tsx, repeat some entries.
    In a new `components/markdownComponents.tsx` (`utils/markdownUtils.ts` is `.ts` and
    cannot hold JSX), share only the entries that are identical today, as plain
    components: `img`, identical in all three maps; `a`, `li`, `blockquote` and `hr`,
@@ -60,125 +61,152 @@ Acceptance for each: the listed tests pass unchanged, `pnpm build` and `pnpm che
    differ in every map; Markdown alone also has `thead` / `tbody` / `tr` and a
    `markdown-preview-code` class. The comment map keeps its own `a`: it routes gavel
    links through `links.follow`, rewrites them with `links.linkHref`, stops propagation
-   to the card, and keeps modified clicks (CommentBodyRenderer.tsx:140-175), while the
-   preview `a` only applies `isSafeUrl`, which rejects `?review=…`; pins
-   CommentBodyRenderer.test.tsx:201-267. Also share
-   `getBlockStyle` (Markdown 340-351) = `getCellBorderStyle` (Notebook 533-544),
+   to the card, and keeps modified clicks (the `a` entry in `getCommentMarkdownComponents`),
+   while the preview `a` only applies `isSafeUrl`, which rejects `?review=…`; pins the
+   `gavel links` tests in CommentBodyRenderer.test.tsx. Also share
+   `getBlockStyle` (MarkdownDiffViewer) = `getCellBorderStyle` (NotebookDiffViewer),
    `isDeletionLine` / `isContextLine`, `isFetchableRef`, and the preview-mode guard and
-   tabs (Markdown 847-867, Notebook 1188-1208) as a `usePreviewMode(hasFullPreview)` hook
+   tabs (the `hasFullPreview` memo, the effect that leaves `'full-preview'` without it, and
+   `<PreviewModeTabs>` in `MarkdownDiffViewer` and `NotebookDiffViewer`) as a
+   `usePreviewMode(hasFullPreview)` hook
    in `viewers/PreviewModeTabs.tsx`. Pins: MarkdownDiffViewer, NotebookDiffViewer,
    CommentBodyRenderer tests.
-2. **Navigation-scope hook.** The navigation-scope toggle (HelpModal.tsx:17-30,
-   SettingsModal.tsx:143-157, AboutPanel.tsx:80-112, CommentsListModal.tsx:308-322,
-   RevisionDetailModal.tsx:37-47), focus return on close (HelpModal 33-43, SettingsModal
-   126-136, AboutPanel 83-113, CommentsListModal 169-176), Tab wrap (AboutPanel 91-104,
-   SettingsModal 242-265, CommentsListModal 392-425) and Escape repeat across the modals.
+2. **Navigation-scope hook.** The navigation-scope toggle (the
+   `disableScope('navigation')` effects in HelpModal, SettingsModal, AboutPanel,
+   CommentsListModal and RevisionDetailModal), focus return on close (the `previous.focus`
+   effects in HelpModal, SettingsModal, AboutPanel and CommentsListModal), Tab wrap
+   (AboutPanel's `onKey` handler, and the Tab branch of the `onKeyDown` handlers in
+   SettingsModal and CommentsListModal) and Escape repeat across the modals.
    Add `useNavigationScopeDisabled(isOpen)` next to `hooks/useSlideOver.ts` for the three
-   identical effects (HelpModal.tsx:16-29, SettingsModal.tsx:143-157,
-   RevisionDetailModal.tsx:38-47); in each it is a move. CommentsListModal also switches
-   its own `comments-list` scope (308-322) and keeps its effect. Leave focus return, Tab
+   identical effects (in HelpModal, SettingsModal and RevisionDetailModal); in each it is
+   a move. CommentsListModal also switches its own `comments-list` scope (the
+   `enableScope('comments-list')` effect) and keeps its effect. Leave focus return, Tab
    wrap and Escape in each modal: focus return differs (HelpModal passes
-   `preventScroll: true`, SettingsModal 126-136 does not); the three Tab-wrap focusable
+   `preventScroll: true`, SettingsModal's does not); the three Tab-wrap focusable
    selectors differ (About `'button, summary, a[href]'`; Settings adds form controls and
    `[tabindex]`; Conversation also excludes `[hidden]` ancestors and unchecked radios);
    Escape is one `useHotkeys` line. Adding RevisionDetailModal's missing
    `role="dialog"`, focus move, or Escape adds behavior: separate commits, ask first.
-   Pins: HelpModal.test.tsx:47-59, CommentsListModal.unread.test.tsx:252-256,
-   SettingsModal, AboutPanel, RevisionDetailModal tests.
-3. **Copy feedback.** Two kinds of copy button exist today. AgentDeliveryStatus.tsx:82-104,
-   ReviewPresenceIndicator.tsx:21-63 and AccessTokenGate.tsx:24-48 never reset: they show
+   Pins: HelpModal.test.tsx's "takes focus from the button that opened About, and returns
+   it on close", CommentsListModal.unread.test.tsx's "keeps Tab focus inside Conversation
+   and restores the opener on close", SettingsModal, AboutPanel, RevisionDetailModal tests.
+3. **Copy feedback.** Two kinds of copy button exist today. `CopyResumePrompt` in
+   AgentDeliveryStatus.tsx and the copy buttons in `ReviewPresenceIndicator` and
+   `AccessTokenGate` never reset: they show
    "…copied" until unmount and "Copy failed; try again" on rejection. The file-path,
    About, Copy reply, Copy prompt and Copy All Prompt buttons already share `useCopy`
    (src/client/hooks/useCopy.ts), which resets after 2000 ms and shows a failure on the
    control and in the `CopyFailedNotice` toast. Export the
-   existing `CopyResumePrompt` (AgentDeliveryStatus.tsx:74-106) and render it in
-   ReviewPresenceIndicator in place of its inline copy (21-63), which has the same state,
+   existing `CopyResumePrompt` (AgentDeliveryStatus.tsx) and render it in
+   ReviewPresenceIndicator in place of its inline copy, which has the same state,
    handler and labels. The two differ only in `title` (AgentDeliveryStatus has one) and in
    classes (`shrink-0 text-xs` against `justify-center`). Use the AgentDeliveryStatus
    markup for both, as its own commit, since the presence button gains a tooltip. Leave
    AccessTokenGate alone (its labels differ), and the `useCopy` buttons too. Leave
-   `useVerdictFollowUp.ts:144-156` alone; it is a phase machine.
-4. **Revision menu parts.** `getItemClasses` is identical in DiffQuickMenu.tsx:403-419
-   and RevisionSelector.tsx:157-173. The commit and branch button bodies and the empty
+   `copyPrompt` in `useVerdictFollowUp.ts` alone; it is a phase machine.
+4. **Revision menu parts.** `getItemClasses` is identical in DiffQuickMenu.tsx
+   and RevisionSelector.tsx. The commit and branch button bodies and the empty
    state match except for their actions: DiffQuickMenu passes `createDiffSelection(...)`,
-   RevisionSelector passes `shortHash` and sets `disabled` (DiffQuickMenu 573-628,
-   RevisionSelector 251-301). Share `getItemClasses`, which is byte-identical. Inside
-   DiffQuickMenu, render the duplicated commit button (573-593, 699-717) from one local
-   function. Leave the lists, search box (479-494, 208-223), trigger chip (449-493,
-   194-226) and `matchesQuery` in each file: a `CommitBranchList` would take select
-   handlers, active and disabled predicates, the heading text ('Commits' at
-   DiffQuickMenu:570 against 'Recent Commits' at RevisionSelector:249) and DiffQuickMenu's
-   branch `title`. Leave the four floating-ui `size` middlewares, which set different
-   things: width at DiffQuickMenu.tsx:163 and 199, width and height at HeaderMenu.tsx:47,
-   and height capped at 400 at RevisionSelector.tsx:59. Pins:
+   RevisionSelector passes `shortHash` and sets `disabled` (the `filteredCommits.map`,
+   `filteredBranches.map` and `hasNoMatches` blocks in each). Share `getItemClasses`, which
+   is byte-identical. Inside DiffQuickMenu, render the duplicated commit button (in
+   `filteredCommits.map` and in the commit submenu's `options.commits.map`) from one local
+   function. Leave the lists, search box (the "Filter branches and commits" input), trigger
+   chip (the `refs.setReference` button) and `matchesQuery` in each file: a
+   `CommitBranchList` would take select handlers, active and disabled predicates, the
+   heading text ('Commits' in DiffQuickMenu against 'Recent Commits' in RevisionSelector)
+   and DiffQuickMenu's branch `title`. Leave the four floating-ui `size` middlewares, which
+   set different things: width in DiffQuickMenu.tsx's two `useFloating` calls (the menu and
+   the `commitRefs` submenu), width and height in HeaderMenu.tsx's `useFloating`, and
+   height capped at 400 in RevisionSelector.tsx's `useFloating`. Pins:
    DiffQuickMenu.test.ts, DiffQuickMenu.positioning.test.ts, RevisionSelector.test.tsx,
    RevisionDetailModal.test.tsx.
 5. **One blob URL builder and shared response types.** Move `blobUrl(path, source)`
-   (useExpandedLines.ts:60-68) beside `apiFetch` in `client/utils/accessToken.ts`, and
+   (useExpandedLines.ts) beside `apiFetch` in `client/utils/accessToken.ts`, and
    use it at the other four blob-URL sites. Add no `apiJson` / `apiText`: the callers
    below use five error styles, so a shared reader would either throw, forcing the three
    null-returning callers to add try/catch, or take an error-style option. Call sites and
-   their current error handling: throw `statusText` (MarkdownDiffViewer.tsx:760,
-   useExpandedLines.ts:74, 99); return null (NotebookDiffViewer.tsx:488,
-   useFileLevelTokens.ts:28, useLazyDiffRendering.ts:326); `${status} ${statusText}`
-   (useReviewOps.ts:133, 193); server `body.error` (App.tsx:1368); fixed message
-   (useReviewApproval.ts:28, useReviewSummary.ts:30, services/autoViewedPatterns.ts:24).
-   Blob URLs built in five places: ImageDiffViewer.tsx:137, NotebookDiffViewer.tsx:487,
-   MarkdownDiffViewer.tsx:757-758, useFileLevelTokens.ts:25-26, useExpandedLines.ts:60.
+   their current error handling: throw `statusText` (`fetchBlob` in MarkdownDiffViewer.tsx,
+   `fetchFileContent` and `fetchLineCount` in useExpandedLines.ts); return null
+   (`fetchNotebookContent` in NotebookDiffViewer.tsx, `fetchBlobText` in
+   useFileLevelTokens.ts, the `/api/generated-status` fetch in useLazyDiffRendering.ts);
+   `${status} ${statusText}` (`send` and `refresh` in useReviewOps.ts); server `body.error`
+   (`fetchDiffData` in App.tsx); fixed message (`refresh` in useReviewApproval.ts and in
+   useReviewSummary.ts, `saveAutoViewedPatterns` in services/autoViewedPatterns.ts).
+   Blob URLs built in five places: the local `blobUrl` in ImageDiffViewer.tsx,
+   `fetchNotebookContent` in NotebookDiffViewer.tsx, `fetchBlob` in MarkdownDiffViewer.tsx,
+   `fetchBlobText` in useFileLevelTokens.ts, `blobUrl` in useExpandedLines.ts.
    ImageDiffViewer's URL feeds an `<img src>`, so it is wrapped in `withAccessTokenQuery`
-   and falls back to `HEAD~1` / `HEAD` (133-138); it resolves the fallback and wraps the
-   result itself, so `blobUrl` takes no option.
-   Declare response types in `src/types`: `LineCountResponse` (server.ts:1225,
-   useExpandedLines.ts:87, 101), the comments-json snapshot (useReviewOps.ts:30-34 equals
+   and falls back to `HEAD~1` / `HEAD` (its local `blobUrl`); it resolves the fallback and
+   wraps the result itself, so `blobUrl` takes no option.
+   Declare response types in `src/types`: `LineCountResponse` (the `/api/line-count` route
+   in server.ts, `fetchLineCount` in useExpandedLines.ts), the comments-json snapshot
+   (`Snapshot` in useReviewOps.ts equals
    `Omit<ReviewOpsResponse,'results'>`), and use `GeneratedStatusResponse`
-   (types/diff.ts:99) in useLazyDiffRendering. `ImageDiffViewer.tsx:64` never checks
+   (types/diff.ts) in useLazyDiffRendering. `recordInfo` in ImageDiffViewer.tsx never checks
    `response.ok` (defect; same small-defects TPP). Do not merge `useReviewApproval` and
    `useReviewSummary`: their stale-answer rules differ.
-6. **Line-range helpers.** `lastLineOf` and `rangeOf` exist at
-   LineCommentComposer.tsx:19-26 (only `lastLineOf` exported). Inline copies: last line
-   (navigation/positionHelpers.ts:68-70, 93; SideBySideDiffChunk.tsx:255-257), range
-   (ignoreWhitespace.ts:56, DiffViewer.tsx:128), first line (CommentsListModal.tsx:100-101;
-   useKeyboardNavigation.ts:62 keys on the first line, which is the Shift+N/P defect in
+6. **Line-range helpers.** `lastLineOf` and `rangeOf` exist in
+   LineCommentComposer.tsx (only `lastLineOf` exported). Inline copies: last line
+   (`findCommentPosition` and `findSidePosition` in navigation/positionHelpers.ts;
+   `getThreadsForLine` in SideBySideDiffChunk.tsx), range (`hideWhitespaceChanges` in
+   ignoreWhitespace.ts, `normalizeCommentRanges` in DiffViewer.tsx), first line
+   (`compareThreadsByPosition` in CommentsListModal.tsx; `commentIndex` in
+   useKeyboardNavigation.ts keys on the first line, which is the Shift+N/P defect in
    `p3-20261114-keyboard-nav-defects.md`, not intended behavior). Move
    `firstLineOf`, `lastLineOf`, `rangeOf` into `src/utils/commentThreads.ts`. Add
    `formatLineRange(line)`, returning `40-52` or `40`, for the two sites that build
-   exactly that string (CommentThreadCard.tsx:457-459, UnsentDrafts.tsx:174). Leave the
-   two `describeLines` functions alone: hooks/useCommentLinks.ts:45-49 picks 'Line' or
-   'Lines', and LineCommentComposer.tsx:48 uses an en dash and a side prefix, so no
-   visible change needs a decision. Also leave out two sites that are not labels: `utils/commentLinks.ts:99` writes the `line=40-52` URL parameter, which
-   `LINE_PATTERN` (`/^(\d+)(?:-(\d+))?$/`, commentLinks.ts:22) parses back, so it must
-   stay an ASCII hyphen; `src/utils/commentFormatting.ts:6` writes `L40-L52` into the
-   agent prompt. Pins: positionHelpers, ignoreWhitespace, commentLinks (the round trip at
-   commentLinks.test.ts:113-120), CommentThreadCard tests.
-7. **String-literal unions.** Export and use: `DiffSide` (types/diff.ts:36) for inline
-   `'old' | 'new'` (review-capture.ts:603, 612; cli/github.ts:133, 138;
-   ImageDiffViewer.tsx:133; useExpandedLines.ts:62); an `ExpandDirection` for
-   `'up' | 'down'` (types/diff.ts:296, viewers/types.ts:35, useExpandedLines.ts:42, 259,
-   529, DiffViewer.tsx:74); `CursorPosition['side']` (no new alias name) for
-   `'left' | 'right'` (App.tsx:1278, viewers/types.ts:68, useKeyboardNavigation.ts:131,
-   DiffViewer.tsx:90, DiffChunk.tsx:72, 145, SideBySideDiffChunk.tsx:71, 96);
-   `ResolvedTheme` and an exported `ThemePreference` (appearanceTheme.ts:3, 7) for
-   useAppearanceSettings.ts:57, SettingsModal.tsx:33, 159, 172, themeLoader.ts:23-29.
+   exactly that string (`lineLabel` in CommentThreadCard.tsx, the `label` in
+   `ThreadDraftRow` in UnsentDrafts.tsx). Leave the two `describeLines` functions alone:
+   the one in hooks/useCommentLinks.ts picks 'Line' or 'Lines', and the one in
+   LineCommentComposer.tsx uses an en dash and a side prefix, so no
+   visible change needs a decision. Also leave out two sites that are not labels:
+   `linkPlaceFragment` in `utils/commentLinks.ts` writes the `line=40-52` URL parameter, which
+   `LINE_PATTERN` (`/^(\d+)(?:-(\d+))?$/`, commentLinks.ts) parses back, so it must
+   stay an ASCII hyphen; `getLineInfo` in `src/utils/commentFormatting.ts` writes
+   `L40-L52` into the agent prompt. Pins: positionHelpers, ignoreWhitespace, commentLinks
+   (the round trip in commentLinks.test.ts's "writes a file place that reads back the
+   same" test), CommentThreadCard tests.
+7. **String-literal unions.** Export and use: `DiffSide` (types/diff.ts) for inline
+   `'old' | 'new'` (`capturedFileContent` and its `readVersion` in review-capture.ts;
+   `createSingleLinePosition` and `createMultiLinePosition` in cli/github.ts; the local
+   `blobUrl` in ImageDiffViewer.tsx; `blobUrl` in useExpandedLines.ts); an
+   `ExpandDirection` for `'up' | 'down'` (`ExpandedRange` in types/diff.ts,
+   `expandHiddenLines` in viewers/types.ts, `expandLines` in `UseExpandedLinesResult`, the
+   `expandLines` callback and `getExpandedCount` in useExpandedLines.ts, the `expandLines`
+   prop in DiffViewer.tsx); `CursorPosition['side']` (no new alias name) for
+   `'left' | 'right'` (`handleLineClick` in App.tsx, `onLineClick` in viewers/types.ts,
+   `switchSide` in useKeyboardNavigation.ts, `onLineClick` in DiffViewer.tsx, `onLineClick`
+   and `handleRowClick` in DiffChunk.tsx, `onLineClick` and `ClickedLineTarget` in
+   SideBySideDiffChunk.tsx); `ResolvedTheme` and an exported `ThemePreference`
+   (appearanceTheme.ts) for `applyTheme` in useAppearanceSettings.ts, the
+   `AppearanceSettings.theme` field, `getCurrentTheme` and `handleThemeChange` in
+   SettingsModal.tsx, and `getThemesForResolvedTheme`, `isSyntaxThemeForResolvedTheme` and
+   `getFallbackSyntaxTheme` in themeLoader.ts.
    Acceptance: `pnpm build`.
 8. **Small repeats.**
-   - `getFileIcon`: identical in DiffViewerHeader.tsx:50-63 and FileList.tsx:320-333.
-   - The yellow button with JS hover (CommentButton.tsx:16-28, CommentForm.tsx:226-238,
-     CommentsDropdown.tsx:63-76, 85-100): one `.btn-yellow` class with `:hover` in
-     global.css.
-   - The rAF scroll handler in useCursorFile.ts:49-66 and useTopVisibleFile.ts:72-89: a
-     `useRafScroll(measure)` hook.
-   - The card frame classes (CommentThreadCard.tsx:558, CommentForm.tsx:142,
-     UnsentDrafts.tsx:176) and the `'User'` author string (useDiffComments.ts:73, 123).
+   - `getFileIcon`: identical in DiffViewerHeader.tsx and FileList.tsx.
+   - The yellow button with JS hover (the inline `--color-yellow-btn-*` `style` and
+     `onMouseEnter` / `onMouseLeave` handlers in `CommentButton`, `CommentForm`'s submit
+     button, and `CommentsDropdown`'s Copy All and "More options" buttons): one
+     `.btn-yellow` class with `:hover` in global.css.
+   - The rAF scroll handler (`onScroll` and its `cancelAnimationFrame` cleanup effect) in
+     useCursorFile.ts and useTopVisibleFile.ts: a `useRafScroll(measure)` hook.
+   - The card frame classes (the `border-l-yellow-400` class strings in
+     `CommentThreadCard`, `CommentForm` and `ThreadDraftRow` in UnsentDrafts.tsx) and the
+     `'User'` author string (`newThread` and `replyToThread` in useDiffComments.ts).
    - `client/utils/autoViewedPatterns.ts` and `client/services/autoViewedPatterns.ts`
      share a basename but hold unrelated code; rename one.
 
 ## Leave alone
 
-- The selection-to-query encoders (App.tsx:316-333, App.tsx:1347-1360,
-  `setReviewParams` in client/utils/reviewNavigation.ts:93-108). They differ: 316-333
-  never sets `retainedReview` and checks `reviewName` by truthiness; 1347-1360 accepts an
-  undefined selection and skips an empty base or target; `setReviewParams` deletes stale
-  keys. One encoder would need an option per difference. The server decoder
-  (server.ts:732-755) defaults to the current selection on purpose.
+- The selection-to-query encoders (`commentSessionQueryString` in App.tsx, the `/api/diff`
+  query in `fetchDiffData` in App.tsx, `setReviewParams` in
+  client/utils/reviewNavigation.ts). They differ: `commentSessionQueryString`
+  never sets `retainedReview` and checks `reviewName` by truthiness; `fetchDiffData`
+  accepts an undefined selection and skips an empty base or target; `setReviewParams`
+  deletes stale keys. One encoder would need an option per difference. The server decoder
+  (`getCommentSelectionFromQuery` in server.ts) defaults to the current selection on
+  purpose.
 - The unread / progress key `JSON.stringify([threadId, messageId])`: owned by
   `p3-20261114-server-modules.md` task 6.
