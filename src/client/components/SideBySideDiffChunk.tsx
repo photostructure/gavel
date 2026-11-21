@@ -169,8 +169,6 @@ interface SideBySideLineRowProps {
   highlightNewCell: boolean;
   oldSelectedStyle: string;
   newSelectedStyle: string;
-  hoveredLine: LineSelection | null;
-  setHoveredLine: (line: LineSelection | null) => void;
   handleRowClick: (click: {
     isShiftClick: boolean;
     target: HTMLElement;
@@ -192,8 +190,6 @@ function SideBySideLineRow({
   highlightNewCell,
   oldSelectedStyle,
   newSelectedStyle,
-  hoveredLine,
-  setHoveredLine,
   handleRowClick,
   extendDrag,
   handleLineNumberMouseDown,
@@ -203,13 +199,14 @@ function SideBySideLineRow({
   syntaxTheme,
 }: SideBySideLineRowProps) {
   const { getOldTokens, getNewTokens } = useFileLevelTokensLookup();
+  // Each row keeps its own hover state, so moving the pointer re-renders only the rows it
+  // leaves and enters, not every row of a hunk that may hold thousands.
+  const [hoveredSide, setHoveredSide] = useState<DiffSide | null>(null);
   const cellHighlightClass = 'keyboard-cursor';
   // A line-number cell is positioned only while it holds the line buttons, and a code
   // cell only while getSelectedLineStyle draws its overlay; see DiffLineRow for why.
-  const showOldLineActions =
-    hoveredLine?.side === 'old' && hoveredLine.lineNumber === sideLine.oldLineNumber;
-  const showNewLineActions =
-    hoveredLine?.side === 'new' && hoveredLine.lineNumber === sideLine.newLineNumber;
+  const showOldLineActions = hoveredSide === 'old';
+  const showNewLineActions = hoveredSide === 'new';
   const oldSelection = sideLine.oldLineNumber
     ? {
         side: 'old' as const,
@@ -222,6 +219,18 @@ function SideBySideLineRow({
         lineNumber: sideLine.newLineNumber,
       }
     : null;
+  // The pointer is on a side while it is over that side's line-number or code cell.
+  const updateHoveredSide = (e: React.MouseEvent) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    const isInOldSide = target.closest('td:nth-child(1)') || target.closest('td:nth-child(2)');
+    const isInNewSide = target.closest('td:nth-child(3)') || target.closest('td:nth-child(4)');
+    if (isInOldSide && sideLine.oldLineNumber) {
+      setHoveredSide('old');
+    } else if (isInNewSide && sideLine.newLineNumber) {
+      setHoveredSide('new');
+    }
+  };
 
   return (
     <tr
@@ -239,50 +248,12 @@ function SideBySideLineRow({
           sideLine,
         });
       }}
-      onMouseEnter={(e) => {
-        const target = e.target;
-        if (!(target instanceof HTMLElement)) return;
-        const isInOldSide = target.closest('td:nth-child(1)') || target.closest('td:nth-child(2)');
-        const isInNewSide = target.closest('td:nth-child(3)') || target.closest('td:nth-child(4)');
-
-        if (isInOldSide && sideLine.oldLineNumber) {
-          setHoveredLine({
-            side: 'old',
-            lineNumber: sideLine.oldLineNumber,
-          });
-        } else if (isInNewSide && sideLine.newLineNumber) {
-          setHoveredLine({
-            side: 'new',
-            lineNumber: sideLine.newLineNumber,
-          });
-        }
-      }}
+      onMouseEnter={updateHoveredSide}
       onMouseMove={(e) => {
-        const target = e.target;
-        if (!(target instanceof HTMLElement)) return;
-        const isInOldSide = target.closest('td:nth-child(1)') || target.closest('td:nth-child(2)');
-        const isInNewSide = target.closest('td:nth-child(3)') || target.closest('td:nth-child(4)');
-
-        // Update hover state based on mouse position
-        if (isInOldSide && sideLine.oldLineNumber) {
-          if (hoveredLine?.side !== 'old' || hoveredLine?.lineNumber !== sideLine.oldLineNumber) {
-            setHoveredLine({
-              side: 'old',
-              lineNumber: sideLine.oldLineNumber,
-            });
-          }
-        } else if (isInNewSide && sideLine.newLineNumber) {
-          if (hoveredLine?.side !== 'new' || hoveredLine?.lineNumber !== sideLine.newLineNumber) {
-            setHoveredLine({
-              side: 'new',
-              lineNumber: sideLine.newLineNumber,
-            });
-          }
-        }
-
+        updateHoveredSide(e);
         extendDrag(sideLine);
       }}
-      onMouseLeave={() => setHoveredLine(null)}
+      onMouseLeave={() => setHoveredSide(null)}
     >
       {/* Old side */}
       <td
@@ -422,7 +393,6 @@ export function SideBySideDiffChunk({
     handleLineNumberMouseDown,
   } = useLineRangeDrag();
   const { hoveredThreadTarget, threadHoverProps } = useHoveredThread(threads);
-  const [hoveredLine, setHoveredLine] = useState<LineSelection | null>(null);
 
   // Handle comment trigger from keyboard navigation
   useEffect(() => {
@@ -625,8 +595,6 @@ export function SideBySideDiffChunk({
                   highlightNewCell={highlightNewCell}
                   oldSelectedStyle={getSelectedLineStyle('old', sideLine)}
                   newSelectedStyle={getSelectedLineStyle('new', sideLine)}
-                  hoveredLine={hoveredLine}
-                  setHoveredLine={setHoveredLine}
                   handleRowClick={handleRowClick}
                   extendDrag={extendDrag}
                   handleLineNumberMouseDown={handleLineNumberMouseDown}

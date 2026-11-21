@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 import { type DiffLine, type ExpandedLine } from '../../types/diff';
 import { type DiffSegment } from '../utils/wordLevelDiff';
@@ -10,13 +10,9 @@ import type { AppearanceSettings } from './SettingsModal';
 
 interface DiffLineRowProps {
   line: DiffLine | ExpandedLine;
-  index: number;
   lineId?: string;
   isCurrentLine?: boolean;
-  hoveredLineIndex: number | null;
   selectedLineStyle: string;
-  onMouseEnter: () => void;
-  onMouseLeave: () => void;
   onMouseMove: () => void;
   onCommentButtonMouseDown: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onLineNumberMouseDown: (e: React.MouseEvent<HTMLTableCellElement>) => void;
@@ -45,13 +41,9 @@ const getLineClass = (line: DiffLine | ExpandedLine) => {
 export const DiffLineRow: React.FC<DiffLineRowProps> = React.memo(
   ({
     line,
-    index,
     lineId,
     isCurrentLine = false,
-    hoveredLineIndex,
     selectedLineStyle,
-    onMouseEnter,
-    onMouseLeave,
     onMouseMove,
     onCommentButtonMouseDown,
     onLineNumberMouseDown,
@@ -61,8 +53,11 @@ export const DiffLineRow: React.FC<DiffLineRowProps> = React.memo(
     filename,
     diffSegments,
   }) => {
+    // Each row keeps its own hover state, so moving the pointer re-renders only the rows it
+    // leaves and enters, not every row of a hunk that may hold thousands.
+    const [hovered, setHovered] = useState(false);
     const lineNumber = line.newLineNumber || line.oldLineNumber;
-    const showLineActions = hoveredLineIndex === index && lineNumber;
+    const showLineActions = hovered && lineNumber;
 
     const highlightClass = isCurrentLine ? 'keyboard-cursor' : '';
 
@@ -71,8 +66,8 @@ export const DiffLineRow: React.FC<DiffLineRowProps> = React.memo(
         id={lineId}
         data-diff-line-row="true"
         className={`group ${getLineClass(line)} ${selectedLineStyle} ${highlightClass} cursor-pointer`}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         onMouseMove={onMouseMove}
         onClick={onClick}
       >

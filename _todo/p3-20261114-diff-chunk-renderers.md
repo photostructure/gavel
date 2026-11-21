@@ -8,8 +8,8 @@ section: Refactor
 
 ## Summary
 
-`DiffChunk.tsx` (451 lines) renders unified mode and, in split mode, returns
-`<SideBySideDiffChunk>` (739 lines) from its `if (mode === 'split')` branch, after all of its own hooks have run.
+`DiffChunk.tsx` renders unified mode and, in split mode, returns
+`<SideBySideDiffChunk>` from its `if (mode === 'split')` branch, after all of its own hooks have run.
 The two renderers duplicate word-diff pairing, thread lookup, thread and composer rows,
 selection highlighting, the keyboard comment trigger, element IDs, and the gutter and
 code cells. In split mode both compute word diffs, so `computeWordLevelDiff` runs twice
@@ -64,9 +64,9 @@ Next: task 1 (characterization tests).
    behaves differently (S's misspelled `getProcomputedTokens`; C's `getPrecomputedTokens`).
 10. Line background: S's `isExpandedLine` and `getSideBySideLineClass` vs R's `getLineClass`.
 
-Within S: the side-hit test three times (`getClickedLineTarget`, the row's `onMouseEnter`,
-and its `onMouseMove`); `onMouseEnter` and `onMouseMove` set hover state with the same
-logic; the old and new cells (the "Old side" and "New side" blocks) differ only by side.
+Within S: the side-hit test twice (`getClickedLineTarget`, and `updateHoveredSide` in
+`SideBySideLineRow`); the old and new cells (the "Old side" and "New side" blocks) differ
+only by side.
 
 The thread-action callbacks (`onGenerateThreadPrompt`, `onToggleThreadResolved`,
 `onRemoveThread?`, `onRestoreComment?`, `onReplyToThread`, `onRemoveMessage`,
@@ -117,9 +117,9 @@ and the `commentTrigger` shape repeat the same way.
    in SideBySideDiffChunk.tsx instead of a `useCallback`. Do not create a new module:
    the `sideBySideLines` `useMemo` is its only caller. Keyboard and renderer must keep using the same pairing.
 4. Inside SideBySideDiffChunk only: render the old and new cells (the "Old side" and
-   "New side" blocks) from one local function of the side; replace the three side-hit
-   tests (`getClickedLineTarget`, `onMouseEnter`, `onMouseMove`) with one function; give
-   the row's `onMouseEnter` and `onMouseMove` one hover update.
+   "New side" blocks) from one local function of the side; replace the two side-hit
+   tests (`getClickedLineTarget`, and `updateHoveredSide` in `SideBySideLineRow`) with one
+   function.
 5. Share the gutter cell's long class string with DiffLineRow (the
    `w-[var(--line-number-width)]` class on the line-number `<td>`s in both) as one
    exported constant, not a component. Leave the thread and composer rows in each

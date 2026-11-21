@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, memo } from 'react';
+import React, { useEffect, useMemo, memo } from 'react';
 
 import {
   type DiffChunk as DiffChunkType,
@@ -107,7 +107,6 @@ export const DiffChunk = memo(function DiffChunk({
     handleLineNumberMouseDown,
   } = useLineRangeDrag();
   const { hoveredThreadTarget, threadHoverProps } = useHoveredThread(threads);
-  const [hoveredLine, setHoveredLine] = useState<number | null>(null);
 
   // Handle comment trigger from keyboard navigation
   useEffect(() => {
@@ -313,10 +312,8 @@ export const DiffChunk = memo(function DiffChunk({
               <React.Fragment key={index}>
                 <DiffLineRow
                   line={line}
-                  index={index}
                   lineId={lineId}
                   isCurrentLine={isCurrentLine || false}
-                  hoveredLineIndex={hoveredLine}
                   selectedLineStyle={
                     getDragSelectionStyle(line) ||
                     // The lines of every open comment form, restored drafts included,
@@ -327,10 +324,6 @@ export const DiffChunk = memo(function DiffChunk({
                       ? 'comment-selected'
                       : '')
                   }
-                  onMouseEnter={() => {
-                    setHoveredLine(index);
-                  }}
-                  onMouseLeave={() => setHoveredLine(null)}
                   onMouseMove={() => extendDrag(line)}
                   onCommentButtonMouseDown={(e) => handleCommentButtonMouseDown(e, selection)}
                   onLineNumberMouseDown={(e) => handleLineNumberMouseDown(e, selection)}
