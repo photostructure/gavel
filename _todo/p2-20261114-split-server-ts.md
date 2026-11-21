@@ -19,7 +19,7 @@ static. The entangled core stays in server.ts: startup and listen, `/api/diff`, 
 named reviews, review ops, the save queue, the live socket and shutdown. Features touch
 three shared places (a constant near the top of the closure, an import, a field in the
 `GET /api/diff` response), but the conflict replay below shows the split will not
-remove many merge conflicts. `server.test.ts` (4,461 lines) splits to follow. Part of
+remove many merge conflicts. `server.test.ts` splits to follow. Part of
 `p1-20261114-refactor-arc.md`.
 
 ## Current phase

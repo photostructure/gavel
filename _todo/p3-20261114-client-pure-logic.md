@@ -9,7 +9,7 @@ section: Refactor
 ## Summary
 
 Several large client files mix React state with pure computation that has no unit
-tests: gap and merge math in `useExpandedLines` (813 lines), the reconcile step in
+tests: gap and merge math in `useExpandedLines`, the reconcile step in
 `useViewedFiles` (455), position search in `useKeyboardNavigation` (606), notebook
 parsing in `NotebookDiffViewer` (1,254), block building in `MarkdownDiffViewer` (901),
 and model and label code living in components (`SettingsModal`, `DiffQuickMenu`,
@@ -44,8 +44,8 @@ Next: task 1 (useExpandedLines characterization tests).
 - `DiffViewer`'s `buildChunkRanges` drops zero-line hunks while the
   hook's math does not. Do not unify them until the zero-length hunk defect is fixed.
 - The `keyboardNavigation/` split is half done: `navigationCore.ts`,
-  `navigationFilters.ts`, `scrollUtils.ts` exist; the hook still holds about 250 lines of
-  pure search. No new files are needed there.
+  `navigationFilters.ts`, `scrollUtils.ts` exist; the hook still holds the
+  pure search code. No new files are needed there.
 - `StorageService` forwards six positional arguments through seven methods (`getStorageKey`,
   `getDiffContextData`, `saveDiffContextData`, `getCommentThreads`, `removeCommentThreads`,
   `getViewedFiles`, `saveViewedFiles`).
@@ -150,7 +150,7 @@ functions have unit tests in a `*.test.ts` beside the file that holds them, and
 
 ## Leave alone
 
-- `utils/approvalCelebration.ts` (1,025 lines): one entry point, cohesive. A draw /
+- `utils/approvalCelebration.ts`: one entry point, cohesive. A draw /
   physics split would push about 12 internals across a module boundary. Small tidies
   only: constants used before their declarations (the `BALLOON_*` constants used in
   `BURSTS.balloons`; `STAMP_DROP` used in `step`), the identical `'ember'` and `'ink'`

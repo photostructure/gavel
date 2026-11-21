@@ -248,7 +248,7 @@ for every step: `pnpm test` passes with the listed tests unchanged in their asse
 12. `DiffFilePane` (add the placeholder test first) and `ReviewDialogs`. Pins: App.test
     "Editor launch", "Diff load errors", App.agentUpdates render count, CommentsListModal
     tests.
-13. Split `App.test.tsx` (3,235 lines) along its describe blocks to follow the modules:
+13. Split `App.test.tsx` along its describe blocks to follow the modules:
     verdict (Ship it, Approval celebration, Ship it delivery), file collapse (Initial file
     collapsing, Viewed files reload), sidebar, settings (Settings refuse, Auto-viewed, Diff
     Mode Persistence, Header display controls), comments (Clear Comments block). The

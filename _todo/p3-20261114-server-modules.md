@@ -8,7 +8,7 @@ section: Refactor
 
 ## Summary
 
-`git-diff.ts` (1,035 lines) mixes Git I/O with about 470 lines of pure unified-diff
+`git-diff.ts` mixes Git I/O with pure unified-diff
 parsing that tests reach through 34 `(parser as any).parseFileBlock` casts. Server and
 shared code also repeat the Git repository-environment list, sha256-hex (11 sites), `isRecord` (six copies), `processAlive`, the inbox registry
 path, and the enumerations that `src/cli/schema.ts` and `src/types` both spell out.

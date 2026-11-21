@@ -12,7 +12,7 @@ Seven `App.*.test.tsx` files each mock `useFileWatch`, render `<App>` inside a
 `HotkeysProvider` and stub `WebSocket`; six of them route `/api/*` in their own fake
 server (App.test.tsx uses `mockFetch` instead). Six
 server integration tests and several CLI tests each define the same `git()` and
-`request()` helpers, with three argument orders. `server.test.ts` (4,461 lines) holds a
+`request()` helpers, with three argument orders. `server.test.ts` holds a
 `git-diff.js` mock that every split-out file would need. The App and server splits
 (`p1-20261114-split-app-tsx.md`, `p2-20261114-split-server-ts.md`) need these helpers
 before they move test blocks. Part of `p1-20261114-refactor-arc.md`.

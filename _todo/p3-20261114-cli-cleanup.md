@@ -10,7 +10,7 @@ section: CLI
 
 The companion commands (`comment`, `conversation`, `review`, `wait`, `pending`) each
 parse `--port`, report connection failures, read error bodies and read JSON from an
-argument or stdin in their own way. `src/cli/index.test.ts` (1,162 lines) never imports
+argument or stdin in their own way. `src/cli/index.test.ts` never imports
 `index.ts`: it builds 22 of its own `new Command()` programs and re-implements index.ts
 logic inline ("Simulate the logic from index.ts", in the `CLI argument processing` tests), so it tests copies. The
 `index.ts` action calls `startServer` three times with about 15 identical fields. Part
