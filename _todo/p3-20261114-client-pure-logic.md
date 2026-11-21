@@ -30,8 +30,8 @@ Next: task 1 (useExpandedLines characterization tests).
 ## Required reading
 
 - `AGENTS.md`, `p1-20261114-refactor-arc.md`
-- `_todo/p3-20261114-zero-length-hunk-numbers.md` and
-  `_todo/p3-20261114-keyboard-nav-defects.md`: both fix code this plan moves. Do
+- `p3-20261114-zero-length-hunk-numbers.md` and
+  `p3-20261114-keyboard-nav-defects.md`: both fix code this plan moves. Do
   the fix or the move first, not both in one commit.
 - The worktree on branch `feat/ship-it` edits `viewers/TextDiffViewer.tsx` and
   `viewers/types.ts`; check `git worktree list` before the viewer tasks.

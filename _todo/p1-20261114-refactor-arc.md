@@ -27,7 +27,7 @@ name; search for the name, and use `git log -S` for code removed since then.
    other, the compat plan's thread-copy item first. The compat plan's `appliedOps` item cannot land before
    2026-11-20; the splits do not wait for it.
 2. `p1-20261114-shared-test-helpers.md`. The splits need only part of it. The App split
-   needs task 2's `renderApp` and the `useFileWatch` mock, because its step 14 splits
+   needs task 2's `renderApp` and the `useFileWatch` mock, because it splits
    `App.test.tsx` into about six files. The server split needs task 3, because every file
    split out of `server.test.ts` needs its `git-diff.js` mock and the `start` helper.
    Tasks 1 and 4 do not block either split.

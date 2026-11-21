@@ -30,7 +30,7 @@ one place.
 
 - `AGENTS.md` (`Changelog:` trailer for anything an agent can see), `docs/cli.md`,
   `p1-20261114-refactor-arc.md`
-- `_todo/p2-20261114-comment-cli-hangs.md` owns the default timeout in `serverFetch`
+- `p2-20261114-comment-cli-hangs.md` owns the default timeout in `serverFetch`
   and the fix for comment.ts's `process.exit`. Land it before task 2, as its own
   commits.
 

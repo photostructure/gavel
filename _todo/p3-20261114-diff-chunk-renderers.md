@@ -31,7 +31,7 @@ Next: task 1 (characterization tests).
 - `AGENTS.md`, `p1-20261114-refactor-arc.md`
 - `src/client/components/DiffChunk.tsx`, `SideBySideDiffChunk.tsx`, `DiffLineRow.tsx`,
   `DiffCodeLine.tsx`, `CommentThreadCard.tsx` (props)
-- `_todo/p3-20261109-diffchunk-whitespace-snapshot.md` (open against DiffChunk)
+- `p3-20261109-diffchunk-whitespace-snapshot.md` (open against DiffChunk)
 - `p3-20261114-keyboard-nav-defects.md`: its h / l fix needs the same
   delete-to-add pairing that task 3 extracts
 - `p3-20261114-client-shared-ui.md` tasks 6 and 7 (line-range helpers and the

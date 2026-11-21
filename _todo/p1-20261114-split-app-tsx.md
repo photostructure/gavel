@@ -38,7 +38,7 @@ Next: after `p1-20261114-delete-dead-code.md`, `p1-20261114-remove-backward-comp
   delete App.tsx code this plan would otherwise move (`branchToHash` arguments,
   `getNamedReviewStorageRef`, the legacy-thread copy)
 - `src/client/App.tsx` in full before step 1; it changes often
-- `_todo/p2-20261113-queued-verdict-not-shown.md` (plans changes to `handleVerdict`)
+- `p2-20261113-queued-verdict-not-shown.md` (plans changes to `handleVerdict`)
 - `p1-20261114-agent-updates-render-count-flake.md`
 
 ## Where conflicts come from
@@ -232,7 +232,7 @@ for every step: `pnpm test` passes with the listed tests unchanged in their asse
    watch callbacks, App.test "Heartbeat Connection", "Ship it delivery",
    useFileWatch.test.ts, AgentDeliveryStatus.test.tsx.
 7. `useVerdict` + `VerdictArea`. Coordinate with
-   `_todo/p2-20261113-queued-verdict-not-shown.md`. Pins: App.test "Ship it", "Approval
+   `p2-20261113-queued-verdict-not-shown.md`. Pins: App.test "Ship it", "Approval
    celebration", "Ship it delivery"; App.namedReviews "after a verdict" and the
    before-leaving tests; App.reviewOps "verdict shortcuts"; useVerdictFollowUp,
    useReviewApproval, VerdictControl, ToastStack tests.

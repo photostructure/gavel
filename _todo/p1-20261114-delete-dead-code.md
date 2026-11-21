@@ -60,7 +60,7 @@ capped at 5,000 entries (`MAX_VIEWED_INDEX_ENTRIES`, enforced in `recordViewedHa
 
 Accepted as recommended (2026-11-14, BD-1 A): delete `cleanupOldData` rather than call it
 on page load. Deleting it changes no behavior; the context records stop growing once
-`_todo/p2-20261107-server-only-review-state.md` moves viewed marks to the server. The
+`p2-20261107-server-only-review-state.md` moves viewed marks to the server. The
 rejected option, a fixed expiry on page load, would expire by last write
 (`lastModifiedAt`, the field `cleanupOldData` compares, which reads do not refresh); expired marks would come back
 from the hash index only for files whose diff had not changed.

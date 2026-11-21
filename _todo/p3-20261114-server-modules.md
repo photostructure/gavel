@@ -27,7 +27,7 @@ Next: task 1.
 - `AGENTS.md`, `p1-20261114-refactor-arc.md`
 - The comment above `REPOSITORY_ENVIRONMENT` in `src/server/git-client.ts` (says direct Git invocations should agree with
   simple-git's environment)
-- `_todo/p3-20261110-git-env-config-isolation.md`
+- `p3-20261110-git-env-config-isolation.md`
 
 ## Lore
 

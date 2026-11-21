@@ -32,7 +32,7 @@ Next: task 1.
 - `AGENTS.md`, `p1-20261114-refactor-arc.md`
 - `src/server/test-access-token.ts` and `src/client/utils/liveConnection.testing.ts`
   (existing test-only modules in `src/`)
-- `_todo/p3-20261110-git-env-config-isolation.md` (same Git environment
+- `p3-20261110-git-env-config-isolation.md` (same Git environment
   question as task 1)
 - `p1-20261114-agent-updates-render-count-flake.md` (how the render-count tests in
   `App.agentUpdates.test.tsx` wait for the initial load)
@@ -68,7 +68,7 @@ Next: task 1.
   No client code sends those; verdicts go through `review-ops`. Delete them
   (the `init?.method === 'PUT'` and `'DELETE'` branches of its `/api/approval` route) when
   task 2 converts that file.
-- Step 14 of the App split will need `App.test.tsx`'s `useDiffComments` /
+- Splitting `App.test.tsx` in the App split will need its `useDiffComments` /
   `useViewedFiles` / `useViewport` mocks (its `vi.mock('./hooks/…')` factories) in each new
   file. That split decides how, once its file list is known. This plan does not build a fake server
   for it.

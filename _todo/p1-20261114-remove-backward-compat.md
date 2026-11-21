@@ -28,7 +28,7 @@ Next: task 1 (in-process compat), one commit per item. Task 2's thread-copy item
 
 - `AGENTS.md` (commit trailers: `!` and `Changelog:` for removed endpoints, flags, fields)
 - `p1-20261114-refactor-arc.md`
-- `_todo/p2-20261107-server-only-review-state.md` (the "Migration" bullet under "Done
+- `p2-20261107-server-only-review-state.md` (the "Migration" bullet under "Done
   (2026-11-11)" describes the thread migration this plan deletes; the "What the browser
   stores now" section stays)
 - `p1-20261114-delete-dead-code.md`: both plans edit App.tsx's thread-copy effect (`migratedRecordsRef`) and
@@ -180,7 +180,7 @@ surprise him.
   (spies on `getCommentThreads`), App.namedReviews `keepLegacyThreads`. Effect: a browser
   record not reopened since dd6f723 landed (2026-11-12) keeps threads the server never
   got; they are never sent.
-  Coordinate with `_todo/p2-20261107-server-only-review-state.md` and delete its lines
+  Coordinate with `p2-20261107-server-only-review-state.md` and delete its lines
   about the migration in the same commit.
 - **Old `review:<name>` storage key** (`getNamedReviewStorageRef`, App.tsx).
   Replace with the hex key for every name (keeping only one form avoids the
