@@ -153,6 +153,240 @@ const getClickedLineTarget = (
   };
 };
 
+type TokensLookup = ReturnType<typeof useFileLevelTokensLookup>['getOldTokens'];
+
+const getProcomputedTokens = (getTokens: TokensLookup, lineNumber: number | null | undefined) => {
+  if (lineNumber == null) return null;
+  const lineTokens = getTokens?.(lineNumber) ?? null;
+  return lineTokens ? [lineTokens] : null;
+};
+
+interface SideBySideLineRowProps {
+  sideLine: SideBySideLine;
+  oldLineNavId: string | undefined;
+  newLineNavId: string | undefined;
+  highlightOldCell: boolean;
+  highlightNewCell: boolean;
+  oldSelectedStyle: string;
+  newSelectedStyle: string;
+  hoveredLine: LineSelection | null;
+  setHoveredLine: (line: LineSelection | null) => void;
+  handleRowClick: (click: {
+    isShiftClick: boolean;
+    target: HTMLElement;
+    sideLine: SideBySideLine;
+  }) => void;
+  extendDrag: (line: SideBySideLine) => void;
+  handleLineNumberMouseDown: (e: React.MouseEvent, selection: LineSelection | null) => void;
+  handleCommentButtonMouseDown: (e: React.MouseEvent, selection: LineSelection | null) => void;
+  onOpenInEditor: ((filePath: string, lineNumber: number) => void) | undefined;
+  filename: string;
+  syntaxTheme: AppearanceSettings['syntaxTheme'] | undefined;
+}
+
+function SideBySideLineRow({
+  sideLine,
+  oldLineNavId,
+  newLineNavId,
+  highlightOldCell,
+  highlightNewCell,
+  oldSelectedStyle,
+  newSelectedStyle,
+  hoveredLine,
+  setHoveredLine,
+  handleRowClick,
+  extendDrag,
+  handleLineNumberMouseDown,
+  handleCommentButtonMouseDown,
+  onOpenInEditor,
+  filename,
+  syntaxTheme,
+}: SideBySideLineRowProps) {
+  const { getOldTokens, getNewTokens } = useFileLevelTokensLookup();
+  const cellHighlightClass = 'keyboard-cursor';
+  // A line-number cell is positioned only while it holds the line buttons, and a code
+  // cell only while getSelectedLineStyle draws its overlay; see DiffLineRow for why.
+  const showOldLineActions =
+    hoveredLine?.side === 'old' && hoveredLine.lineNumber === sideLine.oldLineNumber;
+  const showNewLineActions =
+    hoveredLine?.side === 'new' && hoveredLine.lineNumber === sideLine.newLineNumber;
+  const oldSelection = sideLine.oldLineNumber
+    ? {
+        side: 'old' as const,
+        lineNumber: sideLine.oldLineNumber,
+      }
+    : null;
+  const newSelection = sideLine.newLineNumber
+    ? {
+        side: 'new' as const,
+        lineNumber: sideLine.newLineNumber,
+      }
+    : null;
+
+  return (
+    <tr
+      data-diff-line-row="true"
+      className="group cursor-pointer"
+      onClick={(e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (e.shiftKey) {
+          e.preventDefault();
+        }
+        handleRowClick({
+          isShiftClick: e.shiftKey,
+          target,
+          sideLine,
+        });
+      }}
+      onMouseEnter={(e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+        const isInOldSide = target.closest('td:nth-child(1)') || target.closest('td:nth-child(2)');
+        const isInNewSide = target.closest('td:nth-child(3)') || target.closest('td:nth-child(4)');
+
+        if (isInOldSide && sideLine.oldLineNumber) {
+          setHoveredLine({
+            side: 'old',
+            lineNumber: sideLine.oldLineNumber,
+          });
+        } else if (isInNewSide && sideLine.newLineNumber) {
+          setHoveredLine({
+            side: 'new',
+            lineNumber: sideLine.newLineNumber,
+          });
+        }
+      }}
+      onMouseMove={(e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+        const isInOldSide = target.closest('td:nth-child(1)') || target.closest('td:nth-child(2)');
+        const isInNewSide = target.closest('td:nth-child(3)') || target.closest('td:nth-child(4)');
+
+        // Update hover state based on mouse position
+        if (isInOldSide && sideLine.oldLineNumber) {
+          if (hoveredLine?.side !== 'old' || hoveredLine?.lineNumber !== sideLine.oldLineNumber) {
+            setHoveredLine({
+              side: 'old',
+              lineNumber: sideLine.oldLineNumber,
+            });
+          }
+        } else if (isInNewSide && sideLine.newLineNumber) {
+          if (hoveredLine?.side !== 'new' || hoveredLine?.lineNumber !== sideLine.newLineNumber) {
+            setHoveredLine({
+              side: 'new',
+              lineNumber: sideLine.newLineNumber,
+            });
+          }
+        }
+
+        extendDrag(sideLine);
+      }}
+      onMouseLeave={() => setHoveredLine(null)}
+    >
+      {/* Old side */}
+      <td
+        id={oldLineNavId}
+        onMouseDown={(e) => handleLineNumberMouseDown(e, oldSelection)}
+        className={`w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top overflow-visible ${showOldLineActions ? 'relative' : ''} ${highlightOldCell ? cellHighlightClass : ''}`}
+      >
+        <span>{sideLine.oldLineNumber || ''}</span>
+        {showOldLineActions && (
+          <>
+            {onOpenInEditor &&
+              sideLine.oldLine?.type !== 'delete' &&
+              sideLine.newLineNumber !== undefined && (
+                <OpenInEditorButton
+                  onClick={() => {
+                    const lineNumber = sideLine.newLineNumber;
+                    if (lineNumber === undefined) return;
+                    onOpenInEditor(filename, lineNumber);
+                  }}
+                />
+              )}
+            <CommentButton onMouseDown={(e) => handleCommentButtonMouseDown(e, oldSelection)} />
+          </>
+        )}
+      </td>
+      <td
+        data-diff-side="old"
+        className={`w-1/2 p-0 align-top border-r border-github-border ${getSideBySideLineClass(sideLine.oldLine, isExpandedLine(sideLine.oldLine))} ${oldSelectedStyle} ${highlightOldCell ? cellHighlightClass : ''}`}
+      >
+        {sideLine.oldLine && (
+          <div className="flex items-center min-h-[20px] px-3">
+            {sideLine.wordLevelDiff ? (
+              <WordLevelDiffHighlighter
+                segments={sideLine.wordLevelDiff.oldSegments}
+                className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text"
+              />
+            ) : (
+              <EnhancedPrismSyntaxHighlighter
+                code={sideLine.oldLine.content}
+                className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text [&_pre]:m-0 [&_pre]:p-0 [&_pre]:!bg-transparent [&_pre]:font-inherit [&_pre]:text-inherit [&_pre]:leading-inherit [&_code]:!bg-transparent [&_code]:font-inherit [&_code]:text-inherit [&_code]:leading-inherit"
+                syntaxTheme={syntaxTheme}
+                filename={filename}
+                precomputedTokens={getProcomputedTokens(
+                  getOldTokens,
+                  sideLine.oldLine.oldLineNumber,
+                )}
+              />
+            )}
+          </div>
+        )}
+      </td>
+
+      {/* New side */}
+      <td
+        id={newLineNavId}
+        onMouseDown={(e) => handleLineNumberMouseDown(e, newSelection)}
+        className={`w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top overflow-visible ${showNewLineActions ? 'relative' : ''} ${highlightNewCell ? cellHighlightClass : ''}`}
+      >
+        <span>{sideLine.newLineNumber || ''}</span>
+        {showNewLineActions && (
+          <>
+            {onOpenInEditor && sideLine.newLineNumber !== undefined && (
+              <OpenInEditorButton
+                onClick={() => {
+                  const lineNumber = sideLine.newLineNumber;
+                  if (lineNumber === undefined) return;
+                  onOpenInEditor(filename, lineNumber);
+                }}
+              />
+            )}
+            <CommentButton onMouseDown={(e) => handleCommentButtonMouseDown(e, newSelection)} />
+          </>
+        )}
+      </td>
+      <td
+        data-diff-side="new"
+        className={`w-1/2 p-0 align-top ${getSideBySideLineClass(sideLine.newLine, isExpandedLine(sideLine.newLine))} ${newSelectedStyle} ${highlightNewCell ? cellHighlightClass : ''}`}
+      >
+        {sideLine.newLine && (
+          <div className="flex items-center min-h-[20px] px-3">
+            {sideLine.wordLevelDiff ? (
+              <WordLevelDiffHighlighter
+                segments={sideLine.wordLevelDiff.newSegments}
+                className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text"
+              />
+            ) : (
+              <EnhancedPrismSyntaxHighlighter
+                code={sideLine.newLine.content}
+                className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text [&_pre]:m-0 [&_pre]:p-0 [&_pre]:!bg-transparent [&_pre]:font-inherit [&_pre]:text-inherit [&_pre]:leading-inherit [&_code]:!bg-transparent [&_code]:font-inherit [&_code]:text-inherit [&_code]:leading-inherit"
+                syntaxTheme={syntaxTheme}
+                filename={filename}
+                precomputedTokens={getProcomputedTokens(
+                  getNewTokens,
+                  sideLine.newLine.newLineNumber,
+                )}
+              />
+            )}
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 export function SideBySideDiffChunk({
   chunk,
   chunkIndex,
@@ -175,7 +409,6 @@ export function SideBySideDiffChunk({
   filename,
   onOpenInEditor,
 }: SideBySideDiffChunkProps) {
-  const { getOldTokens, getNewTokens } = useFileLevelTokensLookup();
   const {
     isDragging,
     dragRange,
@@ -230,15 +463,6 @@ export function SideBySideDiffChunk({
 
   const composers = useChunkComposers(filename, chunk.lines, commentingLine);
   const codeLines = chunk.snapshotLines ?? chunk.lines;
-
-  const getProcomputedTokens = useCallback(
-    (getTokens: typeof getOldTokens, lineNumber: number | null | undefined) => {
-      if (lineNumber == null) return null;
-      const lineTokens = getTokens?.(lineNumber) ?? null;
-      return lineTokens ? [lineTokens] : null;
-    },
-    [],
-  );
 
   const getThreadsForLine = (lineNumber: number, side: DiffSide) => {
     return threads
@@ -391,202 +615,26 @@ export function SideBySideDiffChunk({
             const highlightOldCell = isHighlighted && cursor?.side === 'left';
             const highlightNewCell = isHighlighted && cursor?.side === 'right';
 
-            const cellHighlightClass = 'keyboard-cursor';
-            // A line-number cell is positioned only while it holds the line buttons, and a code
-            // cell only while getSelectedLineStyle draws its overlay; see DiffLineRow for why.
-            const showOldLineActions =
-              hoveredLine?.side === 'old' && hoveredLine.lineNumber === sideLine.oldLineNumber;
-            const showNewLineActions =
-              hoveredLine?.side === 'new' && hoveredLine.lineNumber === sideLine.newLineNumber;
-            const oldSelection = sideLine.oldLineNumber
-              ? {
-                  side: 'old' as const,
-                  lineNumber: sideLine.oldLineNumber,
-                }
-              : null;
-            const newSelection = sideLine.newLineNumber
-              ? {
-                  side: 'new' as const,
-                  lineNumber: sideLine.newLineNumber,
-                }
-              : null;
-
             return (
               <React.Fragment key={index}>
-                <tr
-                  data-diff-line-row="true"
-                  className="group cursor-pointer"
-                  onClick={(e) => {
-                    const target = e.target;
-                    if (!(target instanceof HTMLElement)) return;
-                    if (e.shiftKey) {
-                      e.preventDefault();
-                    }
-                    handleRowClick({
-                      isShiftClick: e.shiftKey,
-                      target,
-                      sideLine,
-                    });
-                  }}
-                  onMouseEnter={(e) => {
-                    const target = e.target;
-                    if (!(target instanceof HTMLElement)) return;
-                    const isInOldSide =
-                      target.closest('td:nth-child(1)') || target.closest('td:nth-child(2)');
-                    const isInNewSide =
-                      target.closest('td:nth-child(3)') || target.closest('td:nth-child(4)');
-
-                    if (isInOldSide && sideLine.oldLineNumber) {
-                      setHoveredLine({
-                        side: 'old',
-                        lineNumber: sideLine.oldLineNumber,
-                      });
-                    } else if (isInNewSide && sideLine.newLineNumber) {
-                      setHoveredLine({
-                        side: 'new',
-                        lineNumber: sideLine.newLineNumber,
-                      });
-                    }
-                  }}
-                  onMouseMove={(e) => {
-                    const target = e.target;
-                    if (!(target instanceof HTMLElement)) return;
-                    const isInOldSide =
-                      target.closest('td:nth-child(1)') || target.closest('td:nth-child(2)');
-                    const isInNewSide =
-                      target.closest('td:nth-child(3)') || target.closest('td:nth-child(4)');
-
-                    // Update hover state based on mouse position
-                    if (isInOldSide && sideLine.oldLineNumber) {
-                      if (
-                        hoveredLine?.side !== 'old' ||
-                        hoveredLine?.lineNumber !== sideLine.oldLineNumber
-                      ) {
-                        setHoveredLine({
-                          side: 'old',
-                          lineNumber: sideLine.oldLineNumber,
-                        });
-                      }
-                    } else if (isInNewSide && sideLine.newLineNumber) {
-                      if (
-                        hoveredLine?.side !== 'new' ||
-                        hoveredLine?.lineNumber !== sideLine.newLineNumber
-                      ) {
-                        setHoveredLine({
-                          side: 'new',
-                          lineNumber: sideLine.newLineNumber,
-                        });
-                      }
-                    }
-
-                    extendDrag(sideLine);
-                  }}
-                  onMouseLeave={() => setHoveredLine(null)}
-                >
-                  {/* Old side */}
-                  <td
-                    id={oldLineNavId}
-                    onMouseDown={(e) => handleLineNumberMouseDown(e, oldSelection)}
-                    className={`w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top overflow-visible ${showOldLineActions ? 'relative' : ''} ${highlightOldCell ? cellHighlightClass : ''}`}
-                  >
-                    <span>{sideLine.oldLineNumber || ''}</span>
-                    {showOldLineActions && (
-                      <>
-                        {onOpenInEditor &&
-                          sideLine.oldLine?.type !== 'delete' &&
-                          sideLine.newLineNumber !== undefined && (
-                            <OpenInEditorButton
-                              onClick={() => {
-                                const lineNumber = sideLine.newLineNumber;
-                                if (lineNumber === undefined) return;
-                                onOpenInEditor(filename, lineNumber);
-                              }}
-                            />
-                          )}
-                        <CommentButton
-                          onMouseDown={(e) => handleCommentButtonMouseDown(e, oldSelection)}
-                        />
-                      </>
-                    )}
-                  </td>
-                  <td
-                    data-diff-side="old"
-                    className={`w-1/2 p-0 align-top border-r border-github-border ${getSideBySideLineClass(sideLine.oldLine, isExpandedLine(sideLine.oldLine))} ${getSelectedLineStyle('old', sideLine)} ${highlightOldCell ? cellHighlightClass : ''}`}
-                  >
-                    {sideLine.oldLine && (
-                      <div className="flex items-center min-h-[20px] px-3">
-                        {sideLine.wordLevelDiff ? (
-                          <WordLevelDiffHighlighter
-                            segments={sideLine.wordLevelDiff.oldSegments}
-                            className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text"
-                          />
-                        ) : (
-                          <EnhancedPrismSyntaxHighlighter
-                            code={sideLine.oldLine.content}
-                            className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text [&_pre]:m-0 [&_pre]:p-0 [&_pre]:!bg-transparent [&_pre]:font-inherit [&_pre]:text-inherit [&_pre]:leading-inherit [&_code]:!bg-transparent [&_code]:font-inherit [&_code]:text-inherit [&_code]:leading-inherit"
-                            syntaxTheme={syntaxTheme}
-                            filename={filename}
-                            precomputedTokens={getProcomputedTokens(
-                              getOldTokens,
-                              sideLine.oldLine.oldLineNumber,
-                            )}
-                          />
-                        )}
-                      </div>
-                    )}
-                  </td>
-
-                  {/* New side */}
-                  <td
-                    id={newLineNavId}
-                    onMouseDown={(e) => handleLineNumberMouseDown(e, newSelection)}
-                    className={`w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top overflow-visible ${showNewLineActions ? 'relative' : ''} ${highlightNewCell ? cellHighlightClass : ''}`}
-                  >
-                    <span>{sideLine.newLineNumber || ''}</span>
-                    {showNewLineActions && (
-                      <>
-                        {onOpenInEditor && sideLine.newLineNumber !== undefined && (
-                          <OpenInEditorButton
-                            onClick={() => {
-                              const lineNumber = sideLine.newLineNumber;
-                              if (lineNumber === undefined) return;
-                              onOpenInEditor(filename, lineNumber);
-                            }}
-                          />
-                        )}
-                        <CommentButton
-                          onMouseDown={(e) => handleCommentButtonMouseDown(e, newSelection)}
-                        />
-                      </>
-                    )}
-                  </td>
-                  <td
-                    data-diff-side="new"
-                    className={`w-1/2 p-0 align-top ${getSideBySideLineClass(sideLine.newLine, isExpandedLine(sideLine.newLine))} ${getSelectedLineStyle('new', sideLine)} ${highlightNewCell ? cellHighlightClass : ''}`}
-                  >
-                    {sideLine.newLine && (
-                      <div className="flex items-center min-h-[20px] px-3">
-                        {sideLine.wordLevelDiff ? (
-                          <WordLevelDiffHighlighter
-                            segments={sideLine.wordLevelDiff.newSegments}
-                            className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text"
-                          />
-                        ) : (
-                          <EnhancedPrismSyntaxHighlighter
-                            code={sideLine.newLine.content}
-                            className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text [&_pre]:m-0 [&_pre]:p-0 [&_pre]:!bg-transparent [&_pre]:font-inherit [&_pre]:text-inherit [&_pre]:leading-inherit [&_code]:!bg-transparent [&_code]:font-inherit [&_code]:text-inherit [&_code]:leading-inherit"
-                            syntaxTheme={syntaxTheme}
-                            filename={filename}
-                            precomputedTokens={getProcomputedTokens(
-                              getNewTokens,
-                              sideLine.newLine.newLineNumber,
-                            )}
-                          />
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
+                <SideBySideLineRow
+                  sideLine={sideLine}
+                  oldLineNavId={oldLineNavId}
+                  newLineNavId={newLineNavId}
+                  highlightOldCell={highlightOldCell}
+                  highlightNewCell={highlightNewCell}
+                  oldSelectedStyle={getSelectedLineStyle('old', sideLine)}
+                  newSelectedStyle={getSelectedLineStyle('new', sideLine)}
+                  hoveredLine={hoveredLine}
+                  setHoveredLine={setHoveredLine}
+                  handleRowClick={handleRowClick}
+                  extendDrag={extendDrag}
+                  handleLineNumberMouseDown={handleLineNumberMouseDown}
+                  handleCommentButtonMouseDown={handleCommentButtonMouseDown}
+                  onOpenInEditor={onOpenInEditor}
+                  filename={filename}
+                  syntaxTheme={syntaxTheme}
+                />
 
                 {/* Comment threads row */}
                 {allThreads.length > 0 && (
