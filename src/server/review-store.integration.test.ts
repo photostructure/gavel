@@ -26,7 +26,13 @@ import { createDiffSelection } from '../utils/diffSelection.js';
 import { findApprovals } from '../cli/approval.js';
 
 import { captureWorkingTree } from './review-capture.js';
-import { ReviewStore, savedReviewKey, type ReviewOwner, type SavedReview } from './review-store.js';
+import {
+  REVIEW_RETENTION_MS,
+  ReviewStore,
+  savedReviewKey,
+  type ReviewOwner,
+  type SavedReview,
+} from './review-store.js';
 
 const now = '2026-11-07T12:00:00.000Z';
 const message = 'fix: keep approvals across restarts';
@@ -593,7 +599,7 @@ describe('saved review state across server restarts', () => {
     store.save('expired', { ...savedFixture(), repositoryId: capture.repositoryId }, server.owner);
     server.release();
     const reviews = join(root, '.git', 'gavel', 'reviews');
-    const old = (Date.now() - 8 * 24 * 60 * 60 * 1000) / 1000;
+    const old = (Date.now() - REVIEW_RETENTION_MS - 1000) / 1000;
     for (const name of readdirSync(reviews)) utimesSync(join(reviews, name), old, old);
     chmodSync(reviews, 0o500);
     try {

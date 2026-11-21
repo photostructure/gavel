@@ -25,7 +25,7 @@ name; search for the name, and use `git log -S` for code removed since then.
    shrink the files before anything moves, so later steps move less code. Both edit
    the thread-copy effect in `App.tsx` (its `migratedRecordsRef`) and `StorageService.getCommentThreads`, so run them one after the
    other, the compat plan's thread-copy item first. The compat plan's `appliedOps` item cannot land before
-   2026-11-20; the splits do not wait for it.
+   2027-02-10; the splits do not wait for it.
 2. `p1-20261114-shared-test-helpers.md`. The splits need only part of it. The App split
    needs task 2's `renderApp` and the `useFileWatch` mock, because it splits
    `App.test.tsx` into about six files. The server split needs task 3, because every file

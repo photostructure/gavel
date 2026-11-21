@@ -21,7 +21,7 @@ import { getDiffSelectionKey } from '../utils/diffSelection.js';
 import { getGitCommonDirectory } from './review-capture.js';
 
 /** A saved review untouched this long, and a saved patch no review uses, is deleted at server start. */
-export const REVIEW_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+export const REVIEW_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
 /** How often a server that saved a review marks itself alive in the store. */
 export const SERVER_HEARTBEAT_MS = 60 * 1000;

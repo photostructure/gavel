@@ -124,13 +124,15 @@ describe('ReviewStore', () => {
     );
   });
 
-  it('deletes reviews untouched for seven days and keeps newer ones', () => {
-    store.save('old', review(), server.owner);
-    age('reviews', REVIEW_RETENTION_MS + 1000);
-    store.save('new', review(), server.owner);
+  it('keeps a review untouched for 89 days and deletes it after 90', () => {
+    const day = 24 * 60 * 60 * 1000;
+    store.save('review', review(), server.owner);
+    age('reviews', 89 * day);
     store.vacuum(server.owner);
-    expect(store.load('old')).toBeUndefined();
-    expect(store.load('new')).toBeDefined();
+    expect(store.load('review')).toBeDefined();
+    age('reviews', 90 * day + 1000);
+    store.vacuum(server.owner);
+    expect(store.load('review')).toBeUndefined();
   });
 
   it('deletes an old patch only once no remaining review uses it', () => {

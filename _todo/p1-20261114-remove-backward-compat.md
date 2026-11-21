@@ -44,7 +44,8 @@ Next: task 1 (in-process compat), one commit per item. Task 2's thread-copy item
   new `dist/client` to the old server's page. The access token is per user, not per
   launch, so it does not stop this.
 - Saved reviews expire: `vacuum()` (review-store.ts, run from `startServer` in server.ts) deletes
-  records untouched for 7 days. Browser records never expire, because
+  records untouched for 90 days (7 days until `REVIEW_RETENTION_MS` changed on 2026-11-21).
+  Browser records never expire, because
   `StorageService.cleanupOldData` has no production caller (see
   `p1-20261114-delete-dead-code.md`).
 - `format: 1` on saved reviews (`saveReview` in server.ts, `SavedReview` in review-store.ts) is never read. It is
@@ -56,7 +57,10 @@ Next: task 1 (in-process compat), one commit per item. Task 2's thread-copy item
 - 3221b79 changed `ReviewVerdict` from `'as-is' | 'after-comments' | 'reject'` to
   `'approve' | 'reject'` with no compat code. It landed on main on 2026-11-12 at 17:45
   -0800 (dd6f723 and a96706d landed in the same push), so saved records holding the old
-  values expire by 2026-11-20 at the latest; nothing to do. Use landing dates
+  values can be restored until 2027-02-10, 90 days after it landed, in a repository where
+  no gavel server started between 2026-11-19 17:45 -0800 and the first start of a build with
+  90-day retention. What a restored `as-is` or
+  `after-comments` verdict does has not been checked. Use landing dates
   (`git log -1 --format=%ci <sha>`), not author dates, for every date in this plan.
 
 ### Looks like compat, is current behavior (leave it)
@@ -206,7 +210,7 @@ surprise him.
   required (review-store.ts) and drop `?.length ?? 0` (the `worthSaving` check in `saveReview`,
   server.ts). In `Conversation.getReview` (server/conversation.ts) write `saved ? saved.appliedOps : []`: a brand-new review has no
   saved record and still needs an empty ledger, so the default cannot simply go. Do this
-  on or after 2026-11-20, once vacuum (7 days by mtime) has removed records written
+  on or after 2027-02-10, once vacuum (90 days by mtime) has removed records written
   before dd6f723 landed (2026-11-12 17:45 -0800). Earlier, a restored old record makes
   `[...this.getReview(selection).appliedOps]` (`Conversation.getAppliedOps`) throw a TypeError at
   startup or on the first request for that review. The splits do not wait for this
