@@ -59,7 +59,7 @@ export function DiffCodeLine({
   };
 
   return (
-    <div className="flex items-center relative min-h-[16px]">
+    <div className="flex items-center min-h-[16px]">
       <span
         className={`w-5 text-center flex-shrink-0 select-none ${showPrefixBorder ? 'border-r border-github-border' : ''} ${getPrefixClass(
           line.type,

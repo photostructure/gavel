@@ -70,20 +70,24 @@ export const DiffLineRow: React.FC<DiffLineRowProps> = React.memo(
       <tr
         id={lineId}
         data-diff-line-row="true"
-        className={`group ${getLineClass(line)} relative ${selectedLineStyle} ${highlightClass} cursor-pointer`}
+        className={`group ${getLineClass(line)} ${selectedLineStyle} ${highlightClass} cursor-pointer`}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onMouseMove={onMouseMove}
         onClick={onClick}
       >
         <td
-          className="w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative"
+          className="w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top"
           onMouseDown={onLineNumberMouseDown}
         >
           {line.oldLineNumber || ''}
         </td>
+        {/* No element of a row is positioned except this cell while it holds the line buttons,
+            and the overlays in global.css, which position their own cells. WebKit updates every
+            positioned element inside the diff scroller on each scroll step, so positioning each
+            row, cell, or word made long diffs scroll slowly on an iPad. */}
         <td
-          className="w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative overflow-visible"
+          className={`w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top overflow-visible ${showLineActions ? 'relative' : ''}`}
           onMouseDown={onLineNumberMouseDown}
         >
           <span>{line.newLineNumber || ''}</span>
@@ -94,7 +98,7 @@ export const DiffLineRow: React.FC<DiffLineRowProps> = React.memo(
             </>
           )}
         </td>
-        <td className="p-0 w-full relative align-top">
+        <td className="p-0 w-full align-top">
           <DiffCodeLine
             line={line}
             syntaxTheme={syntaxTheme}

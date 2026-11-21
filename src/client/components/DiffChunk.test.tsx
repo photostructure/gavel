@@ -195,6 +195,51 @@ describe('DiffChunk line-number selection', () => {
     expect(await screen.findByText('Comment on lines 30–32')).toBeTruthy();
   });
 
+  // WebKit updates every positioned element inside the diff scroller on each scroll step,
+  // so a long file scrolls slowly on an iPad when every row is positioned.
+  const positioned = (root: Element) => [
+    ...(root.matches('.relative') ? [root] : []),
+    ...root.querySelectorAll('.relative'),
+  ];
+
+  it.each(['unified', 'split'] as const)(
+    'positions no element of a %s row the pointer is not over',
+    (mode) => {
+      const { rows } = renderChunk(mode);
+
+      expect(rows.flatMap(positioned)).toEqual([]);
+    },
+  );
+
+  it.each([
+    ['unified', 1, (row: Element) => fireEvent.mouseEnter(row)],
+    ['split', 2, (row: Element) => fireEvent.mouseMove(row.children[2]!)],
+  ] as const)(
+    'positions only the %s line-number cell that holds the line buttons',
+    (mode, column, hover) => {
+      const { rows } = renderChunk(mode);
+
+      hover(rows[0]!);
+
+      const cell = rows[0]!.children[column]!;
+      expect(cell.querySelector('[data-comment-button="true"]')).not.toBeNull();
+      expect(rows.flatMap(positioned)).toEqual([cell]);
+    },
+  );
+
+  it('positions each split cell that draws a selection overlay', () => {
+    const { rows, container } = renderChunk('split', [rangeThread]);
+    const card = container.querySelector('#comment-thread-range-thread')!.parentElement!;
+
+    fireEvent.mouseEnter(card);
+
+    const overlaid = rows.flatMap((row) =>
+      [...row.children].filter((cell) => cell.className.includes('after:absolute')),
+    );
+    expect(overlaid).toHaveLength(3);
+    expect(rows.flatMap(positioned)).toEqual(overlaid);
+  });
+
   it('keeps the default title on a single-line comment form', async () => {
     const { rows, container } = renderChunk('unified');
 

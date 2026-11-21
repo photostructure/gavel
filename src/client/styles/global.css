@@ -334,7 +334,9 @@ body,
   box-shadow: inset 3px 0 0 var(--color-blue-500);
 }
 
-/* Keyboard navigation cursor styles for unified mode (tr level) */
+/* Keyboard navigation cursor styles for unified mode (tr level). This rule and the overlay
+   rules below position a diff cell only while it draws an overlay; diff rows stay
+   unpositioned otherwise (see the comment in DiffLineRow). */
 tr.keyboard-cursor td {
   position: relative;
 }
@@ -445,10 +447,11 @@ tr.drag-selected-last td::after {
   border-bottom-width: 2px;
 }
 
-/* Word highlighting styles */
+/* Word highlighting styles. Every word of a highlighted line is a .word-token, so keep it
+   unpositioned: WebKit updates each positioned element inside the diff scroller on every
+   scroll step, and positioned tokens made long diffs scroll slowly on an iPad. */
 .word-token {
   cursor: pointer;
-  position: relative;
   transition: background-color 0.15s ease;
 }
 
