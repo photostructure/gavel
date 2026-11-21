@@ -2,7 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [Unreleased (major)]
+
+### Breaking changes
+
+- Without `--host`, or with `--host localhost`, gavel listens on and links to `127.0.0.1`, and companion commands default to `--host 127.0.0.1`. Pass `--host ::1` for an IPv6 loopback bind. Viewed marks and drafts saved under the old `localhost` address stay there.
+- Agent review creation and inbox reattachment go through a local socket. An HTTP request that supplies an inbox destination is refused; run the `gavel` CLI on the repository's machine instead.
+- In a named review, `--comment` and `gavel comment add` refuse a thread outside every hunk of its file and add none of the comments; the error lists that file's hunk ranges.
+- Working-tree file and image reads no longer serve files under `.git/`, files Git ignores, or files inside a submodule's checkout, so Markdown images pointing at such files stop loading.
+- Threads a browser kept from a gavel build before 7.0.0 and never sent are no longer sent when the review reopens. Open such reviews with 7.0.0 first.
+- A named review no longer previews a captured binary file that is larger than 64 MiB once reconstructed; its blob request fails. Keep such files out of named reviews.
+
+### New features
+
+- Comments show their author (agent, you, or a deleted GitHub account) as an icon beside the text, and your unanswered comments show their progress, reaching **Delivered** as soon as a Claude Code chat receives them.
+- Each thread ends in a one-line reply box that grows as you type, and the Comment / Change request / Question choice is gone.
+- About, the robot menu, and copied comment prompts name the agent session that launched the review, read from its Claude Code title or Codex thread name, and follow renames. About shows an orange "failed to parse" with the cause when that lookup fails.
+- The robot menu's session name and ID, and every row under "This review" and "Server" in **About**, have copy buttons.
+- `gavel review withdraw <name> --reason <text>` pulls back a named review: its tab stays, struck through with a red X, the reason shows at the top of the review, and it takes no new verdict.
+- Press `a` to open **About**.
+- When your network comes back after an outage, gavel reconnects and sends your unsent comments without a click on the red robot.
+- Review tabs and **All reviews** menu items with a verdict get a light tint in that verdict's color, so the reviews still needing one stand out.
+- The commit message in **Change summary** starts 80 characters wide, and dragging the edge beside **Why this change** resizes it; the browser remembers the width.
+- Agent comments and replies that omit `author` name the agent host that launched gavel, such as "Codex desktop", instead of "Agent".
+- Claude Code and Codex agents aim for reviews of 300–500 weighted changed lines and follow a review size you set in `CLAUDE.md` or `AGENTS.md`.
+
+### Bug fixes and polish
+
+- The access token leaves the address bar and comment-link addresses once the page opens, so a copied page address no longer grants access.
+- A link carrying `gavel-token`, in review content or on another website, no longer logs the tab out. After a token rotation, each repository's gavel page shows the access screen once, even from a new launch link; open the link again.
+- A directly opened repository SVG or other blob can no longer run scripts on the review page's origin; SVG previews still work, but external resources inside them are blocked.
+- Unicode bidi control characters in diff code, file names, and comments show as markers such as `<U+202E>` instead of reordering the line.
+- `gavel review unapply` and `gavel review reapply` no longer delete `.rej` files outside the worktree.
+- Untracked files and watched files whose names start with `-` are passed to Git as paths, so a file named `--stdin` no longer stalls live reload.
+- A long path with many spaces followed by `a/` or `b/` no longer stalls the server while its diff is parsed. Markdown previews show oversized or cyclic YAML frontmatter as source.
+- During an unresolved merge, reviews list every conflicted file, including modify/delete conflicts, and Git stops printing `fatal:` errors to gavel's terminal for them.
+- Long diffs, such as a large deleted file, scroll smoothly in Safari on an iPad.
+- The page keeps its scroll position when the agent runs `gavel review update` on the open review.
+- Files in a directory that appears after the diff reloads show in the file tree instead of under a collapsed folder.
+- While the server is unreachable, the verdict buttons show the verdict you last chose, so clicking a pressed verdict clears it once.
+- Range links open hidden context around their last line instead of unfolding every hidden gap they span.
+- In split view, `h` / `l` move to the line shown beside the cursor, Shift+N / Shift+P land where a range comment's card shows, and `{` / `}` land on the column with content.
+- Pressing `?` again closes the keyboard shortcuts help.
+- Protocol-relative links (`//host/x`) render as plain text, and upper-case `HTTPS://` links and off-origin Mermaid `click` links open in a new tab without a referrer.
+- When the browser refuses a copy, the file-path, About, Copy reply, Copy prompt, and Copy All Prompt buttons show a red alert icon and a "Copy failed" toast instead of doing nothing.
+- `--pr` comment imports treat repository names and pagination cursors as literal strings.
+- Git operations honor `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`, and `GIT_CONFIG_NOSYSTEM`.
+- The file tree is denser and sits further left, with smaller names and indents, top-level icons under the filter box's search icon, and a checkbox that replaces a file's icon on hover. Hovering a folder shows its path.
+- Review tabs show names in the interface font, and **Why this change** text matches the commit message's visual size.
+- The agent protocol docs are gone; run `gavel --help`, `gavel <command> --help`, or `gavel schema`, and `gavel pending --help` shows the Claude Code hooks that run it.
+- [Remote review](docs/remote-review.md) replaces `docs/server-addresses.md` and explains what the access token protects, and the README gives gavel's measured token cost.
+- The Claude Code skill is about a quarter shorter, forbids every form of waiting for review activity, and always shares the full review link with its access token.
+- Agents hold a review back only after you have been idle for an hour, not 10 minutes. After a Reject, they unapply only their own capture and ask separately before removing the worktree, the local branch, or a pushed branch.
 
 ## [7.0.0] - 2026-11-15
 
