@@ -39,6 +39,7 @@ All notable changes to this project will be documented in this file.
 - During an unresolved merge, reviews list every conflicted file, including modify/delete conflicts, and Git stops printing `fatal:` errors to gavel's terminal for them.
 - Long diffs, such as a large deleted file, scroll smoothly in Safari on an iPad.
 - Moving the pointer over a long diff responds faster.
+- A server starting up deletes saved reviews untouched for 90 days, instead of 7, so a review reopened weeks later keeps its comments, progress and approval.
 - The page keeps its scroll position when the agent runs `gavel review update` on the open review.
 - Files in a directory that appears after the diff reloads show in the file tree instead of under a collapsed folder.
 - While the server is unreachable, the verdict buttons show the verdict you last chose, so clicking a pressed verdict clears it once.
