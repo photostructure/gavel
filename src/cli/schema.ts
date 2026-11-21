@@ -78,6 +78,7 @@ const snapshotReviewFields = {
   approval: ref('ReviewApproval'),
   summary: ref('ReviewSummary'),
   capture: ref('NamedReviewMetadata'),
+  withdrawal: ref('ReviewWithdrawal'),
 };
 const snapshotReviewRequired = ['id', 'selection', 'threads', 'approval', 'summary'];
 const importFields = {
@@ -342,6 +343,11 @@ const definitions: Record<string, Schema> = {
     },
     [],
   ),
+  ReviewWithdrawal: {
+    ...object({ at: timestamp, reason: nonblank }),
+    description:
+      'Present once the agent withdraws a named review with review withdraw. The review keeps its tab, threads, and any verdict, but takes no new verdict.',
+  },
   ServerReadyEvent: object(
     {
       capture: ref('NamedReviewMetadata'),
@@ -491,6 +497,17 @@ const definitions: Record<string, Schema> = {
     description:
       'An agent deleted a named review. Its threads move to snapshot deletedReviews; the reviewId no longer accepts status, replies, or summaries.',
   },
+  ReviewWithdrawnEvent: {
+    ...object({
+      ...streamFields,
+      type: { const: 'review.withdrawn' },
+      origin: { const: 'agent' },
+      capture: ref('NamedReviewMetadata'),
+      withdrawal: ref('ReviewWithdrawal'),
+    }),
+    description:
+      'An agent withdrew a named review. Its tab, threads, and any verdict stay; it takes no new verdict.',
+  },
   ConversationEvent: {
     oneOf: [
       'CommentEvent',
@@ -502,6 +519,7 @@ const definitions: Record<string, Schema> = {
       'ReviewCaptureEvent',
       'ReviewRenamedEvent',
       'ReviewDeletedEvent',
+      'ReviewWithdrawnEvent',
     ].map(ref),
   },
   ReviewPresence: object({
@@ -799,7 +817,7 @@ const definitions: Record<string, Schema> = {
       ['verdict'],
     ),
     description:
-      'PUT /api/approval sets the verdict; DELETE /api/approval clears it and requires no matching versions. Every verdict requires captureVersion and patchDigest (named) or diffDigest (staged, working, or .) matching the displayed capture or diff; approve also requires the current summaryVersion (omission means 0 for an unnamed review). Named review approval requires captureVersion, patchDigest and summaryVersion matching the displayed capture and proposal. Stale requests return HTTP 409. approve tells the agent to act on all the current comments and commit once the required checks and reviews pass; reject tells it to stop, ask the user what to do instead, and ask whether to revert. Only the reviewer ends a verdict.',
+      'PUT /api/approval sets the verdict; DELETE /api/approval clears it and requires no matching versions. Every verdict requires captureVersion and patchDigest (named) or diffDigest (staged, working, or .) matching the displayed capture or diff; approve also requires the current summaryVersion (omission means 0 for an unnamed review). Named review approval requires captureVersion, patchDigest and summaryVersion matching the displayed capture and proposal. Stale requests, and verdicts on a review its agent withdrew, return HTTP 409. approve tells the agent to act on all the current comments and commit once the required checks and reviews pass; reject tells it to stop, ask the user what to do instead, and ask whether to revert. Only the reviewer ends a verdict.',
   },
   ApprovalResponse: ref('ReviewApproval'),
 };

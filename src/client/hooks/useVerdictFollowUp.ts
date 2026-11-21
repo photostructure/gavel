@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ReviewApproval } from '../../types/conversation';
+import type { ReviewApproval, ReviewWithdrawal } from '../../types/conversation';
 import type { DiffSelection, ReviewContext } from '../../types/diff';
 import { diffSelectionsEqual, getDiffSelectionKey } from '../../utils/diffSelection';
 import { copyTextToClipboard } from '../utils/clipboard';
 import { buildResumePrompt } from '../utils/resumePrompt';
-import { hasVerdict, nextReviewNeedingVerdict } from '../utils/verdict';
+import { needsVerdict, nextReviewNeedingVerdict } from '../utils/verdict';
 
 // The length of the verdict-pulse animation in global.css: 4 iterations of 1.6s.
 const PULSE_MS = 6400;
@@ -41,7 +41,12 @@ export type VerdictFollowUpStep =
  * add entries.
  */
 export function useVerdictFollowUp<
-  T extends { selection: DiffSelection; name: string; approval: ReviewApproval },
+  T extends {
+    selection: DiffSelection;
+    name: string;
+    approval: ReviewApproval;
+    withdrawal?: ReviewWithdrawal;
+  },
 >({
   reviews,
   current,
@@ -170,8 +175,7 @@ export function useVerdictFollowUp<
               name: target.name,
               // The open review's entry may not show its verdict yet.
               waiting: reviews.filter(
-                (entry) =>
-                  !hasVerdict(entry.approval) && !diffSelectionsEqual(entry.selection, current),
+                (entry) => needsVerdict(entry) && !diffSelectionsEqual(entry.selection, current),
               ).length,
             }
           : { kind: 'close', reviews: count };

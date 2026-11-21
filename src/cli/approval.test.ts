@@ -145,4 +145,20 @@ describe('findApprovals', () => {
     expect(await findApprovals(root, { patchDigest: 'old' })).toEqual([]);
     expect(await findApprovals(root, { commit: 'HEAD^' })).toEqual([]);
   });
+
+  it('reports the withdrawal of an approved review its agent withdrew', async () => {
+    const withdrawal = { at: '2026-11-21T12:00:00.000Z', reason: 'Superseded.' };
+    store.save(
+      'withdrawn',
+      saved({
+        selection: createDiffSelection('a'.repeat(40), '.', undefined, 'task'),
+        captures: [{ version: 1, patchDigest: 'current', baseCommit: 'b'.repeat(40) }],
+        withdrawal,
+      }),
+      server.owner,
+    );
+    expect(await findApprovals(root, { patchDigest: 'current' })).toMatchObject([
+      { approval: { verdict: 'approve' }, withdrawal },
+    ]);
+  });
 });

@@ -81,7 +81,7 @@ the Codex session index, read again on each page load so renames show; pass
 has changed shape, About shows the name as "failed to parse" with the cause.
 Reused servers retain the launching session's identity.
 
-## Rename, delete, or reopen a review
+## Rename, withdraw, delete, or reopen a review
 
 Rename with `review rename <name> <new-name> --host <host> --port <port>`; `reviewId`,
 comments, proposal, and verdict stay, but comment links naming the old review stop
@@ -90,6 +90,16 @@ resolving. Delete an unwanted review you created with
 remain in **Conversation** until shutdown, but the saved capture is deleted:
 `review unapply`/`review reapply` can no longer find it. Keep reviews you may
 still unapply or reapply.
+
+Withdraw a review you shared but no longer want reviewed, such as one a later
+review supersedes or one whose approach you abandoned, with
+`review withdraw <name> --reason '<why>' --host <host> --port <port>`. Its tab stays,
+struck through, and the reason shows at the top of the review, so write it for the
+user: say what replaced it or what you will do instead, and link the replacement
+tab as `[name](?review=<name>)`. It keeps its comments and any verdict, takes no new
+verdict, and an earlier Approve no longer authorizes a commit. Withdrawing again
+replaces the reason; nothing reverses a withdrawal, so put revised work in a new
+review. Once the user may have seen a review, withdraw it rather than delete it.
 
 Reopening the same named patch or commits restores saved conversations, proposals,
 and approval, but review IDs and event cursors change. Snapshot before sending

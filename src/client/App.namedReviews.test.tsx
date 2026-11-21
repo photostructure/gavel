@@ -102,6 +102,8 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
     renamedA: undefined as string | undefined,
     renamedB: undefined as string | undefined,
     deletedA: false,
+    // An agent withdrew task-a with this reason.
+    withdrawnA: undefined as string | undefined,
     showNamedReviews: true,
     addedLine: 'const stable = true;',
     hideFiles: false,
@@ -246,6 +248,9 @@ function fixture(initialThreads: DiffCommentThread[] = []) {
         summary: { commitMessage: 'fix: preserve review context', rationale: '', version: 2 },
         approval: state.verdict ? { verdict: state.verdict } : {},
         capture: { ...state.capture, name: state.renamedA ?? state.capture.name },
+        ...(state.withdrawnA
+          ? { withdrawal: { at: '2026-11-21T12:00:00Z', reason: state.withdrawnA } }
+          : {}),
       },
       ...(state.showReviewB
         ? [
@@ -1481,6 +1486,23 @@ describe('named captures in the browser', () => {
     await act(async () => watch.approvalChanged?.());
     expect(await within(bar).findByRole('button', { name: 'task-a, Approved' })).toBeVisible();
     expect(bar).toHaveTextContent('1 needs a verdict');
+  });
+
+  it('shows a review the agent withdraws struck through, with its reason, and takes no verdict', async () => {
+    const state = fixture();
+    renderApp();
+    const bar = await screen.findByRole('navigation', { name: 'Reviews on this server' });
+    const approve = screen.getByRole('button', { name: /^(Approve|Approved)$/ });
+    await waitFor(() => expect(approve).toBeEnabled());
+    state.withdrawnA = 'Superseded by task-b.';
+    await act(async () => watch.approvalChanged?.());
+    expect(await within(bar).findByRole('button', { name: 'task-a, Withdrawn' })).toBeVisible();
+    expect(bar).toHaveTextContent('1 needs a verdict, 1 withdrawn');
+    expect(screen.getByRole('note', { name: 'Withdrawn' })).toHaveTextContent(
+      'Superseded by task-b.',
+    );
+    expect(approve).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeDisabled();
   });
 });
 

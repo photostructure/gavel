@@ -251,7 +251,7 @@ describe('schema command', () => {
     });
   });
 
-  it('describes rename and delete events and the deleted reviews a snapshot keeps', async () => {
+  it('describes rename, delete and withdraw events and the deleted reviews a snapshot keeps', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     await createSchemaCommand().parseAsync(['node', 'gavel']);
     const { $defs } = readOutput(log);
@@ -268,15 +268,26 @@ describe('schema command', () => {
       required: expect.arrayContaining(['reviewId', 'selection', 'type']),
       properties: { type: { const: 'review.deleted' }, origin: { const: 'agent' } },
     });
+    expect($defs.ReviewWithdrawnEvent).toMatchObject({
+      required: expect.arrayContaining(['reviewId', 'capture', 'withdrawal', 'type']),
+      properties: {
+        type: { const: 'review.withdrawn' },
+        origin: { const: 'agent' },
+        withdrawal: { $ref: '#/$defs/ReviewWithdrawal' },
+      },
+    });
+    expect($defs.ReviewWithdrawal).toMatchObject({ required: ['at', 'reason'] });
     expect($defs.ConversationEvent).toMatchObject({
       oneOf: expect.arrayContaining([
         { $ref: '#/$defs/ReviewRenamedEvent' },
         { $ref: '#/$defs/ReviewDeletedEvent' },
+        { $ref: '#/$defs/ReviewWithdrawnEvent' },
       ]),
     });
     expect($defs.SnapshotResponse).toMatchObject({
       required: ['cursor', 'reviews'],
       properties: {
+        reviews: { items: { properties: { withdrawal: { $ref: '#/$defs/ReviewWithdrawal' } } } },
         deletedReviews: {
           items: {
             required: ['id', 'selection', 'threads', 'approval', 'summary', 'deletedAt'],

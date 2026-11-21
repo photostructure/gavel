@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 
+import type { ReviewWithdrawal } from '../../types/conversation';
 import type { useReviewSummary } from '../hooks/useReviewSummary';
 import { readClientSettings, saveClientSettings } from '../services/userSettings';
 
@@ -20,15 +21,18 @@ const readSavedMessageWidth = (): string | undefined => {
 };
 
 /**
- * The agent's proposal, read-only. App renders it at the top of the diff's scroll area, so the
- * fields size to their content and scroll away with the diff; it needs no toggle or height cap.
+ * The agent's proposal, read-only, under a notice saying when and why the agent withdrew the
+ * review, if it did. App renders it at the top of the diff's scroll area, so the fields size to
+ * their content and scroll away with the diff; it needs no toggle or height cap.
  */
 export function ReviewSummaryPanel({
   summary,
   committed = false,
+  withdrawal,
 }: {
   summary: ReturnType<typeof useReviewSummary>;
   committed?: boolean;
+  withdrawal?: ReviewWithdrawal;
 }) {
   const id = useId();
   const messageLabel = committed ? 'Commit message' : 'Proposed commit message';
@@ -68,6 +72,18 @@ export function ReviewSummaryPanel({
       data-review-summary=""
       className="border-b border-github-border bg-github-bg-secondary px-4 py-3"
     >
+      {withdrawal && (
+        <div
+          role="note"
+          aria-label="Withdrawn"
+          className="mb-3 flex flex-col gap-1 rounded border border-github-danger bg-github-danger/15 px-3 py-2 text-sm"
+        >
+          <p className="font-semibold text-github-danger">
+            The agent withdrew this review on {new Date(withdrawal.at).toLocaleString()}.
+          </p>
+          <CommentBodyRenderer body={withdrawal.reason} textSizeClass="text-sm" />
+        </div>
+      )}
       <div className="flex min-w-0 flex-col gap-3 md:flex-row md:gap-0">
         <div
           ref={rationaleRef}

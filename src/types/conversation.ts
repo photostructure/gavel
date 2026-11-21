@@ -90,6 +90,12 @@ export interface ReviewStoreStatus {
   error?: string;
 }
 
+/** An agent pulled a named review back from review: it no longer asks for a verdict. */
+export interface ReviewWithdrawal {
+  at: string;
+  reason: string;
+}
+
 export interface ConversationSnapshotReview {
   id: string;
   selection: DiffSelection;
@@ -97,6 +103,8 @@ export interface ConversationSnapshotReview {
   approval: ReviewApproval;
   summary: ReviewSummary;
   capture?: NamedReviewMetadata;
+  /** Present once the agent withdraws the review. */
+  withdrawal?: ReviewWithdrawal;
 }
 
 /**
@@ -183,10 +191,23 @@ interface ReviewDeletedEvent {
   timestamp: string;
 }
 
+/** An agent withdrew a named review; it keeps its tab and comments but takes no new verdict. */
+interface ReviewWithdrawnEvent {
+  type: 'review.withdrawn';
+  origin: 'agent';
+  cursor: string;
+  reviewId: string;
+  selection: DiffSelection;
+  capture: NamedReviewMetadata;
+  withdrawal: ReviewWithdrawal;
+  timestamp: string;
+}
+
 export type ConversationStreamEvent =
   | ReviewCaptureEvent
   | ReviewRenamedEvent
   | ReviewDeletedEvent
+  | ReviewWithdrawnEvent
   | ConversationEvent
   | CommentDeletedEvent
   | ReviewApprovalEvent

@@ -1,10 +1,10 @@
 import { Check, ChevronDown, Circle, X } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 
-import type { ReviewApproval } from '../../types/conversation';
+import type { ReviewApproval, ReviewWithdrawal } from '../../types/conversation';
 import type { DiffSelection } from '../../types/diff';
 import { diffSelectionsEqual, getDiffSelectionKey } from '../../utils/diffSelection';
-import { hasVerdict } from '../utils/verdict';
+import { needsVerdict } from '../utils/verdict';
 
 import { HeaderMenu, headerButtonClasses } from './HeaderMenu';
 import { describeVerdict } from './VerdictControl';
@@ -15,12 +15,15 @@ export interface ApprovalRequest {
   name: string;
   title: string;
   approval: ReviewApproval;
+  withdrawal?: ReviewWithdrawal;
 }
 
 const approvalLabel = ({ verdict }: ReviewApproval) =>
   describeVerdict(verdict) ?? 'Needs a verdict';
 
-const isDone = (review: ApprovalRequest) => hasVerdict(review.approval);
+// A withdrawal shows even on a --no-lgtm server, where verdicts do not.
+const stateLabel = (review: ApprovalRequest, approvals: boolean) =>
+  review.withdrawal ? 'Withdrawn' : approvals ? approvalLabel(review.approval) : undefined;
 
 // The inset focus outline keeps the tab row's overflow from clipping it.
 const tabClasses =
@@ -47,15 +50,24 @@ const verdictColor = ({ verdict }: ReviewApproval) =>
           topBorder: 'border-t-github-text-secondary',
           tint: undefined,
         };
+// Red, apart from reject's violet: the agent, not the reviewer, ended this review.
+const WITHDRAWN_COLOR = {
+  text: 'text-github-danger',
+  topBorder: 'border-t-github-danger',
+  tint: 'bg-github-danger/15 hover:bg-github-danger/25',
+};
+// The colors a review's state takes, or undefined on a --no-lgtm server for one not withdrawn.
+const stateColor = (review: ApprovalRequest, approvals: boolean) =>
+  review.withdrawal ? WITHDRAWN_COLOR : approvals ? verdictColor(review.approval) : undefined;
 
 // The open tab overlaps the bar's bottom border and shares the secondary background of the
 // file list and the Change summary below it, so it reads as attached to the review. Its top
-// border takes its verdict's color.
-const openTabClasses = (approval: ReviewApproval | undefined, approvals: boolean) =>
-  `border-github-border border-t-2 ${approvals && approval ? verdictColor(approval).topBorder : 'border-t-github-accent'} border-b-github-bg-secondary bg-github-bg-secondary font-semibold text-github-text-primary`;
+// border takes its state's color.
+const openTabClasses = (review: ApprovalRequest, approvals: boolean) =>
+  `border-github-border border-t-2 ${stateColor(review, approvals)?.topBorder ?? 'border-t-github-accent'} border-b-github-bg-secondary bg-github-bg-secondary font-semibold text-github-text-primary`;
 
-const verdictKind = ({ verdict }: ReviewApproval) =>
-  verdict === 'approve' ? 'approved' : (verdict ?? 'needs-verdict');
+const verdictKind = ({ approval: { verdict }, withdrawal }: ApprovalRequest) =>
+  withdrawal ? 'withdrawn' : verdict === 'approve' ? 'approved' : (verdict ?? 'needs-verdict');
 
 const VERDICT_SEGMENTS = [
   ['approved', 'bg-github-accent', (count: number) => `${count} approved`],
@@ -65,11 +77,20 @@ const VERDICT_SEGMENTS = [
     'bg-github-text-muted',
     (count: number) => `${count} ${count === 1 ? 'needs' : 'need'} a verdict`,
   ],
+  ['withdrawn', 'bg-github-danger', (count: number) => `${count} withdrawn`],
 ] as const;
 
-function ApprovalMark({ approval }: { approval: ReviewApproval }) {
+function ApprovalMark({ review }: { review: ApprovalRequest }) {
+  const { approval } = review;
   const { text } = verdictColor(approval);
-  return approval.verdict === 'reject' ? (
+  return review.withdrawal ? (
+    <X
+      size={12}
+      aria-hidden="true"
+      data-withdrawn
+      className={`verdict-mark shrink-0 ${WITHDRAWN_COLOR.text}`}
+    />
+  ) : approval.verdict === 'reject' ? (
     <X
       size={12}
       aria-hidden="true"
@@ -119,11 +140,10 @@ export function ReviewQueueBar({
 }) {
   const hasUnread = (review: ApprovalRequest) =>
     unreadReviews.has(getDiffSelectionKey(review.selection));
-  const tintOf = (review: ApprovalRequest) =>
-    approvals ? verdictColor(review.approval).tint : undefined;
+  const tintOf = (review: ApprovalRequest) => stateColor(review, approvals)?.tint;
   // Two identically animated classes: switching between them restarts the animation.
   const pulseClass = (review: ApprovalRequest) =>
-    approvals && pulse > 0 && !isDone(review) ? ` verdict-pulse-${pulse % 2}` : '';
+    approvals && pulse > 0 && needsVerdict(review) ? ` verdict-pulse-${pulse % 2}` : '';
   const tabRowRef = useRef<HTMLUListElement>(null);
   const open = reviews.find((review) => diffSelectionsEqual(review.selection, current));
   const openIndex = open ? reviews.indexOf(open) : -1;
@@ -152,7 +172,7 @@ export function ReviewQueueBar({
 
   const segments = approvals
     ? VERDICT_SEGMENTS.flatMap(([kind, color, describe]) => {
-        const count = reviews.filter((review) => verdictKind(review.approval) === kind).length;
+        const count = reviews.filter((review) => verdictKind(review) === kind).length;
         return count > 0 ? [{ kind, color, count, summary: describe(count) }] : [];
       })
     : [];
@@ -179,7 +199,7 @@ export function ReviewQueueBar({
       >
         {reviews.map((review) => {
           const isOpen = review === open;
-          const state = approvals ? approvalLabel(review.approval) : undefined;
+          const state = stateLabel(review, approvals);
           const unread = hasUnread(review);
           const tint = tintOf(review);
           return (
@@ -192,12 +212,16 @@ export function ReviewQueueBar({
                     ? [review.name, state, unread && UNREAD_LABEL].filter(Boolean).join(', ')
                     : undefined
                 }
-                title={[review.title, state, unread && 'Unread replies'].filter(Boolean).join('\n')}
+                title={[review.title, state, review.withdrawal?.reason, unread && 'Unread replies']
+                  .filter(Boolean)
+                  .join('\n')}
                 onClick={() => onSelect(review.selection)}
-                className={`${tabClasses} ${isOpen ? openTabClasses(review.approval, approvals) : `border-transparent text-github-text-secondary hover:text-github-text-primary ${tint ?? 'hover:bg-github-bg-secondary'}`}${pulseClass(review)}`}
+                className={`${tabClasses} ${isOpen ? openTabClasses(review, approvals) : `border-transparent text-github-text-secondary hover:text-github-text-primary ${tint ?? 'hover:bg-github-bg-secondary'}`}${pulseClass(review)}`}
               >
-                {state && <ApprovalMark approval={review.approval} />}
-                <span>{review.name}</span>
+                {state && <ApprovalMark review={review} />}
+                <span className={review.withdrawal ? 'line-through' : undefined}>
+                  {review.name}
+                </span>
                 {unread && <UnreadDot />}
               </button>
             </li>
@@ -233,6 +257,7 @@ export function ReviewQueueBar({
           {reviews.map((review) => {
             const isOpen = review === open;
             const tint = tintOf(review);
+            const state = stateLabel(review, approvals);
             return (
               <li key={getDiffSelectionKey(review.selection)}>
                 <button
@@ -242,14 +267,18 @@ export function ReviewQueueBar({
                   onClick={() => onSelect(review.selection)}
                   className={`flex w-full items-start gap-2 px-3 py-2 text-left text-xs ${tint ?? `hover:bg-github-bg-tertiary${isOpen ? ' bg-github-bg-tertiary' : ''}`} ${isOpen ? 'border-l-4 border-l-github-accent pl-2' : ''}`}
                 >
-                  {approvals && (
+                  {state && (
                     <span className="pt-0.5">
-                      <ApprovalMark approval={review.approval} />
+                      <ApprovalMark review={review} />
                     </span>
                   )}
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5">
-                      <span className="block break-all font-semibold">{review.name}</span>
+                      <span
+                        className={`block break-all font-semibold${review.withdrawal ? ' line-through' : ''}`}
+                      >
+                        {review.name}
+                      </span>
                       {hasUnread(review) && <UnreadDot />}
                     </span>
                     {review.title && (
@@ -257,11 +286,7 @@ export function ReviewQueueBar({
                         {review.title}
                       </span>
                     )}
-                    {approvals && (
-                      <span className="block text-github-text-muted">
-                        {approvalLabel(review.approval)}
-                      </span>
-                    )}
+                    {state && <span className="block text-github-text-muted">{state}</span>}
                   </span>
                 </button>
               </li>

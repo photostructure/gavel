@@ -249,6 +249,16 @@ describe('saved review state across server restarts', () => {
     expect((await reviewOf('other'))?.threads.map((entry) => entry.id)).toEqual(['question']);
   });
 
+  it('restores a withdrawn review as withdrawn after a restart', async () => {
+    await startNamed('task');
+    await request('/api/reviews/task/withdraw', { reason: 'Wrong approach.' });
+
+    await restart(() => startNamed('task'));
+    expect(await reviewOf('task')).toMatchObject({
+      withdrawal: { reason: 'Wrong approach.', at: expect.any(String) },
+    });
+  });
+
   it('forgets a deleted review once the server stops', async () => {
     await startNamed('first');
     await request('/api/reviews', { name: 'second', capture });

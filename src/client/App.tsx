@@ -93,7 +93,7 @@ import {
 } from './services/userSettings';
 import { saveAutoViewedPatterns } from './services/autoViewedPatterns';
 import { celebrateApproval } from './utils/approvalCelebration';
-import { hasVerdict } from './utils/verdict';
+import { needsVerdict } from './utils/verdict';
 import { renderBidiText } from './utils/bidiControls';
 import { getFileElementId, resetEmptyCommentFormsOutside } from './utils/domUtils';
 import { findCommentPosition, findSidePosition } from './utils/navigation/positionHelpers';
@@ -1298,12 +1298,11 @@ function App() {
     setCommentTrigger(null);
   }, [setCommentTrigger]);
 
+  const shownRequest = approvalRequests.find((review) =>
+    diffSelectionsEqual(review.selection, resolvedSelection),
+  );
   // Only several reviews need telling apart in a copied prompt.
-  const promptReviewTabName =
-    approvalRequests.length > 1
-      ? approvalRequests.find((review) => diffSelectionsEqual(review.selection, resolvedSelection))
-          ?.name
-      : undefined;
+  const promptReviewTabName = approvalRequests.length > 1 ? shownRequest?.name : undefined;
   // A piped diff has no repository path; gavel's launch directory is the closest match.
   const promptOrigin = useMemo(
     () => ({
@@ -1587,6 +1586,7 @@ function App() {
         name: formatReviewSelection(selection),
         title,
         approval: review.approval,
+        withdrawal: review.withdrawal,
       }));
       setApprovalRequests(requests);
       const toConversation = (
@@ -1712,9 +1712,7 @@ function App() {
   // paint the pulse only if the reviewer stays. A page that has lost its server cannot record a
   // verdict, so it does not ask.
   const reviewsNeedVerdict =
-    isConnected &&
-    Boolean(diffData?.shipIt) &&
-    approvalRequests.some((review) => !hasVerdict(review.approval));
+    isConnected && Boolean(diffData?.shipIt) && approvalRequests.some(needsVerdict);
   const { pulseNow } = verdictFollowUp;
   useEffect(() => {
     if (!reviewsNeedVerdict) return;
@@ -2215,7 +2213,10 @@ function App() {
                   containerRef={setVerdictControl}
                   verdict={shownVerdict}
                   busy={isShipping || captureReloading}
-                  disabled={!approval.ready || !hasLoadedComments}
+                  // A withdrawn review takes no new verdict; one it already has can still be cleared.
+                  disabled={
+                    !approval.ready || !hasLoadedComments || Boolean(shownRequest?.withdrawal)
+                  }
                   approveDisabled={!summary.ready}
                   onVerdict={(verdict) => void handleVerdict(verdict)}
                   onClear={() => void handleVerdict('clear')}
@@ -2391,6 +2392,7 @@ function App() {
             <ReviewSummaryPanel
               summary={summary}
               committed={!diffData.capture && diffData.targetCommitMessage !== undefined}
+              withdrawal={shownRequest?.withdrawal}
             />
             {diffData.files.map((file, fileIndex) => {
               const fileThreads = threadsByFile.get(file.path) ?? EMPTY_COMMENT_THREADS;

@@ -13,7 +13,7 @@ import {
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 
-import type { ReviewApproval, ReviewSummary } from '../types/conversation.js';
+import type { ReviewApproval, ReviewSummary, ReviewWithdrawal } from '../types/conversation.js';
 import type { CommentProgress, DiffCommentThread, DiffSelection } from '../types/diff.js';
 import type { NamedReviewMetadata, ReviewCapture } from '../types/review.js';
 import { getDiffSelectionKey } from '../utils/diffSelection.js';
@@ -46,6 +46,7 @@ export interface SavedReviewState {
   summary: ReviewSummary;
   /** Ids of every review op applied, oldest first; absent from older records. */
   appliedOps?: string[];
+  withdrawal?: ReviewWithdrawal;
 }
 
 /** One capture version of a named review, enough to find its saved patch. */

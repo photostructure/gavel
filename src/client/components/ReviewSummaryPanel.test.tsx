@@ -37,6 +37,33 @@ describe('ReviewSummaryPanel', () => {
     resetClientSettingsForTests();
   });
 
+  it('shows when and why the agent withdrew the review, above the proposal', () => {
+    const at = '2026-11-21T12:00:00.000Z';
+    render(
+      <CommentLinkContext.Provider value={follow}>
+        <ReviewSummaryPanel
+          summary={summary()}
+          withdrawal={{ at, reason: 'Superseded by [tests](?review=tests).' }}
+        />
+      </CommentLinkContext.Provider>,
+    );
+    const notice = screen.getByRole('note', { name: 'Withdrawn' });
+    expect(notice).toHaveTextContent(
+      `The agent withdrew this review on ${new Date(at).toLocaleString()}.`,
+    );
+    expect(notice).toHaveTextContent('Superseded by tests.');
+    expect(
+      notice.compareDocumentPosition(screen.getByRole('group', { name: 'Why this change' })),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    fireEvent.click(screen.getByRole('link', { name: 'tests' }));
+    expect(follow).toHaveBeenCalled();
+  });
+
+  it('shows no withdrawal notice for a review that was not withdrawn', () => {
+    renderPanel(summary());
+    expect(screen.queryByRole('note', { name: 'Withdrawn' })).toBeNull();
+  });
+
   it('shows the rationale as Markdown whose links the router follows', () => {
     renderPanel(summary());
     expect(screen.getByRole('group', { name: 'Why this change' })).toHaveTextContent(

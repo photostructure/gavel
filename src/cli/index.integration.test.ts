@@ -1110,7 +1110,7 @@ describe('actual CLI launch protocol', () => {
       return refusals()[count - 1]!;
     }
 
-    it('stays up until every named review has a verdict', async () => {
+    it('stays up until every named review has a verdict or its agent withdrew it', async () => {
       const fixture = launch(['-', '--review', 'finished', ...address], undefined, {}, patch);
       try {
         const { port } = await ready(fixture);
@@ -1122,7 +1122,22 @@ describe('actual CLI launch protocol', () => {
         expect(await refusal(fixture, 2)).toBe(
           'gavel server stays up: review "second" has no verdict',
         );
-        await reject(port, 'second');
+        const withdraw = launch(
+          [
+            'review',
+            'withdraw',
+            'second',
+            '--reason',
+            'Superseded.',
+            '--host',
+            '127.0.0.1',
+            '--port',
+            `${port}`,
+          ],
+          undefined,
+          {},
+        );
+        expect(await withdraw.closed, withdraw.output().stderr).toBe(0);
         fixture.child.kill('SIGUSR2');
         expect(await fixture.closed).toBe(0);
         expect(lastEvent(fixture)).toMatchObject({ type: 'server.shutdown', reason: 'SIGUSR2' });

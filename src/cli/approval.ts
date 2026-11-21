@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { digest } from '../server/review-capture.js';
 import { shortHash } from './utils.js';
 import { REVIEW_RETENTION_MS, openReviewStore } from '../server/review-store.js';
-import type { ReviewApproval } from '../types/conversation.js';
+import type { ReviewApproval, ReviewWithdrawal } from '../types/conversation.js';
 import type { DiffSelection } from '../types/diff.js';
 
 const execFileAsync = promisify(execFile);
@@ -18,6 +18,8 @@ export interface ApprovalStatus {
   approval: ReviewApproval;
   commitMessage: string;
   updatedAt: string;
+  /** Present when the agent withdrew the review; its verdict then authorizes nothing. */
+  withdrawal?: ReviewWithdrawal;
 }
 
 async function git(cwd: string, args: string[]): Promise<string> {
@@ -65,6 +67,7 @@ export async function findApprovals(
           approval: review.approval,
           commitMessage: review.summary.commitMessage,
           updatedAt: review.updatedAt,
+          ...(review.withdrawal ? { withdrawal: review.withdrawal } : {}),
         },
       ];
     })
@@ -84,7 +87,8 @@ export function createApprovalCommand(): Command {
       `
 Reads the reviews gavel servers saved under <git-common-dir>/gavel; no server needs to run.
 Prints a JSON array, newest first, of {match, selection, approval,
-commitMessage, updatedAt}. An empty array means no saved review matches, for example: no
+commitMessage, updatedAt, withdrawal?}. withdrawal, {at, reason}, is present when the agent
+withdrew the review; its approval then authorizes nothing. An empty array means no saved review matches, for example: no
 review of it was opened by a server that saves reviews, it went untouched for
 ${REVIEW_RETENTION_MS / 86_400_000} days and was deleted, or its patch was piped some other way than
 \`git diff --full-index <commit>^ <commit>\`.

@@ -647,6 +647,39 @@ describe('named review HTTP integration', () => {
     expect((await get<CommentsResponse>(`/api/comments-json${query}`)).threads).toEqual([]);
   });
 
+  it('withdraws a review with a reason, keeps its comments and verdict, and refuses new verdicts', async () => {
+    const before = await review();
+    await post(`/api/comments${query}`, { threads: [lineThread()] });
+    await put(`/api/approval${query}`, {
+      verdict: 'reject',
+      captureVersion: 1,
+      patchDigest: initialCapture.patchDigest,
+    });
+    await post('/api/reviews/missing/withdraw', { reason: 'Gone.' }, 404);
+    await post(`/api/reviews/${name}/withdraw`, { reason: ' ' }, 400);
+    await post(`/api/reviews/${name}/withdraw`, { reason: 'x'.repeat(4001) }, 400);
+    const eventStart = events.length;
+    const reason = 'Superseded by agent-task-2, which also fixes the parser.';
+
+    const result = await post<{ reviewId: string; name: string; withdrawal: unknown }>(
+      `/api/reviews/${name}/withdraw`,
+      { reason },
+    );
+
+    const withdrawal = { reason, at: expect.any(String) };
+    expect(result).toEqual({ reviewId: before.reviewId, name, withdrawal });
+    const entry = (await snapshot()).reviews.find(({ id }) => id === before.reviewId);
+    expect(entry).toMatchObject({ withdrawal, threads: [{ id: 'question' }] });
+    expect(events.slice(eventStart)).toEqual([
+      expect.objectContaining({ type: 'review.withdrawn', reviewId: before.reviewId, withdrawal }),
+    ]);
+    await put(`/api/approval${query}`, binding(initialCapture, 1), 409);
+    expect(await approval()).toMatchObject({ verdict: 'reject' });
+    // Clearing the verdict given before the withdrawal still works.
+    await request(`/api/approval${query}`, 'DELETE');
+    expect(await approval()).not.toHaveProperty('verdict');
+  });
+
   it('files a default-selection comment after a delete under the diff the default view shows', async () => {
     await request(`/api/reviews/${name}`, 'DELETE');
     await post('/api/comments', { threads: [lineThread()] });

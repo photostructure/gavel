@@ -983,6 +983,25 @@ export async function startServer(options: ServerOptions): Promise<{
     }
   });
 
+  app.post('/api/reviews/:name/withdraw', (req, res) => {
+    try {
+      const input = req.body as { reason?: unknown } | null;
+      const reason = typeof input?.reason === 'string' ? input.reason.trim() : '';
+      if (!reason || reason.length > 4000)
+        throw new NamedReviewError('Expected a reason of 1 to 4000 characters', 400);
+      const review = namedReviews.get(req.params.name);
+      if (!review || !conversation)
+        throw new NamedReviewError(`Review "${req.params.name}" does not exist`, 404);
+      const withdrawal = conversation.withdraw(review.selection, review.metadata, reason);
+      const { reviewId } = describeNamedReview(review);
+      res.json({ reviewId, name: review.metadata.name, withdrawal });
+      // Pages reread the snapshot, which carries the withdrawal, and the verdict it now refuses.
+      fileWatcher.broadcast({ type: 'approvalChanged', timestamp: new Date().toISOString() });
+    } catch (error) {
+      reviewError(res, error);
+    }
+  });
+
   function getOrCreateCommentSession(selection: DiffSelection): CommentSessionState {
     const key = createCommentSessionKey(selection);
     const existing = commentSessions.get(key);
@@ -2177,6 +2196,8 @@ export async function startServer(options: ServerOptions): Promise<{
     const verdict = input?.verdict;
     if (!input || (verdict !== 'approve' && verdict !== 'reject'))
       return { status: 400, body: { error: 'Expected verdict: approve or reject' } };
+    if (conversation?.getWithdrawal(selection))
+      return { status: 409, body: { error: 'The agent withdrew this review' } };
     if (
       input.summaryVersion !== undefined &&
       (typeof input.summaryVersion !== 'number' ||
@@ -2548,14 +2569,14 @@ export async function startServer(options: ServerOptions): Promise<{
     })();
     return shutdownPromise;
   }
-  // Done means every review tab has a verdict, or the server shows none. A server without
+  // Done means every review tab has a verdict or was withdrawn, or the server shows none. A server without
   // tabs is not done: it may be a detached launch whose agent has yet to add its review.
   function whyNotDone(): string[] {
     const tabs = verdictTabReviews(conversation?.snapshot().reviews ?? []);
     if (tabs.length === 0) return ['no review tabs'];
     if (!options.shipIt) return [];
     return tabs
-      .filter(({ approval }) => approval.verdict === undefined)
+      .filter(({ approval, withdrawal }) => approval.verdict === undefined && !withdrawal)
       .map(({ selection }) => `review "${reviewLabel(selection)}" has no verdict`);
   }
   server.once('close', () => {

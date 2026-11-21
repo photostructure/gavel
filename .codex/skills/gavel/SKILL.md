@@ -137,9 +137,15 @@ Rename with `review rename <name> <new-name> --host <host> --port <port>`; ident
 comments, proposal, and verdict stay, but comment links naming the old review stop
 resolving. Delete an unwanted review you created with
 `review delete <name> --host <host> --port <port>`, freeing its name. Its comments
-remain in **Conversation** until shutdown. Do not restart to remove one review:
-that removes every review's comments from the page. Never stop, replace, rename,
-or delete another session's reviews.
+remain in **Conversation** until shutdown. Withdraw a review you shared but no
+longer want reviewed, such as one a later review supersedes, with
+`review withdraw <name> --reason '<why>' --host <host> --port <port>`: its tab
+stays, struck through, with the reason at the top of the review, so tell the user
+what replaced it. It keeps its comments, takes no new verdict, and any verdict it
+has authorizes nothing. Nothing reverses a withdrawal; put revised work in a new
+review. Do not restart to remove one review: that removes every review's comments
+from the page. Never stop, replace, rename, withdraw, or delete another session's
+reviews.
 
 For overlapping files, use `review capture --output <artifact>` and its printed
 file/hunk IDs with `--capture` and `--select`. Pathspecs alone can include another
@@ -247,8 +253,8 @@ recaptures and summary edits; other sessions' staged hunks do not end it. Compar
 the actual commit scope with the approved patch and feedback: shared-tree edits
 gain no permission. Commit without asking again.
 
-Close a server you launched once the user has given every review on it a verdict,
-in gavel or in chat, and you have carried that verdict out: committed an Approve,
+Close a server you launched once every review on it is withdrawn or has a verdict
+from the user, in gavel or in chat, and you have carried that verdict out: committed an Approve,
 or asked about a Reject. A read-only (`--no-lgtm`) review counts once the user
 says they are done with it; the unnamed `HEAD` bootstrap of a detached launch does
 not count. Keep it running if the user asked you to. Send SIGTERM to the `pid`

@@ -345,10 +345,30 @@ describe('named review CLI', () => {
     expect(log).toHaveBeenCalledExactlyOnceWith(JSON.stringify(result));
   });
 
+  it('withdraws a named review on a running server with its reason', async () => {
+    const result = {
+      reviewId: 'id',
+      name: 'task',
+      withdrawal: { at: '2026-11-21T12:00:00.000Z', reason: 'Superseded.' },
+    };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(result)));
+    await run('withdraw', 'task', '--reason', 'Superseded.', '--port', '4983');
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      'http://127.0.0.1:4983/api/reviews/task/withdraw',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Superseded.' }),
+      }),
+    );
+    expect(log).toHaveBeenCalledExactlyOnceWith(JSON.stringify(result));
+    expect(error).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['rename', 'task', 'bad name'],
     ['rename', 'bad name', 'task'],
     ['delete', 'bad name'],
+    ['withdraw', 'bad name', '--reason', 'x'],
   ])('rejects an invalid name for review %s before contacting the server', async (...args) => {
     await run(...args, '--port', '4983');
     expect(fetchMock).not.toHaveBeenCalled();

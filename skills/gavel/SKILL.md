@@ -10,8 +10,8 @@ scope. A viewer request alone grants no edit or commit permission. Do not post P
 findings to GitHub. Make authorized fixes only in the owning checkout.
 
 Before selecting hunks, importing a patch, stacking or splitting commits, branches,
-or PRs, launching a detached server, or refreshing, renaming, deleting, or
-reopening a review, read [captures, stacks, and detached servers](references/reviews.md).
+or PRs, launching a detached server, or refreshing, renaming, withdrawing,
+deleting, or reopening a review, read [captures, stacks, and detached servers](references/reviews.md).
 
 ## Never wait for the user
 
@@ -146,7 +146,9 @@ review: give every added review its own `comment add --review <name>` comments a
 
 Named captures are frozen; edits and browser reloads do not refresh them. Never
 recapture while idle. Do not restart to remove one review: that removes every
-review's comments from the page. Never rename or delete another session's review.
+review's comments from the page. To pull back a review you shared, such as one a
+later review supersedes, run `review withdraw <name> --reason '<why>'`
+rather than deleting it. Never rename, withdraw, or delete another session's review.
 Report `store.error`: review changes are not being saved.
 
 ## Guide the reader
@@ -233,6 +235,8 @@ Read a fresh snapshot before acting; the user can clear or switch a verdict.
 - **Reject** (`verdict: "reject"`): follow [references/reject.md](references/reject.md),
   and close the server as described below.
 - **No verdict** (absent or `null`): await the user.
+- **Withdrawn** (`withdrawal` present): you pulled it back. Any verdict it has
+  authorizes nothing; do not commit it.
 
 Approve on your review authorizes a commit. After addressing comments, passing
 required checks, and independent Codex/Claude reviewers LAND the final code,
@@ -247,8 +251,8 @@ Clearing a verdict ends button approval; after restart, only fresh state counts.
 Chat approval is independent. Silence or tab closure is not approval. Approval
 never authorizes pushing or publishing.
 
-Close a server you launched once the user has given every review on it a verdict,
-in gavel or in chat, and you have carried that verdict out: committed an Approve,
+Close a server you launched once every review on it is withdrawn or has a verdict
+from the user, in gavel or in chat, and you have carried that verdict out: committed an Approve,
 or asked about a Reject. A read-only (`--no-lgtm`) review counts once the user
 says they are done with it; the unnamed `HEAD` bootstrap of a detached launch does
 not count. Keep it running if the user asked you to. Send SIGTERM to the `pid`

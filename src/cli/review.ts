@@ -489,5 +489,32 @@ fallback, rejected, stash, stat}.
     }
   });
 
+  addServerOptions(
+    review
+      .command('withdraw')
+      .description(
+        'Withdraw a named review on a running server: its tab stays, struck through, with your reason, and it takes no new verdict',
+      )
+      .argument('<name>')
+      .requiredOption('--reason <text>', 'Why you withdrew it, shown at the top of the review'),
+  ).action(async (name: string, options: ServerOptions & { reason: string }) => {
+    try {
+      const response = await serverFetch(
+        options.host,
+        options.port,
+        `/api/reviews/${encodeURIComponent(validateReviewName(name))}/withdraw`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: options.reason }),
+          signal: AbortSignal.timeout(30000),
+        },
+      );
+      console.log(JSON.stringify(await readResponse(response, name)));
+    } catch (error) {
+      reportError(error, options.port, options.host);
+    }
+  });
+
   return review;
 }

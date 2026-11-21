@@ -11,6 +11,7 @@ import type {
   ReviewSummary,
   ReviewStoreStatus,
   ReviewVerdict,
+  ReviewWithdrawal,
 } from '../types/conversation.js';
 import type { CommentProgress, DiffCommentThread, DiffSelection } from '../types/diff.js';
 import { getDiffSelectionKey } from '../utils/diffSelection.js';
@@ -27,6 +28,7 @@ interface Review {
   approval: ReviewApproval;
   summary: ReviewSummary;
   appliedOps: string[];
+  withdrawal?: ReviewWithdrawal;
 }
 
 /**
@@ -131,6 +133,7 @@ export class Conversation {
         summary: saved?.summary ?? { commitMessage: '', rationale: '', version: 0 },
         appliedOps: saved?.appliedOps ?? [],
         ...(saved?.capture ? { capture: saved.capture } : {}),
+        ...(saved?.withdrawal ? { withdrawal: saved.withdrawal } : {}),
       };
       this.reviews.set(key, review);
     }
@@ -153,6 +156,7 @@ export class Conversation {
       approval: review.approval,
       summary: review.summary,
       appliedOps: review.appliedOps,
+      ...(review.withdrawal ? { withdrawal: review.withdrawal } : {}),
     });
   }
 
@@ -254,6 +258,37 @@ export class Conversation {
       timestamp: deletedAt,
     });
     return review.id;
+  }
+
+  /**
+   * Marks a named review withdrawn by its agent. It keeps its comments and any verdict, but takes
+   * no new verdict. Withdrawing again replaces the reason.
+   */
+  withdraw(
+    selection: DiffSelection,
+    capture: NamedReviewMetadata,
+    reason: string,
+  ): ReviewWithdrawal {
+    const review = this.getReview(selection);
+    const withdrawal = { at: new Date().toISOString(), reason };
+    review.withdrawal = withdrawal;
+    this.sequence += 1;
+    this.emit({
+      type: 'review.withdrawn',
+      origin: 'agent',
+      cursor: this.cursor,
+      reviewId: review.id,
+      selection: { ...selection },
+      capture: { ...capture },
+      withdrawal: { ...withdrawal },
+      timestamp: withdrawal.at,
+    });
+    return { ...withdrawal };
+  }
+
+  getWithdrawal(selection: DiffSelection): ReviewWithdrawal | undefined {
+    const withdrawal = this.reviews.get(getDiffSelectionKey(selection))?.withdrawal;
+    return withdrawal && { ...withdrawal };
   }
 
   getSummary(selection: DiffSelection): ReviewSummary {
@@ -468,6 +503,7 @@ export class Conversation {
       approval: structuredClone(review.approval),
       summary: { ...review.summary },
       ...(review.capture ? { capture: { ...review.capture } } : {}),
+      ...(review.withdrawal ? { withdrawal: { ...review.withdrawal } } : {}),
     });
     return {
       cursor: this.cursor,

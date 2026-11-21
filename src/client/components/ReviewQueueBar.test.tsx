@@ -217,6 +217,35 @@ describe('review queue bar', () => {
     expect(bar().querySelector('[data-verdict-segment].bg-verdict-reject')).not.toBeNull();
   });
 
+  it('strikes through a withdrawn review, marks it with a red X and tint, and never pulses it', () => {
+    const withdrawal = { at: '2026-11-21T12:00:00.000Z', reason: 'Superseded by tests.' };
+    const queue = [
+      request('parser', approved),
+      { ...request('tests'), withdrawal },
+      request('docs'),
+    ];
+    const props = { reviews: queue, current: queue[0]!.selection, onSelect: vi.fn() };
+    const { rerender } = render(<ReviewQueueBar {...props} approvals pulse={1} />);
+    const tab = screen.getByRole('button', { name: 'tests, Withdrawn' });
+    expect(tab).toHaveAttribute('title', 'fix: tests\nWithdrawn\nSuperseded by tests.');
+    expect(tab).toHaveClass('bg-github-danger/15');
+    expect(tab.className).not.toMatch(/verdict-pulse/);
+    expect(within(tab).getByText('tests')).toHaveClass('line-through');
+    expect(tab.querySelector('[data-withdrawn]')).toHaveClass('text-github-danger', 'lucide-x');
+    expect(allReviews('All reviews 1 approved, 1 needs a verdict, 1 withdrawn')).toBeVisible();
+    expect(bar().querySelector('[data-verdict-segment].bg-github-danger')).not.toBeNull();
+
+    // The open withdrawn tab takes the red top border.
+    rerender(<ReviewQueueBar {...props} current={queue[1]!.selection} approvals />);
+    expect(screen.getByRole('button', { current: 'page' })).toHaveClass('border-t-github-danger');
+
+    // With --no-lgtm a withdrawal still shows.
+    rerender(<ReviewQueueBar {...props} approvals={false} />);
+    expect(screen.getByRole('button', { name: 'tests, Withdrawn' })).toHaveClass(
+      'bg-github-danger/15',
+    );
+  });
+
   it('draws a bar segment for each verdict some review has, sized by its count', () => {
     const queue = [
       request('parser', approved),

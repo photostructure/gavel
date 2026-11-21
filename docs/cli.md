@@ -48,10 +48,13 @@ line or a lone `}`; the stash holds the files as they were. Hunks either command
 cannot place are listed under `rejected` and left alone.
 `gavel review unapply --help` describes the output.
 
-### Rename or delete a named review
+### Rename, withdraw, or delete a named review
 
 `gavel review rename <name> <new-name> --port <port>` keeps the review's comments,
-proposal, and verdict. `gavel review delete <name> --port <port>` removes its tab; its
+proposal, and verdict. `gavel review withdraw <name> --reason <text> --port <port>`
+pulls a review back: its tab stays, struck through with a red X, the reason shows at
+the top of the review, and its verdict buttons stop taking a new verdict.
+`gavel review delete <name> --port <port>` removes its tab; its
 comments stay in **Conversation**, marked "(deleted)", until the server stops. A delete
 also removes the saved capture that unapply and reapply read, so undo a change before
 deleting its review.
@@ -62,7 +65,7 @@ deleting its review.
 pkill -USR2 -x gavel-server
 ```
 
-This stops every gavel server whose review tabs all have a verdict, and every
+This stops every gavel server whose review tabs all have a verdict or were withdrawn, and every
 `--no-lgtm` server with a review tab. Other servers keep running, and foreground ones
 print why to stderr, such as `gavel server stays up: review "parser-fix" has no
 verdict`. A server with no tab keeps running, such as a detached server before its
