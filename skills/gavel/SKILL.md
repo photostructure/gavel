@@ -180,9 +180,9 @@ deletions), or `[API half](?review=<name>#thread=<id>)`. Back returns to the sou
 unfollowable links show a notice. Link only to captured hunks. End `--why` with
 the tour's first link, such as `Start here: [parser](#thread=<id>)`.
 
-Supply a Conventional Commit via `--commit-message` and one to three sentences
-explaining the problem and solution via `--why`. Identify inferred intent for
-others' work. For added reviews, send `comment summary` JSON on stdin:
+Supply a Conventional Commit via `--commit-message`, and via `--why` the summary
+that [the `--why` summary](references/summary.md) describes. Identify inferred
+intent for others' work. For added reviews, send `comment summary` JSON on stdin:
 `{reviewId,commitMessage,rationale,baseVersion}`. Read `summary.version` from a
 snapshot; saved proposals mean `baseVersion` may not be 0. Commit with the saved
 message; write requested message changes with `comment summary` first.

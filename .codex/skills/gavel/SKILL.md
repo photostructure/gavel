@@ -73,9 +73,10 @@ review, since they may be reading on another device.
    For a user-named branch, range, or PR, review for defects before showing it.
    Seek approval unless the user requests read-only review or all target commits
    have landed; use `--no-lgtm` in those cases.
-3. Include a proposed Conventional Commit message with `--commit-message` and a
-   short explanation with `--why`. Add reading-guide comments with repeatable
-   `--comment` arguments: where to start, surprising behavior, and verified
+3. Include a proposed Conventional Commit message with `--commit-message`, and
+   with `--why` the summary that
+   [the `--why` summary](references/summary.md) describes. Add reading-guide
+   comments with repeatable `--comment` arguments: where to start, surprising behavior, and verified
    findings. Anchor each point to its line; skip self-explanatory code.
    On a review longer than a few hunks, link the comments into a tour: give
    each thread an `id` unique across the server's reviews (prefix the review

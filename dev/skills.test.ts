@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const claudeReject = join(root, 'skills/gavel/references/reject.md');
 const codexReject = join(root, '.codex/skills/gavel/references/reject.md');
+const claudeSummary = join(root, 'skills/gavel/references/summary.md');
+const codexSummary = join(root, '.codex/skills/gavel/references/summary.md');
 
 describe('gavel skills', () => {
   // Codex's skill installer copies .codex/skills/gavel by itself, so a symlink out of that
@@ -17,5 +19,13 @@ describe('gavel skills', () => {
 
   it('give Claude Code and Codex the same Reject steps', () => {
     expect(readFileSync(codexReject, 'utf8')).toBe(readFileSync(claudeReject, 'utf8'));
+  });
+
+  it('give Codex its own copy of the --why summary format', () => {
+    expect(lstatSync(codexSummary).isSymbolicLink()).toBe(false);
+  });
+
+  it('give Claude Code and Codex the same --why summary format', () => {
+    expect(readFileSync(codexSummary, 'utf8')).toBe(readFileSync(claudeSummary, 'utf8'));
   });
 });
