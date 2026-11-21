@@ -38,6 +38,7 @@ All notable changes to this project will be documented in this file.
 - A long path with many spaces followed by `a/` or `b/` no longer stalls the server while its diff is parsed. Markdown previews show oversized or cyclic YAML frontmatter as source.
 - During an unresolved merge, reviews list every conflicted file, including modify/delete conflicts, and Git stops printing `fatal:` errors to gavel's terminal for them.
 - Long diffs, such as a large deleted file, scroll smoothly in Safari on an iPad.
+- Moving the pointer over a long diff responds faster.
 - The page keeps its scroll position when the agent runs `gavel review update` on the open review.
 - Files in a directory that appears after the diff reloads show in the file tree instead of under a collapsed folder.
 - While the server is unreachable, the verdict buttons show the verdict you last chose, so clicking a pressed verdict clears it once.
