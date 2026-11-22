@@ -47,20 +47,31 @@ export const getViewerForFile = (file: DiffFile): DiffViewerRegistration => {
   return viewers.find((viewer) => viewer.match(file)) ?? fallback;
 };
 
+/**
+ * Whether the server can send each side of `file` as a whole file. A piped diff and a conflicted
+ * file have no blobs to read, a named review may be unable to rebuild a file, and the server
+ * refuses a non-UTF-8 path.
+ */
+export function fileSidesReadable(
+  file: DiffFile,
+  source: { baseCommitish?: string; targetCommitish?: string },
+): boolean {
+  return (
+    !file.contextUnavailable &&
+    !file.conflicted &&
+    !file.hasNonUtf8Path &&
+    source.baseCommitish !== 'stdin' &&
+    source.targetCommitish !== 'stdin'
+  );
+}
+
 /** Whether hidden context around `file`'s hunks can be loaded and shown. */
 export function fileCanExpandHiddenLines(
   file: DiffFile,
   source: { baseCommitish?: string; targetCommitish?: string },
 ): boolean {
-  const hasBlobContent =
-    !file.contextUnavailable &&
-    !file.conflicted &&
-    source.baseCommitish !== 'stdin' &&
-    source.targetCommitish !== 'stdin';
-  // The server refuses a non-UTF-8 path, so an expansion would fill the gap with blank rows.
   return (
-    hasBlobContent &&
-    !file.hasNonUtf8Path &&
+    fileSidesReadable(file, source) &&
     (getViewerForFile(file).canExpandHiddenLines?.(file) ?? false)
   );
 }

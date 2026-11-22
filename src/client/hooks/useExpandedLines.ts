@@ -15,7 +15,7 @@ const EMPTY_EXPANDED_STATE: ExpandedLinesState = {};
 type ExpandedRange = FileExpandedState['expandedRanges'][number];
 
 /** A named review's capture, whose sides the server rebuilds from its patch. */
-interface CaptureRef {
+export interface CaptureRef {
   name: string;
   version: number;
 }
@@ -57,7 +57,7 @@ interface UseExpandedLinesResult {
   hasContextLoadFailed: (file: DiffFile) => boolean;
 }
 
-function blobUrl(
+export function blobUrl(
   filePath: string,
   source: { ref: string } | { capture: CaptureRef; side: 'old' | 'new' },
 ): string {

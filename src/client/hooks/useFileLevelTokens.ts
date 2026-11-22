@@ -7,7 +7,13 @@ import { loadPrismLanguage } from '../utils/languageLoader';
 import Prism from '../utils/prism';
 import { apiFetch } from '../utils/accessToken';
 
-type LineTokensGetter = (lineNumber: number) => Token[] | null;
+import { blobUrl, type CaptureRef } from './useExpandedLines';
+
+/**
+ * A line's tokens from its whole file, or null when that file's line no longer holds `content`,
+ * as when the working tree changed after the diff loaded.
+ */
+type LineTokensGetter = (lineNumber: number, content: string) => Token[] | null;
 
 export interface FileLevelTokens {
   getOldTokens: LineTokensGetter | null;
@@ -20,11 +26,9 @@ const EMPTY: FileLevelTokens = { getOldTokens: null, getNewTokens: null };
 // of highlighting the entire blob; these fall back to per-line highlighting.
 const MAX_WHOLE_FILE_LINES = 2000;
 
-async function fetchBlobText(filePath: string, ref: string): Promise<string | null> {
+async function fetchBlobText(url: string): Promise<string | null> {
   try {
-    const response = await apiFetch(
-      `/api/blob/${encodeURIComponent(filePath)}?ref=${encodeURIComponent(ref)}`,
-    );
+    const response = await apiFetch(url);
     if (!response.ok) return null;
     return await response.text();
   } catch {
@@ -49,6 +53,8 @@ interface UseFileLevelTokensParams {
   enabled: boolean;
   baseCommitish?: string;
   targetCommitish?: string;
+  /** The named review whose capture holds both sides, read instead of Git refs. */
+  capture?: CaptureRef;
   reloadKey?: string | number;
 }
 
@@ -57,6 +63,7 @@ export function useFileLevelTokens({
   enabled,
   baseCommitish,
   targetCommitish,
+  capture,
   reloadKey,
 }: UseFileLevelTokensParams): FileLevelTokens {
   const language = useMemo(() => getPrismLanguageFromFilename(file.path), [file.path]);
@@ -64,9 +71,7 @@ export function useFileLevelTokens({
 
   const [oldContent, setOldContent] = useState<string | null>(null);
   const [newContent, setNewContent] = useState<string | null>(null);
-  const [grammarReady, setGrammarReady] = useState<boolean>(
-    () => !enabled || !!Prism.languages[language],
-  );
+  const [grammarReady, setGrammarReady] = useState<boolean>(() => !!Prism.languages[language]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -94,19 +99,19 @@ export function useFileLevelTokens({
       return;
     }
     let cancelled = false;
-    const needOld = file.status !== 'added' && !!baseCommitish;
-    const needNew = file.status !== 'deleted' && !!targetCommitish;
     setOldContent(null);
     setNewContent(null);
 
-    if (needOld) {
+    if (file.status !== 'added' && (capture || baseCommitish)) {
       const oldPath = file.oldPath || file.path;
-      void fetchBlobText(oldPath, baseCommitish as string).then((text) => {
+      const source = capture ? { capture, side: 'old' as const } : { ref: baseCommitish ?? '' };
+      void fetchBlobText(blobUrl(oldPath, source)).then((text) => {
         if (!cancelled) setOldContent(text);
       });
     }
-    if (needNew) {
-      void fetchBlobText(file.path, targetCommitish as string).then((text) => {
+    if (file.status !== 'deleted' && (capture || targetCommitish)) {
+      const source = capture ? { capture, side: 'new' as const } : { ref: targetCommitish ?? '' };
+      void fetchBlobText(blobUrl(file.path, source)).then((text) => {
         if (!cancelled) setNewContent(text);
       });
     }
@@ -120,6 +125,7 @@ export function useFileLevelTokens({
     file.status,
     baseCommitish,
     targetCommitish,
+    capture,
     reloadKey,
     isStdinDiff,
   ]);
@@ -136,12 +142,16 @@ export function useFileLevelTokens({
 
   return useMemo<FileLevelTokens>(() => {
     if (!enabled) return EMPTY;
-    const getOldTokens: LineTokensGetter | null = oldTokens
-      ? (lineNumber: number) => oldTokens[lineNumber - 1] ?? null
-      : null;
-    const getNewTokens: LineTokensGetter | null = newTokens
-      ? (lineNumber: number) => newTokens[lineNumber - 1] ?? null
-      : null;
+    const lookup =
+      (tokens: Token[][]): LineTokensGetter =>
+      (lineNumber, content) => {
+        const line = tokens[lineNumber - 1];
+        // A diff line keeps a CRLF file's \r, which tokenizing splits off with the \n.
+        const text = content.endsWith('\r') ? content.slice(0, -1) : content;
+        return line && line.map((token) => token.content).join('') === text ? line : null;
+      };
+    const getOldTokens = oldTokens ? lookup(oldTokens) : null;
+    const getNewTokens = newTokens ? lookup(newTokens) : null;
     return { getOldTokens, getNewTokens };
   }, [enabled, oldTokens, newTokens]);
 }

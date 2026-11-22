@@ -92,7 +92,7 @@ describe('useFileLevelTokens', () => {
       expect(result.current.getNewTokens).not.toBeNull();
     });
 
-    const tokensL7 = result.current.getNewTokens?.(7) ?? [];
+    const tokensL7 = result.current.getNewTokens?.(7, "const message = ref('hello');") ?? [];
     expect(tokensL7.length).toBeGreaterThan(0);
     expect(tokensL7.some((t) => t.types.includes('keyword') && t.content === 'const')).toBe(true);
     expect(tokensL7.some((t) => t.types.includes('function') && t.content === 'ref')).toBe(true);
@@ -114,7 +114,7 @@ describe('useFileLevelTokens', () => {
       expect(result.current.getNewTokens).not.toBeNull();
     });
 
-    const tokensL12 = result.current.getNewTokens?.(12) ?? [];
+    const tokensL12 = result.current.getNewTokens?.(12, '  color: rebeccapurple;') ?? [];
     expect(tokensL12.some((t) => t.types.includes('property') && t.content === 'color')).toBe(true);
   });
 
@@ -165,7 +165,7 @@ describe('useFileLevelTokens', () => {
       expect(result.current.getNewTokens).not.toBeNull();
     });
 
-    const tokensL1 = result.current.getNewTokens?.(1) ?? [];
+    const tokensL1 = result.current.getNewTokens?.(1, "const greeting = 'hi';") ?? [];
     expect(tokensL1.some((t) => t.types.includes('keyword') && t.content === 'const')).toBe(true);
   });
 
@@ -208,7 +208,7 @@ describe('useFileLevelTokens', () => {
       expect(result.current.getNewTokens).not.toBeNull();
     });
 
-    const tokensL1 = result.current.getNewTokens?.(1) ?? [];
+    const tokensL1 = result.current.getNewTokens?.(1, "const x = 'a';") ?? [];
     expect(tokensL1.some((t) => t.types.includes('keyword') && t.content === 'const')).toBe(true);
   });
 
@@ -229,7 +229,7 @@ describe('useFileLevelTokens', () => {
     );
 
     await waitFor(() => {
-      const tokens = result.current.getNewTokens?.(7) ?? [];
+      const tokens = result.current.getNewTokens?.(7, "const message = ref('hello');") ?? [];
       expect(tokens.some((t) => t.types.includes('string') && t.content === "'hello'")).toBe(true);
     });
 
@@ -241,7 +241,7 @@ describe('useFileLevelTokens', () => {
     rerender({ reloadKey: 2 });
 
     await waitFor(() => {
-      const tokens = result.current.getNewTokens?.(7) ?? [];
+      const tokens = result.current.getNewTokens?.(7, "const message = ref('updated');") ?? [];
       expect(tokens.some((t) => t.types.includes('string') && t.content === "'updated'")).toBe(
         true,
       );
@@ -283,5 +283,50 @@ describe('useFileLevelTokens', () => {
       expect(deletedResult.current.getOldTokens).not.toBeNull();
     });
     expect(deletedResult.current.getNewTokens).toBeNull();
+  });
+});
+
+describe('useFileLevelTokens edge cases', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('matches a CRLF line, whose diff content keeps its \\r', async () => {
+    const crlf = '/**\r\n * True when.\r\n */\r\n';
+    mockBlobFetch({ HEAD: crlf, '.': crlf });
+
+    const { result } = renderHook(() =>
+      useFileLevelTokens({
+        file: createTsFile(),
+        enabled: true,
+        baseCommitish: 'HEAD',
+        targetCommitish: '.',
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.getNewTokens?.(2, ' * True when.\r')?.[0]?.types).toContain('comment');
+    });
+  });
+
+  it('tokenizes once a grammar loads after the blob, when the file scrolls into view later', async () => {
+    const ruby = '=begin\nTrue note\n=end\n';
+    mockBlobFetch({ HEAD: ruby, '.': ruby });
+
+    const { result, rerender } = renderHook(
+      ({ enabled }) =>
+        useFileLevelTokens({
+          file: { ...createTsFile(), path: 'src/a.rb' },
+          enabled,
+          baseCommitish: 'HEAD',
+          targetCommitish: '.',
+        }),
+      { initialProps: { enabled: false } },
+    );
+    rerender({ enabled: true });
+
+    await waitFor(() => {
+      expect(result.current.getNewTokens?.(2, 'True note')?.[0]?.types).toContain('comment');
+    });
   });
 });

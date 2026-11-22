@@ -91,6 +91,23 @@ function renderViewer(
   );
 }
 
+/** Reports every observed element as on screen at once. */
+function stubIntersectingObserver() {
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(private readonly onChange: IntersectionObserverCallback) {}
+      observe() {
+        this.onChange(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          this as unknown as IntersectionObserver,
+        );
+      }
+      disconnect() {}
+    },
+  );
+}
+
 beforeEach(() => {
   vi.stubGlobal(
     'IntersectionObserver',
@@ -353,19 +370,7 @@ describe('DiffViewer for a conflicted file', () => {
     ['Card.vue', false],
     ['notes.txt', true],
   ] as const)('reads nothing of %s by Git ref', async (path, hasHunks) => {
-    vi.stubGlobal(
-      'IntersectionObserver',
-      class {
-        constructor(private readonly onChange: IntersectionObserverCallback) {}
-        observe() {
-          this.onChange(
-            [{ isIntersecting: true } as IntersectionObserverEntry],
-            this as unknown as IntersectionObserver,
-          );
-        }
-        disconnect() {}
-      },
-    );
+    stubIntersectingObserver();
     const fetchSpy = vi.fn<typeof fetch>(async () => new Response(''));
     vi.stubGlobal('fetch', fetchSpy);
     const prefetchFileContent = vi.fn(async () => {});
@@ -394,5 +399,122 @@ describe('DiffViewer for a conflicted file', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(document.querySelector('[src*="/api/blob/"]')).toBeNull();
     expect(screen.queryByRole('button', { name: /^Expand all/ })).toBeNull();
+  });
+});
+
+describe('DiffViewer syntax highlighting', () => {
+  // Prism sees ` * ` as code when it tokenizes the line without the `/**` above it.
+  const source = '/**\n * True when the earlier patch had it.\n */\nconst flag = true;\n';
+  const lines = source.split('\n').slice(0, 4);
+  const chunk = (type: 'normal' | 'add'): DiffChunk => ({
+    header: type === 'add' ? '@@ -0,0 +1,4 @@' : '@@ -1,4 +1,4 @@',
+    oldStart: type === 'add' ? 0 : 1,
+    oldLines: type === 'add' ? 0 : 4,
+    newStart: 1,
+    newLines: 4,
+    lines: lines.map((content, i) => ({
+      type,
+      content,
+      ...(type === 'add' ? {} : { oldLineNumber: i + 1 }),
+      newLineNumber: i + 1,
+    })),
+  });
+  const textFile = (path: string, status: 'modified' | 'added'): DiffFile => ({
+    path,
+    status,
+    additions: 0,
+    deletions: 0,
+    chunks: [chunk(status === 'added' ? 'add' : 'normal')],
+  });
+
+  function renderOnScreen(
+    shownFile: DiffFile,
+    props: Partial<ComponentProps<typeof DiffViewer>>,
+    blob: string,
+  ) {
+    stubIntersectingObserver();
+    const fetchSpy = vi.fn<typeof fetch>(async () => new Response(blob));
+    vi.stubGlobal('fetch', fetchSpy);
+    renderViewer(
+      vi.fn(async () => {}),
+      [
+        {
+          ...shownFile.chunks[0]!,
+          originalIndices: [0],
+          hiddenLinesBefore: 0,
+          hiddenLinesAfter: 0,
+        },
+      ],
+      vi.fn(async () => {}),
+      null,
+      shownFile,
+      props,
+    );
+    return fetchSpy;
+  }
+
+  it.each([
+    [
+      'a diff read by Git ref',
+      textFile('delta.ts', 'modified'),
+      {},
+      ['/api/blob/delta.ts?ref=HEAD', '/api/blob/delta.ts?ref=.'],
+    ],
+    ['an added file', textFile('delta.ts', 'added'), {}, ['/api/blob/delta.ts?ref=.']],
+    [
+      'a named review',
+      textFile('delta.ts', 'modified'),
+      { capture: { name: 'task', version: 2 } },
+      [
+        '/api/blob/delta.ts?review=task&version=2&side=old',
+        '/api/blob/delta.ts?review=task&version=2&side=new',
+      ],
+    ],
+  ])(
+    'colors a line inside a multi-line comment as a comment in %s',
+    async (_, shown, props, urls) => {
+      const fetchSpy = renderOnScreen(shown, props, source);
+
+      await waitFor(() => {
+        expect(screen.getByText('True').closest('.token')).toHaveClass('comment');
+      });
+      expect(fetchSpy.mock.calls.map(([url]) => String(url)).sort()).toEqual(urls.sort());
+    },
+  );
+
+  it('colors a Markdown comment in a named review, which shows Markdown as text', async () => {
+    const markdown = '<!--\nTrue note\n-->\nBody\n';
+    const md: DiffFile = {
+      ...textFile('notes.md', 'modified'),
+      chunks: [
+        {
+          ...chunk('normal'),
+          lines: markdown
+            .split('\n')
+            .slice(0, 4)
+            .map((content, i) => ({
+              type: 'normal' as const,
+              content,
+              oldLineNumber: i + 1,
+              newLineNumber: i + 1,
+            })),
+        },
+      ],
+    };
+    renderOnScreen(md, { capture: { name: 'task', version: 2 } }, markdown);
+
+    await waitFor(() => {
+      expect(screen.getByText('True').closest('.token')).toHaveClass('comment');
+    });
+  });
+
+  it("shows the diff's text when the working tree changed after the diff loaded", async () => {
+    const edited = source.replace('True when the earlier patch had it.', 'EDITED LATER');
+    const fetchSpy = renderOnScreen(textFile('delta.ts', 'modified'), {}, edited);
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(screen.queryByText('LATER')).toBeNull();
+    expect(screen.getByText('True')).toBeInTheDocument();
   });
 });

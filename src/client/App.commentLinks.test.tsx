@@ -297,9 +297,12 @@ describe('links in comments', () => {
     } finally {
       restore();
     }
-    expect(blobRequests()).toEqual([
-      '/api/blob/file.md?review=task-a&version=1&side=old',
+    // Context and whole-file syntax tokens each read both sides once.
+    expect(blobRequests().sort()).toEqual([
       '/api/blob/file.md?review=task-a&version=1&side=new',
+      '/api/blob/file.md?review=task-a&version=1&side=new',
+      '/api/blob/file.md?review=task-a&version=1&side=old',
+      '/api/blob/file.md?review=task-a&version=1&side=old',
     ]);
   });
 
@@ -314,7 +317,12 @@ describe('links in comments', () => {
     } finally {
       restore();
     }
-    expect(blobRequests()).toEqual(['/api/blob/file.md?review=task-a&version=1&side=old']);
+    // Context stops at the old side's failure; whole-file syntax tokens read each side once.
+    expect(blobRequests().sort()).toEqual([
+      '/api/blob/file.md?review=task-a&version=1&side=new',
+      '/api/blob/file.md?review=task-a&version=1&side=old',
+      '/api/blob/file.md?review=task-a&version=1&side=old',
+    ]);
     expect(screen.queryByRole('button', { name: /hidden lines|Expand all lines/ })).toBeNull();
   });
 

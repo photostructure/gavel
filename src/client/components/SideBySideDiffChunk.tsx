@@ -155,9 +155,13 @@ const getClickedLineTarget = (
 
 type TokensLookup = ReturnType<typeof useFileLevelTokensLookup>['getOldTokens'];
 
-const getProcomputedTokens = (getTokens: TokensLookup, lineNumber: number | null | undefined) => {
+const getProcomputedTokens = (
+  getTokens: TokensLookup,
+  lineNumber: number | null | undefined,
+  content: string,
+) => {
   if (lineNumber == null) return null;
-  const lineTokens = getTokens?.(lineNumber) ?? null;
+  const lineTokens = getTokens?.(lineNumber, content) ?? null;
   return lineTokens ? [lineTokens] : null;
 };
 
@@ -299,6 +303,7 @@ function SideBySideLineRow({
                 precomputedTokens={getProcomputedTokens(
                   getOldTokens,
                   sideLine.oldLine.oldLineNumber,
+                  sideLine.oldLine.content,
                 )}
               />
             )}
@@ -348,6 +353,7 @@ function SideBySideLineRow({
                 precomputedTokens={getProcomputedTokens(
                   getNewTokens,
                   sideLine.newLine.newLineNumber,
+                  sideLine.newLine.content,
                 )}
               />
             )}

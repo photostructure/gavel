@@ -14,9 +14,8 @@ import { useLineDraftAnchors, type LineDraftAnchor } from '../hooks/useCommentDr
 import { type MergedChunk } from '../hooks/useExpandedLines';
 import { useFileLevelTokens } from '../hooks/useFileLevelTokens';
 import { isLargeDiffFile } from '../utils/diffUtils';
-import { isWholeFileHighlightExtension } from '../utils/languageDetection';
 import { TextDiffViewer } from '../viewers/TextDiffViewer';
-import { fileCanExpandHiddenLines, getViewerForFile } from '../viewers/registry';
+import { fileCanExpandHiddenLines, fileSidesReadable, getViewerForFile } from '../viewers/registry';
 import type { DiffViewerBodyProps } from '../viewers/types';
 
 import { DiffViewerHeader } from './DiffViewerHeader';
@@ -270,6 +269,7 @@ export const DiffViewer = memo(function DiffViewer({
   const viewer = getViewerForFile(file);
   // A named review's viewers must not read files by Git ref, which would show the working tree.
   const isCapture = Boolean(capture);
+  const sidesReadable = fileSidesReadable(file, { baseCommitish, targetCommitish });
   const canExpandHiddenLines =
     !contextLoadFailed && fileCanExpandHiddenLines(file, { baseCommitish, targetCommitish });
   // -1 after the last hunk means the file length isn't known yet, so lines may still be hidden.
@@ -286,14 +286,9 @@ export const DiffViewer = memo(function DiffViewer({
       : hasExpandedLines
         ? { expanded: true, onToggle: () => collapseExpandedLines(file) }
         : undefined;
-  // Tokenize the whole file so embedded blocks (e.g. <script>/<style>) are
-  // highlighted by their own language instead of line-by-line, which can't see
-  // the surrounding context.
-  const wholeFileHighlight = viewer.id === 'default' && isWholeFileHighlightExtension(file.path);
-
-  // Observe visibility for lazy prefetch
+  // Observe visibility for lazy prefetch and whole-file syntax tokens
   useEffect(() => {
-    if (!canExpandHiddenLines) return;
+    if (!sidesReadable) return;
     const el = containerRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
@@ -304,7 +299,7 @@ export const DiffViewer = memo(function DiffViewer({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [canExpandHiddenLines]);
+  }, [sidesReadable]);
 
   // Pre-fetch line counts (lightweight) only for visible, non-collapsed files that can expand
   useEffect(() => {
@@ -391,14 +386,6 @@ export const DiffViewer = memo(function DiffViewer({
     canExpandHiddenLines,
   ]);
 
-  const fileLevelTokens = useFileLevelTokens({
-    file,
-    enabled: wholeFileHighlight && !isCapture && !file.conflicted,
-    baseCommitish,
-    targetCommitish,
-    reloadKey: diffVersion,
-  });
-
   const lineNumberWidth = '4em';
   // A capture holds a binary file's bytes in its patch, or the IDs of its blobs, so the image
   // viewer can show it. The Markdown and notebook viewers read whole files by Git ref, so a
@@ -411,6 +398,19 @@ export const DiffViewer = memo(function DiffViewer({
   const headerOnlyNote =
     isCapture && imageWithoutHunks && !file.isBinary ? HEADER_ONLY_NOTES[file.status] : undefined;
   const ViewerComponent = isCapture && !showsCapturedBytes ? TextDiffViewer : viewer.Component;
+  // Tokenize each side's whole file, so a line inside a multi-line comment or string, or inside
+  // an SFC's <script> or <style> block, is colored by what surrounds it. A line tokenized alone
+  // can't see that. Only files on screen with lines to color load, and isVisible stays false for
+  // a file whose sides can't be read.
+  const fileLevelTokens = useFileLevelTokens({
+    file,
+    enabled:
+      ViewerComponent === TextDiffViewer && file.chunks.length > 0 && isVisible && !isCollapsed,
+    baseCommitish,
+    targetCommitish,
+    capture,
+    reloadKey: diffVersion,
+  });
   const viewerProps: DiffViewerBodyProps = {
     file,
     threads,
