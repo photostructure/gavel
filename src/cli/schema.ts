@@ -339,6 +339,11 @@ const definitions: Record<string, Schema> = {
       cursor,
       captureVersion,
       patchDigest: ref('PatchDigest'),
+      approvedVersion: {
+        ...captureVersion,
+        description:
+          'The capture version the reviewer last approved. Approve follows a recapture without changing it, so a value below captureVersion means the reviewer has not approved the current capture; approving again sets it to captureVersion.',
+      },
       summaryVersion: version,
     },
     [],

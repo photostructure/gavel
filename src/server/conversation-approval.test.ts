@@ -70,6 +70,15 @@ describe('approval', () => {
     expect(conversation.getApproval(selection)).toEqual(approval);
   });
 
+  it('records the capture version the reviewer approved', () => {
+    const { conversation } = setup();
+    expect(conversation.setVerdict(selection, 'approve')).toMatchObject({ approvedVersion: 1 });
+    // A review without a capture has no versions to name.
+    expect(new Conversation().setVerdict(selection, 'approve')).not.toHaveProperty(
+      'approvedVersion',
+    );
+  });
+
   it('follows the capture and summary as the agent revises them', () => {
     const { conversation } = setup();
     conversation.setVerdict(selection, 'approve');
@@ -84,16 +93,43 @@ describe('approval', () => {
       captureVersion: 2,
       patchDigest: 'c'.repeat(64),
       summaryVersion: 3,
+      // The reviewer approved version 1; the follow does not claim they saw version 2.
+      approvedVersion: 1,
     });
+  });
+
+  it('re-approves a followed approval at the current capture version', () => {
+    const events: unknown[] = [];
+    const conversation = new Conversation((event) => events.push(event));
+    conversation.setCapture(selection, capture);
+    conversation.setVerdict(selection, 'approve');
+    conversation.setCapture(selection, { ...capture, version: 2, patchDigest: 'c'.repeat(64) });
+    const before = events.length;
+    expect(conversation.setVerdict(selection, 'approve')).toMatchObject({
+      verdict: 'approve',
+      captureVersion: 2,
+      approvedVersion: 2,
+    });
+    expect(events.slice(before)).toEqual([
+      expect.objectContaining({
+        type: 'review.approval',
+        origin: 'user',
+        approval: expect.objectContaining({ approvedVersion: 2 }),
+      }),
+    ]);
+    conversation.setVerdict(selection, 'approve');
+    expect(events).toHaveLength(before + 1);
   });
 
   it('ends when the reviewer clears or replaces it', () => {
     const { conversation } = setup();
     conversation.setVerdict(selection, 'approve');
-    conversation.clearVerdict(selection);
+    expect(conversation.clearVerdict(selection)).not.toHaveProperty('approvedVersion');
     expect(conversation.getApproval(selection).verdict).toBeUndefined();
     conversation.setVerdict(selection, 'approve');
-    expect(conversation.setVerdict(selection, 'reject')).toMatchObject({ verdict: 'reject' });
+    const rejected = conversation.setVerdict(selection, 'reject');
+    expect(rejected).toMatchObject({ verdict: 'reject' });
+    expect(rejected).not.toHaveProperty('approvedVersion');
   });
 });
 

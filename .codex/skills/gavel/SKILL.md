@@ -250,7 +250,9 @@ where `<gavel-command>` is your launcher, and close the server as described belo
 
 Button approval authorizes a commit, never a push. Immediately before committing,
 read a fresh snapshot and require `approval.verdict: approve`. Approval follows
-recaptures and summary edits; other sessions' staged hunks do not end it. Compare
+recaptures and summary edits; other sessions' staged hunks do not end it. When
+`approval.approvedVersion` is below `capture.version`, tell the user which version
+they approved. Compare
 the actual commit scope with the approved patch and feedback: shared-tree edits
 gain no permission. Commit without asking again.
 

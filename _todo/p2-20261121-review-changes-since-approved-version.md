@@ -22,12 +22,12 @@ rebased stack in place.
 
 ## Current phase
 
-Next: the `approvedVersion` field (task 1).
+Next: hunk matching (task 2).
 
 - [x] Design settled: see Decisions and Solutions
 - [x] Viewed-file hash ignores hunk line numbers: `getDiffContentForHashing` in
       `src/client/utils/diffUtils.ts`, pinned by `pnpm test diffUtils`
-- [ ] `approvedVersion` recorded and exposed
+- [x] `approvedVersion` recorded and exposed: `pnpm test conversation-approval named-reviews.integration`
 - [ ] Hunk matching between two capture versions
 - [ ] Server returns the delta for a `since` version
 - [ ] "Changes since vN" view in the web UI
@@ -90,8 +90,10 @@ Accepted as recommended on 2026-11-21 (5A-1 A, 5A-2 A, 5A-3 A):
   records which version the reviewer actually approved; task 1 adds that.
 - Re-approving is blocked twice today: `Conversation.setVerdict` returns early
   when the verdict is unchanged, and `VerdictControl`'s Approve button, pressed
-  whenever the verdict is approve, clears the verdict on click. Only Shift+A and
-  the narrow-header menu send approve again.
+  whenever the verdict is approve, clears the verdict on click. Shift+A does
+  nothing when the verdict is already approve (the `onVerdict` handler in
+  `App.tsx` skips the shown verdict). Only the narrow-header verdict menu sends
+  approve again.
 - `isThreadOutdated` marks every thread outdated when its `capture.version`
   differs from the shown capture, whether or not its hunk changed.
 - Before the hash fix, `useViewedFiles` restored viewed state across a rebase from
@@ -162,9 +164,12 @@ current capture; the reviewer can pick any earlier version.
    reviewer sets Approve, left alone by an agent-origin follow, and cleared with
    the verdict. `setVerdict` with approve while already approved at an older
    version updates it and emits `review.approval`. Exposed in `comment snapshot`.
-   Acceptance: `src/server/conversation.test.ts` cases for follow (field kept),
-   re-approve (field advances), clear (field removed); a snapshot test in
-   `src/server/server.test.ts`.
+   Acceptance: `src/server/conversation-approval.test.ts` cases for follow (field
+   kept), re-approve (field advances), clear and reject (field absent); the
+   capture-replacement case in `src/server/named-reviews.integration.test.ts`
+   checks the snapshot after a follow and after a re-approve over HTTP. Done; the
+   `approvedVersion` lines in both skills' `SKILL.md` and in
+   `references/reviews.md` landed with it.
 2. Hunk matching: a pure function over two raw patches that returns, per current
    file, which hunks are unchanged and how many vN hunks are gone, plus vN-only
    paths. Acceptance: unit tests covering a pure rebase (shifted offsets, changed
@@ -182,9 +187,10 @@ current capture; the reviewer can pick any earlier version.
    a control turns it off and picks another version. In that state the Approve
    button is not pressed, reads "Approve v<current>", and clicking it sends
    approve; a "Clear" control beside it sends clear, since the pressed button was
-   the wide header's only way to clear a verdict. Acceptance: Testing Library
+   the wide header's only way to clear a verdict. Shift+A also sends approve in
+   that state. Acceptance: Testing Library
    tests for the header, the filter, the removed-hunk note, the Approve click, and
-   the Clear click; play-test steps in the commit's review.
+   the Clear click, and Shift+A; play-test steps in the commit's review.
 5. Thread carryover: on `review update`, a thread anchored in a hunk that task 2
    calls unchanged moves to the new line numbers and the new `capture`; others
    stay outdated. Done on the server so snapshots show it. Acceptance:
@@ -202,13 +208,12 @@ current capture; the reviewer can pick any earlier version.
      kept sentences that point at the separate review ("That new review needs no
      verdict…", "Second-opinion passes after an approval also cover only that
      diff") to name the changes since the approved version instead.
-   - `SKILL.md` "Act on verdicts" keeps requiring `approval.verdict: approve`
-     (5A-1); the `approvedVersion` check is this repository's rule, not the
-     shipped skill's. Add: after a changed recapture of an approved review, tell
-     the user which version they approved and that the changes since it are
-     waiting.
-   - `references/reviews.md` "Refresh a capture": the delta view and
-     `approvedVersion`; a new "Update a rebased stack" section: run
+   - `SKILL.md` "Act on verdicts", in both `skills/gavel/` and `.codex/skills/gavel/`,
+     keeps requiring `approval.verdict: approve` (5A-1); the `approvedVersion`
+     check is this repository's rule, not the shipped skill's. Add that the
+     changes since the approved version are waiting in the delta view.
+   - `references/reviews.md` "Refresh a capture": the delta view; a new "Update a
+     rebased stack" section: run
      `git range-diff <old-base>..<old-tip> <new-base>..<new-tip>`, run
      `review update` with each paired commit's new patch, create a review for each
      new commit, withdraw the review of each dropped commit.
@@ -227,3 +232,11 @@ current capture; the reviewer can pick any earlier version.
   hunks), R557-B (the parser drops the final-newline marker), R594-D (turning the
   pressed Approve button into "Approve v<current>" removed the wide header's only
   clear control).
+- 2026-11-21, Claude Code `44812c1c-b80d-4efd-b173-84eefe35d45a`, primary checkout.
+  Task 1. Missteps: the plan named `conversation.test.ts` and `server.test.ts` for
+  the tests, but the approval cases live in `conversation-approval.test.ts` and
+  `named-reviews.integration.test.ts`; and Lore claimed Shift+A re-approves, which
+  the `onVerdict` guard in `App.tsx` prevents (caught by the Codex reviewer).
+  Reviewed the task 1 diff, 2 passes, Codex `01a20142-088d-75d3-96fc-76d0a86c0f43`
+  and Claude `e23f0698-6701-4770-87f0-317e353f7b8a`: R798-A accepted (the Codex
+  copy of the skill lacked the `approvedVersion` sentence).

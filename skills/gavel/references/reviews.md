@@ -69,7 +69,8 @@ Repeat the intended source: `-` for a patch, native
 `--pathspec`/`--include-untracked`, or `--capture` with selectors. Update does not
 reuse filters; omitting them captures the whole uncommitted tree. Reconcile HTTP
 409 before retrying. An identical patch preserves version and approval; a changed
-patch advances the version and moves Approve to it.
+patch advances the version and moves Approve to it, while `approval.approvedVersion`
+stays at the version the reviewer approved.
 
 ## Agent identity
 

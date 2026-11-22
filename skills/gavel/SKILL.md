@@ -242,7 +242,8 @@ Approve on your review authorizes a commit. After addressing comments, passing
 required checks, and independent Codex/Claude reviewers LAND the final code,
 read a fresh `comment snapshot --review <review>` immediately before committing;
 require `approval.verdict: approve`. Approval follows recaptures and summary edits;
-other sessions' staged hunks do not end it.
+other sessions' staged hunks do not end it. When `approval.approvedVersion` is below
+`capture.version`, tell the user which version they approved.
 
 Commit only the approved capture and requested fixes, using the saved message.
 Shared-tree edits gain no approval. Commit independent parts in dependency order;

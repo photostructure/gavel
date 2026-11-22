@@ -323,17 +323,30 @@ export class Conversation {
     }
   }
 
-  /** Records the reviewer's verdict on the displayed capture or diff, replacing any other. */
+  /**
+   * Records the reviewer's verdict on the displayed capture or diff, replacing any other.
+   * Approving again re-approves an approval that followed a recapture the reviewer had not
+   * approved.
+   */
   setVerdict(selection: DiffSelection, verdict: ReviewVerdict): ReviewApproval {
     const review = this.getReview(selection);
-    if (review.approval.verdict === verdict) return this.getApproval(selection);
+    const approving = verdict === 'approve';
+    if (
+      review.approval.verdict === verdict &&
+      !(approving && review.capture && review.approval.approvedVersion !== review.capture.version)
+    )
+      return this.getApproval(selection);
     return this.recordApproval(
       review,
       {
         verdict,
         summaryVersion: review.summary.version,
         ...(review.capture
-          ? { captureVersion: review.capture.version, patchDigest: review.capture.patchDigest }
+          ? {
+              captureVersion: review.capture.version,
+              patchDigest: review.capture.patchDigest,
+              ...(approving ? { approvedVersion: review.capture.version } : {}),
+            }
           : {}),
       },
       'user',

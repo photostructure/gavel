@@ -42,6 +42,11 @@ export interface ReviewApproval {
   verdict?: ReviewVerdict;
   captureVersion?: number;
   patchDigest?: string;
+  /**
+   * The capture version the reviewer last approved. An approval that follows a recapture keeps
+   * it, so a value below captureVersion means the reviewer has not approved the newer capture.
+   */
+  approvedVersion?: number;
   summaryVersion?: number;
   updatedAt?: string;
   cursor?: string;

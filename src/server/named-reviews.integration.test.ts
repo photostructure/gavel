@@ -312,7 +312,12 @@ describe('named review HTTP integration', () => {
       updated: true,
     });
     expect(await get<ReviewSummary>(`/api/review-summary${query}`)).toEqual(summary);
-    const followed = { verdict: 'approve', captureVersion: 2, patchDigest: next.patchDigest };
+    const followed = {
+      verdict: 'approve',
+      captureVersion: 2,
+      patchDigest: next.patchDigest,
+      approvedVersion: 1,
+    };
     expect(await approval()).toMatchObject(followed);
     const comments = await get<CommentsResponse>(`/api/comments-json${query}`);
     expect(comments.threads).toHaveLength(1);
@@ -344,6 +349,11 @@ describe('named review HTTP integration', () => {
         }),
       ]),
     );
+    // Approving again records that the reviewer has now approved version 2.
+    await put<ReviewApproval>(`/api/approval${query}`, binding(next, 2, summary.version));
+    expect((await snapshot()).reviews.find((entry) => entry.id === before.reviewId)).toMatchObject({
+      approval: { verdict: 'approve', captureVersion: 2, approvedVersion: 2 },
+    });
     const historical = await get<ReviewResponse>(`/api/reviews/${name}?version=1`);
     expect(historical).toMatchObject({
       reviewId: before.reviewId,
