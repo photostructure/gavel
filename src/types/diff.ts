@@ -72,7 +72,10 @@ export interface ReviewContext {
 
 /** What changed between two capture versions of a named review, hunk by hunk. */
 export interface CaptureDelta {
-  /** One entry per file of the current patch, in patch order. */
+  /**
+   * One entry per file of the served diff, in order: a typechange's deletion and addition records
+   * fold into one, as `GitDiffParser` folds them.
+   */
   files: FileDelta[];
   /** Paths the earlier patch changed and the current one does not. */
   removedPaths: string[];
@@ -80,7 +83,10 @@ export interface CaptureDelta {
 
 export interface FileDelta {
   path: string;
-  /** One flag per hunk of the current patch, in order: true when the earlier patch had it. */
+  /**
+   * One flag per hunk of the served file, in order: true when the earlier patch had it. A
+   * typechange's spanning hunk is unchanged only when both of its records' hunks are.
+   */
   unchanged: boolean[];
   /**
    * True when the earlier patch had the same record header: mode, rename and file-type lines,
@@ -98,6 +104,8 @@ export interface FileDelta {
 
 export interface DiffResponse {
   capture?: NamedReviewMetadata;
+  /** With `since=N` on a named review: which hunks changed since capture version N. */
+  delta?: CaptureDelta & { since: number };
   commit: string;
   files: DiffFile[];
   ignoreWhitespace?: boolean;

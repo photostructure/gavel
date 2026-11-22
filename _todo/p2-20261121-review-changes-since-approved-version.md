@@ -22,7 +22,7 @@ rebased stack in place.
 
 ## Current phase
 
-Next: the server delta (task 3), which is `captureDelta`'s first production caller.
+Next: the "changes since vN" view in the web UI (task 4).
 
 - [x] Design settled: see Decisions and Solutions
 - [x] Viewed-file hash ignores hunk line numbers: `getDiffContentForHashing` in
@@ -30,7 +30,7 @@ Next: the server delta (task 3), which is `captureDelta`'s first production call
 - [x] `approvedVersion` recorded and exposed: `pnpm test conversation-approval named-reviews.integration`
 - [x] Hunk matching between two capture versions: `captureDelta` in
       `src/server/capture-delta.ts`, `pnpm test capture-delta`
-- [ ] Server returns the delta for a `since` version
+- [x] Server returns the delta for a `since` version: `pnpm test named-reviews.integration`
 - [ ] "Changes since vN" view in the web UI
 - [ ] Threads carried across an unchanged hunk
 - [ ] Docs and skill updated
@@ -189,9 +189,14 @@ current capture; the reviewer can pick any earlier version.
    and a rename whose similarity percentage a rebase recomputed.
 3. Server delta: `/api/diff` for a named review accepts `since=N` and returns,
    with the current diff, `captureDelta`'s answer: each hunk's unchanged flag,
-   each file's `headerUnchanged` and removed-hunk count, and the vN-only paths. Acceptance: `src/server/server.test.ts` cases for
-   a valid `since`, `since` equal to the current version (nothing changed), and an
-   unknown version (HTTP 404).
+   each file's `headerUnchanged` and removed-hunk count, and the vN-only paths.
+   Acceptance: the 'answers which hunks changed since an earlier capture version'
+   case in `src/server/named-reviews.integration.test.ts` covers a valid `since`,
+   `since` equal to the current version (nothing changed), an unknown version
+   (HTTP 404), an invalid one (HTTP 400), and `since` without a named review
+   (HTTP 400). Done; the response's `delta.files` pairs by position with `files`,
+   because `captureDelta` folds a typechange's two records as `GitDiffParser`
+   does.
 4. Web UI: when `approvedVersion` is older than the current capture, the review
    header shows "Approved at vN · changes since vN" and opens with the filter on;
    a control turns it off and picks another version. In that state the Approve
@@ -260,3 +265,11 @@ current capture; the reviewer can pick any earlier version.
   R533-C (a mode change beside unchanged hunks went unreported), R533-D (a
   recomputed similarity percentage marked a rename changed) and R998-B accepted;
   one Minor (use `!`) vetoed because oxlint forbids non-null assertions.
+- 2026-11-22, Claude Code `44812c1c-b80d-4efd-b173-84eefe35d45a`, primary checkout.
+  Task 3. Missteps: the plan named `server.test.ts` for the tests, but the
+  named-review HTTP helpers live in `named-reviews.integration.test.ts`; and the
+  first version returned one delta entry per patch record while the served diff
+  folds a typechange into one file (R016-A). Reviewed the task 3 diff, 2 passes,
+  Codex `01a204a7-0f8a-7bf3-971d-149095c85b0f` and Claude
+  `95d56fb0-3cca-4bd4-b6c1-6b590c63bb98`: R016-A accepted; vetoed a Minor that a
+  misspelled review answers 400 (the `/api` middleware answers 404 first).

@@ -64,7 +64,41 @@ export function captureDelta(previousPatch: string, currentPatch: string): Captu
     };
   });
   return {
-    files,
+    files: foldTypeChanges(currentFiles, files),
     removedPaths: [...previous.keys()].filter((path) => !current.has(path)),
   };
+}
+
+/**
+ * `GitDiffParser` shows a typechange's deletion record and the addition record after it as one
+ * file, with one hunk spanning both when each side has one. Fold the delta the same way, so its
+ * entries pair with the files the page is served.
+ */
+function foldTypeChanges(records: PatchFile[], deltas: FileDelta[]): FileDelta[] {
+  const folded: FileDelta[] = [];
+  for (const [index, delta] of deltas.entries()) {
+    const record = records[index];
+    const before = records[index - 1];
+    const deleted = folded.at(-1);
+    if (
+      deleted &&
+      before?.path === record?.path &&
+      /^deleted file mode /m.test(before?.header ?? '') &&
+      /^new file mode /m.test(record?.header ?? '')
+    ) {
+      const flags = [...deleted.unchanged, ...delta.unchanged];
+      folded[folded.length - 1] = {
+        path: delta.path,
+        unchanged:
+          deleted.unchanged.length > 0 && delta.unchanged.length > 0
+            ? [flags.every(Boolean)]
+            : flags,
+        headerUnchanged: deleted.headerUnchanged && delta.headerUnchanged,
+        removedHunks: deleted.removedHunks + delta.removedHunks,
+      };
+    } else {
+      folded.push(delta);
+    }
+  }
+  return folded;
 }

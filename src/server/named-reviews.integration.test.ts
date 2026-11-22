@@ -190,6 +190,33 @@ describe('named review HTTP integration', () => {
     expect(readFileSync(join(root, 'untracked.txt'), 'utf8')).toBe('untracked after capture\n');
   });
 
+  it('answers which hunks changed since an earlier capture version', async () => {
+    const next = await changedCapture();
+    await post(`/api/reviews/${name}/capture`, { expectedVersion: 1, capture: next });
+    const diff = (since?: string, status = 200) =>
+      request<DiffResponse>(
+        `/api/diff${query}${since === undefined ? '' : `&since=${since}`}`,
+        'GET',
+        undefined,
+        status,
+      );
+    expect((await diff('1')).delta).toEqual({
+      since: 1,
+      files: [{ path: 'first.txt', unchanged: [false], headerUnchanged: true, removedHunks: 1 }],
+      removedPaths: [],
+    });
+    expect((await diff('2')).delta).toEqual({
+      since: 2,
+      files: [{ path: 'first.txt', unchanged: [true], headerUnchanged: true, removedHunks: 0 }],
+      removedPaths: [],
+    });
+    expect((await diff()).delta).toBeUndefined();
+    await diff('3', 404);
+    await diff('0', 400);
+    await diff('one', 400);
+    await request('/api/diff?base=HEAD&target=.&since=1', 'GET', undefined, 400);
+  });
+
   it('serves the captured old and new bytes of binary files, not the working tree', async () => {
     const before = Buffer.from([0, 1, 2, 3]);
     const after = Buffer.from([0, 5, 6, 7, 8]);

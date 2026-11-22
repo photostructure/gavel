@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { captureDelta } from './capture-delta.js';
+import { GitDiffParser } from './git-diff.js';
 
 function gitFile(
   path: string,
@@ -136,11 +137,27 @@ describe('captureDelta', () => {
     ]);
   });
 
-  it('compares the records of a typechange, which share a path', () => {
+  it('compares the records of a typechange, which share a path, and folds them into one', () => {
     expect(captureDelta(deletion + addition, deletion + addition).files).toEqual([
       { path: 't.txt', unchanged: [true], headerUnchanged: true, removedHunks: 0 },
-      { path: 't.txt', unchanged: [true], headerUnchanged: true, removedHunks: 0 },
     ]);
+    // The folded hunk is unchanged only when both records' hunks are.
+    const edited = addition.replace('+a.ts', '+b.ts');
+    expect(captureDelta(deletion + addition, deletion + edited).files[0]?.unchanged).toEqual([
+      false,
+    ]);
+  });
+
+  it('gives one entry per file, and one flag per hunk, of the diff the parser serves', () => {
+    const other = gitFile('u.txt', [hunk(1, 'a', 'b')]);
+    const emptyDeletion =
+      'diff --git a/t.txt b/t.txt\ndeleted file mode 100644\nindex e69de29..0000000\n';
+    for (const patch of [deletion + addition + other, emptyDeletion + addition + other]) {
+      const served = new GitDiffParser().parseStdinDiff(patch).files;
+      expect(
+        captureDelta(patch, patch).files.map((file) => [file.path, file.unchanged.length]),
+      ).toEqual(served.map((file) => [file.path, file.chunks.length]));
+    }
   });
 
   it('finds a typechange hunk in whichever record of its path it now sits', () => {

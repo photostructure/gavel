@@ -21,6 +21,7 @@ import type {
 import type { ServerEvent, ServerShutdownEvent } from '../types/events.js';
 import { writeJsonl } from './event-output.js';
 import type { NamedReviewStart, ReviewCapture } from '../types/review.js';
+import { captureDelta } from './capture-delta.js';
 import { NamedReviewError, NamedReviewStore, type NamedReviewState } from './named-reviews.js';
 import {
   capturedFileContent,
@@ -1031,6 +1032,20 @@ export async function startServer(options: ServerOptions): Promise<{
         : !hasBase && !hasTarget && !hasBaseMode && currentSelection.reviewName
           ? namedReviews.get(currentSelection.reviewName)
           : undefined;
+    // since=N: which hunks of the named review changed since its capture version N.
+    let delta: DiffResponse['delta'];
+    if (typeof req.query.since === 'string') {
+      try {
+        if (!namedReview) throw new NamedReviewError('since applies only to a named review', 400);
+        const since = Number(req.query.since);
+        const earlier = namedReviews.get(namedReview.metadata.name, since);
+        if (!earlier) throw new NamedReviewError('Named review capture version not found', 404);
+        delta = { since, ...captureDelta(earlier.capture.patch, namedReview.capture.patch) };
+      } catch (error) {
+        reviewError(res, error);
+        return;
+      }
+    }
     const requestedSelection =
       namedReview?.selection ??
       createDiffSelection(
@@ -1120,6 +1135,7 @@ export async function startServer(options: ServerOptions): Promise<{
 
     res.json({
       ...responseDiffData,
+      ...(delta ? { delta } : {}),
       ignoreWhitespace,
       openInEditorAvailable: editorAvailable,
       updateCheckDisabledBy,
