@@ -70,6 +70,32 @@ export interface ReviewContext {
   agentSessionId?: string;
 }
 
+/** What changed between two capture versions of a named review, hunk by hunk. */
+export interface CaptureDelta {
+  /** One entry per file of the current patch, in patch order. */
+  files: FileDelta[];
+  /** Paths the earlier patch changed and the current one does not. */
+  removedPaths: string[];
+}
+
+export interface FileDelta {
+  path: string;
+  /** One flag per hunk of the current patch, in order: true when the earlier patch had it. */
+  unchanged: boolean[];
+  /**
+   * True when the earlier patch had the same record header: mode, rename and file-type lines,
+   * without the `index` and similarity lines a rebase recomputes. A file without hunks (binary,
+   * rename-only, mode-only, empty) compares its whole record instead, where the `index` line
+   * identifies the content.
+   */
+  headerUnchanged: boolean;
+  /**
+   * Earlier hunks of this path that the current patch no longer has, counted on the path's last
+   * record.
+   */
+  removedHunks: number;
+}
+
 export interface DiffResponse {
   capture?: NamedReviewMetadata;
   commit: string;
