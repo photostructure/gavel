@@ -2430,6 +2430,17 @@ describe('App Component - Sidebar persistence', () => {
     await waitFor(() => expect(toggleButton).toHaveAttribute('aria-expanded', 'true'));
   });
 
+  it('toggles Conversation with Shift+C', async () => {
+    renderApp();
+    await screen.findByRole('button', { name: 'Conversation' });
+
+    fireEvent.keyDown(document.body, { key: 'C', code: 'KeyC', shiftKey: true });
+    expect(await screen.findByRole('dialog', { name: /Conversation/ })).toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: 'C', code: 'KeyC', shiftKey: true });
+    expect(screen.queryByRole('dialog', { name: /Conversation/ })).toBeNull();
+  });
+
   it('toggles About with the a key, but not with Shift+A or Ctrl+A', async () => {
     renderApp();
     await screen.findByRole('button', { name: 'About' });

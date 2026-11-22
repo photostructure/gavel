@@ -102,8 +102,7 @@ Mechanisms seen in sampled diffs (b963ee6, a4699a2, 99ea7f0, 9d9d6ee, f26016e):
 - Closures call things declared later in `App()`; this works only because the calls
   happen after render: `verdictFollowUp` (used in `finishVerdict`; declared by the
   `useVerdictFollowUp` call), `inboxDelivery` (used in `finishVerdict`; declared by the
-  `useInboxDelivery` call), `handleCopyAllComments` (used in `useKeyboardNavigation`'s
-  `onCopyAllComments`), `handleNavigateToDraftLine` and `canShowLinkedLine` (used in
+  `useInboxDelivery` call), `handleNavigateToDraftLine` and `canShowLinkedLine` (used in
   `handleNavigateToComment`). An extracted hook must take these as
   arguments or callbacks.
 - Refs do two different jobs:

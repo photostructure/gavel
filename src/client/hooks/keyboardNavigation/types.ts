@@ -43,7 +43,6 @@ export interface UseKeyboardNavigationProps {
   viewedStateReady?: boolean;
   onToggleReviewed: (filePath: string) => void;
   onCreateComment?: () => void;
-  onCopyAllComments?: () => void;
   onDeleteAllComments?: () => void;
   onShowCommentsList?: () => void;
   onToggleFileTree?: () => void;

@@ -1149,11 +1149,6 @@ function App() {
           });
         }
       },
-      onCopyAllComments: () => {
-        if (threads.length > 0) {
-          handleCopyAllComments();
-        }
-      },
       onDeleteAllComments: () => {
         if (threads.length > 0 && confirm('Delete all comments?')) {
           clearAllComments();

@@ -34,7 +34,6 @@ export function useKeyboardNavigation({
   viewedStateReady = true,
   onToggleReviewed,
   onCreateComment,
-  onCopyAllComments,
   onDeleteAllComments,
   onShowCommentsList,
   onToggleFileTree,
@@ -490,18 +489,6 @@ export function useKeyboardNavigation({
     moveToCenterOfViewport,
   ]);
 
-  // Copy all comments prompt - available in both navigation and comments-list scopes
-  useHotkeys(
-    'shift+c',
-    () => {
-      if (onCopyAllComments) {
-        onCopyAllComments();
-      }
-    },
-    { ...hotkeyOptions, scopes: ['navigation', 'comments-list'] },
-    [onCopyAllComments],
-  );
-
   // Delete all comments - available in both navigation and comments-list scopes
   useHotkeys(
     'shift+d',
@@ -514,9 +501,9 @@ export function useKeyboardNavigation({
     [onDeleteAllComments],
   );
 
-  // Show comments list
+  // Open Conversation; the open panel closes itself on Shift+C
   useHotkeys(
-    'shift+l',
+    'shift+c',
     () => {
       if (onShowCommentsList) {
         onShowCommentsList();

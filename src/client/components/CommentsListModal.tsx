@@ -313,6 +313,9 @@ export function CommentsListModal({
   const hotkeyOptions = { scopes: 'comments-list', enableOnFormTags: false };
 
   useHotkeys('escape', () => onClose(), hotkeyOptions, [onClose]);
+  // Shift+C opens the panel in the navigation scope, which the panel disables, so the panel
+  // binds it to close.
+  useHotkeys('shift+c', () => onClose(), hotkeyOptions, [onClose]);
 
   useHotkeys(
     'j, down',
