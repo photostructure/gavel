@@ -26,6 +26,7 @@ All notable changes to this project will be documented in this file.
 - The commit message in **Change summary** starts 80 characters wide, and dragging the edge beside **Why this change** resizes it; the browser remembers the width.
 - Agent comments and replies that omit `author` name the agent host that launched gavel, such as "Codex desktop", instead of "Agent".
 - Claude Code and Codex agents aim for reviews of 300–500 weighted changed lines and follow a review size you set in `CLAUDE.md` or `AGENTS.md`.
+- The gavel skill has agents write `--why` as a summary of at most 200 words with Problem, Change, and Alternatives paragraphs, plus Tests and Review lines.
 
 ### Bug fixes and polish
 
@@ -37,6 +38,7 @@ All notable changes to this project will be documented in this file.
 - Untracked files and watched files whose names start with `-` are passed to Git as paths, so a file named `--stdin` no longer stalls live reload.
 - A long path with many spaces followed by `a/` or `b/` no longer stalls the server while its diff is parsed. Markdown previews show oversized or cyclic YAML frontmatter as source.
 - During an unresolved merge, reviews list every conflicted file, including modify/delete conflicts, and Git stops printing `fatal:` errors to gavel's terminal for them.
+- A file you marked viewed stays viewed after a rebase that moves its hunks without changing them; files viewed before this release may show as changed once.
 - Long diffs, such as a large deleted file, scroll smoothly in Safari on an iPad.
 - Moving the pointer over a long diff responds faster.
 - A server starting up deletes saved reviews untouched for 90 days, instead of 7, so a review reopened weeks later keeps its comments, progress and approval.
