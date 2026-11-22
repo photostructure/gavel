@@ -1,6 +1,6 @@
 {
   "name": "@photostructure/gavel",
-  "version": "7.0.0",
+  "version": "8.0.0",
   "description": "Local Git diff viewer where you review an agent's changes, discuss them with the agent, and record a verdict",
   "keywords": [
     "cli",

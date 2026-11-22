@@ -2,7 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased (major)]
+## [Unreleased]
+
+## [8.0.0] - 2026-11-22
 
 ### Breaking changes
 
@@ -1613,6 +1615,7 @@ All notable changes to this project will be documented in this file.
 
 - First stable release 🌱
 
+[8.0.0]: https://github.com/photostructure/gavel/releases/tag/v8.0.0
 [7.0.0]: https://github.com/photostructure/gavel/releases/tag/v7.0.0
 [6.0.0]: https://github.com/photostructure/gavel/releases/tag/v6.0.0
 [5.1.0]: https://github.com/photostructure/difit/releases/tag/v5.1.0
