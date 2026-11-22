@@ -22,13 +22,14 @@ rebased stack in place.
 
 ## Current phase
 
-Next: hunk matching (task 2).
+Next: the server delta (task 3), which is `captureDelta`'s first production caller.
 
 - [x] Design settled: see Decisions and Solutions
 - [x] Viewed-file hash ignores hunk line numbers: `getDiffContentForHashing` in
       `src/client/utils/diffUtils.ts`, pinned by `pnpm test diffUtils`
 - [x] `approvedVersion` recorded and exposed: `pnpm test conversation-approval named-reviews.integration`
-- [ ] Hunk matching between two capture versions
+- [x] Hunk matching between two capture versions: `captureDelta` in
+      `src/server/capture-delta.ts`, `pnpm test capture-delta`
 - [ ] Server returns the delta for a `since` version
 - [ ] "Changes since vN" view in the web UI
 - [ ] Threads carried across an unchanged hunk
@@ -94,6 +95,13 @@ Accepted as recommended on 2026-11-21 (5A-1 A, 5A-2 A, 5A-3 A):
   nothing when the verdict is already approve (the `onVerdict` handler in
   `App.tsx` skips the shown verdict). Only the narrow-header verdict menu sends
   approve again.
+- `captureDelta` pools hunks per path, not per record: Git writes a typechange
+  as a deletion record and an addition record for one path, and a rebase can
+  drop one of them. A file with no hunks (binary, rename-only, mode-only, empty)
+  has nothing to hide hunk by hunk; its `headerUnchanged` compares the whole
+  record, whose `index` line names the content. For a file with hunks,
+  `headerUnchanged` ignores the `index` and similarity lines, which a rebase
+  recomputes, so a mode or rename change beside unchanged hunks still shows.
 - `isThreadOutdated` marks every thread outdated when its `capture.version`
   differs from the shown capture, whether or not its hunk changed.
 - Before the hash fix, `useViewedFiles` restored viewed state across a rebase from
@@ -176,10 +184,12 @@ current capture; the reviewer can pick any earlier version.
    blob lines: everything unchanged), one edited hunk, a reverted hunk, a merged
    hunk, a whitespace-only edit (changed), adding or removing a final newline
    (changed), the same edit repeated in two identical places where vN had one
-   (both changed), and a rename.
+   (both changed), and a rename. Done as `captureDelta`; review added cases for a
+   typechange's two records, a mode change beside unchanged hunks, a binary file,
+   and a rename whose similarity percentage a rebase recomputed.
 3. Server delta: `/api/diff` for a named review accepts `since=N` and returns,
-   with the current diff, each hunk's unchanged flag, each file's removed-hunk
-   count, and the vN-only paths. Acceptance: `src/server/server.test.ts` cases for
+   with the current diff, `captureDelta`'s answer: each hunk's unchanged flag,
+   each file's `headerUnchanged` and removed-hunk count, and the vN-only paths. Acceptance: `src/server/server.test.ts` cases for
    a valid `since`, `since` equal to the current version (nothing changed), and an
    unknown version (HTTP 404).
 4. Web UI: when `approvedVersion` is older than the current capture, the review
@@ -240,3 +250,13 @@ current capture; the reviewer can pick any earlier version.
   Reviewed the task 1 diff, 2 passes, Codex `01a20142-088d-75d3-96fc-76d0a86c0f43`
   and Claude `e23f0698-6701-4770-87f0-317e353f7b8a`: R798-A accepted (the Codex
   copy of the skill lacked the `approvedVersion` sentence).
+- 2026-11-22, Claude Code `44812c1c-b80d-4efd-b173-84eefe35d45a`, primary checkout.
+  Task 2. Misstep: the first version paired a path's records by position, which a
+  rebase that drops one record of a typechange breaks (R998-B); pooling hunks per
+  path replaced it. Reviewed the task 2 diff, 4 passes, Codex
+  `01a20483-8747-7a71-92cd-fc579af82d68` and Claude
+  `f05d1cfa-f8f1-4b59-8946-3046ad44e69b`: R533-A/R998-A (a typechange's second
+  record overwrote the first), R533-B (no answer for files without hunks),
+  R533-C (a mode change beside unchanged hunks went unreported), R533-D (a
+  recomputed similarity percentage marked a rename changed) and R998-B accepted;
+  one Minor (use `!`) vetoed because oxlint forbids non-null assertions.

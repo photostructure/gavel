@@ -367,7 +367,7 @@ function parseGitFile(patch: string): RawFile {
   };
 }
 
-function parsePatch(patch: string): RawFile[] {
+export function parsePatch(patch: string): RawFile[] {
   if (Buffer.byteLength(patch, 'utf8') > MAX_CAPTURE_BYTES)
     throw new Error('Review capture exceeds the 8 MiB limit');
   if (Buffer.from(patch).toString('utf8') !== patch)
