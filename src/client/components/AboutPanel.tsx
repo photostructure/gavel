@@ -129,10 +129,15 @@ export function AboutPanel({
         aria-modal="true"
         aria-label="About"
         onKeyDown={(event) => {
-          // The app binds ? in the navigation scope, which About disables while it is open.
-          if (event.key !== '?') return;
-          event.preventDefault();
-          onShowShortcuts();
+          // The app binds ? and a in the navigation scope, which About disables while it is
+          // open. Ctrl+A and its kin still select text; Shift+A arrives as 'A'.
+          if (event.key === '?') {
+            event.preventDefault();
+            onShowShortcuts();
+          } else if (event.key === 'a' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            event.preventDefault();
+            onClose();
+          }
         }}
         className="slide-over review-panel relative h-full w-full max-w-lg overflow-y-auto border-l border-github-border bg-github-bg-primary p-5 text-github-text-primary shadow-lg"
       >

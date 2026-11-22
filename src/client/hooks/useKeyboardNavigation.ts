@@ -529,7 +529,7 @@ export function useKeyboardNavigation({
   // Show or hide the files changed panel
   useHotkeys('f', () => onToggleFileTree?.(), hotkeyOptions, [onToggleFileTree]);
 
-  // Open About
+  // Open About; the open panel closes itself on a
   useHotkeys('a', () => onShowAbout?.(), hotkeyOptions, [onShowAbout]);
 
   return {

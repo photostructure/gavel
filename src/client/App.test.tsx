@@ -2430,7 +2430,7 @@ describe('App Component - Sidebar persistence', () => {
     await waitFor(() => expect(toggleButton).toHaveAttribute('aria-expanded', 'true'));
   });
 
-  it('opens About with the a key, but not with Shift+A', async () => {
+  it('toggles About with the a key, but not with Shift+A or Ctrl+A', async () => {
     renderApp();
     await screen.findByRole('button', { name: 'About' });
 
@@ -2438,7 +2438,14 @@ describe('App Component - Sidebar persistence', () => {
     expect(screen.queryByRole('dialog', { name: 'About' })).toBeNull();
 
     fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
-    expect(await screen.findByRole('dialog', { name: 'About' })).toBeInTheDocument();
+    const about = await screen.findByRole('dialog', { name: 'About' });
+
+    // About takes focus as it opens, so its keys reach the panel.
+    fireEvent.keyDown(about, { key: 'a', code: 'KeyA', ctrlKey: true });
+    expect(screen.getByRole('dialog', { name: 'About' })).toBe(about);
+
+    fireEvent.keyDown(about, { key: 'a', code: 'KeyA' });
+    expect(screen.queryByRole('dialog', { name: 'About' })).toBeNull();
   });
 });
 
