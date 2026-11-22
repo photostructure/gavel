@@ -1,5 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { HotkeysProvider } from 'react-hotkeys-hook';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UnsavedChanges } from '../hooks/useReviewOps';
@@ -9,7 +10,12 @@ const one: UnsavedChanges = { count: 1, failure: 'Failed to fetch' };
 const two: UnsavedChanges = { count: 2, failure: 'Failed to fetch' };
 
 function mount(unsaved: UnsavedChanges | null, onSendNow = vi.fn(async () => {})) {
-  const view = render(<UnsavedChangesToast unsaved={unsaved} onSendNow={onSendNow} />);
+  // Escape is a navigation hotkey, as in the app.
+  const view = render(<UnsavedChangesToast unsaved={unsaved} onSendNow={onSendNow} />, {
+    wrapper: ({ children }) => (
+      <HotkeysProvider initiallyActiveScopes={['navigation']}>{children}</HotkeysProvider>
+    ),
+  });
   return {
     onSendNow,
     show: (next: UnsavedChanges | null) =>
@@ -35,6 +41,12 @@ describe('UnsavedChangesToast', () => {
     expect(alert).toHaveTextContent(
       'Sending failed (Failed to fetch). Gavel sends them again with your next change, when you reload, or when the live connection reopens.',
     );
+  });
+
+  it('hides when the reviewer presses Escape', async () => {
+    mount(one);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('sends the waiting changes when the reviewer asks', async () => {

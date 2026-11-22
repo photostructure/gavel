@@ -1,12 +1,18 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { HotkeysProvider } from 'react-hotkeys-hook';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CopyFailedNotice } from './CopyFailedNotice';
 
 function mount(failure: number | null) {
   const onDismiss = vi.fn();
-  const view = render(<CopyFailedNotice failure={failure} onDismiss={onDismiss} />);
+  // Escape is a navigation hotkey, as in the app.
+  const view = render(<CopyFailedNotice failure={failure} onDismiss={onDismiss} />, {
+    wrapper: ({ children }) => (
+      <HotkeysProvider initiallyActiveScopes={['navigation']}>{children}</HotkeysProvider>
+    ),
+  });
   const region = () => screen.getByRole('status', { name: 'Copy failed' });
   // The countdown bar is aria-hidden, so no role query reaches it.
   const countdown = () => view.container.querySelector('.toast-countdown');
@@ -37,6 +43,12 @@ describe('CopyFailedNotice', () => {
   it('calls onDismiss when the reviewer clicks Dismiss', async () => {
     const { onDismiss } = mount(1);
     await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it('calls onDismiss when the reviewer presses Escape', async () => {
+    const { onDismiss } = mount(1);
+    await userEvent.keyboard('{Escape}');
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 

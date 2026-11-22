@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { HotkeysProvider } from 'react-hotkeys-hook';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -330,6 +331,19 @@ describe('links in comments', () => {
       expect(notice()).toHaveTextContent('Line 40 of "file.md" is not in this diff.'),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(notice()).toBeEmptyDOMElement();
+  });
+
+  it('closes the toast on Escape, unless Escape is closing the Conversation panel', async () => {
+    fixture({ contextUnavailable: true });
+    renderApp();
+    fireEvent.click(await screen.findByRole('link', { name: 'gone' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation' }));
+    await screen.findByRole('dialog', { name: /Conversation/ });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Conversation/ })).toBeNull());
+    expect(notice()).toHaveTextContent('No comment "nope" in this review.');
+    await userEvent.keyboard('{Escape}');
     expect(notice()).toBeEmptyDOMElement();
   });
 

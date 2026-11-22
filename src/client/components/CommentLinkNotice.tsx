@@ -1,5 +1,6 @@
 import { Link2Off, X } from 'lucide-react';
 
+import { useDismissOnEscape } from '../hooks/useDismissOnEscape';
 import { renderBidiText } from '../utils/bidiControls';
 
 import {
@@ -24,6 +25,7 @@ export function CommentLinkNotice({
   message: string | null;
   onDismiss: () => void;
 }) {
+  useDismissOnEscape(message !== null, onDismiss);
   // The live region stays mounted so screen readers announce each new message.
   return (
     <div role="status" aria-label="Link not followed">

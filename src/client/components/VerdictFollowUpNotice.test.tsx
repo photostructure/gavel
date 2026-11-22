@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
+import { HotkeysProvider } from 'react-hotkeys-hook';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ClientInboxDelivery } from '../hooks/useInboxDelivery';
@@ -17,17 +18,20 @@ describe('verdict follow-up notice', () => {
     document.body.appendChild(element);
     return element;
   };
+  // Escape is a navigation hotkey, as in the app.
   const notice = (props: Partial<Props> & Pick<Props, 'step'>) => (
-    <VerdictFollowUpNotice
-      anchor={anchor()}
-      verdict="approve"
-      delivery={undefined}
-      busy={false}
-      onDismiss={vi.fn()}
-      onProceed={vi.fn()}
-      onUndo={vi.fn()}
-      {...props}
-    />
+    <HotkeysProvider initiallyActiveScopes={['navigation']}>
+      <VerdictFollowUpNotice
+        anchor={anchor()}
+        verdict="approve"
+        delivery={undefined}
+        busy={false}
+        onDismiss={vi.fn()}
+        onProceed={vi.fn()}
+        onUndo={vi.fn()}
+        {...props}
+      />
+    </HotkeysProvider>
   );
 
   it('renders nothing without a step', () => {
@@ -518,6 +522,17 @@ describe('verdict follow-up notice', () => {
       await waitFor(() =>
         expect(screen.getByRole('button', { name: 'Switch to task-b' })).toHaveFocus(),
       );
+      await user.keyboard('{Escape}');
+      expect(onDismiss).toHaveBeenCalledOnce();
+    });
+
+    // A click on the page takes focus out of the toast; Escape still closes it.
+    it('dismisses on Escape with focus on the page', async () => {
+      const user = userEvent.setup();
+      const onDismiss = vi.fn();
+      render(notice({ step: { kind: 'close', reviews: 1 }, onDismiss }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Dismiss' })).toHaveFocus());
+      (document.activeElement as HTMLElement).blur();
       await user.keyboard('{Escape}');
       expect(onDismiss).toHaveBeenCalledOnce();
     });

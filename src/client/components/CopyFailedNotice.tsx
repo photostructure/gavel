@@ -1,5 +1,7 @@
 import { CircleAlert, X } from 'lucide-react';
 
+import { useDismissOnEscape } from '../hooks/useDismissOnEscape';
+
 import {
   toastClasses,
   toastDetailClasses,
@@ -21,6 +23,7 @@ export function CopyFailedNotice({
   failure: number | null;
   onDismiss: () => void;
 }) {
+  useDismissOnEscape(failure !== null, onDismiss);
   // The live region stays mounted so screen readers announce each failure.
   return (
     <div role="status" aria-label="Copy failed">

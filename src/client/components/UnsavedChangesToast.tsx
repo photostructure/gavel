@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { useState } from 'react';
 
+import { useDismissOnEscape } from '../hooks/useDismissOnEscape';
 import type { UnsavedChanges } from '../hooks/useReviewOps';
 import { DeliveryGlyph, deliveryColor } from './AgentDeliveryStatus';
 import {
@@ -32,10 +33,11 @@ export function UnsavedChangesToast({
   const [sending, setSending] = useState(false);
   // Once the changes are sent, the same count and failure after a later failure show again.
   if (unsaved === null && dismissed !== null) setDismissed(null);
-  if (unsaved === null) return null;
   // A NUL cannot appear in the count, so the key tells every count and failure apart.
-  const key = `${unsaved.count}\u0000${unsaved.failure}`;
-  if (key === dismissed) return null;
+  const key = unsaved && `${unsaved.count}\u0000${unsaved.failure}`;
+  const dismiss = () => setDismissed(key);
+  useDismissOnEscape(key !== null && key !== dismissed, dismiss);
+  if (unsaved === null || key === dismissed) return null;
   const several = unsaved.count > 1;
   return (
     <div role="alert" className={toastClasses('warning')}>
@@ -71,7 +73,7 @@ export function UnsavedChangesToast({
       {/* After the actions in the DOM, so it comes last in tab order; the grid places it top right. */}
       <button
         type="button"
-        onClick={() => setDismissed(key)}
+        onClick={dismiss}
         aria-label="Dismiss"
         title="Dismiss"
         className={`col-start-3 row-start-1 ${toastDismissClasses}`}

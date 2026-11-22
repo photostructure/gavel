@@ -3,6 +3,7 @@ import { Check, CornerDownLeft, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import type { ReviewVerdict } from '../../types/conversation';
+import { useDismissOnEscape } from '../hooks/useDismissOnEscape';
 import type { ClientInboxDelivery } from '../hooks/useInboxDelivery';
 import type { VerdictFollowUpStep } from '../hooks/useVerdictFollowUp';
 
@@ -84,7 +85,7 @@ export function VerdictFollowUpNotice({
   const dismissRef = useRef<HTMLButtonElement>(null);
   const hasNext = step?.kind === 'switch' || step?.kind === 'resume';
   // A next step that goes away while focused (another tab gave the last verdict, or the prompt
-  // was copied) drops focus to the page; the X takes it, so Escape and Tab still work.
+  // was copied) drops focus to the page; the X takes it, so Return and Tab still work.
   useEffect(() => {
     if (!hasNext && document.activeElement === document.body) dismissRef.current?.focus();
   }, [hasNext]);
@@ -101,6 +102,7 @@ export function VerdictFollowUpNotice({
         (active.isContentEditable || active.matches('input, textarea, select')),
     );
   }
+  useDismissOnEscape(step !== null, onDismiss);
   if (!step) return null;
   const allDone =
     step.kind === 'resume' &&
@@ -161,11 +163,6 @@ export function VerdictFollowUpNotice({
           role="dialog"
           aria-label="Next step"
           aria-describedby={detailId}
-          onKeyDown={(event) => {
-            if (event.key !== 'Escape') return;
-            event.preventDefault();
-            onDismiss();
-          }}
           className={toastClasses(kind)}
         >
           {/* The cell stays without a glyph, so the message keeps its column. */}

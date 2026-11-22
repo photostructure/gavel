@@ -327,7 +327,7 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
                 <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
                   Esc
                 </kbd>
-                <span className="ui-value">After a verdict, dismiss the toast</span>
+                <span className="ui-value">Dismiss the toasts below the header</span>
               </div>
               <div className="flex justify-between text-sm">
                 <kbd className="px-2 py-1 bg-github-bg-tertiary border border-github-border rounded text-github-text-primary font-mono">
