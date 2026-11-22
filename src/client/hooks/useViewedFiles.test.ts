@@ -593,8 +593,7 @@ describe('useViewedFiles', () => {
           {
             filePath: 'src/unchanged.ts',
             diffContentHash: hashFor('src/unchanged.ts', 'modified'),
-            // Cast through unknown to simulate a future version we don't understand.
-            hashVersion: 999 as unknown as 1,
+            hashVersion: 999,
             viewedAt: '2026-01-01T00:00:00Z',
           },
         ],

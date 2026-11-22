@@ -53,7 +53,8 @@ export function getDiffContentForHashing(file: DiffFile): string {
         .filter((line) => line.type !== 'hunk' && line.type !== 'header')
         .map((line) => `${line.type}:${line.content}`)
         .join('\n');
-      return `${chunk.header}\n${lines}`;
+      // Drop the hunk's line numbers, so a hunk that a rebase only moved hashes the same.
+      return `${chunk.header.replace(/^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/, '@@')}\n${lines}`;
     })
     .join('\n\n');
 

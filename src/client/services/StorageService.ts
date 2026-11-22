@@ -11,7 +11,7 @@ const STORAGE_KEY_PREFIX = 'gavel-storage-v1';
 const VIEWED_INDEX_PREFIX = 'gavel-viewed-index-v1';
 const DEFAULT_REPO_ID = '__default__';
 const MAX_VIEWED_INDEX_ENTRIES = 5000;
-export const VIEWED_HASH_VERSION = 1;
+export const VIEWED_HASH_VERSION = 2;
 
 function compositeKey(filePath: string, diffContentHash: string): string {
   return `${filePath} ${diffContentHash}`;

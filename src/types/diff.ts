@@ -196,7 +196,8 @@ export interface ViewedFileRecord {
 export interface ViewedHashIndexEntry {
   filePath: string;
   diffContentHash: string;
-  hashVersion: 1;
+  /** The `VIEWED_HASH_VERSION` that wrote it; entries from other versions are ignored. */
+  hashVersion: number;
   viewedAt: string; // ISO 8601 format
 }
 
